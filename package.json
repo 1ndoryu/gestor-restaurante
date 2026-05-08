@@ -3,7 +3,7 @@
   "private": true,
   "description": "Comandos unificados para el monorepo Rust + React",
   "scripts": {
-    "dev": "node scripts/dev.mjs",
+    "dev": "node glory-rs/scripts/dev.mjs",
     "check": "node scripts/run-cargo.mjs check && node scripts/run-cargo.mjs clippy && npm --prefix frontend run type-check",
     "check:back": "node scripts/run-cargo.mjs check && node scripts/run-cargo.mjs clippy",
     "check:front": "npm --prefix frontend run type-check",
@@ -15,7 +15,9 @@
     "codegen": "npm --prefix frontend run codegen",
     "test": "node scripts/run-cargo.mjs test",
     "seed": "node scripts/run-with-db.mjs run --bin seed",
-    "self-check": "powershell -ExecutionPolicy Bypass -File scripts/self-check.ps1"
+    "self-check": "powershell -ExecutionPolicy Bypass -File scripts/self-check.ps1",
+    "roadmap": "node scripts/check-roadmap.mjs",
+    "roadmap:watch": "node scripts/check-roadmap.mjs --watch"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"

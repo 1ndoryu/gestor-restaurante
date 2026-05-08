@@ -12,6 +12,13 @@ Cada lección debe ser concisa y accionable.
 **Solución:** Regla 18 en protocolo + regla `emoji-en-codigo` en Glory Sentinel.
 **Acción preventiva:** Sentinel lo detecta automáticamente ahora.
 
+## 2026-05-08 — Node/Vite dependencias por rama
+
+**Problema:** Cambiar de rama no actualiza `frontend/node_modules`; Git cambia `package.json`/`package-lock.json`, pero el arbol instalado queda como estado local compartido.
+**Causa raiz:** Vite puede detectar el lockfile nuevo y reoptimizar, pero no instala paquetes ausentes.
+**Solucion:** El launcher compartido `glory-rs/scripts/dev.mjs` sincroniza una vez por huella de lockfile antes de arrancar Vite.
+**Prevencion:** Si un script es agnostico del flujo local (`dev`, limpieza de target, reparacion de dependencias), debe vivir en `glory-rs/scripts/`; la raiz solo conserva wrappers o scripts especificos inevitables. Recalcular la huella despues de `npm install`, porque npm puede ajustar `package-lock.json`.
+
 ## 2026-03-25 — node_modules/ raíz sin .gitignore
 
 **Problema:** `npm install` en la raíz creó `node_modules/` que no estaba en `.gitignore`, causando 2596 archivos sin trackear.

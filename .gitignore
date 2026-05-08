@@ -43,12 +43,17 @@ extracted/
 !/scripts/dev.mjs
 !/scripts/branch-db.mjs
 !/scripts/run-with-db.mjs
+!/scripts/self-check.ps1
 prerendered/
 .cargo/config.toml
 
 # Directorios de otras ramas del repo que viven en el mismo directorio físico
 /clients
-/backups
+/backups/
+/legacy-assets/
+/colors/
+/colors
 
 # Junction local que apunta a colors del tema WP — solo existe en dev (de kamples)
+/frontend/public/legacy-assets/
 /frontend/public/legacy-assets/colors/
