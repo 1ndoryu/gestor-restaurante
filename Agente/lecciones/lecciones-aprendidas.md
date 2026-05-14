@@ -12,6 +12,15 @@ Cada lección debe ser concisa y accionable.
 **Solución:** Regla 18 en protocolo + regla `emoji-en-codigo` en Glory Sentinel.
 **Acción preventiva:** Sentinel lo detecta automáticamente ahora.
 
+## 2026-05-14 — DNS collision: `postgres` hostname → coolify-db en multi-red Docker
+
+**Problema:** App crash loop `28P01 password authentication failed` en restaurante.wandori.us.
+**Causa raíz real:** Cuando Coolify conecta el container app a la red `coolify` para que Traefik lo enrute, el hostname `postgres` en `DATABASE_URL` resuelve al alias `postgres` de `coolify-db` (10.0.1.2), NO al postgres del stack (10.0.10.4). Las credenciales `glory_app` no existen en la BD de Coolify → `28P01`.
+**Diagnóstico clave:** `docker run --rm --network stack_uuid --network coolify busybox nslookup postgres` devuelve 10.0.1.2. Sin la red coolify devuelve 10.0.10.4.
+**Solución inmediata:** Cambiar DATABASE_URL para usar el nombre completo del container: `@postgres-{uuid}:` en lugar de `@postgres:`. El nombre es globalmente único y resuelve correctamente desde cualquier red.
+**Prevención:** Los templates nuevos de coolify-manager-rs ya usan `postgres-{{STACK_UUID}}`. Para stacks legacy, `fix-db-auth` ahora detecta y corrige el hostname.
+**Atención:** El error `28P01` es engañoso — puede ser contraseña incorrecta O container equivocado. Siempre verificar con `nslookup postgres` desde dentro del container antes de modificar contraseñas.
+
 ## 2026-05-08 — Node/Vite dependencias por rama
 
 **Problema:** Cambiar de rama no actualiza `frontend/node_modules`; Git cambia `package.json`/`package-lock.json`, pero el arbol instalado queda como estado local compartido.
