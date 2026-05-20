@@ -9,8 +9,10 @@ El flujo pensado para cliente no técnico es: doble clic al exe, aceptar UAC y s
 ## Binario
 
 - Origen: src/bin/remote_access_bootstrap.rs
-- Build: cargo build --release --bin remote_access_bootstrap
-- Salida esperada: el directorio `release` del target activo de Cargo. En esta workstation quedó en `C:/tmp/glory-target/release/remote_access_bootstrap.exe`.
+- El fuente vive dentro del repositorio, en `src/bin/remote_access_bootstrap.rs`.
+- Build recomendado para dejar el `.exe` dentro del repo: `cargo build --release --target-dir target --bin remote_access_bootstrap`
+- Salida esperada dentro del repo: `target/release/remote_access_bootstrap.exe`.
+- Nota: si `CARGO_TARGET_DIR` está apuntando a otro directorio, Cargo escribirá fuera del repo. La ruta `C:/tmp/glory-target/release/remote_access_bootstrap.exe` fue solo un caso local de esa workstation, no la ubicación que debe usarse como referencia del proyecto.
 - Config opcional compañera: `remote_access_bootstrap.config.json` en la misma carpeta que el exe.
 
 ## Qué automatiza

@@ -428,10 +428,28 @@ fn enable_rdp(edition: &str) -> Result<RdpState, BootstrapError> {
     if !edition_supports_rdp(edition) {
         return Ok(RdpState::Unsupported(edition.to_string()));
     }
-    run_powershell(
-        r"Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0; Enable-NetFirewallRule -DisplayGroup 'Remote Desktop' | Out-Null",
-    )?;
+    run_powershell(rdp_firewall_script())?;
     Ok(RdpState::Enabled)
+}
+
+fn rdp_firewall_script() -> &'static str {
+    r"Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
+# Permitir RDP con cuentas sin contrasena (LimitBlankPasswordUse = 1 bloquea con error 0xc07)
+Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name 'LimitBlankPasswordUse' -Value 0
+# Agregar BUILTIN\Users al grupo Remote Desktop Users usando SID S-1-5-32-555 (language-neutral)
+$rdpGroup = Get-LocalGroup | Where-Object { $_.SID.Value -eq 'S-1-5-32-555' } | Select-Object -First 1
+if ($rdpGroup) { Add-LocalGroupMember -Group $rdpGroup.Name -Member 'BUILTIN\Users' -ErrorAction SilentlyContinue }
+$rules = Get-NetFirewallRule -Name 'RemoteDesktop-*' -ErrorAction SilentlyContinue
+if ($rules) {
+    $rules | Enable-NetFirewallRule | Out-Null
+} else {
+    $rule = Get-NetFirewallRule -DisplayName 'Glory Remote Desktop Tailscale' -ErrorAction SilentlyContinue
+    if ($rule) {
+        $rule | Enable-NetFirewallRule | Out-Null
+    } else {
+        New-NetFirewallRule -DisplayName 'Glory Remote Desktop Tailscale' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 3389 -RemoteAddress 100.64.0.0/10 | Out-Null
+    }
+}"
 }
 
 async fn ensure_rustdesk_installed() -> Result<PathBuf, BootstrapError> {
@@ -778,7 +796,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_tailscale_amd64_msi_url, edition_supports_rdp, ps_single_quote, Config};
+    use super::{extract_tailscale_amd64_msi_url, edition_supports_rdp, ps_single_quote, rdp_firewall_script, Config};
 
     #[test]
     fn windows_home_no_soporta_rdp_host() {
@@ -790,6 +808,13 @@ mod tests {
     fn windows_professional_y_server_si_soportan_rdp() {
         assert!(edition_supports_rdp("Professional"));
         assert!(edition_supports_rdp("ServerStandard"));
+    }
+
+    #[test]
+    fn rdp_firewall_no_depende_del_nombre_visible_localizado() {
+        let script = rdp_firewall_script();
+        assert!(script.contains("RemoteDesktop-*"));
+        assert!(!script.contains("DisplayGroup 'Remote Desktop'"));
     }
 
     #[test]
