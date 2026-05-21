@@ -4,7 +4,7 @@
 
 La base de integracion ya valida el PC real del restaurante por Tailscale sin guardar credenciales en el repositorio. La URL operativa actual es `http://100.83.196.35:8068`; `Health`, `Login` y `GetVersion` quedaron probados contra WebLink real. La documentacion completa pegada desde PDF vive en `# WEBLINK RESTAPI.md` y la configuracion operativa queda por restaurante en `configuracion_restaurante`.
 
-El backend incorpora una prueba de sincronizacion segura: lecturas reales de WebLink y una comanda de prueba enviada a `/API/Orders/Create` con `OrderOperationType = 1` (`OnlyCheck`). Ese modo pide a BDP validar el payload de comanda sin crear comanda, pago ni factura.
+El backend incorpora una prueba de sincronizacion segura: lecturas reales de WebLink y una comanda de prueba enviada a `/API/Orders/Create` con `OrderOperationType = 1` (`OnlyCheck`). Ese modo pide a BDP validar el payload de comanda sin crear comanda, pago ni factura. En produccion, el PC del restaurante ya valida todas las lecturas, pero BDP rechaza el `CreateOrder OnlyCheck` con `[300035]-NO SE HA DEFINIDO UNA SERIE DE FACTURACION VALIDA`; esto requiere configurar en BDP la serie/destino valida para comandas WebLink antes de activar escrituras reales.
 
 ## Implementado
 
@@ -72,5 +72,5 @@ Cuando `listo_para_sincronizar = true`, la plataforma puede decir al cliente que
 - La API BDP usa nombres PascalCase y errores de negocio en `ErrorMessage`; no tratar HTTP 200 como exito sin revisar ese campo.
 - Las respuestas de articulos, clientes, comandas y pagos quedan como JSON hasta probar contra el PC real. El manual es grande y no conviene cerrar structs definitivos sin ver datos reales de BDP-NET.
 - `OrderOperationType = 1` es el modo seguro de validacion: si BDP responde OK, valido conectividad, credenciales, permisos, articulo, formas de pago disponibles y shape de comanda sin escribir datos.
-- En el BDP real del restaurante, incluir `Payments` por el total de la comanda hace que BDP valide facturacion y pueda devolver `[300035]-NO SE HA DEFINIDO UNA SERIE DE FACTURACION VALIDA`, incluso usando `OnlyCheck` e `Invoice=false`. El dry-run de comanda se mantiene sin pagos; la validacion de pagos queda separada por lectura de `/API/Tenders/GetPOSList`.
+- En el BDP real del restaurante, BDP exige `Order.AlreadyInvoiced` y despues devuelve `[300035]-NO SE HA DEFINIDO UNA SERIE DE FACTURACION VALIDA` incluso usando `OnlyCheck`, `Invoice=false` y una comanda sin `Payments`. `/API/POSSeries/GetList` devuelve series, pero el manual no expone un campo de serie en `CreateOrder`; por tanto falta una configuracion de serie/destino en el TPV/WebLink, no una escritura desde nuestra app.
 - La validacion final antes de activar escrituras reales es ejecutar el boton `Probar sincronizacion segura` en produccion y guardar captura/resultado de `listo_para_sincronizar = true`.

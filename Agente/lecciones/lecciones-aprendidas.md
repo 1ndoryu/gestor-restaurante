@@ -19,12 +19,12 @@ Cada lección debe ser concisa y accionable.
 **Solucion:** Implementar preflight que lee datos reales y llama `CreateOrder` con `OrderOperationType = 1` (`OnlyCheck`). El cliente fuerza ese modo aunque el caller envie otro valor.
 **Prevencion:** Antes de prometer una integracion BDP, exigir resultado `listo_para_sincronizar = true` del endpoint `/api/configuracion/bdp/sync-dry-run`.
 
-## 2026-05-21 — BDP OnlyCheck con pagos puede activar validacion de facturacion
+## 2026-05-21 — BDP OnlyCheck puede requerir serie WebLink configurada
 
 **Problema:** El dry-run real llegaba a `/API/Orders/Create`, pero BDP rechazaba el payload con `[300035]-NO SE HA DEFINIDO UNA SERIE DE FACTURACION VALIDA`.
-**Causa raiz:** Enviar `Payments` por el total de la comanda hace que BDP valide la ruta de facturacion/series aunque `OrderOperationType=1`, `Invoice=false` y `AlreadyInvoiced=false`.
-**Solucion:** Mantener el `CreateOrder OnlyCheck` sin pagos para validar la comanda sin tocar facturacion; validar formas de pago por separado con `/API/Tenders/GetPOSList`.
-**Prevencion:** No mezclar validacion segura de comanda con validacion de cobro/factura. La activacion de pagos reales necesita una fase separada con serie de facturacion configurada y aprobacion explicita.
+**Causa raiz:** BDP exige `Order.AlreadyInvoiced` y valida una serie/destino de facturacion para `CreateOrder` aunque se use `OrderOperationType=1`, `Invoice=false` y no se envien `Payments`.
+**Solucion:** Mantener el `CreateOrder OnlyCheck` sin pagos y dejar el resultado como bloqueo de configuracion BDP cuando aparezca `[300035]`. Se verifico que `/API/POSSeries/GetList` devuelve series, pero el manual no documenta un campo de serie en `CreateOrder`.
+**Prevencion:** No activar escrituras reales hasta que el tecnico/cliente configure en BDP la serie/destino WebLink correspondiente y el endpoint `/api/configuracion/bdp/sync-dry-run` responda `listo_para_sincronizar=true`.
 
 ## 2026-03-25 — Emojis Unicode en JSX
 
