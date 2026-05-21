@@ -3,7 +3,7 @@
  * Health + Login + GetVersion para la sesion remota con el PC del restaurante. */
 
 import { useState } from 'react';
-import { Activity, Loader2 } from 'lucide-react';
+import { Activity, CheckCircle2, ClipboardCheck, Loader2, XCircle } from 'lucide-react';
 import axios from '@/api/axios-instance';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,20 +14,50 @@ import { toast } from 'sonner';
 import type { EstadoConfiguracion } from '../hooks/useConfiguracion';
 import type { BdpDiagnosticoResponse } from '../api/generated/gestionRestauranteAPI.schemas';
 
+interface BdpSyncDryRunCheck {
+  nombre: string;
+  endpoint: string;
+  ok: boolean;
+  mensaje: string;
+  cantidad?: number | null;
+  muestra?: string | null;
+}
+
+interface BdpSyncDryRunResponse {
+  configurado: boolean;
+  sync_habilitado: boolean;
+  escritura_real: boolean;
+  listo_para_sincronizar: boolean;
+  mensaje: string;
+  checks: BdpSyncDryRunCheck[];
+}
+
+interface BdpUiState {
+  diagnostico: BdpDiagnosticoResponse | null;
+  dryRun: BdpSyncDryRunResponse | null;
+  diagnosticando: boolean;
+  probandoSync: boolean;
+}
+
 interface ConfigBdpProps {
   config: EstadoConfiguracion;
   cambiarCampo: <K extends keyof EstadoConfiguracion>(campo: K, valor: EstadoConfiguracion[K]) => void;
 }
 
 function ConfigBdp({ config, cambiarCampo }: ConfigBdpProps) {
-  const [diagnostico, setDiagnostico] = useState<BdpDiagnosticoResponse | null>(null);
-  const [diagnosticando, setDiagnosticando] = useState(false);
+  const [estadoBdp, setEstadoBdp] = useState<BdpUiState>({
+    diagnostico: null,
+    dryRun: null,
+    diagnosticando: false,
+    probandoSync: false,
+  });
+  const { diagnostico, dryRun, diagnosticando, probandoSync } = estadoBdp;
 
   async function diagnosticar() {
-    setDiagnosticando(true);
+    setEstadoBdp((actual) => ({ ...actual, diagnosticando: true }));
     try {
       const resp = await axios.get<BdpDiagnosticoResponse>('/api/configuracion/bdp/diagnostico');
-      setDiagnostico(resp.data);
+      setEstadoBdp((actual) => ({ ...actual, diagnostico: resp.data }));
       if (resp.data.health_ok && resp.data.login_ok) {
         toast.success('BDP conectado', { description: resp.data.mensaje });
       } else {
@@ -37,7 +67,25 @@ function ConfigBdp({ config, cambiarCampo }: ConfigBdpProps) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'No se pudo diagnosticar BDP';
       toast.error('Error BDP', { description: msg });
     } finally {
-      setDiagnosticando(false);
+      setEstadoBdp((actual) => ({ ...actual, diagnosticando: false }));
+    }
+  }
+
+  async function probarSincronizacion() {
+    setEstadoBdp((actual) => ({ ...actual, probandoSync: true }));
+    try {
+      const resp = await axios.get<BdpSyncDryRunResponse>('/api/configuracion/bdp/sync-dry-run');
+      setEstadoBdp((actual) => ({ ...actual, dryRun: resp.data }));
+      if (resp.data.listo_para_sincronizar) {
+        toast.success('Sincronización validada', { description: resp.data.mensaje });
+      } else {
+        toast.warning('Sincronización pendiente', { description: resp.data.mensaje });
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'No se pudo probar la sincronización BDP';
+      toast.error('Error BDP', { description: msg });
+    } finally {
+      setEstadoBdp((actual) => ({ ...actual, probandoSync: false }));
     }
   }
 
@@ -134,6 +182,10 @@ function ConfigBdp({ config, cambiarCampo }: ConfigBdpProps) {
             {diagnosticando ? <Loader2 className="size-4 animate-spin" /> : <Activity className="size-4" />}
             Probar conexión
           </Button>
+          <Button type="button" variant="secondary" onClick={probarSincronizacion} disabled={probandoSync}>
+            {probandoSync ? <Loader2 className="size-4 animate-spin" /> : <ClipboardCheck className="size-4" />}
+            Probar sincronización segura
+          </Button>
           {diagnostico && (
             <span className={diagnostico.health_ok && diagnostico.login_ok ? 'text-sm text-green-600' : 'text-sm text-destructive'}>
               {diagnostico.mensaje}
@@ -144,6 +196,41 @@ function ConfigBdp({ config, cambiarCampo }: ConfigBdpProps) {
           <div className="grid gap-2 rounded-md border p-3 text-sm md:grid-cols-2">
             <span>Versión: {diagnostico.version}.{diagnostico.sub_version ?? 0}</span>
             <span>Aplicación: {diagnostico.application_description || diagnostico.application}</span>
+          </div>
+        )}
+        {dryRun && (
+          <div className="flex flex-col gap-3 rounded-md border p-3 text-sm">
+            <div className="flex items-start gap-2">
+              {dryRun.listo_para_sincronizar ? (
+                <CheckCircle2 className="mt-0.5 size-4 text-green-600" />
+              ) : (
+                <XCircle className="mt-0.5 size-4 text-destructive" />
+              )}
+              <div className="flex flex-col gap-1">
+                <span className={dryRun.listo_para_sincronizar ? 'font-medium text-green-700' : 'font-medium text-destructive'}>
+                  {dryRun.mensaje}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Escritura real: {dryRun.escritura_real ? 'sí' : 'no'} · Sync activo: {dryRun.sync_habilitado ? 'sí' : 'no'}
+                </span>
+              </div>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {dryRun.checks.map((check) => (
+                <div key={`${check.nombre}-${check.endpoint}`} className="rounded-md border p-2">
+                  <div className="flex items-center gap-2">
+                    {check.ok ? <CheckCircle2 className="size-4 text-green-600" /> : <XCircle className="size-4 text-destructive" />}
+                    <span className="font-medium">{check.nombre}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{check.mensaje}</p>
+                  {(check.cantidad !== null && check.cantidad !== undefined) || check.muestra ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {check.cantidad !== null && check.cantidad !== undefined ? `${check.cantidad} registros` : check.muestra}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </CardContent>

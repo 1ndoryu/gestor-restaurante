@@ -2,6 +2,7 @@ mod api_key;
 mod auth;
 pub mod bdp_weblink;
 pub mod bdp_weblink_catalog;
+mod bdp_sync_preflight;
 mod campana;
 mod canal_reserva;
 mod chatbot;
@@ -23,6 +24,7 @@ mod venta;
 
 pub use api_key::ApiKeyService;
 pub use auth::AuthService;
+pub use bdp_sync_preflight::{BdpSyncDryRunResponse, BdpSyncPreflightService};
 pub use campana::CampanaService;
 pub use canal_reserva::CanalReservaService;
 pub use chatbot::ChatbotService;

@@ -5,6 +5,20 @@ Cada lección debe ser concisa y accionable.
 
 ---
 
+## 2026-05-21 — Limpieza Cargo: watcher no basta bajo presion de disco
+
+**Problema:** `cargo test` fallo con `os error 112` porque `C:\tmp\glory-target` llego a ~15.86 GB y el disco quedo con menos de 1 MB libre.
+**Causa raiz:** La limpieza existia como watcher, pero corre cada 120s y se pospone si detecta Cargo activo. Las validaciones puntuales tambien podian ejecutarse con `cargo` directo o con `--target-dir target`, saltandose la poda prevista.
+**Solucion:** `scripts/run-cargo.mjs` ejecuta preflight de limpieza antes de `build/check/clippy/run/test`, poda `C:\tmp\glory-target` con `clean-cargo-target.ps1` y falla temprano si el espacio sigue por debajo del umbral.
+**Prevencion:** Usar `node scripts/run-cargo.mjs ...` para validaciones Rust del repo. No lanzar `cargo` directo cuando el target compartido esta en `C:\tmp\glory-target`.
+
+## 2026-05-21 — BDP CreateOrder permite dry-run real con OnlyCheck
+
+**Problema:** `Health/Login/GetVersion` probaban conexion, pero no daban certeza sobre sincronizacion de comandas.
+**Causa raiz:** Faltaba validar catalogo, POS, empleado, forma de pago y shape real de `/API/Orders/Create` sin escribir datos del cliente.
+**Solucion:** Implementar preflight que lee datos reales y llama `CreateOrder` con `OrderOperationType = 1` (`OnlyCheck`). El cliente fuerza ese modo aunque el caller envie otro valor.
+**Prevencion:** Antes de prometer una integracion BDP, exigir resultado `listo_para_sincronizar = true` del endpoint `/api/configuracion/bdp/sync-dry-run`.
+
 ## 2026-03-25 — Emojis Unicode en JSX
 
 **Problema:** Se usaron emojis Unicode directamente en componentes React en vez de SVG/iconos.

@@ -184,6 +184,16 @@ impl<'a> BdpWeblinkClient<'a> {
             .await
     }
 
+    pub async fn check_order(
+        &self,
+        request: &BdpCreateOrderRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        let mut request = request.clone();
+        request.order_operation_type = 1;
+        self.post_authenticated_json(BDP_PATH_CREATE_ORDER, &request)
+            .await
+    }
+
     pub async fn get_order(&self, request: &BdpGetOrderRequest) -> Result<Value, BdpWeblinkError> {
         self.post_authenticated_json(BDP_PATH_GET_ORDER, request)
             .await
@@ -563,6 +573,53 @@ mod tests {
             .unwrap();
 
         assert!(response["Articles"].is_array());
+    }
+
+    #[tokio::test]
+    async fn check_order_forces_only_check_mode() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/Auth/Login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": "",
+                "AuthSession": {
+                    "Token": "token-bdp",
+                    "ExpiresIn_InSecconds": 3540
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        Mock::given(method("POST"))
+            .and(path("/API/Orders/Create"))
+            .and(header("authorization", "Bearer token-bdp"))
+            .and(body_json(serde_json::json!({
+                "EmployeeId": 1,
+                "ItemsProfileId": 1,
+                "OrderEndType": 0,
+                "OrderOperationType": 1,
+                "Order": { "Items": [] }
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": ""
+            })))
+            .mount(&server)
+            .await;
+
+        let config = config(server.uri());
+        let client = BdpWeblinkClient::new(&config);
+        let response = client
+            .check_order(&BdpCreateOrderRequest {
+                employee_id: 1,
+                items_profile_id: 1,
+                order_end_type: 0,
+                order_operation_type: 0,
+                order: serde_json::json!({ "Items": [] }),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(response_error_message(&response), None);
     }
 
     #[test]

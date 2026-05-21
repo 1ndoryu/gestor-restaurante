@@ -17,7 +17,10 @@ use crate::models::{
     IntegracionMarketingPublica,
 };
 use crate::services::bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
-use crate::services::{ConfiguracionService, IntegracionMarketingService};
+use crate::services::{
+    BdpSyncDryRunResponse, BdpSyncPreflightService, ConfiguracionService,
+    IntegracionMarketingService,
+};
 use crate::AppState;
 
 #[allow(clippy::struct_excessive_bools)]
@@ -152,6 +155,10 @@ pub fn routes() -> Router<AppState> {
             get(obtener_integraciones).put(actualizar_integraciones),
         )
         .route("/configuracion/bdp/diagnostico", get(diagnosticar_bdp))
+        .route(
+            "/configuracion/bdp/sync-dry-run",
+            get(diagnosticar_bdp_sync_dry_run),
+        )
 }
 
 /// Diagnosticar conexión BDP/WebLink sin exponer credenciales
@@ -244,6 +251,25 @@ fn bdp_configurado(config: &ConfiguracionRestaurante) -> bool {
         && !config.bdp_login.trim().is_empty()
         && !config.bdp_password.trim().is_empty()
         && !config.bdp_integrator_code.trim().is_empty()
+}
+
+/// Probar sincronización BDP sin crear datos reales
+#[utoipa::path(
+    get,
+    path = "/api/configuracion/bdp/sync-dry-run",
+    tag = "Configuracion",
+    responses(
+        (status = 200, description = "Dry-run de sincronización BDP", body = BdpSyncDryRunResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn diagnosticar_bdp_sync_dry_run(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<Json<BdpSyncDryRunResponse>, AppError> {
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    Ok(Json(BdpSyncPreflightService::execute(&config).await))
 }
 
 /* ========== Integraciones de marketing ========== */
