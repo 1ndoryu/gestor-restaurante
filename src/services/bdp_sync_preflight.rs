@@ -128,7 +128,7 @@ impl BdpSyncPreflightService {
                 config.bdp_items_profile_id,
                 BDP_DRY_RUN_PAGE_SIZE,
             )),
-            &["ArticleListData", "Articles", "ArticleList"],
+            &["ArticlesListData", "ArticleListData", "Articles", "ArticleList"],
         )
         .await;
 
@@ -405,7 +405,7 @@ fn build_only_check_order(
 }
 
 fn first_article(value: &Value) -> Option<BdpDryRunArticle> {
-    value_array(value, &["ArticleListData", "Articles", "ArticleList"])?
+    value_array(value, &["ArticlesListData", "ArticleListData", "Articles", "ArticleList"])?
         .iter()
         .filter_map(|item| {
             let id = number_i64(item, &["ArtCode", "Id", "Code"])?;
@@ -579,6 +579,23 @@ mod tests {
 
         assert_eq!(article.price, 12.0);
         assert_eq!(article.vat_pct, 10.0);
+    }
+
+    #[test]
+    fn first_article_accepts_real_bdp_articles_list_key() {
+        let value = json!({
+            "ArticlesListData": [{
+                "ArtCode": 1001,
+                "ArtDescription": "CAFE BOMBON",
+                "Price1": 1.4,
+                "TAVPer": 10.0
+            }]
+        });
+
+        let article = first_article(&value).unwrap();
+
+        assert_eq!(article.id, 1001);
+        assert_eq!(article.name, "CAFE BOMBON");
     }
 
     #[test]
