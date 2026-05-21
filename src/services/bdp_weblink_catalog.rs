@@ -280,6 +280,8 @@ pub struct BdpCreateOrderRequest {
     pub items_profile_id: i32,
     pub order_end_type: i32,
     pub order_operation_type: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invoice: Option<bool>,
     pub order: Value,
 }
 

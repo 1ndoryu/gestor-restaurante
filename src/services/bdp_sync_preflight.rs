@@ -360,6 +360,7 @@ fn build_only_check_order(
         items_profile_id: config.bdp_items_profile_id,
         order_end_type: 0,
         order_operation_type: 1,
+        invoice: Some(false),
         order: json!({
             "MarketplaceOrderId": marketplace_order_id,
             "MarketId": BDP_DRY_RUN_MARKET_ID,
@@ -617,6 +618,7 @@ mod tests {
         let order = build_only_check_order(&config, &article, &tender);
 
         assert_eq!(order.order_operation_type, 1);
+    assert_eq!(order.invoice, Some(false));
         assert_eq!(order.order["Items"][0]["Id"], 1001);
         assert_eq!(order.order["AlreadyInvoiced"], false);
         assert!(order.order["MarketplaceOrderId"].as_str().unwrap().len() <= 15);

@@ -614,6 +614,7 @@ mod tests {
                 items_profile_id: 1,
                 order_end_type: 0,
                 order_operation_type: 0,
+                invoice: None,
                 order: serde_json::json!({ "Items": [] }),
             })
             .await
