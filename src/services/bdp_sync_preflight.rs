@@ -1,6 +1,6 @@
 /* [065A-4] Dry-run de sincronizacion BDP.
  * Valida datos reales de BDP y usa CreateOrder en modo OnlyCheck para probar
- * el payload de comanda sin escribir clientes, comandas ni pagos en BDP. */
+ * el payload de comanda sin escribir clientes, comandas, pagos ni facturas en BDP. */
 
 use chrono::Utc;
 use serde::Serialize;
@@ -44,11 +44,6 @@ struct BdpDryRunArticle {
     name: String,
     price: f64,
     vat_pct: f64,
-}
-
-struct BdpDryRunTender {
-    id: i32,
-    name: String,
 }
 
 pub struct BdpSyncPreflightService;
@@ -98,7 +93,7 @@ impl BdpSyncPreflightService {
         .await;
         Self::check_employee_is_allowed(config, &pos_employees, &mut response);
 
-        let tenders = Self::capture(
+        Self::capture(
             &mut response,
             "Formas de pago del POS",
             "/API/Tenders/GetPOSList",
@@ -133,8 +128,7 @@ impl BdpSyncPreflightService {
         .await;
 
         if pos.is_some() && employee.is_some() && departments.is_some() {
-            Self::check_order_only(config, &client, articles.as_ref(), tenders.as_ref(), &mut response)
-                .await;
+            Self::check_order_only(config, &client, articles.as_ref(), &mut response).await;
         }
 
         response.listo_para_sincronizar = response.checks.iter().all(|check| check.ok);
@@ -260,7 +254,6 @@ impl BdpSyncPreflightService {
         config: &ConfiguracionRestaurante,
         client: &BdpWeblinkClient<'_>,
         articles: Option<&Value>,
-        tenders: Option<&Value>,
         response: &mut BdpSyncDryRunResponse,
     ) {
         let Some(article) = articles.and_then(first_article) else {
@@ -271,22 +264,14 @@ impl BdpSyncPreflightService {
             ));
             return;
         };
-        let Some(tender) = tenders.and_then(first_tender) else {
-            response.checks.push(BdpSyncDryRunCheck::error(
-                "CreateOrder OnlyCheck",
-                "/API/Orders/Create",
-                "No hay una forma de pago valida para construir la comanda de prueba",
-            ));
-            return;
-        };
 
-        let request = build_only_check_order(config, &article, &tender);
+        let request = build_only_check_order(config, &article);
         response.payload_preview = serde_json::to_value(&request).ok();
         let check = match client.check_order(&request).await {
             Ok(value) => BdpSyncDryRunCheck::ok(
                 "CreateOrder OnlyCheck",
                 "/API/Orders/Create",
-                "BDP acepto el payload de comanda en modo OnlyCheck",
+                "BDP acepto el payload de comanda sin pagos en modo OnlyCheck",
                 None,
                 summarize_value(&value, &["OrderId", "InvoiceNumber"]),
             ),
@@ -351,7 +336,6 @@ impl BdpSyncDryRunCheck {
 fn build_only_check_order(
     config: &ConfiguracionRestaurante,
     article: &BdpDryRunArticle,
-    tender: &BdpDryRunTender,
 ) -> BdpCreateOrderRequest {
     let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     let marketplace_order_id = format!("GDRY{:010}", Utc::now().timestamp() % 10_000_000_000);
@@ -397,12 +381,7 @@ fn build_only_check_order(
             "ExecutionTime": now,
             "Status": 0,
             "AlreadyInvoiced": false,
-            "Comments": "GLORY DRY RUN - NO CREAR",
-            "Payments": [{
-                "TenderId": tender.id,
-                "Amount": article.price,
-                "PaymentId": format!("GLORY-{}", tender.name)
-            }]
+            "Comments": "GLORY DRY RUN - NO CREAR"
         }),
     }
 }
@@ -421,19 +400,6 @@ fn first_article(value: &Value) -> Option<BdpDryRunArticle> {
                 price,
                 vat_pct,
             })
-        })
-        .next()
-}
-
-fn first_tender(value: &Value) -> Option<BdpDryRunTender> {
-    value_array(value, &["TenderList", "Tenders"])?
-        .iter()
-        .filter_map(|item| {
-            let id = number_i64(item, &["Id", "TenderId"])?;
-            let name = text_field(item, &["Name", "Description"]).unwrap_or_else(|| id.to_string());
-            i32::try_from(id)
-                .ok()
-                .map(|id| BdpDryRunTender { id, name })
         })
         .next()
 }
@@ -610,17 +576,13 @@ mod tests {
             price: 1.05,
             vat_pct: 10.0,
         };
-        let tender = BdpDryRunTender {
-            id: 1,
-            name: "Efectivo".to_string(),
-        };
-
-        let order = build_only_check_order(&config, &article, &tender);
+        let order = build_only_check_order(&config, &article);
 
         assert_eq!(order.order_operation_type, 1);
-    assert_eq!(order.invoice, Some(false));
+        assert_eq!(order.invoice, Some(false));
         assert_eq!(order.order["Items"][0]["Id"], 1001);
         assert_eq!(order.order["AlreadyInvoiced"], false);
+        assert!(order.order.get("Payments").is_none());
         assert!(order.order["MarketplaceOrderId"].as_str().unwrap().len() <= 15);
     }
 }

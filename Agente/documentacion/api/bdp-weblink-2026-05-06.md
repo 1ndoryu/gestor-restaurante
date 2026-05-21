@@ -4,7 +4,7 @@
 
 La base de integracion ya valida el PC real del restaurante por Tailscale sin guardar credenciales en el repositorio. La URL operativa actual es `http://100.83.196.35:8068`; `Health`, `Login` y `GetVersion` quedaron probados contra WebLink real. La documentacion completa pegada desde PDF vive en `# WEBLINK RESTAPI.md` y la configuracion operativa queda por restaurante en `configuracion_restaurante`.
 
-El backend incorpora una prueba de sincronizacion segura: lecturas reales de WebLink y una comanda de prueba enviada a `/API/Orders/Create` con `OrderOperationType = 1` (`OnlyCheck`). Ese modo pide a BDP validar el payload completo sin crear comanda, pago ni factura.
+El backend incorpora una prueba de sincronizacion segura: lecturas reales de WebLink y una comanda de prueba enviada a `/API/Orders/Create` con `OrderOperationType = 1` (`OnlyCheck`). Ese modo pide a BDP validar el payload de comanda sin crear comanda, pago ni factura.
 
 ## Implementado
 
@@ -26,7 +26,7 @@ El backend incorpora una prueba de sincronizacion segura: lecturas reales de Web
 2. `Login` y `GetVersion` para validar credenciales, integrador y version.
 3. `POS/Get`, `POS/Employees/Get`, `Tenders/GetPOSList` y `Articles/GetPOSList` para comprobar que los IDs operativos configurados existen y devuelven datos reales.
 4. Validacion de que el `EmployeeId` configurado aparece permitido para el POS.
-5. Construccion de una comanda minima con articulo y forma de pago reales.
+5. Construccion de una comanda minima con articulo real, sin pagos, para no activar validaciones de facturacion del TPV durante el dry-run.
 6. `/API/Orders/Create` en modo `OnlyCheck`, con `escritura_real = false` en la respuesta propia.
 
 Cuando `listo_para_sincronizar = true`, la plataforma puede decir al cliente que el circuito tecnico de sincronizacion esta validado sin haber creado datos en BDP. Lo unico no ejecutado por diseno es cambiar `OrderOperationType` a creacion real.
@@ -71,5 +71,6 @@ Cuando `listo_para_sincronizar = true`, la plataforma puede decir al cliente que
 - `TiempoSession` se fija en 59 minutos porque el manual lo declara como maximo.
 - La API BDP usa nombres PascalCase y errores de negocio en `ErrorMessage`; no tratar HTTP 200 como exito sin revisar ese campo.
 - Las respuestas de articulos, clientes, comandas y pagos quedan como JSON hasta probar contra el PC real. El manual es grande y no conviene cerrar structs definitivos sin ver datos reales de BDP-NET.
-- `OrderOperationType = 1` es el modo seguro de validacion: si BDP responde OK, valido conectividad, credenciales, permisos, articulo, forma de pago y shape de comanda sin escribir datos.
+- `OrderOperationType = 1` es el modo seguro de validacion: si BDP responde OK, valido conectividad, credenciales, permisos, articulo, formas de pago disponibles y shape de comanda sin escribir datos.
+- En el BDP real del restaurante, incluir `Payments` por el total de la comanda hace que BDP valide facturacion y pueda devolver `[300035]-NO SE HA DEFINIDO UNA SERIE DE FACTURACION VALIDA`, incluso usando `OnlyCheck` e `Invoice=false`. El dry-run de comanda se mantiene sin pagos; la validacion de pagos queda separada por lectura de `/API/Tenders/GetPOSList`.
 - La validacion final antes de activar escrituras reales es ejecutar el boton `Probar sincronizacion segura` en produccion y guardar captura/resultado de `listo_para_sincronizar = true`.

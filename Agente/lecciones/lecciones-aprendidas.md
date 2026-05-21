@@ -19,6 +19,13 @@ Cada lección debe ser concisa y accionable.
 **Solucion:** Implementar preflight que lee datos reales y llama `CreateOrder` con `OrderOperationType = 1` (`OnlyCheck`). El cliente fuerza ese modo aunque el caller envie otro valor.
 **Prevencion:** Antes de prometer una integracion BDP, exigir resultado `listo_para_sincronizar = true` del endpoint `/api/configuracion/bdp/sync-dry-run`.
 
+## 2026-05-21 — BDP OnlyCheck con pagos puede activar validacion de facturacion
+
+**Problema:** El dry-run real llegaba a `/API/Orders/Create`, pero BDP rechazaba el payload con `[300035]-NO SE HA DEFINIDO UNA SERIE DE FACTURACION VALIDA`.
+**Causa raiz:** Enviar `Payments` por el total de la comanda hace que BDP valide la ruta de facturacion/series aunque `OrderOperationType=1`, `Invoice=false` y `AlreadyInvoiced=false`.
+**Solucion:** Mantener el `CreateOrder OnlyCheck` sin pagos para validar la comanda sin tocar facturacion; validar formas de pago por separado con `/API/Tenders/GetPOSList`.
+**Prevencion:** No mezclar validacion segura de comanda con validacion de cobro/factura. La activacion de pagos reales necesita una fase separada con serie de facturacion configurada y aprobacion explicita.
+
 ## 2026-03-25 — Emojis Unicode en JSX
 
 **Problema:** Se usaron emojis Unicode directamente en componentes React en vez de SVG/iconos.
