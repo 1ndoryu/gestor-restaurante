@@ -395,6 +395,7 @@ fn build_only_check_order(
             "Total": article.price,
             "ExecutionTime": now,
             "Status": 0,
+            "AlreadyInvoiced": false,
             "Comments": "GLORY DRY RUN - NO CREAR",
             "Payments": [{
                 "TenderId": tender.id,
@@ -617,6 +618,7 @@ mod tests {
 
         assert_eq!(order.order_operation_type, 1);
         assert_eq!(order.order["Items"][0]["Id"], 1001);
+        assert_eq!(order.order["AlreadyInvoiced"], false);
         assert!(order.order["MarketplaceOrderId"].as_str().unwrap().len() <= 15);
     }
 }
