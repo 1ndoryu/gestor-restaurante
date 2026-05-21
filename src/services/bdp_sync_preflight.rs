@@ -354,13 +354,14 @@ fn build_only_check_order(
     tender: &BdpDryRunTender,
 ) -> BdpCreateOrderRequest {
     let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let marketplace_order_id = format!("GDRY{:010}", Utc::now().timestamp() % 10_000_000_000);
     BdpCreateOrderRequest {
         employee_id: config.bdp_employee_id,
         items_profile_id: config.bdp_items_profile_id,
         order_end_type: 0,
         order_operation_type: 1,
         order: json!({
-            "MarketplaceOrderId": format!("GLORY-DRY-RUN-{}", Utc::now().timestamp()),
+            "MarketplaceOrderId": marketplace_order_id,
             "MarketId": BDP_DRY_RUN_MARKET_ID,
             "MarketName": "Glory Dry Run",
             "PreparationTime": now,
@@ -616,5 +617,6 @@ mod tests {
 
         assert_eq!(order.order_operation_type, 1);
         assert_eq!(order.order["Items"][0]["Id"], 1001);
+        assert!(order.order["MarketplaceOrderId"].as_str().unwrap().len() <= 15);
     }
 }
