@@ -1,8 +1,9 @@
 # BDP Error 300035 — Serie de Facturación no definida para WebLink
 
-> **Fecha:** 2026-05-29
-> **Tarea:** 065A-4
-> **Estado:** Bloqueante — requiere configuracion en BDP-Net (PC del restaurante)
+> ⚠️ **Este documento fue reemplazado por un resumen completo y actualizado:**
+> → `Agente/documentacion/api/bdp-300035-resumen-completo-2026-06-01.md`
+>
+> El documento consolidado incluye: diagnóstico actualizado con hallazgos de Series TPV, configuración del terminal 31, mensaje para soporte BDP, hipótesis activas y plan de acción.
 
 ---
 
