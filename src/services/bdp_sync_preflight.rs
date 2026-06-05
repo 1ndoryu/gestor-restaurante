@@ -352,7 +352,9 @@ fn build_only_check_order(
             "PreparationTime": now,
             "OrderId": 0,
             "PosId": config.bdp_pos_id,
-            "Type": 2,
+            "Type": 1, /* Mesa — Type=2 (Delivery) falla con 300035 en POS 31.
+                           POS 31 solo tiene serie para Mesa (00031TM).
+                           Ver bdp-300035-resumen-completo-2026-06-01.md §6. */
             "RoomNumber": 0,
             "TableNumber": 0,
             "Items": [{
