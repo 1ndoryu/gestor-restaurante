@@ -24,6 +24,47 @@ Rama: glory-rust-nakomi
 - **Deploy**: Siempre via coolify-manager-rs, nunca desde Coolify UI (ver doc de persistencia volúmenes)
 - **Volúmenes**: Documentado en `Agente/documentacion/hosting/coolify-volumenes-persistencia-2026-04-12.md`
 
+## Deploy con coolify-manager-rs
+
+**coolify-manager-rs** es una CLI Rust que centraliza toda operación contra Coolify. Reemplaza SSH directo, scp, y la UI web de Coolify para tareas operativas.
+
+### Comandos principales
+| Comando | Uso |
+|---|---|
+| `deploy --name <sitio> --update` | Deploy completo: actualiza código, rebuild si aplica |
+| `deploy --name <sitio> --update --skip-backup` | Deploy rápido (cambios de código sin migraciones BD) |
+| `redeploy --name <sitio>` | Fuerza redeploy via API Coolify (sin cambios locales) |
+| `health --name <sitio>` | Health check remoto + HTTP. Obligatorio post-deploy |
+| `logs --name <sitio>` | Logs del contenedor remoto |
+| `restart --name <sitio>` | Reinicia servicios del sitio |
+| `backup --name <sitio>` / `restore --name <sitio>` | Backup/restore externo |
+| `exec --name <sitio> -- <cmd>` | Ejecuta comando en el contenedor |
+
+### Flujo deploy obligatorio
+```
+deploy → health → si falla → redeploy → health
+```
+
+### Protecciones integradas
+- **Pre-validación**: `validate_compose_before_deploy()` detecta errores de sintaxis antes de aplicar
+- **Backup pre-write**: `backup_compose_locally()` guarda el compose antes de modificarlo (rollback manual posible)
+- **Post-verify**: `verify_container_env_vars()` y `verify_container_volumes()` confirman que entorno y volúmenes se inyectaron
+- **Rollback automático E11**: si health falla post-deploy, restaura el compose anterior y recrea contenedores
+- **Marcador CM_GUARD_v1**: todos los comandos SSH incluyen el marker para que el servidor identifique tráfico legítimo de coolify-manager-rs
+
+### Dónde está
+```
+C:\Users\Owner\OneDrive\Documentos\WP\app\public\wp-content\themes\glorytemplate\.agent\coolify-manager-rs
+```
+Binario: `target\release\coolify-manager.exe`
+Config: `config\settings.json` (servidores, tokens, sitios)
+
+### Reglas
+1. **NUNCA** SSH directo ni scp — todo por coolify-manager-rs.
+2. **Siempre** `health` después de `deploy`.
+3. **Redeploy** para servicios Rust/Docker custom (deploy solo WordPress).
+4. Si un comando no está cubierto, dejar constancia para mejorar la herramienta (no buscar alternativa manual).
+
 ## Contexto
 
 Proyecto migrado de WordPress a Rust (Axum) + React SPA. El frontend React se integra en frontend/src/. El backend Rust sirve API + SPA.
