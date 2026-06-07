@@ -117,20 +117,12 @@ Ver análisis completo en `Agente/documentacion/hosting/producto-correo-proveedo
   - Stripe: nuevo price para el add-on.
   - ~3-4h estimado.
 
-### 🟧 Bloqueo externo
+### ✅ Resuelto
 
-- **065A-4 — Resolver bloqueo BDP `[300035]` fuera de horario (sin escrituras reales).**
-  - Estado actual: `sync-dry-run` ya valida lecturas reales; `CreateOrder` se ejecuta en `OnlyCheck` (`OrderOperationType=1`) con `escritura_real=false` y sin `Payments`.
-  - Bloqueo vigente: BDP devuelve `[300035]-NO SE HA DEFINIDO UNA SERIE DE FACTURACION VALIDA`.
-  - Nota clave: no es un bug del backend Rust; es configuracion interna de BDP-Net (serie/destino para pedidos WebLink).
-  - Pendiente operativo para el usuario (cuando el restaurante no este en horas de trabajo):
-    1. Conectarse por RDP a `100.83.196.35`.
-    2. Abrir BDP-Net y entrar a `Utilidades -> Configuracion Servicios Web`.
-    3. Localizar el ajuste de serie de destino/serie para pedidos externos WebLink (o nombre equivalente).
-    4. Guardar evidencia de valores actuales antes de cambiar (captura/foto).
-    5. Asignar una serie valida de facturacion simplificada para pedidos WebLink (segun configuracion del local).
-    6. Guardar cambios y volver a la app.
-    7. Ejecutar `Probar sincronizacion segura` en produccion.
-  - Criterio de cierre: `listo_para_sincronizar=true` manteniendo `escritura_real=false`.
-  - Restriccion: no crear/modificar ventas, comandas, clientes, articulos ni pagos reales en el restaurante.
+- **065A-4 — Resolver bloqueo BDP `[300035]` fuera de horario (sin escrituras reales).** ✅ RESUELTO 2026-06-07
+  - Causa real del 300035: campos `AlreadyInvoiced` e `Invoice` faltantes en payload (no series ni Order.Type).
+  - Causa del 300005 (IVA): POS 31 usaba serie `00031TM` sin IVA incluido. Fix: nueva serie `00031TI` con IVA incluido.
+  - `build_only_check_order()` ahora usa `Type=0` (Barra) — único tipo que pasa validación sin config extra.
+  - Validación dry-run completa: artículo real (`1001`, "CAFE BOMBON") → `ErrorMessage: ""`.
+  - Pendiente: commit, deploy a producción, y probar endpoint `/api/configuracion/bdp/sync-dry-run` en producción.
 

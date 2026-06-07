@@ -352,9 +352,10 @@ fn build_only_check_order(
             "PreparationTime": now,
             "OrderId": 0,
             "PosId": config.bdp_pos_id,
-            "Type": 1, /* Mesa — Type=2 (Delivery) falla con 300035 en POS 31.
-                           POS 31 solo tiene serie para Mesa (00031TM).
-                           Ver bdp-300035-resumen-completo-2026-06-01.md §6. */
+            "Type": 0, /* Barra/Ticket aparcado — el único tipo que pasa validación en POS 31.
+                           Type=1 (Mesa) falla 300008 (salón incorrecto) y Type=2 (Delivery) falla 300009.
+                           POS 31 usa serie 00031TI (IVA incluido) desde 2026-06-07.
+                           Ver bdp-300035-resumen-completo-2026-06-01.md. */
             "RoomNumber": 0,
             "TableNumber": 0,
             "Items": [{
