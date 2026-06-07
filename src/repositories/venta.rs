@@ -134,7 +134,8 @@ impl VentaRepository {
                          ELSE NULL \
                     END AS nombre_cliente, \
                     v.created_at, v.updated_at, \
-                    v.haddock_synced, v.haddock_synced_at, v.haddock_sync_error \
+                    v.haddock_synced, v.haddock_synced_at, v.haddock_sync_error, \
+                    v.bdp_synced, v.bdp_synced_at, v.bdp_sync_error, v.bdp_order_id \
              FROM ventas v \
              LEFT JOIN clientes c ON c.id = v.cliente_id \
              WHERE v.user_id = $1 \
@@ -351,6 +352,28 @@ impl VentaRepository {
             synced,
             error_msg
         )
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /* [065A-5] Actualiza el estado de sincronización BDP de una venta.
+     * Patrón idéntico a update_haddock_status pero usando sqlx::query() sin macro
+     * para evitar necesitar cargo sqlx prepare (nuevas columnas no están en cache). */
+    pub async fn update_bdp_status(
+        pool: &PgPool,
+        id: Uuid,
+        synced: bool,
+        error_msg: Option<&str>,
+        order_id: Option<i64>,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE ventas SET bdp_synced = $2, bdp_synced_at = CASE WHEN $2 THEN NOW() ELSE bdp_synced_at END, bdp_sync_error = $3, bdp_order_id = CASE WHEN $2 THEN $4 ELSE bdp_order_id END WHERE id = $1",
+        )
+        .bind(id)
+        .bind(synced)
+        .bind(error_msg)
+        .bind(order_id)
         .execute(pool)
         .await?;
         Ok(())

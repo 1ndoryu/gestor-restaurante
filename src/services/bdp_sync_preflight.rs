@@ -11,14 +11,14 @@ use crate::models::ConfiguracionRestaurante;
 use crate::services::bdp_weblink::{BdpWeblinkClient, BdpWeblinkError};
 use crate::services::bdp_weblink_catalog::{
     BdpCreateOrderRequest, BdpDepartmentsExportFromProfileRequest, BdpGetEmployeeRequest,
-    BdpGetPosArticlesRequest, BdpGetPosEmployeesRequest, BdpGetPosRequest,
-    BdpGetPosTendersRequest,
+    BdpGetPosArticlesRequest, BdpGetPosEmployeesRequest, BdpGetPosRequest, BdpGetPosTendersRequest,
 };
 
 const BDP_DRY_RUN_MARKET_ID: i32 = 9_901;
 const BDP_DRY_RUN_PAGE_SIZE: i32 = 10;
 
 #[derive(Debug, Serialize, ToSchema)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct BdpSyncDryRunResponse {
     pub configurado: bool,
     pub sync_habilitado: bool,
@@ -65,7 +65,9 @@ impl BdpSyncPreflightService {
             &mut response,
             "Terminal POS",
             "/API/POS/Get",
-            client.get_pos(&BdpGetPosRequest { id: config.bdp_pos_id }),
+            client.get_pos(&BdpGetPosRequest {
+                id: config.bdp_pos_id,
+            }),
             &["POS"],
         )
         .await;
@@ -123,7 +125,12 @@ impl BdpSyncPreflightService {
                 config.bdp_items_profile_id,
                 BDP_DRY_RUN_PAGE_SIZE,
             )),
-            &["ArticlesListData", "ArticleListData", "Articles", "ArticleList"],
+            &[
+                "ArticlesListData",
+                "ArticleListData",
+                "Articles",
+                "ArticleList",
+            ],
         )
         .await;
 
@@ -214,9 +221,10 @@ impl BdpSyncPreflightService {
         }
     }
 
+    #[allow(clippy::ref_option)]
     fn check_employee_is_allowed(
         config: &ConfiguracionRestaurante,
-        employees: &Option<Value>,
+        employees: &Option<Value>, // TODO: refactor a Option<&Value> en limpieza futura
         response: &mut BdpSyncDryRunResponse,
     ) {
         let Some(employees) = employees else {
@@ -227,8 +235,11 @@ impl BdpSyncPreflightService {
             ));
             return;
         };
-        let ok = value_array(employees, &["Employees"])
-            .is_some_and(|items| items.iter().any(|item| number_i64(item, &["Id"]) == Some(i64::from(config.bdp_employee_id))));
+        let ok = value_array(employees, &["Employees"]).is_some_and(|items| {
+            items
+                .iter()
+                .any(|item| number_i64(item, &["Id"]) == Some(i64::from(config.bdp_employee_id)))
+        });
         let check = if ok {
             BdpSyncDryRunCheck::ok(
                 "Empleado permitido en POS",
@@ -390,21 +401,28 @@ fn build_only_check_order(
 }
 
 fn first_article(value: &Value) -> Option<BdpDryRunArticle> {
-    value_array(value, &["ArticlesListData", "ArticleListData", "Articles", "ArticleList"])?
-        .iter()
-        .filter_map(|item| {
-            let id = number_i64(item, &["ArtCode", "Id", "Code"])?;
-            let name = text_field(item, &["ArtDescription", "Description", "Name"])?;
-            let price = number_f64(item, &["Price1", "Price", "Total"])?;
-            let vat_pct = number_f64(item, &["TAVPer", "VatPct"]).unwrap_or(10.0);
-            (id > 0 && price > 0.0).then_some(BdpDryRunArticle {
-                id,
-                name,
-                price,
-                vat_pct,
-            })
+    value_array(
+        value,
+        &[
+            "ArticlesListData",
+            "ArticleListData",
+            "Articles",
+            "ArticleList",
+        ],
+    )?
+    .iter()
+    .find_map(|item| {
+        let id = number_i64(item, &["ArtCode", "Id", "Code"])?;
+        let name = text_field(item, &["ArtDescription", "Description", "Name"])?;
+        let price = number_f64(item, &["Price1", "Price", "Total"])?;
+        let vat_pct = number_f64(item, &["TAVPer", "VatPct"]).unwrap_or(10.0);
+        (id > 0 && price > 0.0).then_some(BdpDryRunArticle {
+            id,
+            name,
+            price,
+            vat_pct,
         })
-        .next()
+    })
 }
 
 fn value_array<'a>(value: &'a Value, keys: &[&str]) -> Option<&'a Vec<Value>> {
@@ -441,17 +459,23 @@ fn value_count(value: &Value, keys: &[&str]) -> Option<usize> {
 
 fn number_i64(value: &Value, keys: &[&str]) -> Option<i64> {
     keys.iter().find_map(|key| {
-        value
-            .get(*key)
-            .and_then(|field| field.as_i64().or_else(|| field.as_f64().map(|number| number as i64)))
+        value.get(*key).and_then(|field| {
+            field.as_i64().or_else(|| {
+                #[allow(clippy::cast_possible_truncation)]
+                field.as_f64().map(|number| number as i64)
+            })
+        })
     })
 }
 
 fn number_f64(value: &Value, keys: &[&str]) -> Option<f64> {
     keys.iter().find_map(|key| {
-        value
-            .get(*key)
-            .and_then(|field| field.as_f64().or_else(|| field.as_i64().map(|number| number as f64)))
+        value.get(*key).and_then(|field| {
+            field.as_f64().or_else(|| {
+                #[allow(clippy::cast_precision_loss)]
+                field.as_i64().map(|number| number as f64)
+            })
+        })
     })
 }
 
@@ -466,7 +490,8 @@ fn text_field(value: &Value, keys: &[&str]) -> Option<String> {
     })
 }
 
-fn bdp_configurado(config: &ConfiguracionRestaurante) -> bool {
+/* [065A-5] pub para uso por BdpSyncService en bdp_sync.rs */
+pub fn bdp_configurado(config: &ConfiguracionRestaurante) -> bool {
     !config.bdp_base_url.trim().is_empty()
         && !config.bdp_login.trim().is_empty()
         && !config.bdp_password.trim().is_empty()
@@ -509,6 +534,8 @@ mod tests {
             bdp_pos_id: 31,
             bdp_employee_id: 1,
             bdp_items_profile_id: 1,
+            bdp_default_article_code: "GLORY".to_string(),
+            bdp_default_article_name: "Servicio Glory".to_string(),
             google_review_url: String::new(),
             telefono_restaurante: String::new(),
             url_reservas: String::new(),

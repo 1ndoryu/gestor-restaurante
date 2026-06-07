@@ -415,6 +415,11 @@ mod tests {
             haddock_synced: false,
             haddock_synced_at: None,
             haddock_sync_error: None,
+            /* [065A-5] Campos de tracking BDP */
+            bdp_synced: false,
+            bdp_synced_at: None,
+            bdp_sync_error: None,
+            bdp_order_id: None,
         }
     }
 
@@ -447,6 +452,8 @@ mod tests {
             bdp_pos_id: 1,
             bdp_employee_id: 1,
             bdp_items_profile_id: 1,
+            bdp_default_article_code: String::new(),
+            bdp_default_article_name: String::new(),
             google_review_url: String::new(),
             telefono_restaurante: String::new(),
             url_reservas: String::new(),

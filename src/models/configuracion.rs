@@ -13,7 +13,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 /// Configuración almacenada del restaurante
-#[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
+#[derive(Debug, Clone, Default, FromRow, Serialize, ToSchema)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct ConfiguracionRestaurante {
     pub id: Uuid,
@@ -56,6 +56,11 @@ pub struct ConfiguracionRestaurante {
     pub bdp_pos_id: i32,
     pub bdp_employee_id: i32,
     pub bdp_items_profile_id: i32,
+    /* [065A-5] Artículo BDP genérico para el mapeo Glory → BDP.
+     * Si el código es numérico, se usa directamente como ArtCode.
+     * Si no, se busca el primer artículo del perfil. */
+    pub bdp_default_article_code: String,
+    pub bdp_default_article_name: String,
     /* [094A-4] URL de Google Business para redirigir reseñas positivas */
     pub google_review_url: String,
     /* [094A-6] Datos para botones CTA en mensajes WhatsApp */

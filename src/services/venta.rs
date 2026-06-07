@@ -1,5 +1,6 @@
 /* 253A-5: Servicio de ventas — lógica de negocio
- * [064A-5] Añadido hook post-create/update para sincronización con Haddock POS API */
+ * [064A-5] Añadido hook post-create/update para sincronización con Haddock POS API
+ * [065A-5] Añadido hook post-create/update para sincronización con BDP WebLink */
 
 use sqlx::PgPool;
 use tracing::warn;
@@ -10,7 +11,7 @@ use crate::models::{ActualizarVentaRequest, CrearVentaRequest, Venta, VentasPagi
 use crate::repositories::venta::{ActualizarVentaData, NuevaVenta};
 use crate::repositories::{ConfiguracionRepository, VentaRepository};
 
-use super::HaddockService;
+use super::{BdpSyncService, HaddockService};
 
 pub struct VentaService;
 
@@ -54,6 +55,8 @@ impl VentaService {
 
         /* [064A-5] Sincronizar con Haddock en background (no bloquea la respuesta) */
         Self::spawn_haddock_sync(pool.clone(), user_id, venta.clone(), false);
+        /* [065A-5] Sincronizar con BDP en background */
+        Self::spawn_bdp_sync(pool.clone(), user_id, venta.clone(), false);
 
         Ok(venta)
     }
@@ -148,6 +151,8 @@ impl VentaService {
 
         /* [064A-5] Re-sincronizar con Haddock tras actualización */
         Self::spawn_haddock_sync(pool.clone(), user_id, venta.clone(), true);
+        /* [065A-5] Re-sincronizar con BDP tras actualización */
+        Self::spawn_bdp_sync(pool.clone(), user_id, venta.clone(), true);
 
         Ok(venta)
     }
@@ -169,14 +174,21 @@ impl VentaService {
         });
     }
 
-    /* [064A-8] Eliminar venta — bloqueado si sincronización Haddock está activa.
-     * Haddock no tiene endpoint DELETE, así que eliminar localmente
-     * crearía inconsistencia. El cliente pide explícitamente bloquear. */
+    /* [064A-8] Eliminar venta — bloqueado si sincronización Haddock o BDP está activa.
+     * Haddock no tiene endpoint DELETE; BDP puede cancelar pero no confiablemente.
+     * El cliente pide explícitamente bloquear. */
     pub async fn delete(pool: &PgPool, id: Uuid, user_id: Uuid) -> Result<(), AppError> {
         let config = ConfiguracionRepository::obtener_o_crear(pool, user_id).await?;
         if config.haddock_sync_enabled {
             return Err(AppError::Conflict(
                 "No se pueden eliminar ventas mientras la sincronización con Haddock está activa. \
+                 Desactívela primero en Configuración."
+                    .into(),
+            ));
+        }
+        if config.bdp_sync_enabled {
+            return Err(AppError::Conflict(
+                "No se pueden eliminar ventas mientras la sincronización con BDP está activa. \
                  Desactívela primero en Configuración."
                     .into(),
             ));
@@ -220,5 +232,41 @@ impl VentaService {
         VentaRepository::find_by_id(pool, id, user_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Venta no encontrada tras sync".into()))
+    }
+
+    /* [065A-5] Lanza sincronización con BDP en un task independiente.
+     * Patrón idéntico a spawn_haddock_sync. */
+    fn spawn_bdp_sync(pool: PgPool, user_id: Uuid, venta: Venta, is_update: bool) {
+        tokio::spawn(async move {
+            let config = match ConfiguracionRepository::obtener_o_crear(&pool, user_id).await {
+                Ok(c) => c,
+                Err(e) => {
+                    warn!("[065A-5] Error obteniendo config para BDP sync: {e}");
+                    return;
+                }
+            };
+            BdpSyncService::sync_venta(&pool, &venta, &config, is_update).await;
+        });
+    }
+
+    /* [065A-5] Retry manual de sincronización BDP.
+     * Ejecuta sincrónicamente y retorna la venta actualizada. */
+    pub async fn retry_bdp_sync(pool: &PgPool, id: Uuid, user_id: Uuid) -> Result<Venta, AppError> {
+        let venta = VentaRepository::find_by_id(pool, id, user_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
+
+        let config = ConfiguracionRepository::obtener_o_crear(pool, user_id).await?;
+        if !config.bdp_sync_enabled {
+            return Err(AppError::Validation(
+                "La sincronización con BDP no está habilitada.".into(),
+            ));
+        }
+
+        BdpSyncService::sync_venta(pool, &venta, &config, false).await;
+
+        VentaRepository::find_by_id(pool, id, user_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Venta no encontrada tras BDP sync".into()))
     }
 }

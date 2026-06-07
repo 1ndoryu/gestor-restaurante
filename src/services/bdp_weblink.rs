@@ -452,6 +452,8 @@ mod tests {
             bdp_pos_id: 1,
             bdp_employee_id: 1,
             bdp_items_profile_id: 1,
+            bdp_default_article_code: String::new(),
+            bdp_default_article_name: String::new(),
             google_review_url: String::new(),
             telefono_restaurante: String::new(),
             url_reservas: String::new(),

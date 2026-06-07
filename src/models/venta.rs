@@ -66,6 +66,11 @@ pub struct Venta {
     pub haddock_synced: bool,
     pub haddock_synced_at: Option<DateTime<Utc>>,
     pub haddock_sync_error: Option<String>,
+    /* [065A-5] Tracking de sincronización BDP (patrón idéntico a haddock_synced). */
+    pub bdp_synced: bool,
+    pub bdp_synced_at: Option<DateTime<Utc>>,
+    pub bdp_sync_error: Option<String>,
+    pub bdp_order_id: Option<i64>,
 }
 
 /// Request para crear una venta
@@ -133,6 +138,11 @@ pub struct VentaConCliente {
     pub haddock_synced: bool,
     pub haddock_synced_at: Option<DateTime<Utc>>,
     pub haddock_sync_error: Option<String>,
+    /* [065A-5] Tracking de sincronización con BDP WebLink */
+    pub bdp_synced: bool,
+    pub bdp_synced_at: Option<DateTime<Utc>>,
+    pub bdp_sync_error: Option<String>,
+    pub bdp_order_id: Option<i64>,
 }
 
 /// Query params para listar ventas con filtro por fecha

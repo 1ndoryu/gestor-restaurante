@@ -169,6 +169,29 @@ pub async fn reintentar_sync_haddock(
     Ok(Json(venta))
 }
 
+/// Reintentar sincronización con `BDP` `WebLink`
+#[utoipa::path(
+    post,
+    path = "/api/ventas/{id}/bdp-sync",
+    tag = "Ventas",
+    params(("id" = Uuid, Path, description = "ID de la venta")),
+    responses(
+        (status = 200, description = "Sincronización BDP completada", body = Venta),
+        (status = 404, description = "Venta no encontrada", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse),
+        (status = 422, description = "BDP sync no habilitado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn reintentar_sync_bdp(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Venta>, AppError> {
+    let venta = VentaService::retry_bdp_sync(&state.pool, id, auth.user_id).await?;
+    Ok(Json(venta))
+}
+
 /* [263A-15] Axum 0.7 (matchit 0.7.x) usa :param, no {param}.
  * Todas las rutas con path params corregidas de {id} a :id.
  * Las anotaciones #[utoipa::path] mantienen {id} (sintaxis OpenAPI, no afecta routing). */
@@ -182,4 +205,5 @@ pub fn routes() -> Router<AppState> {
                 .delete(eliminar_venta),
         )
         .route("/ventas/:id/haddock-sync", post(reintentar_sync_haddock))
+        .route("/ventas/:id/bdp-sync", post(reintentar_sync_bdp))
 }

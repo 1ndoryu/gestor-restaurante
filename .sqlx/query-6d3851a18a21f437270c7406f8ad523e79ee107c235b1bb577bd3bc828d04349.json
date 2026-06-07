@@ -92,6 +92,26 @@
         "ordinal": 17,
         "name": "haddock_sync_error",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "bdp_synced",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 19,
+        "name": "bdp_synced_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 20,
+        "name": "bdp_sync_error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 21,
+        "name": "bdp_order_id",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -128,6 +148,10 @@
       true,
       true,
       false,
+      true,
+      true,
+      false,
+      true,
       true,
       true
     ]

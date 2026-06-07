@@ -140,6 +140,7 @@ fn prefer_env(current: Option<String>, env_name: &str) -> Option<String> {
     }
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn non_empty_string(value: String) -> Option<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -245,9 +246,15 @@ mod tests {
         let effective = integracion_vacia().with_env_fallback();
 
         assert_eq!(effective.meta_waba_id.as_deref(), Some("1330208045872639"));
-        assert_eq!(effective.meta_business_app_id.as_deref(), Some("2109664896264441"));
+        assert_eq!(
+            effective.meta_business_app_id.as_deref(),
+            Some("2109664896264441")
+        );
         assert_eq!(effective.meta_access_token.as_deref(), Some("token-meta"));
-        assert_eq!(effective.meta_phone_number_id.as_deref(), Some("1023208230887075"));
+        assert_eq!(
+            effective.meta_phone_number_id.as_deref(),
+            Some("1023208230887075")
+        );
         assert!(effective.meta_configurado());
 
         restore_meta_env(previous);

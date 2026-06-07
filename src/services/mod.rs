@@ -1,8 +1,8 @@
 mod api_key;
 mod auth;
+mod bdp_sync_preflight;
 pub mod bdp_weblink;
 pub mod bdp_weblink_catalog;
-mod bdp_sync_preflight;
 mod campana;
 mod canal_reserva;
 mod chatbot;
@@ -44,3 +44,5 @@ mod integracion_marketing;
 pub use integracion_marketing::IntegracionMarketingService;
 mod haddock;
 pub use haddock::HaddockService;
+mod bdp_sync;
+pub use bdp_sync::BdpSyncService;

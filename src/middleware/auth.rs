@@ -10,7 +10,7 @@ use crate::AppState;
 
 /// Extractor que valida el JWT del header Authorization y extrae el `user_id`.
 /// [094A-3] También extrae `trabajador_id` si el token es de un trabajador.
-/// [085A-1] Verifica que el user_id del token existe en BD → evita FK violations (500)
+/// [085A-1] Verifica que el `user_id` del token existe en BD → evita FK violations (500)
 ///          cuando el usuario fue eliminado o la BD fue reseteada. Devuelve 401 limpio.
 /// Usar como parámetro en handlers que requieren autenticación.
 pub struct AuthUser {
