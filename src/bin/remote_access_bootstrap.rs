@@ -22,7 +22,10 @@ const COMPANION_CONFIG_FILE: &str = "remote_access_bootstrap.config.json";
 #[tokio::main]
 async fn main() {
     if env::consts::OS != "windows" {
-        exit_with_failure(default_report_path(), &BootstrapError::Message("Este bootstrap solo funciona en Windows".to_string()));
+        exit_with_failure(
+            default_report_path(),
+            &BootstrapError::Message("Este bootstrap solo funciona en Windows".to_string()),
+        );
     }
 
     match ensure_admin_or_relaunch() {
@@ -191,7 +194,9 @@ impl Config {
         let mut args = args.into_iter();
         while let Some(arg) = args.next() {
             match arg.as_str() {
-                "--tailscale-auth-key" => self.tailscale_auth_key = Some(next_value(&mut args, &arg)?),
+                "--tailscale-auth-key" => {
+                    self.tailscale_auth_key = Some(next_value(&mut args, &arg)?)
+                }
                 "--rustdesk-password" => self.rustdesk_password = next_value(&mut args, &arg)?,
                 "--rustdesk-config" => self.rustdesk_config = Some(next_value(&mut args, &arg)?),
                 "--device-name" => self.device_name = Some(next_value(&mut args, &arg)?),
@@ -250,7 +255,9 @@ impl Config {
         if let Some(port) = show_input_box(
             "Glory Remote Bootstrap",
             "Puerto TCP de BDP/WebLink. Déjalo vacío si aún no lo sabes.",
-            &self.bdp_port.map_or_else(String::new, |value| value.to_string()),
+            &self
+                .bdp_port
+                .map_or_else(String::new, |value| value.to_string()),
         )? {
             self.bdp_port = Some(port.parse().map_err(|_| {
                 BootstrapError::Message("El puerto BDP debe ser un entero válido".to_string())
@@ -265,7 +272,11 @@ async fn run(config: Config) -> Result<(), BootstrapError> {
     let edition = windows_edition()?;
     let tailscale = ensure_tailscale_installed().await?;
     let tailscale_state = configure_tailscale(&tailscale, &config)?;
-    let power_state = if config.skip_power { StepState::Skipped } else { disable_sleep()? };
+    let power_state = if config.skip_power {
+        StepState::Skipped
+    } else {
+        disable_sleep()?
+    };
     let rdp_state = if config.skip_rdp {
         RdpState::Skipped
     } else {
@@ -299,9 +310,15 @@ async fn run(config: Config) -> Result<(), BootstrapError> {
 
     println!("Bootstrap remoto completado.");
     println!("Reporte: {}", config.report_path.display());
-    println!("Tailscale IP: {}", tailscale_state.ip.as_deref().unwrap_or("pendiente"));
+    println!(
+        "Tailscale IP: {}",
+        tailscale_state.ip.as_deref().unwrap_or("pendiente")
+    );
     if let Some(rustdesk) = rustdesk_state {
-        println!("RustDesk ID: {}", rustdesk.id.as_deref().unwrap_or("pendiente"));
+        println!(
+            "RustDesk ID: {}",
+            rustdesk.id.as_deref().unwrap_or("pendiente")
+        );
         println!("RustDesk password: {}", rustdesk.password);
     }
     show_message_box(
@@ -329,11 +346,7 @@ async fn ensure_tailscale_installed() -> Result<PathBuf, BootstrapError> {
             "--accept-source-agreements",
             "--accept-package-agreements",
         ];
-        if try_run_capture(
-            "winget",
-            winget_args,
-        )
-        .is_ok()
+        if try_run_capture("winget", winget_args).is_ok()
             && wait_for_path(Path::new(TAILSCALE_EXE), 90).is_ok()
         {
             return Ok(PathBuf::from(TAILSCALE_EXE));
@@ -397,7 +410,11 @@ fn extract_tailscale_amd64_msi_url(page: &str) -> Result<String, BootstrapError>
 
 fn configure_tailscale(exe: &Path, config: &Config) -> Result<TailscaleState, BootstrapError> {
     if let Some(auth_key) = &config.tailscale_auth_key {
-        let mut args = vec!["up".to_string(), format!("--auth-key={auth_key}"), "--accept-dns=true".to_string()];
+        let mut args = vec![
+            "up".to_string(),
+            format!("--auth-key={auth_key}"),
+            "--accept-dns=true".to_string(),
+        ];
         if let Some(name) = &config.device_name {
             args.push(format!("--hostname={name}"));
         }
@@ -407,9 +424,13 @@ fn configure_tailscale(exe: &Path, config: &Config) -> Result<TailscaleState, Bo
         run_capture(exe, args.iter().map(String::as_str))?;
     }
 
-    let ip = try_run_capture(exe, ["ip", "-4"])
-        .ok()
-        .and_then(|output| output.lines().map(str::trim).find(|line| !line.is_empty()).map(ToOwned::to_owned));
+    let ip = try_run_capture(exe, ["ip", "-4"]).ok().and_then(|output| {
+        output
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty())
+            .map(ToOwned::to_owned)
+    });
 
     Ok(TailscaleState {
         authenticated: ip.is_some(),
@@ -471,13 +492,17 @@ async fn ensure_rustdesk_installed() -> Result<PathBuf, BootstrapError> {
             assets.iter().find_map(|asset| {
                 let name = asset["name"].as_str()?;
                 if name.ends_with("x86_64.exe") {
-                    asset["browser_download_url"].as_str().map(ToOwned::to_owned)
+                    asset["browser_download_url"]
+                        .as_str()
+                        .map(ToOwned::to_owned)
                 } else {
                     None
                 }
             })
         })
-        .ok_or_else(|| BootstrapError::Message("No encontré el instalador de RustDesk x86_64".to_string()))?;
+        .ok_or_else(|| {
+            BootstrapError::Message("No encontré el instalador de RustDesk x86_64".to_string())
+        })?;
 
     let installer = env::temp_dir().join("rustdesk-latest-x86_64.exe");
     download_to_file(&download_url, &installer).await?;
@@ -495,9 +520,13 @@ fn configure_rustdesk(exe: &Path, config: &Config) -> Result<RustDeskState, Boot
         run_capture(exe, ["--config", rustdesk_config.as_str()])?;
     }
     run_capture(exe, ["--password", config.rustdesk_password.as_str()])?;
-    let id = try_run_capture(exe, ["--get-id"])
-        .ok()
-        .and_then(|output| output.lines().map(str::trim).find(|line| !line.is_empty()).map(ToOwned::to_owned));
+    let id = try_run_capture(exe, ["--get-id"]).ok().and_then(|output| {
+        output
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty())
+            .map(ToOwned::to_owned)
+    });
 
     Ok(RustDeskState {
         id,
@@ -526,8 +555,20 @@ fn build_report(
     let mut report = String::new();
     let _ = writeln!(report, "Glory Remote Bootstrap");
     let _ = writeln!(report, "Windows edition: {edition}");
-    let _ = writeln!(report, "Tailscale auth: {}", if tailscale.authenticated { "ok" } else { "pendiente" });
-    let _ = writeln!(report, "Tailscale IP: {}", tailscale.ip.as_deref().unwrap_or("pendiente"));
+    let _ = writeln!(
+        report,
+        "Tailscale auth: {}",
+        if tailscale.authenticated {
+            "ok"
+        } else {
+            "pendiente"
+        }
+    );
+    let _ = writeln!(
+        report,
+        "Tailscale IP: {}",
+        tailscale.ip.as_deref().unwrap_or("pendiente")
+    );
     match rdp {
         RdpState::Enabled => {
             let _ = writeln!(report, "RDP: habilitado");
@@ -540,7 +581,11 @@ fn build_report(
         }
     }
     if let Some(rustdesk) = rustdesk {
-        let _ = writeln!(report, "RustDesk ID: {}", rustdesk.id.as_deref().unwrap_or("pendiente"));
+        let _ = writeln!(
+            report,
+            "RustDesk ID: {}",
+            rustdesk.id.as_deref().unwrap_or("pendiente")
+        );
         let _ = writeln!(report, "RustDesk password: {}", rustdesk.password);
     }
     let _ = writeln!(report, "Suspension: {}", render_step(power));
@@ -578,7 +623,10 @@ fn write_failure_report(report_path: &Path, error: &BootstrapError) -> Result<()
     let _ = writeln!(report, "Glory Remote Bootstrap - ERROR");
     let _ = writeln!(report, "Cuando: {}", chrono::Utc::now().to_rfc3339());
     let _ = writeln!(report, "Error: {error}");
-    let _ = writeln!(report, "Sugerencia: reenviar este archivo completo a soporte.");
+    let _ = writeln!(
+        report,
+        "Sugerencia: reenviar este archivo completo a soporte."
+    );
     if let Some(parent) = report_path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -630,7 +678,11 @@ fn companion_config_path() -> Result<PathBuf, BootstrapError> {
         .join(COMPANION_CONFIG_FILE))
 }
 
-fn show_input_box(title: &str, prompt: &str, default_value: &str) -> Result<Option<String>, BootstrapError> {
+fn show_input_box(
+    title: &str,
+    prompt: &str,
+    default_value: &str,
+) -> Result<Option<String>, BootstrapError> {
     let script = format!(
         "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::InputBox('{}','{}','{}')",
         ps_single_quote(prompt),
@@ -663,7 +715,14 @@ fn ps_single_quote(value: &str) -> String {
 fn run_powershell(script: &str) -> Result<String, BootstrapError> {
     run_capture(
         "powershell",
-        ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
+        [
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ],
     )
 }
 
@@ -674,7 +733,9 @@ fn is_admin() -> Result<bool, BootstrapError> {
 }
 
 fn windows_edition() -> Result<String, BootstrapError> {
-    run_powershell(r"(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').EditionID")
+    run_powershell(
+        r"(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').EditionID",
+    )
 }
 
 fn edition_supports_rdp(edition: &str) -> bool {
@@ -710,7 +771,10 @@ fn wait_for_path(path: &Path, timeout_seconds: u64) -> Result<(), BootstrapError
         }
         thread::sleep(Duration::from_secs(1));
     }
-    Err(BootstrapError::Message(format!("No apareció {}", path.display())))
+    Err(BootstrapError::Message(format!(
+        "No apareció {}",
+        path.display()
+    )))
 }
 
 fn wait_for_service(service_name: &str, timeout_seconds: u64) -> Result<(), BootstrapError> {
@@ -723,7 +787,9 @@ fn wait_for_service(service_name: &str, timeout_seconds: u64) -> Result<(), Boot
                 "-ExecutionPolicy",
                 "Bypass",
                 "-Command",
-                &format!("(Get-Service -Name '{service_name}' -ErrorAction SilentlyContinue).Status"),
+                &format!(
+                    "(Get-Service -Name '{service_name}' -ErrorAction SilentlyContinue).Status"
+                ),
             ],
         )
         .unwrap_or_default();
@@ -732,7 +798,9 @@ fn wait_for_service(service_name: &str, timeout_seconds: u64) -> Result<(), Boot
         }
         thread::sleep(Duration::from_secs(1));
     }
-    Err(BootstrapError::Message(format!("El servicio {service_name} no arrancó")))
+    Err(BootstrapError::Message(format!(
+        "El servicio {service_name} no arrancó"
+    )))
 }
 
 fn render_step(state: &StepState) -> &'static str {
@@ -762,8 +830,12 @@ fn random_password() -> String {
         .collect()
 }
 
-fn next_value(args: &mut impl Iterator<Item = String>, arg: &str) -> Result<String, BootstrapError> {
-    args.next().ok_or_else(|| BootstrapError::Message(format!("Falta valor para {arg}")))
+fn next_value(
+    args: &mut impl Iterator<Item = String>,
+    arg: &str,
+) -> Result<String, BootstrapError> {
+    args.next()
+        .ok_or_else(|| BootstrapError::Message(format!("Falta valor para {arg}")))
 }
 
 fn try_run_capture<S, I, A>(program: S, args: I) -> Result<String, BootstrapError>
@@ -796,7 +868,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_tailscale_amd64_msi_url, edition_supports_rdp, ps_single_quote, rdp_firewall_script, Config};
+    use super::{
+        edition_supports_rdp, extract_tailscale_amd64_msi_url, ps_single_quote,
+        rdp_firewall_script, Config,
+    };
 
     #[test]
     fn windows_home_no_soporta_rdp_host() {
@@ -847,7 +922,10 @@ mod tests {
         assert_eq!(config.bdp_port, Some(9000));
         assert!(config.skip_rdp);
         assert!(config.skip_rustdesk);
-        assert_eq!(config.report_path, std::path::PathBuf::from(r"C:\temp\bootstrap.txt"));
+        assert_eq!(
+            config.report_path,
+            std::path::PathBuf::from(r"C:\temp\bootstrap.txt")
+        );
     }
 
     #[test]
