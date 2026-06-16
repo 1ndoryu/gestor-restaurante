@@ -1,0 +1,136 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.rust
+      args:
+        REPO_URL: 'https://github.com/1ndoryu/glory-rs.git'
+        BRANCH: glory-rs-rest
+        APP_BIN: glory-backend
+        VITE_STRIPE_PUBLISHABLE_KEY: $VITE_STRIPE_PUBLISHABLE_KEY
+    volumes:
+      - 'b8s0cks444o0sogo8kg8wcgw_app-data:/app/data'
+      - 'b8s0cks444o0sogo8kg8wcgw_uploads-data:/app/uploads'
+    environment:
+      DATABASE_URL: 'postgres://rust_app:$SERVICE_PASSWORD_POSTGRES@postgres-b8s0cks444o0sogo8kg8wcgw:5432/rust_db'
+      JWT_SECRET: $SERVICE_PASSWORD_64_JWTSECRET
+      RUST_LOG: info
+      STATIC_DIR: /app/dist
+      HOST: 0.0.0.0
+      REPO_URL: 'https://github.com/1ndoryu/glory-rs.git'
+      BRANCH: glory-rs-rest
+      APP_BIN: glory-backend
+      VITE_STRIPE_PUBLISHABLE_KEY: $VITE_STRIPE_PUBLISHABLE_KEY
+      COOLIFY_RESOURCE_UUID: b8s0cks444o0sogo8kg8wcgw
+      COOLIFY_CONTAINER_NAME: app-b8s0cks444o0sogo8kg8wcgw
+      COOLIFY_FQDN: restaurante.wandori.us
+      COOLIFY_URL: 'http://restaurante.wandori.us'
+      SERVICE_NAME_APP: app
+      SERVICE_NAME_POSTGRES: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'set -- $$(hostname -i); curl -sf --max-time 4 http://$$1:3000/api/health || exit 1'
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - autoheal=true
+      - traefik.enable=true
+      - traefik.http.routers.restaurante-wandori-us-https.rule=Host(`restaurante.wandori.us`)
+      - traefik.http.routers.restaurante-wandori-us-https.entryPoints=https
+      - traefik.http.routers.restaurante-wandori-us-https.tls=true
+      - traefik.http.routers.restaurante-wandori-us-https.tls.certresolver=letsencrypt
+      - traefik.http.routers.restaurante-wandori-us-https.service=restaurante-wandori-us-svc
+      - traefik.http.routers.restaurante-wandori-us-http.rule=Host(`restaurante.wandori.us`)
+      - traefik.http.routers.restaurante-wandori-us-http.entryPoints=http
+      - traefik.http.routers.restaurante-wandori-us-http.middlewares=restaurante-wandori-us-redirect
+      - traefik.http.middlewares.restaurante-wandori-us-redirect.redirectscheme.scheme=https
+      - traefik.http.services.restaurante-wandori-us-svc.loadbalancer.server.port=3000
+      - coolify.managed=true
+      - coolify.version=4.0.0-beta.460
+      - coolify.serviceId=14
+      - coolify.type=service
+      - coolify.name=app-b8s0cks444o0sogo8kg8wcgw
+      - coolify.resourceName=glory-rest
+      - coolify.projectName=my-first-project
+      - coolify.serviceName=app
+      - coolify.environmentName=production
+      - coolify.pullRequestId=0
+      - coolify.service.subId=15
+      - coolify.service.subType=application
+      - coolify.service.subName=app
+      - traefik.enable=true
+      - traefik.http.middlewares.gzip.compress=true
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.routers.http-0-b8s0cks444o0sogo8kg8wcgw-app.entryPoints=http
+      - 'traefik.http.routers.http-0-b8s0cks444o0sogo8kg8wcgw-app.middlewares=gzip,restaurante-wandori-us-redirect'
+      - 'traefik.http.routers.http-0-b8s0cks444o0sogo8kg8wcgw-app.rule=Host(`restaurante.wandori.us`) && PathPrefix(`/`)'
+      - 'caddy_0.encode=zstd gzip'
+      - 'caddy_0.handle_path.0_reverse_proxy={{upstreams}}'
+      - 'caddy_0.handle_path=/*'
+      - caddy_0.header=-Server
+      - 'caddy_0.try_files={path} /index.html /index.php'
+      - 'caddy_0=http://restaurante.wandori.us'
+      - caddy_ingress_network=b8s0cks444o0sogo8kg8wcgw
+    restart: unless-stopped
+    container_name: app-b8s0cks444o0sogo8kg8wcgw
+    networks:
+      b8s0cks444o0sogo8kg8wcgw: null
+    env_file:
+      - .env
+  postgres:
+    image: 'postgres:16-alpine'
+    container_name: postgres-b8s0cks444o0sogo8kg8wcgw
+    volumes:
+      - 'b8s0cks444o0sogo8kg8wcgw_pg-data:/var/lib/postgresql/data'
+    environment:
+      POSTGRES_DB: rust_db
+      POSTGRES_USER: rust_app
+      POSTGRES_PASSWORD: $SERVICE_PASSWORD_POSTGRES
+      COOLIFY_RESOURCE_UUID: b8s0cks444o0sogo8kg8wcgw
+      COOLIFY_CONTAINER_NAME: postgres-b8s0cks444o0sogo8kg8wcgw
+      SERVICE_NAME_APP: app
+      SERVICE_NAME_POSTGRES: postgres
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'pg_isready -U rust_app -d rust_db'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      - coolify.managed=true
+      - coolify.version=4.0.0-beta.460
+      - coolify.serviceId=14
+      - coolify.type=service
+      - coolify.name=postgres-b8s0cks444o0sogo8kg8wcgw
+      - coolify.resourceName=glory-rest
+      - coolify.projectName=my-first-project
+      - coolify.serviceName=postgres
+      - coolify.environmentName=production
+      - coolify.pullRequestId=0
+      - coolify.service.subId=14
+      - coolify.service.subType=database
+      - coolify.service.subName=postgres
+    networks:
+      b8s0cks444o0sogo8kg8wcgw: null
+    env_file:
+      - .env
+volumes:
+  b8s0cks444o0sogo8kg8wcgw_app-data:
+    name: b8s0cks444o0sogo8kg8wcgw_app-data
+  b8s0cks444o0sogo8kg8wcgw_uploads-data:
+    name: b8s0cks444o0sogo8kg8wcgw_uploads-data
+  b8s0cks444o0sogo8kg8wcgw_pg-data:
+    name: b8s0cks444o0sogo8kg8wcgw_pg-data
+networks:
+  b8s0cks444o0sogo8kg8wcgw:
+    name: b8s0cks444o0sogo8kg8wcgw
+    external: true
+
