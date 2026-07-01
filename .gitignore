@@ -57,3 +57,4 @@ prerendered/
 # Junction local que apunta a colors del tema WP — solo existe en dev (de kamples)
 /frontend/public/legacy-assets/
 /frontend/public/legacy-assets/colors/
+/temp/

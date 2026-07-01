@@ -1,8 +1,30 @@
 # BDP-NET — Análisis de cambios y problemas reportados por cliente
 
-> **Fecha:** 2026-06-08
+> **Fecha:** 2026-06-08 (actualizado 2026-06-30)
 > **Contexto:** El cliente reporta que el TPV BDP-NET "se ha desconfigurado" tras las pruebas de integración WebLink
 > **PC remoto:** `100.83.196.35` (POS 31 — CENTRAL 2026)
+> **Estado actual:** ✅ Integración verificada y funcionando — cliente confirmó resolución de los 4 problemas con su técnico
+
+---
+
+## 0. Verificación de estado (2026-06-30)
+
+Verificación completa realizada desde local (PowerShell → `100.83.196.35:8068`), sin tocar el servidor de producción:
+
+| Verificación | Resultado |
+|---|---|
+| Health BDP | ✅ `IsAlive: true` |
+| Terminal 31 (CENTRAL 2026) | ✅ Existe y operativo |
+| Serie Mesas | ✅ `00031TI` — 31T Factura Simplificada Mesa IVA |
+| CreateOrder OnlyCheck | ✅ `ErrorMessage: ""` — BDP acepta la comanda |
+| POS/Get (PosId=31) | ⚠️ Devuelve `[404401]` — **cambio en API de BDP**, no afecta integración |
+| POSes/Get | ⚠️ Devuelve vacío — limitación de API, no afecta integración |
+| Problemas cliente | ✅ Cliente confirmó que los 4 problemas se resolvieron con su técnico |
+
+**Notas:**
+- El error `404401` en POS/Get es nuevo (no existía en pruebas de junio). BDP probablemente actualizó la WebLink API. No afecta nuestro flujo porque POS/Get solo se usa en preflight/diagnóstico.
+- `MarketplaceOrderId` tiene límite de 15 caracteres (error `[301011]`). Confirmado en pruebas.
+- Conexión RDP al PC del restaurante: `mstsc /v:100.83.196.35`
 
 ---
 
@@ -180,6 +202,10 @@ Todo lo demás fueron pruebas de solo lectura contra la API WebLink (las comanda
 3. **Logo** → Serie nueva no hereda diseño personalizado de la serie anterior
 4. **Precios sin IVA** → Serie con "IVA Incluido" cambia la interpretación de precios
 
-### Acción inmediata recomendada:
+### Acción inmediata recomendada (2026-06-08):
 
 Cambiar la serie de Mesas de `00031TI` de vuelta a `00031TM`. Esto debería revertir los problemas 1, 3 y 4. Para el problema 2, hay que verificar la configuración de Barra por separado.
+
+### Estado post-resolución (2026-06-30):
+
+El cliente contactó a su técnico de BDP y los 4 problemas se resolvieron. La serie `00031TI` sigue asignada a Mesas. La integración WebLink funciona correctamente — CreateOrder OnlyCheck pasa sin errores. El cliente usa Glory → BDP en producción.

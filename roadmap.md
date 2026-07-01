@@ -23,6 +23,7 @@ Rama: glory-rust-nakomi
 - **VPS2 Coolify**: Configurado en settings.json
 - **Deploy**: Siempre via coolify-manager-rs, nunca desde Coolify UI (ver doc de persistencia volúmenes)
 - **Volúmenes**: Documentado en `Agente/documentacion/hosting/coolify-volumenes-persistencia-2026-04-12.md`
+- **SSH PROHIBIDO**: PowerShell profile bloquea SSH/SCP/SFTP en agentes VS Code (ver `Agente/prevencion/ssh-prohibicion-completa-2026-06-30.md`)
 
 ## Deploy con coolify-manager-rs
 
