@@ -386,4 +386,12 @@
 - El perfil vive en `$PROFILE` (CurrentUserAllHosts = `~\OneDrive\Documentos\PowerShell\profile.ps1`). Se carga automáticamente en cada sesión PowerShell.
 - Bypass de emergencia: `ssh-unsafe` y `scp-unsafe` ejecutan los comandos reales sin filtro. Útil para diagnóstico puntual.
 - IPs bloqueadas: `66.94.100.241` (VPS1) y `173.249.50.44` (VPS2). Para agregar más, editar `$Script:BlockedSSHHosts` en el perfil.
-- **Lección del lockout anterior (jun 2026):** nunca usar `$(date)` en nombres de backup SSH — el shell remoto puede interpretar el `$` y romper el authorized_keys. Usar nombre fijo.
+- **Lección del lockout anterior (jun 2026):** nunca usar `$(date)` en nombres de backup SSH — el shell remoto puede interpretar el `$' y romper el authorized_keys. Usar nombre fijo.
+
+## Coolify compose credential drift — pérdida de datos por regeneración (2026-07-01)
+- Coolify puede regenerar `docker-compose.yml` sin aviso (re-sync, template update, API PATCH incorrecto). Si el compose cambia `POSTGRES_USER` o `POSTGRES_DB`, el siguiente deploy crea una DB nueva vacía y los datos originales quedan huérfanos en el volume.
+- **Los backups deben instalarse ANTES de poner en producción.** Un backup que se instala después de la pérdida es inútil — respalda la DB vacía, no la original.
+- **POSTGRES_USER y POSTGRES_DB nunca deben cambiar** una vez que un stack tiene datos. Si el template se estandariza, los stacks existentes deben mantener sus credenciales originales.
+- **Coolify no respalda bind mounts ni DBs automáticamente.** Es responsabilidad del operador configurar backups con `backup_policy.source_paths` y cron VPS.
+- **Guards E19+E20** implementados en coolify-manager-rs: E19 compara credenciales entre compose actual y desired antes de PATCH; E20 verifica que la DB objetivo exista antes de ALTER USER. Cobertura: E19 detecta drift del manager, E20 detecta drift de cualquier mecanismo.
+- Documentación completa: `Agente/documentacion/hosting/incidente-glory-rest-2026-07-01.md` y `Agente/documentacion/hosting/sistema-respaldos-2026-07-02.md`.

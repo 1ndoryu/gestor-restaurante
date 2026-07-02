@@ -127,3 +127,22 @@ Ver análisis completo en `Agente/documentacion/hosting/producto-correo-proveedo
   - Validación dry-run completa: artículo real (`1001`, "CAFE BOMBON") → `ErrorMessage: ""`.
   - Pendiente: commit, deploy a producción, y probar endpoint `/api/configuracion/bdp/sync-dry-run` en producción.
 
+- **202A-1 — Fix kamples registration (pgvector + migrations).** ✅ RESUELTO 2026-07-02
+  - samples.nakomi.studio no dejaba registrarse. DB completamente vacía (0 tablas).
+  - Se instaló pgvector manualmente y se aplicaron 23 migraciones SQL.
+
+- **202A-2 — Fix glory-rest login + seed restoration.** ✅ RESUELTO 2026-07-02
+  - restaurante.wandori.us no dejaba entrar. Coolify regeneró compose (credenciales cambiadas).
+  - Datos originales perdidos permanentemente. Seed ejecutado para restaurar demo.
+  - Documentación: `Agente/documentacion/hosting/incidente-glory-rest-2026-07-01.md`
+
+- **202A-3 — Guards E19+E20 en coolify-manager-rs.** ✅ RESUELTO 2026-07-02
+  - E19: Credential Drift Detection — aborta deploy si POSTGRES_USER/POSTGRES_DB cambian.
+  - E20: Database Existence Verification — aborta ALTER USER si la DB no existe.
+  - Commit `ea16100` en coolify-manager-rs.
+
+- **202A-4 — Documentación sistema de respaldos + incidente.** ✅ RESUELTO 2026-07-02
+  - Documentación completa del sistema de backups (3 capas, formato, retención, restore, guards).
+  - Documentación detallada del incidente glory-rest (cronología, causa raíz, acciones).
+  - Archivos: `Agente/documentacion/hosting/sistema-respaldos-2026-07-02.md`, `Agente/documentacion/hosting/incidente-glory-rest-2026-07-01.md`
+
