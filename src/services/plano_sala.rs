@@ -8,8 +8,8 @@ use crate::errors::AppError;
 use crate::models::{
     ActualizarMesaRequest, ActualizarZonaRequest, CombinacionConMesas, CombinacionExport,
     CombinacionMesas, CrearCombinacionRequest, CrearMesaRequest, CrearZonaRequest, Mesa,
-    MesaExport, MesaOcupacion, PlanoExport, PlanoOcupacion, PlanoSala, ReservaMesa, ZonaConMesas,
-    ZonaExport, ZonaOcupacion, ZonaSala,
+    MesaExport, MesaOcupacion, ParedExport, PlanoExport, PlanoOcupacion, PlanoSala, ReservaMesa,
+    ZonaConMesas, ZonaExport, ZonaOcupacion, ZonaSala,
 };
 use crate::repositories::PlanoSalaRepository;
 
@@ -202,6 +202,19 @@ impl PlanoSalaService {
                         activa: m.activa,
                     })
                     .collect(),
+                /* [027B-1] Exportar paredes de la zona */
+                paredes: zc
+                    .paredes
+                    .iter()
+                    .map(|p| ParedExport {
+                        pos_x: p.pos_x,
+                        pos_y: p.pos_y,
+                        ancho: p.ancho,
+                        alto: p.alto,
+                        rotacion: p.rotacion,
+                        color: p.color.clone(),
+                    })
+                    .collect(),
             })
             .collect();
 
@@ -271,6 +284,21 @@ impl PlanoSalaService {
                     max_personas: Some(mesa_exp.max_personas),
                 };
                 Repo::crear_mesa(pool, &req_mesa).await?;
+            }
+
+            /* [027B-1] Restaurar paredes de la zona */
+            for pared_exp in &zona_exp.paredes {
+                Repo::crear_pared(
+                    pool,
+                    zona.id,
+                    pared_exp.pos_x,
+                    pared_exp.pos_y,
+                    pared_exp.ancho,
+                    pared_exp.alto,
+                    pared_exp.rotacion,
+                    &pared_exp.color,
+                )
+                .await?;
             }
         }
 

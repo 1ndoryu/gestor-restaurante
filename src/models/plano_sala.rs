@@ -182,6 +182,9 @@ pub struct ZonaExport {
     pub ancho: i32,
     pub alto: i32,
     pub mesas: Vec<MesaExport>,
+    /* [027B-1] Paredes incluidas en export para no perderlas al restaurar */
+    #[serde(default)]
+    pub paredes: Vec<ParedExport>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -195,6 +198,17 @@ pub struct MesaExport {
     pub min_personas: i32,
     pub max_personas: i32,
     pub activa: bool,
+}
+
+/* [027B-1] Pared exportable — solo campos de diseño, sin ids ni timestamps */
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ParedExport {
+    pub pos_x: i32,
+    pub pos_y: i32,
+    pub ancho: i32,
+    pub alto: i32,
+    pub rotacion: i32,
+    pub color: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]

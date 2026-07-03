@@ -11,17 +11,18 @@
 
 Verificación completa realizada desde local (PowerShell → `100.83.196.35:8068`), sin tocar el servidor de producción:
 
-| Verificación | Resultado |
-|---|---|
-| Health BDP | ✅ `IsAlive: true` |
-| Terminal 31 (CENTRAL 2026) | ✅ Existe y operativo |
-| Serie Mesas | ✅ `00031TI` — 31T Factura Simplificada Mesa IVA |
-| CreateOrder OnlyCheck | ✅ `ErrorMessage: ""` — BDP acepta la comanda |
-| POS/Get (PosId=31) | ⚠️ Devuelve `[404401]` — **cambio en API de BDP**, no afecta integración |
-| POSes/Get | ⚠️ Devuelve vacío — limitación de API, no afecta integración |
-| Problemas cliente | ✅ Cliente confirmó que los 4 problemas se resolvieron con su técnico |
+| Verificación               | Resultado                                                                |
+| -------------------------- | ------------------------------------------------------------------------ |
+| Health BDP                 | ✅ `IsAlive: true`                                                       |
+| Terminal 31 (CENTRAL 2026) | ✅ Existe y operativo                                                    |
+| Serie Mesas                | ✅ `00031TI` — 31T Factura Simplificada Mesa IVA                         |
+| CreateOrder OnlyCheck      | ✅ `ErrorMessage: ""` — BDP acepta la comanda                            |
+| POS/Get (PosId=31)         | ⚠️ Devuelve `[404401]` — **cambio en API de BDP**, no afecta integración |
+| POSes/Get                  | ⚠️ Devuelve vacío — limitación de API, no afecta integración             |
+| Problemas cliente          | ✅ Cliente confirmó que los 4 problemas se resolvieron con su técnico    |
 
 **Notas:**
+
 - El error `404401` en POS/Get es nuevo (no existía en pruebas de junio). BDP probablemente actualizó la WebLink API. No afecta nuestro flujo porque POS/Get solo se usa en preflight/diagnóstico.
 - `MarketplaceOrderId` tiene límite de 15 caracteres (error `[301011]`). Confirmado en pruebas.
 - Conexión RDP al PC del restaurante: `mstsc /v:100.83.196.35`
@@ -30,12 +31,12 @@ Verificación completa realizada desde local (PowerShell → `100.83.196.35:8068
 
 ## 1. Problemas reportados por el cliente
 
-| # | Problema | Severidad |
-|---|---|---|
-| 1 | Facturas vuelven a empezar desde #1 (se perdió la secuencia) | 🔴 Crítico |
-| 2 | No pueden cerrar tickets ni facturas | 🔴 Crítico |
-| 3 | Ha desaparecido el logo del restaurante | 🟡 Medio |
-| 4 | Precios salen sin IVA | 🔴 Crítico |
+| #   | Problema                                                     | Severidad  |
+| --- | ------------------------------------------------------------ | ---------- |
+| 1   | Facturas vuelven a empezar desde #1 (se perdió la secuencia) | 🔴 Crítico |
+| 2   | No pueden cerrar tickets ni facturas                         | 🔴 Crítico |
+| 3   | Ha desaparecido el logo del restaurante                      | 🟡 Medio   |
+| 4   | Precios salen sin IVA                                        | 🔴 Crítico |
 
 ---
 
@@ -43,8 +44,8 @@ Verificación completa realizada desde local (PowerShell → `100.83.196.35:8068
 
 ### 2.1 Cambio de serie de facturación (MESAS)
 
-| Campo | Antes | Después |
-|---|---|---|
+| Campo                                           | Antes                                       | Después                                             |
+| ----------------------------------------------- | ------------------------------------------- | --------------------------------------------------- |
 | **Serie en "Facturas 1 → Parámetros en Mesas"** | `00031TM` (31T Facturas Simplificadas Mesa) | `00031TI` (31T Facturas Simplificadas IVA Incluido) |
 
 **Por qué se hizo:** El error `[300035]-NO SE HA DEFINIDO UNA SERIE DE FACTURACION VALIDA` bloqueaba la creación de comandas vía WebLink. La serie `00031TM` no tenía "IVA Incluido" activo (y no se podía modificar por tener documentos existentes). Se creó `00031TI` como serie nueva con IVA Incluido y se asignó al terminal 31.
@@ -55,41 +56,41 @@ Verificación completa realizada desde local (PowerShell → `100.83.196.35:8068
 
 ### 2.2 Creación de nueva serie TPV
 
-| Serie | Descripción | IVA Incluido | Estado |
-|---|---|---|---|
-| `00031TM` | 31T Facturas Simplificadas Mesa | ❌ | Existente (NO modificada) |
-| `00031TI` | 31T Facturas Simplificadas (IVA Incluido) | ✅ | **NUEVA — creada 2026-06-07** |
-| `00031AL` | 31T Albaranes | — | Existente (NO modificada) |
-| `00031P` | (probablemente otra serie) | — | Creada durante pruebas tempranas |
+| Serie     | Descripción                               | IVA Incluido | Estado                           |
+| --------- | ----------------------------------------- | ------------ | -------------------------------- |
+| `00031TM` | 31T Facturas Simplificadas Mesa           | ❌           | Existente (NO modificada)        |
+| `00031TI` | 31T Facturas Simplificadas (IVA Incluido) | ✅           | **NUEVA — creada 2026-06-07**    |
+| `00031AL` | 31T Albaranes                             | —            | Existente (NO modificada)        |
+| `00031P`  | (probablemente otra serie)                | —            | Creada durante pruebas tempranas |
 
 ### 2.3 Pruebas de API WebLink (solo lectura + dry-run)
 
 Estas pruebas **NO modifican datos** en BDP-NET:
 
-| Acción | Endpoint | Modifica datos | Notas |
-|---|---|---|---|
-| Health check | `GET /Service/Health` | ❌ No | Solo lectura |
-| Login | `POST /Auth/Login` | ❌ No | Crea sesión temporal (59 min) |
-| GetVersion | `GET /Service/GetVersion` | ❌ No | Solo lectura |
-| GetPOS | `POST /API/POS/Get` | ❌ No | Consulta terminal |
-| GetEmployee | `POST /API/Employee/Get` | ❌ No | Consulta empleado |
-| GetPOSEmployees | `POST /API/POS/Employees/Get` | ❌ No | Consulta empleados del terminal |
-| GetPOSTenderList | `POST /API/Tenders/GetPOSList` | ❌ No | Consulta formas de pago |
-| DepartmentsExportFromProfile | `POST /API/Departments/ExportFromProfile` | ❌ No | Consulta departamentos |
-| GetPOSArticlesList | `POST /API/Articles/GetPOSList` | ❌ No | Consulta artículos |
-| **CreateOrder (OnlyCheck)** | `POST /API/Orders/Create` con `OrderOperationType=1` | ❌ No | **Dry-run — BDP valida pero NO crea** |
+| Acción                       | Endpoint                                             | Modifica datos | Notas                                 |
+| ---------------------------- | ---------------------------------------------------- | -------------- | ------------------------------------- |
+| Health check                 | `GET /Service/Health`                                | ❌ No          | Solo lectura                          |
+| Login                        | `POST /Auth/Login`                                   | ❌ No          | Crea sesión temporal (59 min)         |
+| GetVersion                   | `GET /Service/GetVersion`                            | ❌ No          | Solo lectura                          |
+| GetPOS                       | `POST /API/POS/Get`                                  | ❌ No          | Consulta terminal                     |
+| GetEmployee                  | `POST /API/Employee/Get`                             | ❌ No          | Consulta empleado                     |
+| GetPOSEmployees              | `POST /API/POS/Employees/Get`                        | ❌ No          | Consulta empleados del terminal       |
+| GetPOSTenderList             | `POST /API/Tenders/GetPOSList`                       | ❌ No          | Consulta formas de pago               |
+| DepartmentsExportFromProfile | `POST /API/Departments/ExportFromProfile`            | ❌ No          | Consulta departamentos                |
+| GetPOSArticlesList           | `POST /API/Articles/GetPOSList`                      | ❌ No          | Consulta artículos                    |
+| **CreateOrder (OnlyCheck)**  | `POST /API/Orders/Create` con `OrderOperationType=1` | ❌ No          | **Dry-run — BDP valida pero NO crea** |
 
 ### 2.4 Configuración de Web Services (Weblink REST API)
 
 Estos campos ya estaban configurados ANTES de nuestras pruebas (confirmado en la documentación):
 
-| Campo | Valor | ¿Lo modificamos? |
-|---|---|---|
-| IP Address | Configurado | ❌ No |
-| IP Port | 8068 | ❌ No |
-| Usar Password | Activo | ❌ No |
-| Credenciales (login/password) | admin / kamples2026 | ❌ No |
-| CodigoIntegrador | VBW2MBM5 | ❌ No |
+| Campo                         | Valor               | ¿Lo modificamos? |
+| ----------------------------- | ------------------- | ---------------- |
+| IP Address                    | Configurado         | ❌ No            |
+| IP Port                       | 8068                | ❌ No            |
+| Usar Password                 | Activo              | ❌ No            |
+| Credenciales (login/password) | admin / kamples2026 | ❌ No            |
+| CodigoIntegrador              | VBW2MBM5            | ❌ No            |
 
 ---
 
@@ -116,6 +117,7 @@ La configuración de "Parámetros en Barra" del terminal 31 **siempre estuvo vac
 - Si el error de "cerrar tickets" es diferente (ej: ya están facturados y no se pueden cerrar de nuevo)
 
 **Posible solución:**
+
 1. Verificar que `00031TM` (o `00031TI`) esté asignada correctamente en Mesas
 2. Verificar si "Barra" necesita una serie asignada (si el personal cierra desde Barra)
 3. Revisar si los tickets bloqueados tienen estado intermedio (abiertos pero no facturables)
@@ -127,12 +129,14 @@ La configuración de "Parámetros en Barra" del terminal 31 **siempre estuvo vac
 **Causa: NO hay cambios nuestros relacionados con el logo**
 
 En ninguna de las conversaciones ni pruebas se modificó:
+
 - Diseño de ticket
 - Cabecera/logo de impresión
 - Configuración de impresora
 - Formato DIS de ticket
 
 **Posibles causas ajenas:**
+
 - Al crear `00031TI` como serie nueva, hereda el diseño por defecto (sin logo personalizado)
 - Si el logo estaba vinculado a `00031TM` y el cambio de serie lo perdió
 - Reinicio de BDP-NET durante las pruebas que no recargó bien la configuración
@@ -150,6 +154,7 @@ En ninguna de las conversaciones ni pruebas se modificó:
 Si los artículos en BDP tienen precios como **base imponible** (ej: café = 4.55€ + 10% IVA = 5.00€), al cambiar a serie con IVA Incluido el ticket mostraría 4.55€ como precio final (sin el IVA visible).
 
 **Solución:**
+
 1. Verificar cómo están definidos los precios en los artículos (con o sin IVA)
 2. Si los precios son base imponible, restaurar serie `00031TM` (sin IVA Incluido)
 3. Si los precios son finales, mantener `00031TI` y verificar que el desglose de IVA aparezca
@@ -160,30 +165,30 @@ Si los artículos en BDP tienen precios como **base imponible** (ej: café = 4.5
 
 ## 4. Tabla de reversión recomendada
 
-| Paso | Acción | Dónde en BDP-NET | Revierte qué |
-|---|---|---|---|
-| 1 | Cambiar serie Mesas de `00031TI` a `00031TM` | Configuración TPV → T31 → Facturas 1 → Mesas | Facturas desde #1, precios sin IVA |
-| 2 | Verificar serie en Barra | Configuración TPV → T31 → Facturas 1 → Barra | No cerrar tickets (si cierran desde Barra) |
-| 3 | Restaurar logo en serie activa | Series TPV → serie activa → Diseño Ticket | Logo desaparecido |
-| 4 | Verificar precios de artículos | Mantenimiento Artículos | Precios sin IVA (si el paso 1 no lo resuelve) |
+| Paso | Acción                                       | Dónde en BDP-NET                             | Revierte qué                                  |
+| ---- | -------------------------------------------- | -------------------------------------------- | --------------------------------------------- |
+| 1    | Cambiar serie Mesas de `00031TI` a `00031TM` | Configuración TPV → T31 → Facturas 1 → Mesas | Facturas desde #1, precios sin IVA            |
+| 2    | Verificar serie en Barra                     | Configuración TPV → T31 → Facturas 1 → Barra | No cerrar tickets (si cierran desde Barra)    |
+| 3    | Restaurar logo en serie activa               | Series TPV → serie activa → Diseño Ticket    | Logo desaparecido                             |
+| 4    | Verificar precios de artículos               | Mantenimiento Artículos                      | Precios sin IVA (si el paso 1 no lo resuelve) |
 
 ---
 
 ## 5. Lo que NO hicimos (para tranquilidad del cliente)
 
-| Acción | ¿La hicimos? | Evidencia |
-|---|---|---|
-| Modificar artículos | ❌ No | Solo lectura con `GetPOSArticlesList` |
-| Modificar precios | ❌ No | Solo lectura |
-| Modificar clientes | ❌ No | Solo lectura con `ExportCustomers` (ni siquiera se ejecutó) |
-| Modificar empleados | ❌ No | Solo lectura con `GetEmployee` |
-| Crear/borrar comandas reales | ❌ No | Solo `OnlyCheck` (dry-run) |
-| Modificar formas de pago | ❌ No | Solo lectura con `GetPOSTenderList` |
-| Modificar diseño de ticket | ❌ No | No se tocó |
-| Modificar configuración de impresora | ❌ No | No se tocó |
-| Modificar logo | ❌ No | No se tocó |
-| Cancelar facturas existentes | ❌ No | `CancelOrder` devuelve error (no disponible) |
-| Modificar contadores de series existentes | ❌ No | Solo se creó serie nueva `00031TI` |
+| Acción                                    | ¿La hicimos? | Evidencia                                                   |
+| ----------------------------------------- | ------------ | ----------------------------------------------------------- |
+| Modificar artículos                       | ❌ No        | Solo lectura con `GetPOSArticlesList`                       |
+| Modificar precios                         | ❌ No        | Solo lectura                                                |
+| Modificar clientes                        | ❌ No        | Solo lectura con `ExportCustomers` (ni siquiera se ejecutó) |
+| Modificar empleados                       | ❌ No        | Solo lectura con `GetEmployee`                              |
+| Crear/borrar comandas reales              | ❌ No        | Solo `OnlyCheck` (dry-run)                                  |
+| Modificar formas de pago                  | ❌ No        | Solo lectura con `GetPOSTenderList`                         |
+| Modificar diseño de ticket                | ❌ No        | No se tocó                                                  |
+| Modificar configuración de impresora      | ❌ No        | No se tocó                                                  |
+| Modificar logo                            | ❌ No        | No se tocó                                                  |
+| Cancelar facturas existentes              | ❌ No        | `CancelOrder` devuelve error (no disponible)                |
+| Modificar contadores de series existentes | ❌ No        | Solo se creó serie nueva `00031TI`                          |
 
 ---
 

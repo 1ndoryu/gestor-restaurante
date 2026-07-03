@@ -1,10 +1,11 @@
 # BDP WebLink REST API — Estado de Integración
 
-> **Fecha:** 2026-06-07
+> **Fecha:** 2026-06-07 (actualizado 2026-07-02)
 > **Autor:** Agente (análisis post-implementación 065A-5)
 > **Stack:** Glory Rust Backend (Axum 0.7 + SQLx) ↔ BDP-NET WebLink REST API
 > **Endpoint BDP:** `http://100.83.196.35:8068` (vía Tailscale)
 > **POS:** 31 — CENTRAL 2026 (Series `00031TI`, IVA incluido)
+> **Estado:** ✅ Integración verificada y funcionando en producción (última verificación 2026-06-30)
 
 ---
 
@@ -106,10 +107,11 @@
 
 ### 2.9 Terminales
 
-| Endpoint   | Método HTTP | Estado | Uso actual                               |
-| ---------- | ----------- | ------ | ---------------------------------------- |
-| `GetPOS`   | POST        | 🔧     | Preflight: verifica terminal configurado |
-| `GetPOSes` | POST        | 📋     | Cliente tiene método, nunca llamado      |
+| Endpoint   | Método HTTP | Estado | Uso actual                                                |
+| ---------- | ----------- | ------ | --------------------------------------------------------- |
+| `GetPOS`   | POST        | ⚠️    | **Devuelve `[404401]` desde ~junio 2026** — cambio en API de BDP. No afecta CreateOrder |
+| `GetPOSes` | POST        | ⚠️    | **Devuelve respuesta vacía** — limitación de API. No afecta integración               |
+| `GetPOSSeriesList` | POST | 🔧     | Probado exitosamente: devuelve las 15 series del terminal |
 
 ### 2.10 Empleados
 
@@ -134,7 +136,7 @@
 - **Suplementos:** `GetSupplementsProfiles`, `GetPOSSupplementsProfile`
 - **Talla/Color:** `GetInfoSAC`, `GetItemSAC`
 - **Salones:** `GetRoomTables`, `GetRoomsTables`
-- **Series:** `GetPOSSeriesList`
+- **Series:** (ya catalogado arriba en 2.9 como 🔧)
 
 ---
 
@@ -274,16 +276,19 @@ Glory: Venta creada/actualizada
 
 ## 8. Restricciones conocidas de la API BDP
 
-| Restricción                                     | Detalle                             | Impacto                                        |
-| ----------------------------------------------- | ----------------------------------- | ---------------------------------------------- |
-| `MarketplaceOrderId` máx 15 chars               | Usamos `G<timestamp_14>`            | Ninguno (resuelto)                             |
-| `AlreadyInvoiced` y `Invoice` son REQUIRED      | Deben ir dentro del objeto `Order`  | Ninguno (resuelto)                             |
-| `CancelOrder` NO disponible                     | Devuelve "Subscripción no activada" | **Alto** — no se pueden cancelar comandas      |
-| `Type=0` (Barra) es el único válido para POS 31 | Otros types dan error               | **Medio** — limita mapeo de canal              |
-| JWT expira en ~59 min                           | Re-login automático en cliente      | Ninguno (resuelto)                             |
-| `CreateOrder` con `OnlyCheck=true`              | Solo valida, no crea                | Útil para preflight                            |
-| Solo POST y GET                                 | No hay PUT/PATCH/DELETE             | Las actualizaciones usan endpoints específicos |
-| Respuesta de `CreateOrder`                      | Devuelve `OrderId` numérico         | Se guarda como `bdp_order_id`                  |
+| Restricción                                     | Detalle                                    | Impacto                                        |
+| ----------------------------------------------- | ------------------------------------------ | ---------------------------------------------- |
+| `MarketplaceOrderId` máx 15 chars               | Usamos `G<timestamp_14>`                   | Ninguno (resuelto)                             |
+| `AlreadyInvoiced` y `Invoice` son REQUIRED      | Deben ir dentro del objeto `Order`         | Ninguno (resuelto)                             |
+| `CancelOrder` NO disponible                     | Devuelve "Subscripción no activada"        | **Alto** — no se pueden cancelar comandas      |
+| `Type=0` (Barra) es el único válido para POS 31 | Otros types dan error                      | **Medio** — limita mapeo de canal              |
+| JWT expira en ~59 min                           | Re-login automático en cliente             | Ninguno (resuelto)                             |
+| `CreateOrder` con `OnlyCheck=true`              | Solo valida, no crea                       | Útil para preflight                            |
+| Solo POST y GET                                 | No hay PUT/PATCH/DELETE                    | Las actualizaciones usan endpoints específicos |
+| Respuesta de `CreateOrder`                      | Devuelve `OrderId` numérico                | Se guarda como `bdp_order_id`                  |
+| `POS/Get` devuelve `[404401]`                   | Desde ~junio 2026, cambio en API de BDP    | **Bajo** — solo afecta preflight/diagnóstico   |
+| `POSes/Get` devuelve vacío                      | Limitación de API, no expone terminales    | **Bajo** — no se usa en flujo productivo       |
+| Serie no asignable por API                      | WebLink no expode qué serie va en Mesas/Barra | **Medio** — solo configurable en TPV de escritorio |
 
 ---
 
@@ -384,6 +389,10 @@ sequenceDiagram
 | Mutex por `venta_id`                            | Evita race conditions en sync concurrente                |
 | `#[serde(rename_all = "PascalCase")]`           | Fundamental para el contrato JSON de BDP                 |
 | JWT expira en ~59 min                           | El cliente maneja re-login automáticamente               |
+| `POS/Get` cambió a `[404401]` (junio 2026)      | API de BDP actualizada; no afecta CreateOrder            |
+| `MarketplaceOrderId` validado estrictamente      | Máx 15 chars — error `[301011]` si excede                |
+| La API no expone asignación Mesas/Barra          | Solo visible en TPV de escritorio, no por WebLink        |
+| Serie `00031TI` sigue activa tras problemas      | Cliente resolvió los 4 problemas con su técnico          |
 
 ---
 

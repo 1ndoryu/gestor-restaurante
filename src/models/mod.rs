@@ -44,9 +44,9 @@ pub use plano_sala::{
     ActualizarMesaRequest, ActualizarParedRequest, ActualizarPosicionesParedesRequest,
     ActualizarPosicionesRequest, ActualizarZonaRequest, CombinacionConMesas, CombinacionExport,
     CombinacionMesas, CrearCombinacionRequest, CrearMesaRequest, CrearParedRequest,
-    CrearZonaRequest, Mesa, MesaExport, MesaOcupacion, ParedSala, PlanoExport, PlanoOcupacion,
-    PlanoOcupacionQuery, PlanoSala, PosicionMesa, PosicionPared, ReservaMesa, ZonaConMesas,
-    ZonaExport, ZonaOcupacion, ZonaSala,
+    CrearZonaRequest, Mesa, MesaExport, MesaOcupacion, ParedExport, ParedSala, PlanoExport,
+    PlanoOcupacion, PlanoOcupacionQuery, PlanoSala, PosicionMesa, PosicionPared, ReservaMesa,
+    ZonaConMesas, ZonaExport, ZonaOcupacion, ZonaSala,
 };
 pub use plantilla_whatsapp::{
     ActualizarPlantillaRequest, CrearPlantillaRequest, PlantillaWhatsapp, PlantillasPaginadas,
