@@ -269,7 +269,7 @@ pub async fn diagnosticar_bdp_sync_dry_run(
     auth: AuthUser,
 ) -> Result<Json<BdpSyncDryRunResponse>, AppError> {
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
-    Ok(Json(BdpSyncPreflightService::execute(&config).await))
+    Ok(Json(BdpSyncPreflightService::execute(&state.pool, auth.user_id, &config).await))
 }
 
 /* ========== Integraciones de marketing ========== */

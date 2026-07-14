@@ -75,6 +75,10 @@ impl ConfiguracionRepository {
                      google_review_url = COALESCE($27, google_review_url), \
                      telefono_restaurante = COALESCE($28, telefono_restaurante), \
                      url_reservas = COALESCE($29, url_reservas), \
+                     bdp_tender_map = COALESCE($30, bdp_tender_map), \
+                     bdp_order_type_map = COALESCE($31, bdp_order_type_map), \
+                     bdp_default_customer_code = COALESCE($32, bdp_default_customer_code), \
+                     bdp_poll_interval_secs = COALESCE($33, bdp_poll_interval_secs), \
                 updated_at = NOW() \
              WHERE user_id = $1 RETURNING *",
         )
@@ -107,6 +111,10 @@ impl ConfiguracionRepository {
         .bind(req.google_review_url.as_deref())
         .bind(req.telefono_restaurante.as_deref())
         .bind(req.url_reservas.as_deref())
+        .bind(req.bdp_tender_map.as_ref())
+        .bind(req.bdp_order_type_map.as_ref())
+        .bind(req.bdp_default_customer_code.as_deref())
+        .bind(req.bdp_poll_interval_secs)
         .fetch_one(pool)
         .await
     }

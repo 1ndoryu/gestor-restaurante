@@ -71,6 +71,8 @@ pub struct Venta {
     pub bdp_synced_at: Option<DateTime<Utc>>,
     pub bdp_sync_error: Option<String>,
     pub bdp_order_id: Option<i64>,
+    /* [F4.1] Estado del pedido BDP: pending, confirmed, invoiced, error */
+    pub bdp_order_status: Option<String>,
 }
 
 /// Request para crear una venta
@@ -86,6 +88,10 @@ pub struct CrearVentaRequest {
     pub metodo_pago: MetodoPago,
     pub importe_base: rust_decimal::Decimal,
     pub importe_iva: rust_decimal::Decimal,
+    /* [F2.3] Líneas opcionales de la venta.
+     * Si se proporcionan, bdp_sync usará estas líneas para construir un pedido multi-item.
+     * Si es None o vacío, se usa el comportamiento legacy (1 artículo genérico). */
+    pub lineas: Option<Vec<super::venta_linea::CrearVentaLineaRequest>>,
 }
 
 /* [283A-22] Request para actualizar una venta — todos los campos opcionales
@@ -143,6 +149,8 @@ pub struct VentaConCliente {
     pub bdp_synced_at: Option<DateTime<Utc>>,
     pub bdp_sync_error: Option<String>,
     pub bdp_order_id: Option<i64>,
+    /* [F4.1] Estado del pedido BDP */
+    pub bdp_order_status: Option<String>,
 }
 
 /// Query params para listar ventas con filtro por fecha

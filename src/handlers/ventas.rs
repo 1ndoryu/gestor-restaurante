@@ -12,7 +12,7 @@ use crate::middleware::AuthUser;
 use crate::models::{
     ActualizarVentaRequest, CrearVentaRequest, Venta, VentasPaginadas, VentasQuery,
 };
-use crate::services::VentaService;
+use crate::services::{BdpOrderPollerService, VentaService};
 use crate::AppState;
 
 /// Crear una venta
@@ -192,6 +192,87 @@ pub async fn reintentar_sync_bdp(
     Ok(Json(venta))
 }
 
+/* [276A-4.3] GET /api/ventas/:id/bdp-status — Consulta el estado BDP de una venta.
+ * Llama a GetOrder en BDP para obtener el status actual y actualiza bdp_order_status. */
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct BdpOrderStatusResponse {
+    pub venta_id: Uuid,
+    pub bdp_order_id: Option<i64>,
+    pub bdp_order_status: Option<String>,
+    pub bdp_synced: bool,
+    pub bdp_sync_error: Option<String>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/ventas/{id}/bdp-status",
+    tag = "Ventas",
+    params(("id" = Uuid, Path, description = "ID de la venta")),
+    responses(
+        (status = 200, description = "Estado BDP de la venta", body = BdpOrderStatusResponse),
+        (status = 404, description = "Venta no encontrada", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn obtener_bdp_status(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<BdpOrderStatusResponse>, AppError> {
+    let config = crate::services::ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+
+    /* Buscar la venta y refrescar su status vía BDP si tiene order_id */
+    let venta = crate::repositories::VentaRepository::find_by_id(&state.pool, id, auth.user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
+
+    /* Si tiene order_id y BDP está configurado, hacer polling individual */
+    if venta.bdp_order_id.is_some() && config.bdp_sync_enabled {
+        let _ = BdpOrderPollerService::poll_pending(&state.pool, auth.user_id, &config).await;
+    }
+
+    /* Releer la venta para obtener el estado actualizado */
+    let venta = crate::repositories::VentaRepository::find_by_id(&state.pool, id, auth.user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
+
+    Ok(Json(BdpOrderStatusResponse {
+        venta_id: venta.id,
+        bdp_order_id: venta.bdp_order_id,
+        bdp_order_status: venta.bdp_order_status,
+        bdp_synced: venta.bdp_synced,
+        bdp_sync_error: venta.bdp_sync_error,
+    }))
+}
+
+/* [276A-4.2] POST /api/ventas/bdp-poll — Dispara polling manual de todas las ventas pendientes. */
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct BdpPollResponse {
+    pub updated: usize,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/ventas/bdp-poll",
+    tag = "Ventas",
+    responses(
+        (status = 200, description = "Polling completado", body = BdpPollResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn bdp_poll(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<Json<BdpPollResponse>, AppError> {
+    let config = crate::services::ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    let updated = BdpOrderPollerService::poll_pending(&state.pool, auth.user_id, &config)
+        .await
+        .map_err(|e| AppError::Validation(e))?;
+    Ok(Json(BdpPollResponse { updated }))
+}
+
 /* [263A-15] Axum 0.7 (matchit 0.7.x) usa :param, no {param}.
  * Todas las rutas con path params corregidas de {id} a :id.
  * Las anotaciones #[utoipa::path] mantienen {id} (sintaxis OpenAPI, no afecta routing). */
@@ -206,4 +287,6 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/ventas/:id/haddock-sync", post(reintentar_sync_haddock))
         .route("/ventas/:id/bdp-sync", post(reintentar_sync_bdp))
+        .route("/ventas/:id/bdp-status", get(obtener_bdp_status))
+        .route("/ventas/bdp-poll", post(bdp_poll))
 }

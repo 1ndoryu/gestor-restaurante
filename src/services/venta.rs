@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::models::{ActualizarVentaRequest, CrearVentaRequest, Venta, VentasPaginadas};
 use crate::repositories::venta::{ActualizarVentaData, NuevaVenta};
-use crate::repositories::{ConfiguracionRepository, VentaRepository};
+use crate::repositories::{ConfiguracionRepository, VentaRepository, VentaLineaRepository};
 
 use super::{BdpSyncService, HaddockService};
 
@@ -52,6 +52,18 @@ impl VentaService {
         };
 
         let venta = VentaRepository::create(pool, &data).await?;
+
+        /* [F2.5] Guardar líneas de venta si se proporcionan.
+         * Las líneas se usan para construir pedidos multi-item en BDP.
+         * Si no hay líneas, bdp_sync usa el comportamiento legacy (1 artículo genérico). */
+        if let Some(ref lineas) = req.lineas {
+            if !lineas.is_empty() {
+                if let Err(e) = VentaLineaRepository::crear_batch(pool, venta.id, lineas).await {
+                    warn!("[F2.5] Error guardando líneas de venta {}: {e}", venta.id);
+                    /* No fallamos la venta por un error en líneas — el sync usará fallback */
+                }
+            }
+        }
 
         /* [064A-5] Sincronizar con Haddock en background (no bloquea la respuesta) */
         Self::spawn_haddock_sync(pool.clone(), user_id, venta.clone(), false);

@@ -3,6 +3,7 @@
 mod admin;
 mod api_keys;
 mod auth;
+mod bdp_article_map;
 mod campanas;
 mod canales_reserva;
 mod chatbot;
@@ -176,6 +177,10 @@ impl utoipa::Modify for SecurityAddon {
         admin::ejecutar_seed,
         admin::eliminar_datos,
         trabajadores::listar,
+        bdp_article_map::listar_article_maps,
+        bdp_article_map::crear_article_map,
+        bdp_article_map::actualizar_article_map,
+        bdp_article_map::eliminar_article_map,
         trabajadores::crear,
         trabajadores::actualizar,
         trabajadores::eliminar,
@@ -326,6 +331,13 @@ impl utoipa::Modify for SecurityAddon {
         errores::ReportarErrorRequest,
         errores::ReportarErrorResponse,
         admin::AdminResult,
+        crate::models::BdpArticleMap,
+        crate::models::CrearBdpArticleMapRequest,
+        crate::models::ActualizarBdpArticleMapRequest,
+        crate::models::VentaLinea,
+        crate::models::CrearVentaLineaRequest,
+        ventas::BdpOrderStatusResponse,
+        ventas::BdpPollResponse,
         ErrorResponse,
     )),
     modifiers(&SecurityAddon),
@@ -399,6 +411,7 @@ fn api_routes() -> Router<AppState> {
         .merge(dashboard::routes())
         .merge(plano_sala::routes())
         .merge(configuracion::routes())
+        .merge(bdp_article_map::routes())
         .merge(campanas::routes())
         .merge(plantillas_whatsapp::routes())
         .merge(recordatorios::routes())

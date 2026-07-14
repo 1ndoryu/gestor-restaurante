@@ -5,9 +5,11 @@
 use chrono::Utc;
 use serde::Serialize;
 use serde_json::{json, Value};
+use sqlx::PgPool;
 use utoipa::ToSchema;
 
 use crate::models::ConfiguracionRestaurante;
+use crate::repositories::BdpArticleMapRepository;
 use crate::services::bdp_weblink::{BdpWeblinkClient, BdpWeblinkError};
 use crate::services::bdp_weblink_catalog::{
     BdpCreateOrderRequest, BdpDepartmentsExportFromProfileRequest, BdpGetEmployeeRequest,
@@ -49,13 +51,20 @@ struct BdpDryRunArticle {
 pub struct BdpSyncPreflightService;
 
 impl BdpSyncPreflightService {
-    pub async fn execute(config: &ConfiguracionRestaurante) -> BdpSyncDryRunResponse {
+    pub async fn execute(
+        pool: &PgPool,
+        user_id: uuid::Uuid,
+        config: &ConfiguracionRestaurante,
+    ) -> BdpSyncDryRunResponse {
         let mut response = BdpSyncDryRunResponse::new(config.bdp_sync_enabled);
         if !bdp_configurado(config) {
             response.mensaje = "BDP no esta configurado".to_string();
             return response;
         }
         response.configurado = true;
+
+        /* [F2.7] Check de mapeo de artículos — verificar que hay mapeos en bdp_article_map */
+        Self::check_article_mapping(pool, user_id, config, &mut response).await;
 
         let client = BdpWeblinkClient::new(config);
         Self::check_health(&client, &mut response).await;
@@ -95,7 +104,7 @@ impl BdpSyncPreflightService {
         .await;
         Self::check_employee_is_allowed(config, &pos_employees, &mut response);
 
-        Self::capture(
+        let tenders = Self::capture(
             &mut response,
             "Formas de pago del POS",
             "/API/Tenders/GetPOSList",
@@ -105,6 +114,12 @@ impl BdpSyncPreflightService {
             &["TenderList", "Tenders"],
         )
         .await;
+
+        /* [F3.4] Validar que los tenders configurados existen en el POS */
+        Self::check_tender_mapping(config, &tenders, &mut response);
+
+        /* [F3.5] Validar que los order types configurados son válidos */
+        Self::check_order_type_mapping(config, &mut response);
 
         let departments = Self::capture(
             &mut response,
@@ -259,6 +274,189 @@ impl BdpSyncPreflightService {
             )
         };
         response.checks.push(check);
+    }
+
+    /// [F2.7] Verificar que hay mapeos de artículos en `bdp_article_map`.
+    /// Si no hay ninguno, la sync usará el artículo default para todas las líneas.
+    async fn check_article_mapping(
+        pool: &PgPool,
+        user_id: uuid::Uuid,
+        config: &ConfiguracionRestaurante,
+        response: &mut BdpSyncDryRunResponse,
+    ) {
+        match BdpArticleMapRepository::listar(pool, user_id).await {
+            Ok(mapas) if !mapas.is_empty() => {
+                response.checks.push(BdpSyncDryRunCheck::ok(
+                    "Mapeo de articulos",
+                    "bdp_article_map",
+                    format!(
+                        "{} articulos mapeados Glory→BDP",
+                        mapas.len()
+                    ),
+                    Some(mapas.len()),
+                    mapas.first().map(|m| {
+                        format!("{} → {} ({})", m.articulo_glory_codigo, m.articulo_bdp_codigo, m.articulo_bdp_nombre)
+                    }),
+                ));
+            }
+            Ok(_) => {
+                /* Sin mapeos — no es error pero conviene avisar */
+                let msg = if config.bdp_default_article_code.is_empty() {
+                    "Sin mapeos y sin articulo default configurado. Las lineas no tendran resolucion.".to_string()
+                } else {
+                    format!(
+                        "Sin mapeos de articulos. Todas las lineas usaran el default: '{}' ({})",
+                        config.bdp_default_article_code, config.bdp_default_article_name
+                    )
+                };
+                response.checks.push(BdpSyncDryRunCheck {
+                    nombre: "Mapeo de articulos".into(),
+                    endpoint: "bdp_article_map".into(),
+                    ok: true, /* Warning, no blocker */
+                    mensaje: msg,
+                    cantidad: Some(0),
+                    muestra: None,
+                });
+            }
+            Err(e) => {
+                response.checks.push(BdpSyncDryRunCheck::error(
+                    "Mapeo de articulos",
+                    "bdp_article_map",
+                    format!("Error consultando mapeos: {e}"),
+                ));
+            }
+        }
+    }
+
+    /// [F3.4] Validar que los TenderIds en bdp_tender_map existen en el POS.
+    /// Compara las claves/valores del JSONB contra la lista de tenders devuelta por BDP.
+    fn check_tender_mapping(
+        config: &ConfiguracionRestaurante,
+        tenders: &Option<Value>,
+        response: &mut BdpSyncDryRunResponse,
+    ) {
+        let map = match config.bdp_tender_map.as_object() {
+            Some(m) if !m.is_empty() => m,
+            _ => {
+                response.checks.push(BdpSyncDryRunCheck {
+                    nombre: "Mapeo de tenders".into(),
+                    endpoint: "bdp_tender_map".into(),
+                    ok: true,
+                    mensaje: "Sin mapeo de tenders configurado. No se enviara TenderId.".into(),
+                    cantidad: Some(0),
+                    muestra: None,
+                });
+                return;
+            }
+        };
+
+        let Some(tenders_value) = tenders else {
+            response.checks.push(BdpSyncDryRunCheck::error(
+                "Mapeo de tenders",
+                "bdp_tender_map",
+                "No se pudo obtener la lista de tenders del POS para validar",
+            ));
+            return;
+        };
+
+        /* Extraer IDs válidos del POS */
+        let valid_ids: Vec<i64> = value_array(tenders_value, &["TenderList", "Tenders"])
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| number_i64(item, &["Id"]))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let mut issues = Vec::new();
+        let mut mapped = 0;
+        for (key, value) in map {
+            let tender_str = match value.as_str() {
+                Some(s) => s,
+                None => {
+                    issues.push(format!("{key}: valor no es string"));
+                    continue;
+                }
+            };
+            let tender_id: i64 = match tender_str.parse() {
+                Ok(id) => id,
+                Err(_) => {
+                    issues.push(format!("{key}: '{tender_str}' no es numérico"));
+                    continue;
+                }
+            };
+            if valid_ids.is_empty() || valid_ids.contains(&tender_id) {
+                mapped += 1;
+            } else {
+                issues.push(format!(
+                    "{key}→{tender_id}: no existe en POS (disponibles: {valid_ids:?})"
+                ));
+            }
+        }
+
+        if issues.is_empty() {
+            response.checks.push(BdpSyncDryRunCheck::ok(
+                "Mapeo de tenders",
+                "bdp_tender_map",
+                format!("{mapped} tenders mapeados correctamente"),
+                Some(mapped),
+                None,
+            ));
+        } else {
+            response.checks.push(BdpSyncDryRunCheck::error(
+                "Mapeo de tenders",
+                "bdp_tender_map",
+                format!("{} problema(s): {}", issues.len(), issues.join("; ")),
+            ));
+        }
+    }
+
+    /// [F3.5] Validar que los order types en bdp_order_type_map son válidos (>= 0).
+    /// BDP Type: 0=Barra, 1=Mesa, 2=Delivery, etc. Valores negativos son inválidos.
+    fn check_order_type_mapping(
+        config: &ConfiguracionRestaurante,
+        response: &mut BdpSyncDryRunResponse,
+    ) {
+        let map = match config.bdp_order_type_map.as_object() {
+            Some(m) if !m.is_empty() => m,
+            _ => {
+                response.checks.push(BdpSyncDryRunCheck {
+                    nombre: "Mapeo de order types".into(),
+                    endpoint: "bdp_order_type_map".into(),
+                    ok: true,
+                    mensaje: "Sin mapeo de order types. Todas las ventas usaran Type=0 (Barra).".into(),
+                    cantidad: Some(0),
+                    muestra: None,
+                });
+                return;
+            }
+        };
+
+        let mut issues = Vec::new();
+        for (key, value) in map {
+            match value.as_str().and_then(|s| s.parse::<i32>().ok()) {
+                Some(t) if t >= 0 => {}
+                Some(t) => issues.push(format!("{key}: Type={t} es negativo")),
+                None => issues.push(format!("{key}: valor '{}' no es numérico válido", value)),
+            }
+        }
+
+        if issues.is_empty() {
+            response.checks.push(BdpSyncDryRunCheck::ok(
+                "Mapeo de order types",
+                "bdp_order_type_map",
+                format!("{} canales mapeados", map.len()),
+                Some(map.len()),
+                None,
+            ));
+        } else {
+            response.checks.push(BdpSyncDryRunCheck::error(
+                "Mapeo de order types",
+                "bdp_order_type_map",
+                format!("{} problema(s): {}", issues.len(), issues.join("; ")),
+            ));
+        }
     }
 
     async fn check_order_only(
@@ -536,6 +734,10 @@ mod tests {
             bdp_items_profile_id: 1,
             bdp_default_article_code: "GLORY".to_string(),
             bdp_default_article_name: "Servicio Glory".to_string(),
+            bdp_tender_map: serde_json::json!({"efectivo": "1", "tarjeta": "2"}),
+            bdp_order_type_map: serde_json::json!({"comedor": "0", "barra": "0"}),
+            bdp_default_customer_code: "DEFAULT".to_string(),
+            bdp_poll_interval_secs: 60,
             google_review_url: String::new(),
             telefono_restaurante: String::new(),
             url_reservas: String::new(),

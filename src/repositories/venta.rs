@@ -42,26 +42,25 @@ pub struct VentaRepository;
 impl VentaRepository {
     pub async fn create(pool: &PgPool, data: &NuevaVenta<'_>) -> Result<Venta, sqlx::Error> {
         let id = Uuid::new_v4();
-        sqlx::query_as!(
-            Venta,
+        sqlx::query_as::<_, Venta>(
             "INSERT INTO ventas (id, user_id, fecha, comensales, descripcion, iva_porcentaje, \
              turno, canal, metodo_pago, importe_base, importe_iva, reserva_id, cliente_id) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) \
              RETURNING *",
-            id,
-            data.user_id,
-            data.fecha,
-            data.comensales,
-            data.descripcion,
-            data.iva_porcentaje,
-            data.turno,
-            data.canal,
-            data.metodo_pago,
-            data.importe_base,
-            data.importe_iva,
-            data.reserva_id,
-            data.cliente_id
         )
+        .bind(id)
+        .bind(data.user_id)
+        .bind(data.fecha)
+        .bind(data.comensales)
+        .bind(data.descripcion)
+        .bind(data.iva_porcentaje)
+        .bind(data.turno)
+        .bind(data.canal)
+        .bind(data.metodo_pago)
+        .bind(data.importe_base)
+        .bind(data.importe_iva)
+        .bind(data.reserva_id)
+        .bind(data.cliente_id)
         .fetch_one(pool)
         .await
     }
@@ -71,12 +70,11 @@ impl VentaRepository {
         id: Uuid,
         user_id: Uuid,
     ) -> Result<Option<Venta>, sqlx::Error> {
-        sqlx::query_as!(
-            Venta,
+        sqlx::query_as::<_, Venta>(
             "SELECT * FROM ventas WHERE id = $1 AND user_id = $2",
-            id,
-            user_id
         )
+        .bind(id)
+        .bind(user_id)
         .fetch_optional(pool)
         .await
     }
@@ -284,8 +282,7 @@ impl VentaRepository {
         pool: &PgPool,
         data: &ActualizarVentaData<'_>,
     ) -> Result<Option<Venta>, sqlx::Error> {
-        sqlx::query_as!(
-            Venta,
+        sqlx::query_as::<_, Venta>(
             "UPDATE ventas SET \
              fecha = COALESCE($3, fecha), \
              comensales = COALESCE($4, comensales), \
@@ -299,18 +296,18 @@ impl VentaRepository {
              updated_at = NOW() \
              WHERE id = $1 AND user_id = $2 \
              RETURNING *",
-            data.id,
-            data.user_id,
-            data.fecha,
-            data.comensales,
-            data.descripcion,
-            data.iva_porcentaje,
-            data.turno,
-            data.canal,
-            data.metodo_pago,
-            data.importe_base,
-            data.importe_iva
         )
+        .bind(data.id)
+        .bind(data.user_id)
+        .bind(data.fecha)
+        .bind(data.comensales)
+        .bind(data.descripcion)
+        .bind(data.iva_porcentaje)
+        .bind(data.turno)
+        .bind(data.canal)
+        .bind(data.metodo_pago)
+        .bind(data.importe_base)
+        .bind(data.importe_iva)
         .fetch_optional(pool)
         .await
     }
@@ -377,5 +374,38 @@ impl VentaRepository {
         .execute(pool)
         .await?;
         Ok(())
+    }
+
+    /* [276A-4.2] Actualiza bdp_order_status de una venta — polling/endpoint manual. */
+    pub async fn update_bdp_order_status(
+        pool: &PgPool,
+        id: Uuid,
+        status: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE ventas SET bdp_order_status = $2, updated_at = NOW() WHERE id = $1",
+        )
+        .bind(id)
+        .bind(status)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /* [276A-4.2] Ventas pendientes de polling BDP:
+     * bdp_synced=true, bdp_order_status no final ('invoiced' ni 'error'). */
+    pub async fn list_bdp_pending(
+        pool: &PgPool,
+        user_id: Uuid,
+    ) -> Result<Vec<Venta>, sqlx::Error> {
+        sqlx::query_as::<_, Venta>(
+            "SELECT * FROM ventas \
+             WHERE user_id = $1 \
+               AND bdp_synced = TRUE \
+               AND (bdp_order_status IS NULL OR bdp_order_status NOT IN ('invoiced', 'error'))",
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
     }
 }

@@ -61,6 +61,15 @@ pub struct ConfiguracionRestaurante {
      * Si no, se busca el primer artículo del perfil. */
     pub bdp_default_article_code: String,
     pub bdp_default_article_name: String,
+    /* [F1.2] Mapeos BDP configurables por el usuario.
+     * bdp_tender_map: {"efectivo": "1", "tarjeta": "2"} — método_pago Glory → código tend BDP.
+     * bdp_order_type_map: {"comedor": "0", "barra": "0"} — canal_venta Glory → código tipo pedido BDP.
+     * bdp_default_customer_code: código cliente BDP para ventas sin cliente asociado. */
+    pub bdp_tender_map: serde_json::Value,
+    pub bdp_order_type_map: serde_json::Value,
+    pub bdp_default_customer_code: String,
+    /* [F4.5] Intervalo de polling para consultar estado de comandas BDP (segundos) */
+    pub bdp_poll_interval_secs: i32,
     /* [094A-4] URL de Google Business para redirigir reseñas positivas */
     pub google_review_url: String,
     /* [094A-6] Datos para botones CTA en mensajes WhatsApp */
@@ -126,6 +135,13 @@ pub struct ActualizarConfiguracionRequest {
     /* [094A-6] URL de reservas para botón "Reserva ya" */
     #[validate(length(max = 500))]
     pub url_reservas: Option<String>,
+    /* [F1.2] Mapeos BDP — PATCH parcial */
+    pub bdp_tender_map: Option<serde_json::Value>,
+    pub bdp_order_type_map: Option<serde_json::Value>,
+    #[validate(length(max = 100))]
+    pub bdp_default_customer_code: Option<String>,
+    /* [F4.5] Intervalo de polling BDP */
+    pub bdp_poll_interval_secs: Option<i32>,
 }
 
 fn validar_iva(valor: &rust_decimal::Decimal) -> Result<(), validator::ValidationError> {

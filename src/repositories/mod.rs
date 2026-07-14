@@ -1,4 +1,5 @@
 pub mod api_key;
+pub mod bdp_article_map;
 pub mod campana;
 pub mod canal_reserva;
 pub mod cliente;
@@ -12,6 +13,7 @@ pub mod plantilla_whatsapp;
 pub mod reserva;
 mod user;
 pub mod venta;
+pub mod venta_linea;
 
 pub use api_key::ApiKeyRepository;
 pub use campana::CampanaRepository;
@@ -37,3 +39,5 @@ pub mod resena;
 pub use resena::ResenaRepository;
 pub mod inactividad;
 pub use inactividad::InactividadRepository;
+pub use bdp_article_map::BdpArticleMapRepository;
+pub use venta_linea::VentaLineaRepository;

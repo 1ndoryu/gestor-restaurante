@@ -42,7 +42,6 @@ mod wallet;
 pub use ai_chat::{AiChatConfig, AiChatService, AiResponse, AiSessionContext};
 pub use assignment::AssignmentService;
 pub use audit::AuditService;
-pub use auth::hash_password;
 pub use auth::AuthService;
 pub use billing_stripe::{BillingCheckoutParams, BillingStripeService};
 pub use chat::ChatHub;
@@ -50,7 +49,7 @@ pub use chat_timing::{ChatTimingService, RateCheckResult, TimingEvent, TimingSes
 pub use contabo::{ContaboConfig, ContaboService, CreateInstanceParams};
 pub use coolify::{CoolifyConfig, CoolifyService};
 pub use domain_stripe::{DomainCheckoutParams, DomainStripeService};
-pub use email::{EmailConfig, EmailService};
+pub use email::EmailService;
 pub use google_auth::GoogleAuthService;
 pub use hosting_runtime::{
 	HostingRuntimeBackupEntry, HostingRuntimeBackupReport, HostingRuntimeDeploymentSummary,
@@ -68,3 +67,22 @@ pub use seed::SeedService;
 pub use test_checkout::{checkout_bypass_is_configured, is_checkout_bypass_email};
 pub use vps_stripe::{vps_stripe_fee_cents, VpsCheckoutParams, VpsStripeService};
 pub use wallet::WalletService;
+
+/* [276A-4.2] Servicios BDP — sincronización Glory → BDP WebLink REST API */
+pub(crate) mod bdp_order_poller;
+mod bdp_sync;
+mod bdp_sync_preflight;
+pub(crate) mod bdp_weblink;
+mod bdp_weblink_catalog;
+
+/* Servicios de dominio del restaurante necesarios para BDP */
+mod configuracion;
+mod haddock;
+mod venta;
+
+pub use bdp_order_poller::BdpOrderPollerService;
+pub use bdp_sync::BdpSyncService;
+pub use bdp_sync_preflight::{BdpSyncDryRunResponse, BdpSyncPreflightService};
+pub use configuracion::ConfiguracionService;
+pub use haddock::HaddockService;
+pub use venta::VentaService;

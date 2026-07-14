@@ -1,4 +1,5 @@
 mod api_key;
+mod bdp_article_map;
 mod campana;
 mod canal_reserva;
 mod cliente;
@@ -16,6 +17,7 @@ mod reserva;
 mod trabajador;
 mod user;
 mod venta;
+mod venta_linea;
 
 pub use campana::{
     ActualizarCampanaRequest, Campana, CampanaDestinatario, CampanasPaginadas, CampanasQuery,
@@ -95,3 +97,7 @@ mod inactividad;
 pub use inactividad::{
     ActualizarReglaInactividadRequest, CrearReglaInactividadRequest, ReglaInactividad,
 };
+pub use bdp_article_map::{
+    ActualizarBdpArticleMapRequest, BdpArticleMap, CrearBdpArticleMapRequest,
+};
+pub use venta_linea::{CrearVentaLineaRequest, VentaLinea};

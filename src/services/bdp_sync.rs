@@ -29,13 +29,24 @@ use sqlx::PgPool;
 use tokio::sync::Mutex as TokioMutex;
 use tracing::{info, warn};
 
-use crate::models::{ConfiguracionRestaurante, Venta};
-use crate::repositories::VentaRepository;
+use crate::models::{ConfiguracionRestaurante, Venta, VentaLinea};
+use crate::repositories::{ClienteRepository, VentaLineaRepository, VentaRepository};
 use crate::services::bdp_weblink::BdpWeblinkClient;
 use crate::services::bdp_weblink_catalog::{BdpCreateOrderRequest, BdpGetPosArticlesRequest};
 
 const MAX_RETRIES: u32 = 3;
 const BDP_SYNC_MARKET_ID: i32 = 9_900;
+
+/* [F3.1] Contexto resuelto para construir el pedido BDP.
+ * Se resuelve en sync_venta() y se pasa a build_order() para no hacer
+ * lookups dentro de la función de construcción del payload. */
+struct OrderContext {
+    tender_id: Option<i32>,
+    order_type: i32,
+    customer_code: Option<String>,
+    customer_name: Option<String>,
+    customer_phone: Option<String>,
+}
 
 static SYNC_LOCKS: LazyLock<StdMutex<HashMap<uuid::Uuid, Arc<TokioMutex<()>>>>> =
     LazyLock::new(|| StdMutex::new(HashMap::new()));
@@ -95,7 +106,42 @@ impl BdpSyncService {
         let client = BdpWeblinkClient::new(config);
         let article = Self::resolve_article(&client, config).await;
 
-        let result = Self::retry_send_order(&client, config, venta, &article).await;
+        /* [F3.1] Resolver contexto del pedido: tender, order type, customer. */
+        let order_ctx = Self::resolve_order_context(pool, venta, config).await;
+
+        /* [F2.6] Obtener líneas de venta para multi-item.
+         * Si la venta tiene líneas en BD, se usan para construir un pedido multi-item.
+         * Si no, se usa el comportamiento legacy (1 artículo genérico). */
+        let lineas = match VentaLineaRepository::listar_por_venta(pool, venta.id).await {
+            Ok(l) if !l.is_empty() => Some(l),
+            Ok(_) => None,
+            Err(e) => {
+                warn!("[F2.6] Error obteniendo líneas de venta {}: {e}", venta.id);
+                None
+            }
+        };
+
+        /* [F2.8] Resolver artículo BDP por línea usando bdp_article_map.
+         * Si una línea tiene articulo_codigo mapeado en bdp_article_map, se usa ese artículo BDP.
+         * Si no, se usa el artículo default configurado. */
+        let line_article_ids: Option<Vec<i64>> = if let Some(ref lineas) = lineas {
+            Some(
+                Self::resolve_line_articles(pool, venta.user_id, lineas, article.id).await,
+            )
+        } else {
+            None
+        };
+
+        let result = Self::retry_send_order(
+            &client,
+            config,
+            venta,
+            &article,
+            lineas.as_deref(),
+            line_article_ids.as_deref(),
+            &order_ctx,
+        )
+        .await;
 
         match result {
             Ok(order_id) => {
@@ -146,10 +192,13 @@ impl BdpSyncService {
         config: &ConfiguracionRestaurante,
         venta: &Venta,
         article: &ResolvedArticle,
+        lineas: Option<&[VentaLinea]>,
+        line_article_ids: Option<&[i64]>,
+        order_ctx: &OrderContext,
     ) -> Result<i64, (bool, String)> {
         let mut last_error = String::new();
         for attempt in 0..MAX_RETRIES {
-            match Self::send_order(client, config, venta, article).await {
+            match Self::send_order(client, config, venta, article, lineas, line_article_ids, order_ctx).await {
                 Ok(order_id) => return Ok(order_id),
                 Err(BdpSyncError::Auth(msg)) => return Err((true, msg)),
                 Err(BdpSyncError::Api(msg) | BdpSyncError::Network(msg)) => {
@@ -174,8 +223,11 @@ impl BdpSyncService {
         config: &ConfiguracionRestaurante,
         venta: &Venta,
         article: &ResolvedArticle,
+        lineas: Option<&[VentaLinea]>,
+        line_article_ids: Option<&[i64]>,
+        order_ctx: &OrderContext,
     ) -> Result<i64, BdpSyncError> {
-        let order = Self::build_order(config, venta, article);
+        let order = Self::build_order(config, venta, article, lineas, line_article_ids, order_ctx);
         let response = client
             .create_order(&order)
             .await
@@ -201,10 +253,16 @@ impl BdpSyncService {
     }
 
     /// Construye el payload BDP `CreateOrder` desde una venta Glory.
+    /// [F2.7] Si hay líneas, genera un pedido multi-item. Si no, usa fallback legacy (1 artículo).
+    /// `line_article_ids`: paralelo a `lineas`, con el ID BDP de cada artículo resuelto.
+    /// [F3.1] `order_ctx`: tender, order type y customer resueltos.
     fn build_order(
         config: &ConfiguracionRestaurante,
         venta: &Venta,
         article: &ResolvedArticle,
+        lineas: Option<&[VentaLinea]>,
+        line_article_ids: Option<&[i64]>,
+        order_ctx: &OrderContext,
     ) -> BdpCreateOrderRequest {
         let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
         /* MarketplaceOrderId: max 15 chars. Prefijo "G" + timestamp corto. */
@@ -215,10 +273,71 @@ impl BdpSyncService {
 
         let total =
             Self::decimal_to_f64(&venta.importe_base) + Self::decimal_to_f64(&venta.importe_iva);
-        let description = if venta.descripcion.is_empty() {
-            article.name.clone()
+
+        /* [F2.7] Construir Items array — multi-item si hay líneas, fallback si no */
+        let items: Vec<Value> = if let Some(lineas) = lineas {
+            lineas
+                .iter()
+                .enumerate()
+                .map(|(i, linea)| {
+                    let precio = Self::decimal_to_f64(&linea.precio_unitario);
+                    let cantidad = Self::decimal_to_f64(&linea.cantidad);
+                    let descuento = Self::decimal_to_f64(&linea.descuento);
+                    let linea_total = (precio * cantidad) - descuento;
+                    /* [F2.8] Usar artículo BDP mapeado por línea, o fallback al default */
+                    let line_article_id = line_article_ids
+                        .and_then(|ids| ids.get(i))
+                        .copied()
+                        .unwrap_or(article.id);
+                    json!({
+                        "Lin": (i + 1) as i32,
+                        "Id": line_article_id,
+                        "Name": linea.descripcion,
+                        "Units": cantidad,
+                        "Price": precio,
+                        "Supplement": 0.0,
+                        "Discount": descuento,
+                        "DiscountPct": false,
+                        "Total": linea_total,
+                        "VatPct": Self::decimal_to_f64(&linea.iva_pct),
+                        "Comments": [],
+                        "Supplements": [],
+                        "OrderItemType": 0,
+                        "OrderItemTypeMetaInfo": "",
+                        "TyC_D1": 0,
+                        "TyC_D2": 0,
+                        "TyC_D3": 0,
+                        "OnSale": false
+                    })
+                })
+                .collect()
         } else {
-            venta.descripcion.clone()
+            /* Fallback legacy: 1 artículo genérico con el total de la venta */
+            let description = if venta.descripcion.is_empty() {
+                article.name.clone()
+            } else {
+                venta.descripcion.clone()
+            };
+            vec![json!({
+                "Lin": 1,
+                "Id": article.id,
+                "Name": description,
+                "Units": 1.0,
+                "Price": total,
+                "Supplement": 0.0,
+                "Discount": 0.0,
+                "DiscountPct": false,
+                "Total": total,
+                "VatPct": Self::decimal_to_f64(&venta.iva_porcentaje),
+                "Comments": [],
+                "Supplements": [],
+                "OrderItemType": 0,
+                "OrderItemTypeMetaInfo": "",
+                "TyC_D1": 0,
+                "TyC_D2": 0,
+                "TyC_D3": 0,
+                "OnSale": false
+            })]
         };
 
         BdpCreateOrderRequest {
@@ -227,44 +346,48 @@ impl BdpSyncService {
             order_end_type: 1, /* Pendiente de validación — no factura, no imprime ticket */
             order_operation_type: 0, /* Escritura real (0=CheckAndCreate) */
             invoice: Some(false),
-            order: json!({
-                "MarketplaceOrderId": &marketplace_order_id[..15.min(marketplace_order_id.len())],
-                "MarketId": BDP_SYNC_MARKET_ID,
-                "MarketName": "Glory",
-                "PreparationTime": now,
-                "OrderId": 0,
-                "PosId": config.bdp_pos_id,
-                "Type": 0,
-                "RoomNumber": 0,
-                "TableNumber": 0,
-                "Items": [{
-                    "Lin": 1,
-                    "Id": article.id,
-                    "Name": description,
-                    "Units": 1.0,
-                    "Price": total,
-                    "Supplement": 0.0,
+            order: {
+                /* [F3.1-3.3] Construir order JSON con campos opcionales */
+                let mut order = json!({
+                    "MarketplaceOrderId": &marketplace_order_id[..15.min(marketplace_order_id.len())],
+                    "MarketId": BDP_SYNC_MARKET_ID,
+                    "MarketName": "Glory",
+                    "PreparationTime": now,
+                    "OrderId": 0,
+                    "PosId": config.bdp_pos_id,
+                    "Type": order_ctx.order_type,
+                    "RoomNumber": 0,
+                    "TableNumber": 0,
+                    "Items": items,
                     "Discount": 0.0,
                     "DiscountPct": false,
                     "Total": total,
-                    "VatPct": Self::decimal_to_f64(&venta.iva_porcentaje),
-                    "Comments": [],
-                    "Supplements": [],
-                    "OrderItemType": 0,
-                    "OrderItemTypeMetaInfo": "",
-                    "TyC_D1": 0,
-                    "TyC_D2": 0,
-                    "TyC_D3": 0,
-                    "OnSale": false
-                }],
-                "Discount": 0.0,
-                "DiscountPct": false,
-                "Total": total,
-                "ExecutionTime": now,
-                "Status": 0,
-                "AlreadyInvoiced": false,
-                "Comments": format!("Glory venta {}", venta.id)
-            }),
+                    "ExecutionTime": now,
+                    "Status": 0,
+                    "AlreadyInvoiced": false,
+                    "Comments": format!("Glory venta {}", venta.id)
+                });
+                /* [F3.2] TenderId — mapeo de método de pago */
+                if let Some(tender_id) = order_ctx.tender_id {
+                    order["TenderId"] = json!(tender_id);
+                }
+                /* [F3.1] Customer — datos del cliente si existe */
+                if let Some(ref name) = order_ctx.customer_name {
+                    let mut customer = json!({ "Name": name });
+                    if let Some(ref phone) = order_ctx.customer_phone {
+                        if !phone.is_empty() {
+                            customer["Phone"] = json!(phone);
+                        }
+                    }
+                    if let Some(ref code) = order_ctx.customer_code {
+                        if !code.is_empty() {
+                            customer["Code"] = json!(code);
+                        }
+                    }
+                    order["Customer"] = customer;
+                }
+                order
+            },
         }
     }
 
@@ -312,6 +435,167 @@ impl BdpSyncService {
             name: config.bdp_default_article_name.clone(),
             price: 0.0,
             vat_pct: 10.0,
+        }
+    }
+
+    /// [F2.8] Resuelve el artículo BDP para cada línea de venta consultando `bdp_article_map`.
+    /// Devuelve un Vec<i64> paralelo a `lineas` con el ID del artículo BDP.
+    /// Si una línea no tiene mapeo, usa `default_article_id`.
+    async fn resolve_line_articles(
+        pool: &PgPool,
+        user_id: uuid::Uuid,
+        lineas: &[VentaLinea],
+        default_article_id: i64,
+    ) -> Vec<i64> {
+        let mut ids = Vec::with_capacity(lineas.len());
+        for linea in lineas {
+            let resolved = if linea.articulo_codigo.is_empty() {
+                default_article_id
+            } else {
+                match crate::repositories::BdpArticleMapRepository::buscar_por_codigo(
+                    pool,
+                    user_id,
+                    &linea.articulo_codigo,
+                )
+                .await
+                {
+                    Ok(Some(map)) => {
+                        /* El código BDP puede ser numérico (ID directo) o texto (requeriría lookup).
+                         * Por ahora solo soportamos códigos numéricos. */
+                        match map.articulo_bdp_codigo.trim().parse::<i64>() {
+                            Ok(code) if code > 0 => code,
+                            _ => {
+                                info!(
+                                    "[F2.8] Código BDP '{}' no numérico para línea '{}', usando default",
+                                    map.articulo_bdp_codigo, linea.descripcion
+                                );
+                                default_article_id
+                            }
+                        }
+                    }
+                    Ok(None) => {
+                        /* Sin mapeo — usar artículo default */
+                        default_article_id
+                    }
+                    Err(e) => {
+                        warn!(
+                            "[F2.8] Error buscando mapeo BDP para código '{}': {e}",
+                            linea.articulo_codigo
+                        );
+                        default_article_id
+                    }
+                }
+            };
+            ids.push(resolved);
+        }
+        ids
+    }
+
+    /// [F3.1-3.3] Resuelve el contexto del pedido: tender, order type y datos del cliente.
+    /// Se ejecuta una sola vez por sync_venta y el resultado se reutiliza en build_order.
+    async fn resolve_order_context(
+        pool: &PgPool,
+        venta: &Venta,
+        config: &ConfiguracionRestaurante,
+    ) -> OrderContext {
+        /* [F3.2] TenderId: mapear metodo_pago → ID BDP desde config.bdp_tender_map */
+        let tender_id = Self::resolve_tender_id(venta, config);
+
+        /* [F3.3] Order type: mapear canal → tipo BDP desde config.bdp_order_type_map */
+        let order_type = Self::resolve_order_type(venta, config);
+
+        /* [F3.1] Customer: lookup cliente si existe */
+        let (customer_code, customer_name, customer_phone) =
+            Self::resolve_customer(pool, venta, config).await;
+
+        OrderContext {
+            tender_id,
+            order_type,
+            customer_code,
+            customer_name,
+            customer_phone,
+        }
+    }
+
+    /// [F3.2] Resuelve TenderId buscando venta.metodo_pago en bdp_tender_map.
+    /// Ej: `{"efectivo": "1", "tarjeta": "2"}` → metodo_pago="Efectivo" → tender_id=Some(1).
+    fn resolve_tender_id(venta: &Venta, config: &ConfiguracionRestaurante) -> Option<i32> {
+        let map = config.bdp_tender_map.as_object()?;
+        let key = venta.metodo_pago.to_lowercase();
+        let value = map.get(&key)?;
+        let tender_str = value.as_str()?;
+        let id: i32 = tender_str.parse().ok()?;
+        if id > 0 {
+            Some(id)
+        } else {
+            None
+        }
+    }
+
+    /// [F3.3] Resuelve el order type buscando venta.canal en bdp_order_type_map.
+    /// Default: 0 (Barra/Takeaway) si no hay mapeo o el canal no está configurado.
+    fn resolve_order_type(venta: &Venta, config: &ConfiguracionRestaurante) -> i32 {
+        let map = match config.bdp_order_type_map.as_object() {
+            Some(m) => m,
+            None => return 0,
+        };
+        let key = venta.canal.to_lowercase();
+        let value = match map.get(&key) {
+            Some(v) => v,
+            None => return 0,
+        };
+        match value.as_str().and_then(|s| s.parse::<i32>().ok()) {
+            Some(t) if t >= 0 => t,
+            _ => 0,
+        }
+    }
+
+    /// [F3.1] Resuelve datos del cliente si la venta tiene cliente_id.
+    /// Devuelve (code, name, phone) — cada uno puede ser None.
+    async fn resolve_customer(
+        pool: &PgPool,
+        venta: &Venta,
+        config: &ConfiguracionRestaurante,
+    ) -> (Option<String>, Option<String>, Option<String>) {
+        let cliente_id = match venta.cliente_id {
+            Some(id) => id,
+            None => {
+                /* Sin cliente — usar default_customer_code si existe */
+                let code = &config.bdp_default_customer_code;
+                if code.is_empty() {
+                    return (None, None, None);
+                }
+                return (Some(code.clone()), None, None);
+            }
+        };
+
+        let user_id = venta.user_id;
+
+        match ClienteRepository::find_by_id(pool, cliente_id, user_id).await {
+            Ok(Some(cliente)) => {
+                let name = {
+                    let full = format!("{} {}", cliente.nombre, cliente.apellidos)
+                        .trim()
+                        .to_string();
+                    if full.is_empty() {
+                        None
+                    } else {
+                        Some(full)
+                    }
+                };
+                let phone = if cliente.telefono.is_empty() { None } else { Some(cliente.telefono.clone()) };
+                let code = config.bdp_default_customer_code.clone();
+                let code = if code.is_empty() { None } else { Some(code) };
+                (code, name, phone)
+            }
+            Ok(None) => {
+                info!("[F3.1] Cliente {} no encontrado para venta {}", cliente_id, venta.id);
+                (None, None, None)
+            }
+            Err(e) => {
+                warn!("[F3.1] Error buscando cliente {}: {e}", cliente_id);
+                (None, None, None)
+            }
         }
     }
 
@@ -447,7 +731,20 @@ mod tests {
             bdp_items_profile_id: 1,
             bdp_default_article_code: "1001".into(),
             bdp_default_article_name: "CAFE BOMBON".into(),
+            bdp_tender_map: serde_json::json!({"efectivo": "1", "tarjeta": "2"}),
+            bdp_order_type_map: serde_json::json!({"comedor": "0", "barra": "0"}),
+            bdp_default_customer_code: "GENERIC".into(),
             ..Default::default()
+        }
+    }
+
+    fn test_order_ctx() -> OrderContext {
+        OrderContext {
+            tender_id: Some(1),
+            order_type: 0,
+            customer_code: None,
+            customer_name: None,
+            customer_phone: None,
         }
     }
 
@@ -475,6 +772,7 @@ mod tests {
             bdp_synced_at: None,
             bdp_sync_error: None,
             bdp_order_id: None,
+            bdp_order_status: None,
         }
     }
 
@@ -489,7 +787,7 @@ mod tests {
             vat_pct: 10.0,
         };
 
-        let order = BdpSyncService::build_order(&config, &venta, &article);
+        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
         let order_json = &order.order;
 
         /* El total debe ser importe_base + importe_iva = 27.50 */
@@ -535,7 +833,7 @@ mod tests {
             vat_pct: 10.0,
         };
 
-        let order = BdpSyncService::build_order(&config, &venta, &article);
+        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
         assert_eq!(order.employee_id, 1);
         assert_eq!(order.items_profile_id, 1);
 
@@ -554,7 +852,7 @@ mod tests {
             vat_pct: 10.0,
         };
 
-        let order = BdpSyncService::build_order(&config, &venta, &article);
+        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
         let item_name = order
             .order
             .get("Items")
@@ -564,6 +862,81 @@ mod tests {
             .and_then(|v| v.as_str())
             .unwrap();
         assert_eq!(item_name, "Cena para 2");
+    }
+
+    #[test]
+    fn build_order_multi_item_with_lineas() {
+        let config = test_config();
+        let venta = test_venta();
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE BOMBON".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
+
+        let lineas = vec![
+            VentaLinea {
+                id: uuid::Uuid::new_v4(),
+                venta_id: venta.id,
+                articulo_codigo: "1001".into(),
+                descripcion: "Café bombón".into(),
+                cantidad: Decimal::from_str("2").unwrap(),
+                precio_unitario: Decimal::from_str("5.00").unwrap(),
+                iva_pct: Decimal::from_str("10.0").unwrap(),
+                descuento: Decimal::from_str("0.00").unwrap(),
+                created_at: Utc::now(),
+            },
+            VentaLinea {
+                id: uuid::Uuid::new_v4(),
+                venta_id: venta.id,
+                articulo_codigo: "2002".into(),
+                descripcion: "Tostada".into(),
+                cantidad: Decimal::from_str("1").unwrap(),
+                precio_unitario: Decimal::from_str("3.50").unwrap(),
+                iva_pct: Decimal::from_str("10.0").unwrap(),
+                descuento: Decimal::from_str("0.50").unwrap(),
+                created_at: Utc::now(),
+            },
+        ];
+
+        let order = BdpSyncService::build_order(&config, &venta, &article, Some(&lineas), Some(&[1001, 2002]), &test_order_ctx());
+        let items = order
+            .order
+            .get("Items")
+            .and_then(|v| v.as_array())
+            .unwrap();
+
+        /* Debe tener 2 items */
+        assert_eq!(items.len(), 2, "Expected 2 items, got {}", items.len());
+
+        /* Primer item: Café bombón x2 */
+        assert_eq!(items[0].get("Lin").unwrap(), 1);
+        assert_eq!(items[0].get("Id").unwrap().as_i64().unwrap(), 1001);
+        assert_eq!(items[0].get("Name").unwrap().as_str().unwrap(), "Café bombón");
+        assert!((items[0].get("Units").unwrap().as_f64().unwrap() - 2.0).abs() < 0.01);
+        assert!((items[0].get("Price").unwrap().as_f64().unwrap() - 5.0).abs() < 0.01);
+        assert!((items[0].get("Total").unwrap().as_f64().unwrap() - 10.0).abs() < 0.01);
+
+        /* Segundo item: Tostada x1, descuento 0.50 → total = 3.50 - 0.50 = 3.00 */
+        assert_eq!(items[1].get("Lin").unwrap(), 2);
+        assert_eq!(items[1].get("Id").unwrap().as_i64().unwrap(), 2002);
+        assert_eq!(items[1].get("Name").unwrap().as_str().unwrap(), "Tostada");
+        assert!((items[1].get("Units").unwrap().as_f64().unwrap() - 1.0).abs() < 0.01);
+        assert!((items[1].get("Discount").unwrap().as_f64().unwrap() - 0.50).abs() < 0.01);
+        assert!((items[1].get("Total").unwrap().as_f64().unwrap() - 3.00).abs() < 0.01);
+
+        /* VatPct por línea */
+        assert!((items[0].get("VatPct").unwrap().as_f64().unwrap() - 10.0).abs() < 0.01);
+        assert!((items[1].get("VatPct").unwrap().as_f64().unwrap() - 10.0).abs() < 0.01);
+
+        /* MarketplaceOrderId <= 15 chars */
+        let mid = order
+            .order
+            .get("MarketplaceOrderId")
+            .and_then(|v| v.as_str())
+            .unwrap();
+        assert!(mid.len() <= 15, "MarketplaceOrderId too long: {mid}");
     }
 
     #[test]
@@ -591,5 +964,131 @@ mod tests {
         assert!(BdpSyncService::sanitize_error("301011 too long").contains("MarketplaceOrderId"));
         assert!(BdpSyncService::sanitize_error("301400 caja").contains("caja"));
         assert!(BdpSyncService::sanitize_error("401 Unauthorized").contains("autenticación"));
+    }
+
+    /* [F3.2] Test: TenderId se mapea desde metodo_pago via bdp_tender_map */
+    #[test]
+    fn build_order_maps_tender_id_from_metodo_pago() {
+        let config = test_config();
+        let venta = test_venta(); /* metodo_pago = "efectivo" */
+        let article = ResolvedArticle { id: 1001, name: "CAFE".into(), price: 5.0, vat_pct: 10.0 };
+
+        let ctx = OrderContext {
+            tender_id: Some(1), /* efectivo → 1 */
+            order_type: 0,
+            customer_code: None,
+            customer_name: None,
+            customer_phone: None,
+        };
+        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &ctx);
+        let tender = order.order.get("TenderId").and_then(|v| v.as_i64()).unwrap();
+        assert_eq!(tender, 1, "TenderId should be 1 for efectivo");
+    }
+
+    /* [F3.2] Test: TenderId no se incluye si es None */
+    #[test]
+    fn build_order_no_tender_when_none() {
+        let config = test_config();
+        let venta = test_venta();
+        let article = ResolvedArticle { id: 1001, name: "CAFE".into(), price: 5.0, vat_pct: 10.0 };
+
+        let ctx = OrderContext {
+            tender_id: None,
+            order_type: 0,
+            customer_code: None,
+            customer_name: None,
+            customer_phone: None,
+        };
+        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &ctx);
+        assert!(order.order.get("TenderId").is_none(), "TenderId should not be present");
+    }
+
+    /* [F3.3] Test: Order type se mapea desde canal */
+    #[test]
+    fn build_order_uses_order_type_from_canal() {
+        let config = test_config();
+        let venta = test_venta(); /* canal = "comedor" */
+        let article = ResolvedArticle { id: 1001, name: "CAFE".into(), price: 5.0, vat_pct: 10.0 };
+
+        let ctx = OrderContext {
+            tender_id: None,
+            order_type: 0, /* comedor → 0 */
+            customer_code: None,
+            customer_name: None,
+            customer_phone: None,
+        };
+        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &ctx);
+        let tipo = order.order.get("Type").and_then(|v| v.as_i64()).unwrap();
+        assert_eq!(tipo, 0);
+    }
+
+    /* [F3.1] Test: Customer se incluye cuando hay nombre */
+    #[test]
+    fn build_order_includes_customer_when_present() {
+        let config = test_config();
+        let venta = test_venta();
+        let article = ResolvedArticle { id: 1001, name: "CAFE".into(), price: 5.0, vat_pct: 10.0 };
+
+        let ctx = OrderContext {
+            tender_id: Some(1),
+            order_type: 0,
+            customer_code: Some("GENERIC".into()),
+            customer_name: Some("Juan Pérez".into()),
+            customer_phone: Some("600123456".into()),
+        };
+        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &ctx);
+        let customer = order.order.get("Customer").unwrap();
+        assert_eq!(customer.get("Name").unwrap().as_str().unwrap(), "Juan Pérez");
+        assert_eq!(customer.get("Phone").unwrap().as_str().unwrap(), "600123456");
+        assert_eq!(customer.get("Code").unwrap().as_str().unwrap(), "GENERIC");
+    }
+
+    /* [F3.1] Test: Customer NO se incluye cuando nombre es None */
+    #[test]
+    fn build_order_no_customer_when_name_none() {
+        let config = test_config();
+        let venta = test_venta();
+        let article = ResolvedArticle { id: 1001, name: "CAFE".into(), price: 5.0, vat_pct: 10.0 };
+
+        let ctx = OrderContext {
+            tender_id: Some(1),
+            order_type: 0,
+            customer_code: None,
+            customer_name: None,
+            customer_phone: None,
+        };
+        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &ctx);
+        assert!(order.order.get("Customer").is_none(), "Customer should not be present");
+    }
+
+    /* [F3.2-3.3] Test: resolve_tender_id y resolve_order_type helpers */
+    #[test]
+    fn resolve_tender_id_maps_metodo_pago() {
+        let config = test_config();
+        let mut venta = test_venta();
+
+        venta.metodo_pago = "efectivo".into();
+        assert_eq!(BdpSyncService::resolve_tender_id(&venta, &config), Some(1));
+
+        venta.metodo_pago = "tarjeta".into();
+        assert_eq!(BdpSyncService::resolve_tender_id(&venta, &config), Some(2));
+
+        venta.metodo_pago = "bizum".into(); /* no está en el map */
+        assert_eq!(BdpSyncService::resolve_tender_id(&venta, &config), None);
+    }
+
+    #[test]
+    fn resolve_order_type_maps_canal() {
+        let config = test_config();
+        let mut venta = test_venta();
+
+        venta.canal = "comedor".into();
+        assert_eq!(BdpSyncService::resolve_order_type(&venta, &config), 0);
+
+        venta.canal = "barra".into();
+        assert_eq!(BdpSyncService::resolve_order_type(&venta, &config), 0);
+
+        venta.canal = "delivery".into(); /* no configurado, default 0 */
+        assert_eq!(BdpSyncService::resolve_order_type(&venta, &config), 0);
     }
 }

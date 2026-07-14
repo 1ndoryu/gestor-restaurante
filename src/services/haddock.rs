@@ -420,6 +420,8 @@ mod tests {
             bdp_synced_at: None,
             bdp_sync_error: None,
             bdp_order_id: None,
+            /* [276A-4.1] Estado BDP polling */
+            bdp_order_status: None,
         }
     }
 
@@ -454,6 +456,11 @@ mod tests {
             bdp_items_profile_id: 1,
             bdp_default_article_code: String::new(),
             bdp_default_article_name: String::new(),
+            /* [276A-4.2] Campos BDP nuevos */
+            bdp_tender_map: serde_json::json!({}),
+            bdp_order_type_map: serde_json::json!({}),
+            bdp_default_customer_code: String::new(),
+            bdp_poll_interval_secs: 60,
             google_review_url: String::new(),
             telefono_restaurante: String::new(),
             url_reservas: String::new(),
@@ -1185,6 +1192,10 @@ mod tests {
             bdp_pos_id: None,
             bdp_employee_id: None,
             bdp_items_profile_id: None,
+            bdp_tender_map: None,
+            bdp_order_type_map: None,
+            bdp_default_customer_code: None,
+            bdp_poll_interval_secs: None,
             google_review_url: None,
             telefono_restaurante: None,
             url_reservas: None,
