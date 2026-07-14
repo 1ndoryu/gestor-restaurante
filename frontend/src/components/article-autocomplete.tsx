@@ -80,10 +80,11 @@ export default function ArticleAutocomplete({ valor, onSelect, readonly }: Props
       {abierto && resultados.length > 0 && (
         <div className="absolute z-50 mt-1 max-h-48 w-64 overflow-y-auto rounded-md border bg-popover shadow-md">
           {resultados.map((m: BdpArticleMapItem) => (
-            <button
+            <Button
               key={m.id}
               type="button"
-              className="flex w-full flex-col px-3 py-2 text-left text-xs hover:bg-accent"
+              variant="ghost"
+              className="flex w-full flex-col px-3 py-2 text-left text-xs justify-start h-auto"
               onClick={() => {
                 onSelect(m.articulo_glory_codigo);
                 setAbierto(false);
@@ -94,7 +95,7 @@ export default function ArticleAutocomplete({ valor, onSelect, readonly }: Props
               <span className="text-muted-foreground truncate">
                 BDP: {m.articulo_bdp_nombre} ({m.articulo_bdp_codigo})
               </span>
-            </button>
+            </Button>
           ))}
         </div>
       )}
