@@ -80,6 +80,14 @@ export interface ActualizarConfiguracionRequest {
   bdp_pos_id?: number | null;
   /** @nullable */
   bdp_sync_enabled?: boolean | null;
+  /** [147A-F5.6] Tender map JSON: metodo_pago_glory → código tender BDP. Se regenera con Orval. */
+  bdp_tender_map?: Record<string, unknown> | null;
+  /** [147A-F5.6] Order type map JSON: canal_glory → orderType BDP (0=Barra,1=Mesa,2=Domicilio). */
+  bdp_order_type_map?: Record<string, unknown> | null;
+  /** [147A-F5.6] Código cliente BDP por defecto para ventas sin cliente. */
+  bdp_default_customer_code?: string | null;
+  /** [147A-F5.6] Intervalo de polling BDP en segundos (default 60). */
+  bdp_poll_interval_secs?: number | null;
   /** @nullable */
   google_review_url?: string | null;
   /** @nullable */
@@ -734,6 +742,14 @@ export interface ConfiguracionRestaurante {
   bdp_items_profile_id: number;
   bdp_pos_id: number;
   bdp_sync_enabled: boolean;
+  /** [147A-F5.6] Tender map JSON (método_pago Glory → código tender BDP). Se regenera con Orval. */
+  bdp_tender_map?: Record<string, unknown>;
+  /** [147A-F5.6] Order type map JSON (canal Glory → orderType BDP). */
+  bdp_order_type_map?: Record<string, unknown>;
+  /** [147A-F5.6] Código cliente BDP por defecto. */
+  bdp_default_customer_code?: string;
+  /** [147A-F5.6] Intervalo polling BDP en segundos. */
+  bdp_poll_interval_secs?: number;
   created_at: string;
   google_review_url: string;
   haddock_sync_enabled: boolean;

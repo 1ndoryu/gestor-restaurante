@@ -1,0 +1,71 @@
+/* [147A-F5.9] Tipos extraídos de useConfiguracion para cumplir límite de 120 líneas. */
+
+export interface EstadoConfiguracion {
+  reserva_email_obligatorio: boolean;
+  reserva_telefono_obligatorio: boolean;
+  reserva_nombre_obligatorio: boolean;
+  reserva_apellidos_obligatorio: boolean;
+  iva_por_defecto: number;
+  nombre_restaurante: string;
+  groq_api_key: string;
+  auto_venta_reserva: boolean;
+  hora_desayuno_inicio: string;
+  hora_desayuno_fin: string;
+  hora_comida_inicio: string;
+  hora_comida_fin: string;
+  hora_cena_inicio: string;
+  hora_cena_fin: string;
+  url_haddock: string;
+  haddock_api_token: string;
+  haddock_sync_enabled: boolean;
+  bdp_base_url: string;
+  bdp_login: string;
+  bdp_password: string;
+  bdp_integrator_code: string;
+  bdp_sync_enabled: boolean;
+  bdp_pos_id: number;
+  bdp_employee_id: number;
+  bdp_items_profile_id: number;
+  bdp_tender_map: string;
+  bdp_order_type_map: string;
+  bdp_default_customer_code: string;
+  bdp_poll_interval_secs: number;
+  google_review_url: string;
+  telefono_restaurante: string;
+  url_reservas: string;
+}
+
+export const DEFAULTS: EstadoConfiguracion = {
+  reserva_email_obligatorio: false,
+  reserva_telefono_obligatorio: true,
+  reserva_nombre_obligatorio: true,
+  reserva_apellidos_obligatorio: false,
+  iva_por_defecto: 10,
+  nombre_restaurante: '',
+  groq_api_key: '',
+  auto_venta_reserva: false,
+  hora_desayuno_inicio: '00:00:00',
+  hora_desayuno_fin: '12:00:00',
+  hora_comida_inicio: '12:00:00',
+  hora_comida_fin: '18:00:00',
+  hora_cena_inicio: '18:00:00',
+  hora_cena_fin: '23:59:59',
+  url_haddock: '',
+  haddock_api_token: '',
+  haddock_sync_enabled: false,
+  bdp_base_url: '',
+  bdp_login: '',
+  bdp_password: '',
+  bdp_integrator_code: '',
+  bdp_sync_enabled: false,
+  bdp_pos_id: 1,
+  bdp_employee_id: 1,
+  bdp_items_profile_id: 1,
+  bdp_tender_map: '{}',
+  bdp_order_type_map: '{}',
+  bdp_default_customer_code: '',
+  bdp_poll_interval_secs: 60,
+  google_review_url: '',
+  telefono_restaurante: '',
+  url_reservas: '',
+};

@@ -1,6 +1,7 @@
 /* [065A-2] Configuracion de BDP/WebLink REST API.
  * Mantiene credenciales fuera de respuestas publicas y ofrece diagnostico
- * Health + Login + GetVersion para la sesion remota con el PC del restaurante. */
+ * Health + Login + GetVersion para la sesion remota con el PC del restaurante.
+ * [147A-F5.6] Secciones de mapeo: tender, order_type, customer_code, poll_interval. */
 
 import { useState } from 'react';
 import { Activity, CheckCircle2, ClipboardCheck, Loader2, XCircle } from 'lucide-react';
@@ -13,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner';
 import type { EstadoConfiguracion } from '../hooks/useConfiguracion';
 import type { BdpDiagnosticoResponse } from '../api/generated/gestionRestauranteAPI.schemas';
+import ConfigBdpMapeos from '@/components/config-bdp-mapeos';
 
 interface BdpSyncDryRunCheck {
   nombre: string;
@@ -177,6 +179,10 @@ function ConfigBdp({ config, cambiarCampo }: ConfigBdpProps) {
             onCheckedChange={(checked: boolean) => cambiarCampo('bdp_sync_enabled', checked)}
           />
         </div>
+
+        {/* [147A-F5.6] Sección de mapeos BDP — componente separado por límite 300 */}
+        <ConfigBdpMapeos config={config} cambiarCampo={cambiarCampo} />
+
         <div className="flex flex-wrap items-center gap-3">
           <Button type="button" variant="outline" onClick={diagnosticar} disabled={diagnosticando}>
             {diagnosticando ? <Loader2 className="size-4 animate-spin" /> : <Activity className="size-4" />}

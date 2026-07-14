@@ -8,29 +8,54 @@
  * [064A-8] Botón eliminar oculto cuando sync Haddock activo (petición cliente).
  * [064A-9] Badge estado sync Haddock + dialog confirmación al editar venta sincronizada. */
 
+/* [147A-F5.2] Columna BDP + filtro + polling manual — equivalentes a los de Haddock. */
 import useListaVentas from '../hooks/useListaVentas';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertTriangle } from 'lucide-react';
-import HaddockSyncBadge from '@/components/haddock-sync-badge';
-import VentaRowActions from '@/components/venta-row-actions';
+import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
+import VentaTableBody from '@/components/venta-table-body';
 import FormularioVenta from './FormularioVenta';
 import ReservaViewer from './ReservaViewer';
 import ColumnFilterHeader from '@/components/column-filter-header';
 
-/* [283A-47] Mapa de etiquetas para turnos — el enum backend usa ascii ("manana")
- * pero la UI debe mostrar tildes ("Mañana"). */
-const ETIQUETAS_TURNO: Record<string, string> = {
-  manana: 'Mañana',
-  mediodia: 'Mediodía',
-  noche: 'Noche',
-};
+/* [147A-F5.2] Opciones de filtro extraídas a nivel módulo para reducir line count del componente. */
+const OPCIONES_TURNO = [
+  { value: 'manana', label: 'Mañana' },
+  { value: 'mediodia', label: 'Mediodía' },
+  { value: 'noche', label: 'Noche' },
+];
 
-function formatearMoneda(valor: string): string {
-  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(parseFloat(valor));
-}
+const OPCIONES_CANAL = [
+  { value: 'comedor', label: 'Comedor' },
+  { value: 'barra', label: 'Barra' },
+  { value: 'terraza', label: 'Terraza' },
+  { value: 'delivery', label: 'Delivery' },
+  { value: 'just_eat', label: 'Just Eat' },
+  { value: 'eventos', label: 'Eventos' },
+];
+
+const OPCIONES_METODO_PAGO = [
+  { value: 'efectivo', label: 'Efectivo' },
+  { value: 'tarjeta', label: 'Tarjeta' },
+  { value: 'transferencia', label: 'Transferencia' },
+];
+
+const OPCIONES_ESTADO_HADDOCK = [
+  { value: 'synced', label: 'Sincronizada' },
+  { value: 'error', label: 'Con error' },
+  { value: 'pending', label: 'Pendiente' },
+];
+
+const OPCIONES_ESTADO_BDP = [
+  { value: 'synced', label: 'Sincronizada' },
+  { value: 'accepted', label: 'Aceptada' },
+  { value: 'invoiced', label: 'Facturada' },
+  { value: 'error', label: 'Con error' },
+  { value: 'pending', label: 'Pendiente' },
+  { value: 'cancelled', label: 'Cancelada' },
+];
 
 function ListaVentas() {
   const {
@@ -52,6 +77,8 @@ function ListaVentas() {
     eliminarMutation,
     haddockSyncEnabled,
     retryHaddockMutation,
+    bdpSyncEnabled,
+    bdpPollMutation,
     cerrarModalYRefrescar,
     cerrarEdicionYRefrescar,
     reservaIdViewer,
@@ -66,7 +93,20 @@ function ListaVentas() {
         <div>
           <p className="text-sm text-muted-foreground">{ventas ? `${ventas.total} registros` : ''}</p>
         </div>
-        <Button onClick={() => setModalAbierto(true)}>+ Nueva Venta</Button>
+        <div className="flex gap-2">
+          {bdpSyncEnabled && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => bdpPollMutation.mutate()}
+              disabled={bdpPollMutation.isPending}
+            >
+              <RefreshCw className={`size-4 mr-1.5 ${bdpPollMutation.isPending ? 'animate-spin' : ''}`} />
+              Polling BDP
+            </Button>
+          )}
+          <Button onClick={() => setModalAbierto(true)}>+ Nueva Venta</Button>
+        </div>
       </div>
 
       {/* [044A-9] Buscador + filtros de fecha */}
@@ -160,11 +200,7 @@ function ListaVentas() {
                       currentSortBy={filtros.sortBy}
                       currentSortOrder={filtros.sortOrder}
                       onSort={() => toggleSort('turno')}
-                      options={[
-                        { value: 'manana', label: 'Mañana' },
-                        { value: 'mediodia', label: 'Mediodía' },
-                        { value: 'noche', label: 'Noche' },
-                      ]}
+                      options={OPCIONES_TURNO}
                       selectedValues={filtros.turno}
                       onFilterChange={(v) => cambiarFiltroColumna('turno', v)}
                     />
@@ -176,14 +212,7 @@ function ListaVentas() {
                       currentSortBy={filtros.sortBy}
                       currentSortOrder={filtros.sortOrder}
                       onSort={() => toggleSort('canal')}
-                      options={[
-                        { value: 'comedor', label: 'Comedor' },
-                        { value: 'barra', label: 'Barra' },
-                        { value: 'terraza', label: 'Terraza' },
-                        { value: 'delivery', label: 'Delivery' },
-                        { value: 'just_eat', label: 'Just Eat' },
-                        { value: 'eventos', label: 'Eventos' },
-                      ]}
+                      options={OPCIONES_CANAL}
                       selectedValues={filtros.canal}
                       onFilterChange={(v) => cambiarFiltroColumna('canal', v)}
                     />
@@ -195,11 +224,7 @@ function ListaVentas() {
                       currentSortBy={filtros.sortBy}
                       currentSortOrder={filtros.sortOrder}
                       onSort={() => toggleSort('metodo_pago')}
-                      options={[
-                        { value: 'efectivo', label: 'Efectivo' },
-                        { value: 'tarjeta', label: 'Tarjeta' },
-                        { value: 'transferencia', label: 'Transferencia' },
-                      ]}
+                      options={OPCIONES_METODO_PAGO}
                       selectedValues={filtros.metodoPago}
                       onFilterChange={(v) => cambiarFiltroColumna('metodoPago', v)}
                     />
@@ -218,13 +243,23 @@ function ListaVentas() {
                         currentSortBy={filtros.sortBy}
                         currentSortOrder={filtros.sortOrder}
                         onSort={() => {}}
-                        options={[
-                          { value: 'synced', label: 'Sincronizada' },
-                          { value: 'error', label: 'Con error' },
-                          { value: 'pending', label: 'Pendiente' },
-                        ]}
+                        options={OPCIONES_ESTADO_HADDOCK}
                         selectedValues={filtros.estadoHaddock}
                         onFilterChange={(v) => cambiarFiltroColumna('estadoHaddock', v)}
+                      />
+                    </TableHead>
+                  )}
+                  {bdpSyncEnabled && (
+                    <TableHead className="w-24">
+                      <ColumnFilterHeader
+                        title="BDP"
+                        sortKey="bdp"
+                        currentSortBy={filtros.sortBy}
+                        currentSortOrder={filtros.sortOrder}
+                        onSort={() => {}}
+                        options={OPCIONES_ESTADO_BDP}
+                        selectedValues={filtros.estadoBdp}
+                        onFilterChange={(v) => cambiarFiltroColumna('estadoBdp', v)}
                       />
                     </TableHead>
                   )}
@@ -232,40 +267,17 @@ function ListaVentas() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ventas.items.map((v) => (
-                  <TableRow key={v.id}>
-                    <TableCell>{v.fecha}</TableCell>
-                    <TableCell>{v.nombre_cliente ?? '—'}</TableCell>
-                    <TableCell>{ETIQUETAS_TURNO[v.turno] ?? v.turno}</TableCell>
-                    <TableCell className="capitalize">{v.canal}</TableCell>
-                    <TableCell className="capitalize">{v.metodo_pago}</TableCell>
-                    <TableCell className="text-right">{formatearMoneda(v.importe_base)}</TableCell>
-                    <TableCell className="text-right">{formatearMoneda(v.importe_iva)}</TableCell>
-                    <TableCell className="text-right font-medium">{formatearMoneda((parseFloat(v.importe_base) + parseFloat(v.importe_iva)).toFixed(2))}</TableCell>
-                    {/* [064A-9] Badge de estado sync Haddock con tooltip informativo */}
-                    {haddockSyncEnabled && (
-                      <TableCell className="text-center">
-                        <HaddockSyncBadge
-                          synced={v.haddock_synced}
-                          syncedAt={v.haddock_synced_at}
-                          syncError={v.haddock_sync_error}
-                        />
-                      </TableCell>
-                    )}
-                    <TableCell>
-                      <VentaRowActions
-                        venta={v}
-                        haddockSyncEnabled={haddockSyncEnabled}
-                        onVerReserva={(id) => setReservaIdViewer(id)}
-                        onEditar={iniciarEdicion}
-                        onEliminar={(id) => eliminarMutation.mutate({ id })}
-                        onRetrySync={(id) => retryHaddockMutation.mutate({ id })}
-                        eliminarPending={eliminarMutation.isPending}
-                        retryPending={retryHaddockMutation.isPending}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
+                <VentaTableBody
+                  ventas={ventas.items}
+                  haddockSyncEnabled={haddockSyncEnabled}
+                  bdpSyncEnabled={bdpSyncEnabled}
+                  onVerReserva={(id) => setReservaIdViewer(id)}
+                  onEditar={iniciarEdicion}
+                  onEliminar={(id) => eliminarMutation.mutate({ id })}
+                  onRetryHaddock={(id) => retryHaddockMutation.mutate({ id })}
+                  eliminarPending={eliminarMutation.isPending}
+                  retryHaddockPending={retryHaddockMutation.isPending}
+                />
               </TableBody>
             </Table>
           </div>
