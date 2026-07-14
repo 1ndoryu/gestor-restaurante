@@ -69,6 +69,22 @@ export async function fetchBdpPoll(): Promise<BdpPollResponse> {
   });
 }
 
+/** Estructura de un mapeo artículo Glory → BDP (GET /api/bdp/article-maps). */
+export interface BdpArticleMapItem {
+  id: string;
+  user_id: string;
+  articulo_glory_codigo: string;
+  articulo_bdp_codigo: string;
+  articulo_bdp_nombre: string;
+}
+
+/** Listar todos los mapeos de artículos Glory → BDP. */
+export async function fetchBdpArticleMaps(): Promise<BdpArticleMapItem[]> {
+  return customInstance<BdpArticleMapItem[]>('/api/bdp/article-maps', {
+    method: 'GET',
+  });
+}
+
 /* ── Hooks ──────────────────────────────────────────────────────────── */
 
 /** Query hook: obtener estado BDP de una venta individual. */
@@ -88,5 +104,15 @@ export function useBdpPoll(queryClient?: QueryClient) {
     onSuccess: () => {
       queryClient?.invalidateQueries({ queryKey: ['listarVentas'] });
     },
+  });
+}
+
+/** Query hook: obtener mapeos de artículos Glory → BDP. */
+export function useBdpArticleMaps(enabled = true) {
+  return useQuery({
+    queryKey: ['bdp-article-maps'],
+    queryFn: fetchBdpArticleMaps,
+    enabled,
+    staleTime: 5 * 60_000, /* 5 min — cambia poco */
   });
 }

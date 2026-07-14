@@ -1,9 +1,11 @@
 /* [263A-16] Formulario de venta — reescrito con shadcn Input + Button + Label.
  * Multi-turno: cada turno seleccionado genera una venta independiente.
- * [283A-22] Soporte edición — acepta venta opcional para pre-rellenar y usar PUT. */
+ * [283A-22] Soporte edición — acepta venta opcional para pre-rellenar y usar PUT.
+ * [147A-F6] Integración multi-item: LineasVentaEditor para artículos individuales. */
 
 import { Turno, CanalVenta, Venta } from '../api/generated';
 import useFormularioVenta, { calcularIva } from '../hooks/useFormularioVenta';
+import LineasVentaEditor from '../components/lineas-venta-editor';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,7 +24,7 @@ interface Props {
 }
 
 function FormularioVenta({ onExito, venta }: Props) {
-    const { campos, cambiarCampo, toggleTurno, cambiarDetalle, error, manejarEnvio, cargando, esEdicion } = useFormularioVenta(onExito, venta);
+    const { campos, cambiarCampo, toggleTurno, cambiarDetalle, error, manejarEnvio, cargando, esEdicion, lineasHook } = useFormularioVenta(onExito, venta);
 
     return (
         <div>
@@ -122,6 +124,40 @@ function FormularioVenta({ onExito, venta }: Props) {
                         </div>
                     </div>
                 </details>
+
+                {/* [147A-F6] Editor de líneas multi-item para BDP */}
+                {lineasHook.lineas.length > 0 ? (
+                    <LineasVentaEditor
+                        lineas={lineasHook.lineas}
+                        onAgregar={lineasHook.agregarLinea}
+                        onEliminar={lineasHook.eliminarLinea}
+                        onActualizar={lineasHook.actualizarLinea}
+                        totalBase={lineasHook.totalBase}
+                        totalIva={lineasHook.totalIva}
+                        totalConDescuento={lineasHook.totalConDescuento}
+                    />
+                ) : (
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">
+                                ¿Añadir artículos individuales para BDP?
+                            </span>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={lineasHook.agregarLinea}
+                                className="h-7 gap-1 text-xs"
+                            >
+                                + Añadir líneas
+                            </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Si añade líneas, el total se calculará a partir de los artículos.
+                            Si no, se usa el importe manual como hasta ahora.
+                        </p>
+                    </div>
+                )}
 
                 <Button type="submit" className="w-full" disabled={cargando}>
                     {cargando

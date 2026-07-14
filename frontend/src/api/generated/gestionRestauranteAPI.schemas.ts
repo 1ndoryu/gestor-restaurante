@@ -996,6 +996,22 @@ export interface CrearTrabajadorRequest {
 /**
  * Request para crear una venta
  */
+/** Línea individual dentro de una venta (para multi-item BDP) */
+export interface CrearVentaLineaRequest {
+  /** @nullable Código del artículo (para mapeo BDP) */
+  articulo_codigo?: string | null;
+  /** Descripción del artículo/servicio */
+  descripcion: string;
+  /** @nullable Cantidad (default 1) */
+  cantidad?: number | null;
+  /** Precio unitario sin IVA */
+  precio_unitario: string;
+  /** @nullable Porcentaje IVA aplicable (default del sistema) */
+  iva_pct?: string | null;
+  /** @nullable Descuento aplicado a esta línea */
+  descuento?: string | null;
+}
+
 export interface CrearVentaRequest {
   canal: CanalVenta;
   /** @nullable */
@@ -1006,6 +1022,8 @@ export interface CrearVentaRequest {
   importe_base: string;
   importe_iva: string;
   iva_porcentaje: string;
+  /** @nullable Líneas de venta (multi-item). Si se omite, se usa importe_base como venta simple. */
+  lineas?: CrearVentaLineaRequest[] | null;
   metodo_pago: MetodoPago;
   turno: Turno;
 }
