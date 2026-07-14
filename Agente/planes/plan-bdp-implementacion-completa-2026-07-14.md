@@ -194,7 +194,7 @@ Las ventas en Glory son **monolíticas**: 1 registro con `importe_base` + `impor
 
 ---
 
-### Fase 5 — Frontend: visibilidad BDP (sin multi-item aún)
+### Fase 5 — Frontend: visibilidad BDP (sin multi-item aún) ✅ COMPLETADA 2026-07-14
 
 **Objetivo:** Que el usuario vea el estado de la sincronización BDP y pueda reintentar. No incluye multi-item (eso es Fase 6).
 
@@ -339,9 +339,9 @@ Cada fase se puede deployar independientemente. Si Fase 2 tiene problemas, Fases
 
 ### Frontend
 
-- [ ] Regenerar Orval codegen y verificar diff (Fase 5.0)
-- [ ] Confirmar que `bdp_synced`/`bdp_order_id`/`bdp_sync_error` aparecen en `VentaConCliente` tras codegen
-- [ ] Verificar que el endpoint `POST /api/ventas/:id/bdp-sync` está documentado en OpenAPI (para que Orval genere el hook)
+- [x] Regenerar Orval codegen y verificar diff (Fase 5.0)
+- [x] Confirmar que `bdp_synced`/`bdp_order_id`/`bdp_sync_error` aparecen en `VentaConCliente` tras codegen
+- [x] Verificar que el endpoint `POST /api/ventas/:id/bdp-sync` está documentado en OpenAPI (para que Orval genere el hook)
 - [ ] Decidir si `LineasVentaEditor` usa selector de artículos del catálogo Glory o del catálogo BDP importado
 
 ---
