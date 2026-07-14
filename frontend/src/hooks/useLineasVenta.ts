@@ -79,7 +79,7 @@ export default function useLineasVenta(ivaDefault = '10'): UseLineasVentaReturn 
       lineas.map(l => ({
         articulo_codigo: l.articulo_codigo || null,
         descripcion: l.descripcion,
-        cantidad: l.cantidad ? parseFloat(l.cantidad) : null,
+        cantidad: l.cantidad || null,
         precio_unitario: l.precio_unitario,
         iva_pct: l.iva_pct || null,
         descuento: l.descuento && l.descuento !== '0' ? l.descuento : null,

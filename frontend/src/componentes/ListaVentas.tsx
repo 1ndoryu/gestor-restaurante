@@ -79,6 +79,7 @@ function ListaVentas() {
     retryHaddockMutation,
     bdpSyncEnabled,
     bdpPollMutation,
+    retryBdpMutation,
     cerrarModalYRefrescar,
     cerrarEdicionYRefrescar,
     reservaIdViewer,
@@ -275,8 +276,10 @@ function ListaVentas() {
                   onEditar={iniciarEdicion}
                   onEliminar={(id) => eliminarMutation.mutate({ id })}
                   onRetryHaddock={(id) => retryHaddockMutation.mutate({ id })}
+                  onRetryBdp={(id) => retryBdpMutation.mutateAsync(id)}
                   eliminarPending={eliminarMutation.isPending}
                   retryHaddockPending={retryHaddockMutation.isPending}
+                  retryBdpPending={retryBdpMutation.isPending}
                 />
               </TableBody>
             </Table>

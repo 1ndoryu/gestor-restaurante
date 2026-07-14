@@ -95,6 +95,7 @@ impl VentaRepository {
         canal: Option<&str>,
         metodo_pago: Option<&str>,
         estado_haddock: Option<&str>,
+        estado_bdp: Option<&str>,
         sort_by: Option<&str>,
         sort_order: Option<&str>,
     ) -> Result<(Vec<VentaConCliente>, i64), sqlx::Error> {
@@ -122,6 +123,7 @@ impl VentaRepository {
         let canal_filter = canal.filter(|c| !c.is_empty());
         let metodo_filter = metodo_pago.filter(|m| !m.is_empty());
         let haddock_filter = estado_haddock.filter(|h| !h.is_empty());
+        let bdp_filter = estado_bdp.filter(|b| !b.is_empty());
 
         let query_str = format!(
             "SELECT v.id, v.user_id, v.fecha, v.comensales, v.descripcion, \
@@ -155,6 +157,13 @@ impl VentaRepository {
                      WHEN v.haddock_sync_error IS NOT NULL THEN 'error' \
                      ELSE 'pending' \
                    END) = ANY(string_to_array($10, ','))) \
+             AND ($11::TEXT IS NULL OR \
+                  (CASE \
+                     WHEN v.bdp_order_status IS NOT NULL THEN v.bdp_order_status \
+                     WHEN v.bdp_synced = true THEN 'synced' \
+                     WHEN v.bdp_sync_error IS NOT NULL THEN 'error' \
+                     ELSE 'pending' \
+                   END) = ANY(string_to_array($11, ','))) \
              ORDER BY {order_col} {order_dir}, v.created_at DESC \
              LIMIT $2 OFFSET $3"
         );
@@ -170,6 +179,7 @@ impl VentaRepository {
             .bind(canal_filter)
             .bind(metodo_filter)
             .bind(haddock_filter)
+            .bind(bdp_filter)
             .fetch_all(pool)
             .await?;
 
@@ -178,7 +188,8 @@ impl VentaRepository {
         let has_column_filters = turno_filter.is_some()
             || canal_filter.is_some()
             || metodo_filter.is_some()
-            || haddock_filter.is_some();
+            || haddock_filter.is_some()
+            || bdp_filter.is_some();
 
         let count = if has_text_filter || has_column_filters {
             let rec = sqlx::query_scalar::<_, Option<i64>>(
@@ -202,7 +213,14 @@ impl VentaRepository {
                          WHEN v.haddock_synced = true THEN 'synced' \
                          WHEN v.haddock_sync_error IS NOT NULL THEN 'error' \
                          ELSE 'pending' \
-                       END) = ANY(string_to_array($8, ',')))",
+                       END) = ANY(string_to_array($8, ','))) \
+                 AND ($9::TEXT IS NULL OR \
+                      (CASE \
+                         WHEN v.bdp_order_status IS NOT NULL THEN v.bdp_order_status \
+                         WHEN v.bdp_synced = true THEN 'synced' \
+                         WHEN v.bdp_sync_error IS NOT NULL THEN 'error' \
+                         ELSE 'pending' \
+                       END) = ANY(string_to_array($9, ',')))",
             )
             .bind(user_id)
             .bind(desde)
@@ -212,6 +230,7 @@ impl VentaRepository {
             .bind(canal_filter)
             .bind(metodo_filter)
             .bind(haddock_filter)
+            .bind(bdp_filter)
             .fetch_one(pool)
             .await?;
             rec.unwrap_or(0)

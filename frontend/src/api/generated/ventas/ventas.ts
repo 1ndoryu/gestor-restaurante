@@ -26,6 +26,8 @@ import type {
 
 import type {
   ActualizarVentaRequest,
+  BdpOrderStatusResponse,
+  BdpPollResponse,
   CrearVentaRequest,
   ErrorResponse,
   ListarVentasParams,
@@ -257,6 +259,88 @@ export const useCrearVenta = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getCrearVentaMutationOptions(options), queryClient);
+    }
+    export type bdpPollResponse200 = {
+  data: BdpPollResponse
+  status: 200
+}
+
+export type bdpPollResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type bdpPollResponseSuccess = (bdpPollResponse200) & {
+  headers: Headers;
+};
+export type bdpPollResponseError = (bdpPollResponse401) & {
+  headers: Headers;
+};
+
+export type bdpPollResponse = (bdpPollResponseSuccess | bdpPollResponseError)
+
+export const getBdpPollUrl = () => {
+
+
+
+
+  return `/api/ventas/bdp-poll`
+}
+
+export const bdpPoll = async ( options?: RequestInit): Promise<bdpPollResponse> => {
+
+  return customInstance<bdpPollResponse>(getBdpPollUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getBdpPollMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bdpPoll>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof bdpPoll>>, TError,void, TContext> => {
+
+const mutationKey = ['bdpPoll'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bdpPoll>>, void> = () => {
+
+
+          return  bdpPoll(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BdpPollMutationResult = NonNullable<Awaited<ReturnType<typeof bdpPoll>>>
+
+    export type BdpPollMutationError = ErrorResponse
+
+    export const useBdpPoll = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bdpPoll>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof bdpPoll>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getBdpPollMutationOptions(options), queryClient);
     }
     /**
  * @summary Obtener una venta por ID
@@ -572,6 +656,220 @@ export const useEliminarVenta = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getEliminarVentaMutationOptions(options), queryClient);
+    }
+    export type obtenerBdpStatusResponse200 = {
+  data: BdpOrderStatusResponse
+  status: 200
+}
+
+export type obtenerBdpStatusResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type obtenerBdpStatusResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type obtenerBdpStatusResponseSuccess = (obtenerBdpStatusResponse200) & {
+  headers: Headers;
+};
+export type obtenerBdpStatusResponseError = (obtenerBdpStatusResponse401 | obtenerBdpStatusResponse404) & {
+  headers: Headers;
+};
+
+export type obtenerBdpStatusResponse = (obtenerBdpStatusResponseSuccess | obtenerBdpStatusResponseError)
+
+export const getObtenerBdpStatusUrl = (id: string,) => {
+
+
+
+
+  return `/api/ventas/${id}/bdp-status`
+}
+
+export const obtenerBdpStatus = async (id: string, options?: RequestInit): Promise<obtenerBdpStatusResponse> => {
+
+  return customInstance<obtenerBdpStatusResponse>(getObtenerBdpStatusUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getObtenerBdpStatusQueryKey = (id: string,) => {
+    return [
+    `/api/ventas/${id}/bdp-status`
+    ] as const;
+    }
+
+
+export const getObtenerBdpStatusQueryOptions = <TData = Awaited<ReturnType<typeof obtenerBdpStatus>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerBdpStatus>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getObtenerBdpStatusQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof obtenerBdpStatus>>> = ({ signal }) => obtenerBdpStatus(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof obtenerBdpStatus>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ObtenerBdpStatusQueryResult = NonNullable<Awaited<ReturnType<typeof obtenerBdpStatus>>>
+export type ObtenerBdpStatusQueryError = ErrorResponse
+
+
+export function useObtenerBdpStatus<TData = Awaited<ReturnType<typeof obtenerBdpStatus>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerBdpStatus>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof obtenerBdpStatus>>,
+          TError,
+          Awaited<ReturnType<typeof obtenerBdpStatus>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useObtenerBdpStatus<TData = Awaited<ReturnType<typeof obtenerBdpStatus>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerBdpStatus>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof obtenerBdpStatus>>,
+          TError,
+          Awaited<ReturnType<typeof obtenerBdpStatus>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useObtenerBdpStatus<TData = Awaited<ReturnType<typeof obtenerBdpStatus>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerBdpStatus>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useObtenerBdpStatus<TData = Awaited<ReturnType<typeof obtenerBdpStatus>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof obtenerBdpStatus>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getObtenerBdpStatusQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+/**
+ * @summary Reintentar sincronización con `BDP` `WebLink`
+ */
+export type reintentarSyncBdpResponse200 = {
+  data: Venta
+  status: 200
+}
+
+export type reintentarSyncBdpResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type reintentarSyncBdpResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type reintentarSyncBdpResponse422 = {
+  data: ErrorResponse
+  status: 422
+}
+
+export type reintentarSyncBdpResponseSuccess = (reintentarSyncBdpResponse200) & {
+  headers: Headers;
+};
+export type reintentarSyncBdpResponseError = (reintentarSyncBdpResponse401 | reintentarSyncBdpResponse404 | reintentarSyncBdpResponse422) & {
+  headers: Headers;
+};
+
+export type reintentarSyncBdpResponse = (reintentarSyncBdpResponseSuccess | reintentarSyncBdpResponseError)
+
+export const getReintentarSyncBdpUrl = (id: string,) => {
+
+
+
+
+  return `/api/ventas/${id}/bdp-sync`
+}
+
+export const reintentarSyncBdp = async (id: string, options?: RequestInit): Promise<reintentarSyncBdpResponse> => {
+
+  return customInstance<reintentarSyncBdpResponse>(getReintentarSyncBdpUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getReintentarSyncBdpMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reintentarSyncBdp>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof reintentarSyncBdp>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['reintentarSyncBdp'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reintentarSyncBdp>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  reintentarSyncBdp(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReintentarSyncBdpMutationResult = NonNullable<Awaited<ReturnType<typeof reintentarSyncBdp>>>
+
+    export type ReintentarSyncBdpMutationError = ErrorResponse
+
+    /**
+ * @summary Reintentar sincronización con `BDP` `WebLink`
+ */
+export const useReintentarSyncBdp = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reintentarSyncBdp>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reintentarSyncBdp>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getReintentarSyncBdpMutationOptions(options), queryClient);
     }
     /**
  * @summary Reintentar sincronización con Haddock

@@ -92,6 +92,7 @@ impl VentaService {
         canal: Option<String>,
         metodo_pago: Option<String>,
         estado_haddock: Option<String>,
+        estado_bdp: Option<String>,
         sort_by: Option<String>,
         sort_order: Option<String>,
     ) -> Result<VentasPaginadas, AppError> {
@@ -107,6 +108,7 @@ impl VentaService {
             canal.as_deref(),
             metodo_pago.as_deref(),
             estado_haddock.as_deref(),
+            estado_bdp.as_deref(),
             sort_by.as_deref(),
             sort_order.as_deref(),
         )

@@ -5,6 +5,16 @@
  * API para gestion de restaurantes - Ventas, Gastos, Reservas, Dashboard
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * Request para actualizar un mapeo de artículo (PATCH parcial)
+ */
+export interface ActualizarBdpArticleMapRequest {
+  /** @nullable */
+  articulo_bdp_codigo?: string | null;
+  /** @nullable */
+  articulo_bdp_nombre?: string | null;
+}
+
 export interface ActualizarCampanaRequest {
   /** @nullable */
   canales?: string[] | null;
@@ -67,6 +77,8 @@ export interface ActualizarConfiguracionRequest {
   /** @nullable */
   bdp_base_url?: string | null;
   /** @nullable */
+  bdp_default_customer_code?: string | null;
+  /** @nullable */
   bdp_employee_id?: number | null;
   /** @nullable */
   bdp_integrator_code?: string | null;
@@ -74,20 +86,16 @@ export interface ActualizarConfiguracionRequest {
   bdp_items_profile_id?: number | null;
   /** @nullable */
   bdp_login?: string | null;
+  bdp_order_type_map?: unknown | null;
   /** @nullable */
   bdp_password?: string | null;
+  /** @nullable */
+  bdp_poll_interval_secs?: number | null;
   /** @nullable */
   bdp_pos_id?: number | null;
   /** @nullable */
   bdp_sync_enabled?: boolean | null;
-  /** [147A-F5.6] Tender map JSON: metodo_pago_glory → código tender BDP. Se regenera con Orval. */
-  bdp_tender_map?: Record<string, unknown> | null;
-  /** [147A-F5.6] Order type map JSON: canal_glory → orderType BDP (0=Barra,1=Mesa,2=Domicilio). */
-  bdp_order_type_map?: Record<string, unknown> | null;
-  /** [147A-F5.6] Código cliente BDP por defecto para ventas sin cliente. */
-  bdp_default_customer_code?: string | null;
-  /** [147A-F5.6] Intervalo de polling BDP en segundos (default 60). */
-  bdp_poll_interval_secs?: number | null;
+  bdp_tender_map?: unknown | null;
   /** @nullable */
   google_review_url?: string | null;
   /** @nullable */
@@ -517,6 +525,19 @@ export interface AuthResponse {
   user_id: string;
 }
 
+/**
+ * Registro de mapeo artículo Glory → BDP
+ */
+export interface BdpArticleMap {
+  articulo_bdp_codigo: string;
+  articulo_bdp_nombre: string;
+  articulo_glory_codigo: string;
+  created_at: string;
+  id: string;
+  updated_at: string;
+  user_id: string;
+}
+
 export interface BdpDiagnosticoResponse {
   /** @nullable */
   application?: string | null;
@@ -533,6 +554,46 @@ export interface BdpDiagnosticoResponse {
   sync_habilitado: boolean;
   /** @nullable */
   version?: number | null;
+}
+
+export interface BdpOrderStatusResponse {
+  /** @nullable */
+  bdp_order_id?: number | null;
+  /** @nullable */
+  bdp_order_status?: string | null;
+  /** @nullable */
+  bdp_sync_error?: string | null;
+  bdp_synced: boolean;
+  venta_id: string;
+}
+
+export interface BdpPollResponse {
+  /** @minimum 0 */
+  updated: number;
+}
+
+export interface BdpSyncDryRunCheck {
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  cantidad?: number | null;
+  endpoint: string;
+  mensaje: string;
+  /** @nullable */
+  muestra?: string | null;
+  nombre: string;
+  ok: boolean;
+}
+
+export interface BdpSyncDryRunResponse {
+  checks: BdpSyncDryRunCheck[];
+  configurado: boolean;
+  escritura_real: boolean;
+  listo_para_sincronizar: boolean;
+  mensaje: string;
+  payload_preview?: unknown | null;
+  sync_habilitado: boolean;
 }
 
 export interface Campana {
@@ -738,18 +799,16 @@ export interface CombinacionExport {
 export interface ConfiguracionRestaurante {
   auto_venta_reserva: boolean;
   bdp_base_url: string;
+  bdp_default_article_code: string;
+  bdp_default_article_name: string;
+  bdp_default_customer_code: string;
   bdp_employee_id: number;
   bdp_items_profile_id: number;
+  bdp_order_type_map: unknown;
+  bdp_poll_interval_secs: number;
   bdp_pos_id: number;
   bdp_sync_enabled: boolean;
-  /** [147A-F5.6] Tender map JSON (método_pago Glory → código tender BDP). Se regenera con Orval. */
-  bdp_tender_map?: Record<string, unknown>;
-  /** [147A-F5.6] Order type map JSON (canal Glory → orderType BDP). */
-  bdp_order_type_map?: Record<string, unknown>;
-  /** [147A-F5.6] Código cliente BDP por defecto. */
-  bdp_default_customer_code?: string;
-  /** [147A-F5.6] Intervalo polling BDP en segundos. */
-  bdp_poll_interval_secs?: number;
+  bdp_tender_map: unknown;
   created_at: string;
   google_review_url: string;
   haddock_sync_enabled: boolean;
@@ -782,6 +841,16 @@ export interface ConteoNoLeidas {
 
 export interface CrearApiKeyRequest {
   nombre: string;
+}
+
+/**
+ * Request para crear un mapeo de artículo
+ */
+export interface CrearBdpArticleMapRequest {
+  articulo_bdp_codigo: string;
+  /** @nullable */
+  articulo_bdp_nombre?: string | null;
+  articulo_glory_codigo: string;
 }
 
 export interface CrearCampanaRequest {
@@ -994,24 +1063,38 @@ export interface CrearTrabajadorRequest {
 }
 
 /**
- * Request para crear una venta
+ * Request para crear una línea de venta (usado dentro de CrearVentaRequest)
  */
-/** Línea individual dentro de una venta (para multi-item BDP) */
 export interface CrearVentaLineaRequest {
-  /** @nullable Código del artículo (para mapeo BDP) */
+  /**
+     * Código del artículo (puede mapearse a BDP via bdp_article_map)
+     * @nullable
+     */
   articulo_codigo?: string | null;
+  /**
+     * Cantidad (puede ser decimal para peso, etc.)
+     * @nullable
+     */
+  cantidad?: string | null;
   /** Descripción del artículo/servicio */
   descripcion: string;
-  /** @nullable Cantidad (default 1) */
-  cantidad?: number | null;
+  /**
+     * Descuento aplicado a esta línea
+     * @nullable
+     */
+  descuento?: string | null;
+  /**
+     * Porcentaje de IVA aplicable
+     * @nullable
+     */
+  iva_pct?: string | null;
   /** Precio unitario sin IVA */
   precio_unitario: string;
-  /** @nullable Porcentaje IVA aplicable (default del sistema) */
-  iva_pct?: string | null;
-  /** @nullable Descuento aplicado a esta línea */
-  descuento?: string | null;
 }
 
+/**
+ * Request para crear una venta
+ */
 export interface CrearVentaRequest {
   canal: CanalVenta;
   /** @nullable */
@@ -1022,7 +1105,7 @@ export interface CrearVentaRequest {
   importe_base: string;
   importe_iva: string;
   iva_porcentaje: string;
-  /** @nullable Líneas de venta (multi-item). Si se omite, se usa importe_base como venta simple. */
+  /** @nullable */
   lineas?: CrearVentaLineaRequest[] | null;
   metodo_pago: MetodoPago;
   turno: Turno;
@@ -1353,6 +1436,15 @@ export interface Notificacion {
   user_id: string;
 }
 
+export interface ParedExport {
+  alto: number;
+  ancho: number;
+  color: string;
+  pos_x: number;
+  pos_y: number;
+  rotacion: number;
+}
+
 export interface ParedSala {
   alto: number;
   ancho: number;
@@ -1377,6 +1469,7 @@ export interface ZonaExport {
   mesas: MesaExport[];
   nombre: string;
   orden: number;
+  paredes?: ParedExport[];
 }
 
 export interface PlanoExport {
@@ -1693,6 +1786,15 @@ export interface TrabajadorResponse {
  * Venta registrada en el restaurante
  */
 export interface Venta {
+  /** @nullable */
+  bdp_order_id?: number | null;
+  /** @nullable */
+  bdp_order_status?: string | null;
+  /** @nullable */
+  bdp_sync_error?: string | null;
+  bdp_synced: boolean;
+  /** @nullable */
+  bdp_synced_at?: string | null;
   canal: string;
   /** @nullable */
   cliente_id?: string | null;
@@ -1719,6 +1821,15 @@ export interface Venta {
 }
 
 export interface VentaConCliente {
+  /** @nullable */
+  bdp_order_id?: number | null;
+  /** @nullable */
+  bdp_order_status?: string | null;
+  /** @nullable */
+  bdp_sync_error?: string | null;
+  bdp_synced: boolean;
+  /** @nullable */
+  bdp_synced_at?: string | null;
   canal: string;
   /** @nullable */
   cliente_id?: string | null;
@@ -1744,6 +1855,21 @@ export interface VentaConCliente {
   turno: string;
   updated_at: string;
   user_id: string;
+}
+
+/**
+ * Línea individual dentro de una venta
+ */
+export interface VentaLinea {
+  articulo_codigo: string;
+  cantidad: string;
+  created_at: string;
+  descripcion: string;
+  descuento: string;
+  id: string;
+  iva_pct: string;
+  precio_unitario: string;
+  venta_id: string;
 }
 
 /**
@@ -2091,6 +2217,11 @@ metodo_pago?: string | null;
  * @nullable
  */
 estado_haddock?: string | null;
+/**
+ * Filtro por estado BDP (valores separados por coma: `synced,accepted,invoiced,error,pending,cancelled`)
+ * @nullable
+ */
+estado_bdp?: string | null;
 /**
  * Campo de ordenamiento: `fecha`, `importe_base`, `turno`, `canal`, `metodo_pago`
  * @nullable

@@ -28,6 +28,7 @@ import type {
   ActualizarConfiguracionRequest,
   ActualizarIntegracionesRequest,
   BdpDiagnosticoResponse,
+  BdpSyncDryRunResponse,
   ConfiguracionRestaurante,
   ErrorResponse,
   IntegracionMarketingPublica
@@ -359,6 +360,123 @@ export function useDiagnosticarBdp<TData = Awaited<ReturnType<typeof diagnostica
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getDiagnosticarBdpQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+/**
+ * @summary Probar sincronización BDP sin crear datos reales
+ */
+export type diagnosticarBdpSyncDryRunResponse200 = {
+  data: BdpSyncDryRunResponse
+  status: 200
+}
+
+export type diagnosticarBdpSyncDryRunResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type diagnosticarBdpSyncDryRunResponseSuccess = (diagnosticarBdpSyncDryRunResponse200) & {
+  headers: Headers;
+};
+export type diagnosticarBdpSyncDryRunResponseError = (diagnosticarBdpSyncDryRunResponse401) & {
+  headers: Headers;
+};
+
+export type diagnosticarBdpSyncDryRunResponse = (diagnosticarBdpSyncDryRunResponseSuccess | diagnosticarBdpSyncDryRunResponseError)
+
+export const getDiagnosticarBdpSyncDryRunUrl = () => {
+
+
+
+
+  return `/api/configuracion/bdp/sync-dry-run`
+}
+
+export const diagnosticarBdpSyncDryRun = async ( options?: RequestInit): Promise<diagnosticarBdpSyncDryRunResponse> => {
+
+  return customInstance<diagnosticarBdpSyncDryRunResponse>(getDiagnosticarBdpSyncDryRunUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDiagnosticarBdpSyncDryRunQueryKey = () => {
+    return [
+    `/api/configuracion/bdp/sync-dry-run`
+    ] as const;
+    }
+
+
+export const getDiagnosticarBdpSyncDryRunQueryOptions = <TData = Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDiagnosticarBdpSyncDryRunQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>> = ({ signal }) => diagnosticarBdpSyncDryRun({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type DiagnosticarBdpSyncDryRunQueryResult = NonNullable<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>>
+export type DiagnosticarBdpSyncDryRunQueryError = ErrorResponse
+
+
+export function useDiagnosticarBdpSyncDryRun<TData = Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>,
+          TError,
+          Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDiagnosticarBdpSyncDryRun<TData = Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>,
+          TError,
+          Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDiagnosticarBdpSyncDryRun<TData = Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Probar sincronización BDP sin crear datos reales
+ */
+
+export function useDiagnosticarBdpSyncDryRun<TData = Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getDiagnosticarBdpSyncDryRunQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

@@ -7,6 +7,7 @@ use sqlx::FromRow;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 use validator::Validate;
+use super::venta_linea::CrearVentaLineaRequest;
 
 /// Turnos de servicio del restaurante
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, sqlx::Type)]
@@ -91,7 +92,7 @@ pub struct CrearVentaRequest {
     /* [F2.3] Líneas opcionales de la venta.
      * Si se proporcionan, bdp_sync usará estas líneas para construir un pedido multi-item.
      * Si es None o vacío, se usa el comportamiento legacy (1 artículo genérico). */
-    pub lineas: Option<Vec<super::venta_linea::CrearVentaLineaRequest>>,
+    pub lineas: Option<Vec<CrearVentaLineaRequest>>,
 }
 
 /* [283A-22] Request para actualizar una venta — todos los campos opcionales
@@ -177,6 +178,8 @@ pub struct VentasQuery {
     pub metodo_pago: Option<String>,
     /// Filtro por estado Haddock (valores separados por coma: `synced,error,pending`)
     pub estado_haddock: Option<String>,
+    /// Filtro por estado BDP (valores separados por coma: `synced,accepted,invoiced,error,pending,cancelled`)
+    pub estado_bdp: Option<String>,
     /// Campo de ordenamiento: `fecha`, `importe_base`, `turno`, `canal`, `metodo_pago`
     pub sort_by: Option<String>,
     /// Dirección de orden: asc o desc. Por defecto desc

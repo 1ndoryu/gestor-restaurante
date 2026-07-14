@@ -6,6 +6,7 @@ import { Settings } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import BdpArticleMapTable from '@/components/bdp-article-map-table';
 import type { EstadoConfiguracion } from '../hooks/useConfiguracion';
 
 interface ConfigBdpMapeosProps {
@@ -85,6 +86,9 @@ function ConfigBdpMapeos({ config, cambiarCampo }: ConfigBdpMapeosProps) {
           <p className="text-xs text-muted-foreground">Frecuencia de consulta de estado de órdenes BDP (10-600 s)</p>
         </div>
       </div>
+
+      {/* [147A-F5.6+5.7] Tabla de mapeo artículos Glory → BDP */}
+      <BdpArticleMapTable />
     </div>
   );
 }

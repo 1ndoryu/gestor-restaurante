@@ -27,8 +27,10 @@ interface VentaTableBodyProps {
   onEditar: (v: VentaConCliente) => void;
   onEliminar: (id: string) => void;
   onRetryHaddock: (id: string) => void;
+  onRetryBdp?: (id: string) => void;
   eliminarPending: boolean;
   retryHaddockPending: boolean;
+  retryBdpPending?: boolean;
 }
 
 function VentaTableBody({
@@ -39,8 +41,10 @@ function VentaTableBody({
   onEditar,
   onEliminar,
   onRetryHaddock,
+  onRetryBdp,
   eliminarPending,
   retryHaddockPending,
+  retryBdpPending,
 }: VentaTableBodyProps) {
   return (
     <>
@@ -77,12 +81,15 @@ function VentaTableBody({
             <VentaRowActions
               venta={v}
               haddockSyncEnabled={haddockSyncEnabled}
+              bdpSyncEnabled={bdpSyncEnabled}
               onVerReserva={onVerReserva}
               onEditar={onEditar}
               onEliminar={onEliminar}
               onRetrySync={onRetryHaddock}
+              onRetryBdp={onRetryBdp}
               eliminarPending={eliminarPending}
               retryPending={retryHaddockPending}
+              retryBdpPending={retryBdpPending}
             />
           </TableCell>
         </TableRow>

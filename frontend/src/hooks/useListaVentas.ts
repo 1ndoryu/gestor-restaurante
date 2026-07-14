@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListarVentas, useEliminarVenta, useObtenerReserva, useReintentarSyncHaddock } from '../api/generated';
 import { useObtenerConfiguracion } from '../api/generated/configuracion/configuracion';
-import { useBdpPoll } from '../api/bdp';
+import { useBdpPoll, useRetryBdpSync } from '../api/bdp';
 import { useVentasFiltros } from './useVentasFiltros';
 import { useVentasEdicion } from './useVentasEdicion';
 
@@ -24,6 +24,7 @@ function useListaVentas() {
     canal: filtros.canal.length > 0 ? filtros.canal.join(',') : undefined,
     metodo_pago: filtros.metodoPago.length > 0 ? filtros.metodoPago.join(',') : undefined,
     estado_haddock: filtros.estadoHaddock.length > 0 ? filtros.estadoHaddock.join(',') : undefined,
+    estado_bdp: filtros.estadoBdp.length > 0 ? filtros.estadoBdp.join(',') : undefined,
     sort_by: filtros.sortBy || undefined,
     sort_order: filtros.sortOrder || undefined,
   });
@@ -66,6 +67,7 @@ function useListaVentas() {
 
   const queryClient = useQueryClient();
   const bdpPollMutation = useBdpPoll(queryClient);
+  const retryBdpMutation = useRetryBdpSync(queryClient);
 
   const ventas = data?.status === 200 ? data.data : null;
 
@@ -96,6 +98,7 @@ function useListaVentas() {
     retryHaddockMutation,
     bdpSyncEnabled,
     bdpPollMutation,
+    retryBdpMutation,
     cerrarModalYRefrescar,
     cerrarEdicionYRefrescar,
     reservaIdViewer,

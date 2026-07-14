@@ -90,6 +90,7 @@ pub async fn listar_ventas(
         params.canal,
         params.metodo_pago,
         params.estado_haddock,
+        params.estado_bdp,
         params.sort_by,
         params.sort_order,
     )

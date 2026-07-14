@@ -11,6 +11,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { customInstance } from './axios-instance';
+import { useReintentarSyncBdp } from './generated/ventas/ventas';
 
 /* ── Tipos ──────────────────────────────────────────────────────────── */
 
@@ -115,4 +116,18 @@ export function useBdpArticleMaps(enabled = true) {
     enabled,
     staleTime: 5 * 60_000, /* 5 min — cambia poco */
   });
+}
+
+/** Mutation hook: reintentar sincronización BDP individual de una venta.
+ *  Usa el hook generado por Orval (useReintentarSyncBdp) y añade invalidación de queries. */
+export function useRetryBdpSync(queryClient?: QueryClient) {
+  const generated = useReintentarSyncBdp();
+  return {
+    ...generated,
+    mutateAsync: async (ventaId: string) => {
+      const result = await generated.mutateAsync({ id: ventaId });
+      queryClient?.invalidateQueries({ queryKey: ['listarVentas'] });
+      return result;
+    },
+  };
 }
