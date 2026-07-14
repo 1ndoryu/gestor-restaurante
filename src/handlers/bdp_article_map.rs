@@ -6,7 +6,7 @@
  * Ninguno de estos endpoints llama a la API de BDP — solo operan en DB local. */
 
 use axum::extract::{Path, State};
-use axum::routing::{delete, get, patch, post};
+use axum::routing::{get, patch};
 use axum::{Json, Router};
 use uuid::Uuid;
 use validator::Validate;

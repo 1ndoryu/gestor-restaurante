@@ -78,3 +78,13 @@ pub struct ResetPasswordRequest {
 pub struct MessageResponse {
     pub message: String,
 }
+
+/// Roles de usuario en el sistema.
+/// `Admin` = propietario del restaurante.
+/// `Trabajador` = staff con permisos restringidos.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum UserRole {
+    Admin,
+    Trabajador,
+}

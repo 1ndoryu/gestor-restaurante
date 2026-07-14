@@ -12,12 +12,14 @@ use crate::AppState;
  * effective_role determina qué panel/permisos tiene el usuario en la sesión actual.
  * Para admins, puede ser diferente de role si usan "cambiar rol".
  * [084A-1] impersonator: si Some, es UUID del admin que inició impersonación.
- * En ese caso user_id es el usuario impersonado y role es su rol real. */
+ * En ese caso user_id es el usuario impersonado y role es su rol real.
+ * [cargo-fix] trabajador_id wired from claims.tid for trabajadores handler. */
 pub struct AuthUser {
     pub user_id: Uuid,
     pub role: UserRole,
     pub effective_role: UserRole,
     pub impersonator: Option<Uuid>,
+    pub trabajador_id: Option<Uuid>,
 }
 
 impl AuthUser {
@@ -58,6 +60,7 @@ impl FromRequestParts<AppState> for AuthUser {
             role: claims.role,
             effective_role: claims.effective_role,
             impersonator: claims.impersonator,
+            trabajador_id: claims.tid,
         })
     }
 }

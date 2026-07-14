@@ -9,18 +9,23 @@ use uuid::Uuid;
 
 use crate::config::AppConfig;
 use crate::errors::AppError;
-use crate::models::{AuthResponse, LoginRequest, RegisterRequest};
+use crate::models::{AuthResponse, LoginRequest, RegisterRequest, UserRole};
 use crate::repositories::UserRepository;
 use crate::services::email::EmailService;
 
 /// Claims del JWT — `sub` es el `user_id`, `exp` la expiración Unix
 /// [094A-3] `tid` opcional = `trabajador_id` (si el token es de un trabajador)
+/// [cargo-fix] `role`/`effective_role`/`impersonator` para middleware AuthUser.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: Uuid,
     pub exp: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tid: Option<Uuid>,
+    pub role: UserRole,
+    pub effective_role: UserRole,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub impersonator: Option<Uuid>,
 }
 
 pub struct AuthService;
@@ -97,10 +102,21 @@ impl AuthService {
         let exp = usize::try_from(timestamp)
             .map_err(|_| AppError::Internal("Timestamp fuera de rango".into()))?;
 
+        /* [cargo-fix] role/effective_role derivados de trabajador_id.
+         * impersonator = None por ahora (impersonación se implementa aparte). */
+        let (role, effective_role) = if trabajador_id.is_some() {
+            (UserRole::Trabajador, UserRole::Trabajador)
+        } else {
+            (UserRole::Admin, UserRole::Admin)
+        };
+
         let claims = Claims {
             sub: user_id,
             exp,
             tid: trabajador_id,
+            role,
+            effective_role,
+            impersonator: None,
         };
 
         encode(

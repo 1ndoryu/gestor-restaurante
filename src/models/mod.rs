@@ -65,7 +65,7 @@ pub use trabajador::{
 };
 pub use user::{
     AuthResponse, ForgotPasswordRequest, LoginRequest, MessageResponse, RegisterRequest,
-    ResetPasswordRequest, User, UserResponse,
+    ResetPasswordRequest, User, UserRole, UserResponse,
 };
 pub use venta::{
     ActualizarVentaRequest, CanalVenta, CrearVentaRequest, MetodoPago, Turno, Venta,
