@@ -1,7 +1,7 @@
 # Plan: Implementación completa BDP WebLink REST API
 
 > **Fecha:** 2026-07-15 (v3 — sync bidireccional)
-> **Estado:** ✅ Fases 1-6 completas | Fase 7 pendiente (sync bidireccional clientes/artículos)
+> **Estado:** ✅ Fases 1-6 completas | ✅ Fase 7.1-7.5 completas | ✅ Fase 8 completas | Pendiente: Fase 7.6-7.7
 > **Riesgo:** ALTO — la integración actual funciona en producción. Cualquier cambio debe ser retrocompatible.
 
 ---
@@ -267,11 +267,11 @@ Tabla `venta_lineas` creada en Fase 2. Modelo `VentaLinea`, repositorio `VentaLi
 
 | #   | Subtarea                                                                                        | Archivos                                                    | Riesgo | Effort | Estado |
 | --- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------ | ------ | ------ |
-| 7.1 | **Importar clientes BDP → Glory** — `POST /api/bdp/customers/import` usando `ExportCustomers`   | Nuevo handler en `handlers/bdp_customer_sync.rs`            | MEDIO  | 3h     | ❌     |
-| 7.2 | **Push cliente Glory → BDP** — `POST /api/clientes/:id/bdp-sync` usando `CreateCustomer`        | Nuevo handler o extensión en `handlers/clientes.rs`         | MEDIO  | 2h     | ❌     |
-| 7.3 | **Campo `bdp_customer_code` en `clientes`** — para mapeo bidireccional                          | Migración, modelo `cliente.rs`, repository                  | BAJO   | 1h     | ❌     |
-| 7.4 | **Campo `bdp_synced` en `clientes`** — tracking de sync clientes (igual que en ventas)          | Migración (puede ir junto con 7.3), modelo                  | BAJO   | 0.5h   | ❌     |
-| 7.5 | **Sync automática al crear venta con cliente** — si `cliente_id` existe y no tiene `bdp_customer_code`, hacer push a BDP antes de `CreateOrder` | `services/bdp_sync.rs` — `sync_venta()` | MEDIO  | 2h     | ❌     |
+| 7.1 | **Importar clientes BDP → Glory** — `POST /api/bdp/customers/import` usando `ExportCustomers`   | Nuevo handler en `handlers/bdp_customer_sync.rs`            | MEDIO  | 3h     | ✅ (157A-3) |
+| 7.2 | **Push cliente Glory → BDP** — `POST /api/clientes/:id/bdp-sync` usando `CreateCustomer`        | Nuevo handler en `handlers/bdp_customer_sync.rs`            | MEDIO  | 2h     | ✅ (157A-3) |
+| 7.3 | **Campo `bdp_customer_code` en `clientes`** — para mapeo bidireccional                          | Migración, modelo `cliente.rs`, repository                  | BAJO   | 1h     | ✅ (157A-3) |
+| 7.4 | **Campo `bdp_synced` en `clientes`** — tracking de sync clientes (igual que en ventas)          | Migración (junto con 7.3), modelo, repository               | BAJO   | 0.5h   | ✅ (157A-3) |
+| 7.5 | **Sync automática al crear venta con cliente** — si `cliente_id` existe y no tiene `bdp_customer_code`, hacer push a BDP antes de `CreateOrder` | `services/bdp_sync.rs` — `sync_venta()` | MEDIO  | 2h     | ✅ (157A-4) |
 | 7.6 | **Import masivo de artículos mejorado** — `import-catalog` ya existe, añadir import incremental (solo nuevos/actualizados) | `handlers/bdp_article_map.rs` | BAJO   | 1.5h   | ❌     |
 | 7.7 | **Tests unitarios** — mapeo de campos BDP ↔ Glory para clientes, upsert por teléfono/email      | `tests/` en handler y servicio                              | BAJO   | 1.5h   | ❌     |
 
@@ -295,10 +295,10 @@ Tabla `venta_lineas` creada en Fase 2. Modelo `VentaLinea`, repositorio `VentaLi
 
 | #   | Subtarea                                                                                    | Archivos                                          | Riesgo | Effort | Estado |
 | --- | ------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------ | ------ | ------ |
-| 8.1 | **Método `add_order_payment()` en `bdp_sync.rs`** — registra pago parcial en BDP             | `services/bdp_sync.rs`                            | MEDIO  | 2h     | ❌     |
-| 8.2 | **Método `invoice_order()` en `bdp_sync.rs`** — factura la comanda en BDP                   | `services/bdp_sync.rs`                            | MEDIO  | 1.5h   | ❌     |
-| 8.3 | **Endpoint `POST /api/ventas/:id/bdp-invoice`** — trigger manual de facturación             | `handlers/ventas.rs`                              | BAJO   | 1h     | ❌     |
-| 8.4 | **Reflejar facturación automática** — cuando polling detecta status=3, marcar `bdp_invoiced` | `services/bdp_order_poller.rs` + migración        | BAJO   | 1.5h   | ❌     |
+| 8.1 | **Método `add_order_payment()` en `bdp_sync.rs`** — registra pago parcial en BDP             | `services/bdp_sync.rs`                            | MEDIO  | 2h     | ✅ (157A-4) |
+| 8.2 | **Método `invoice_order()` en `bdp_sync.rs`** — factura la comanda en BDP                   | `services/bdp_sync.rs`                            | MEDIO  | 1.5h   | ✅ (157A-4) |
+| 8.3 | **Endpoint `POST /api/ventas/:id/bdp-invoice`** — trigger manual de facturación             | `handlers/ventas.rs`                              | BAJO   | 1h     | ✅ (157A-4) |
+| 8.4 | **Reflejar facturación automática** — cuando polling detecta status=3, marcar `bdp_invoiced` | `services/bdp_order_poller.rs` + migración        | BAJO   | 1.5h   | ✅ (157A-4) |
 | 8.5 | **Tests** — AddOrderPayment payload, InvoiceOrder payload, mapeo status→invoiced             | `tests/`                                          | BAJO   | 1h     | ❌     |
 
 **Total Fase 8:** ~7h
