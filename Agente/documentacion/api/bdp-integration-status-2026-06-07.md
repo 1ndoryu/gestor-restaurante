@@ -5,7 +5,7 @@
 > **Stack:** Glory Rust Backend (Axum 0.7 + SQLx) ↔ BDP-NET WebLink REST API
 > **Endpoint BDP:** `http://100.83.196.35:8068` (vía Tailscale)
 > **POS:** 31 — CENTRAL 2026 (Series `00031TI`, IVA incluido)
-> **Estado:** ✅ Integración verificada en producción + 6 tests Category C + 21 tests Category B + 32 tests Category A (última auditoría 2026-07-15)
+> **Estado:** ✅ Integración verificada en producción + 6 tests Category C + 21 tests Category B + 19 tests Category A = 46 total (última auditoría 2026-07-15)
 
 ---
 
@@ -17,15 +17,15 @@
 | Endpoints con constante en catálogo (`BDP_ENDPOINTS`)          | 21                                          |
 | Endpoints con método en cliente (`BdpWeblinkClient`)           | 23 (incluye `check_order` variante + `post_authenticated`) |
 | Endpoints invocados en sync productivo                         | **2** (`CreateOrder`, `GetPOSArticlesList`) |
-| Endpoints invocados solo en preflight                          | 5 (health, get_version, export_departments_from_profile, get_employee, get_pos_employees) |
+| Endpoints invocados solo en preflight                          | 6 (health, get_version, export_departments_from_profile, get_employee, get_pos_employees, get_pos_tenders) |
 | Endpoints validados en Category C (read-only)                  | 3 (`ExportArticles`, `GetOrder`, `GetTenderList`) |
 | Endpoints con cliente pero nunca llamados                      | 8 (export_customers, create_customer, cancel_order, add_order_payment, invoice_order, export_departments, get_poses, get_employees) |
 | Endpoints ⚠️ con problemas conocidos                           | 2 (`GetPOS` → `[404401]`, `GetPOSes` → vacío) |
 | Endpoints no implementados en absoluto                         | ~32                                         |
 | Direccionalidad actual                                         | **Unidireccional (Glory → BDP)**            |
 | Campos Glory no enviados en `CreateOrder`                      | ~10                                         |
-| Tests BDP (Cat A + B + C)                                      | **59 tests, 59 pasando**                    |
-| **Completitud de la integración**                              | **~5% del potencial**                       |
+| Tests BDP (Cat A + B + C)                                      | **46 tests, 46 pasando**                    |
+| **Completitud de la integración**                              | **~10% del potencial** (multi-item, tender, customer, order type ya operativos) |
 
 ---
 
@@ -34,7 +34,7 @@
 ### Leyenda
 
 - ✅ Catalogado + Cliente + Invocado en producción
-- 📋 Catalogado + Cliente implementado, pero **nunca llamado**
+- 📋 Catalogado + Cliente implementado, **nunca llamado** (o solo en Category C tests)
 - 🔧 Catalogado + Cliente, usado solo en preflight/diagnóstico
 - ❌ No implementado en ninguna capa
 
@@ -53,7 +53,7 @@
 | --------------------------------- | ----------- | ------ | ------------------------------------------------------- |
 | `GetArticle`                      | POST        | ❌     | —                                                       |
 | `GetPricesArticles`               | POST        | ❌     | —                                                       |
-| `ExportArticles`                  | POST        | �     | Category C test: lectura catálogo contra BDP real   |
+| `ExportArticles`                  | POST        | 📋     | Category C test: lectura catálogo contra BDP real           |
 | `GetPOSArticlesList`              | POST        | ✅     | Sync: resuelve artículo por código. Preflight: verifica |
 | `GetFullArticlesList`             | POST        | ❌     | —                                                       |
 | `CreateArticlesAndUpdateProfiles` | POST        | ❌     | —                                                       |
@@ -72,7 +72,7 @@
 | Endpoint          | Método HTTP | Estado | Uso actual                                                            |
 | ----------------- | ----------- | ------ | --------------------------------------------------------------------- |
 | `CreateOrder`     | POST        | ✅     | Sync: crea comanda (Type=0 Barra, OrderEndType=1). Preflight: dry-run |
-| `GetOrder`        | POST        | �     | Category C test: lectura contra BDP real (ID inexistente) |
+| `GetOrder`        | POST        | 📋     | Category C test: lectura contra BDP real (ID inexistente)   |
 | `CancelOrder`     | POST        | 📋     | ⚠️ Devuelve "Subscripción no activada" — endpoint NO disponible       |
 | `AddOrderTip`     | POST        | ❌     | —                                                                     |
 | `AddOrderPayment` | POST        | 📋     | Cliente tiene método, nunca llamado                                   |
@@ -114,7 +114,7 @@
 | ---------- | ----------- | ------ | --------------------------------------------------------- |
 | `GetPOS`   | POST        | ⚠️    | **Devuelve `[404401]` desde ~junio 2026** — cambio en API de BDP. No afecta CreateOrder |
 | `GetPOSes` | POST        | ⚠️    | **Devuelve respuesta vacía** — limitación de API. No afecta integración               |
-| `GetPOSSeriesList` | POST | �     | Documentado en API (`/API/POSSeries/GetList`), probado manualmente. **Sin código**: falta path const + método cliente |
+| `GetPOSSeriesList` | POST        | 📋     | Documentado en API, probado manualmente. **Sin código**: falta path const + método cliente |
 
 ### 2.10 Empleados
 
@@ -128,7 +128,7 @@
 
 | Endpoint           | Método HTTP | Estado | Uso actual                                      |
 | ------------------ | ----------- | ------ | ----------------------------------------------- |
-| `GetTenderList`    | POST        | �     | Category C test: lectura formas de pago contra BDP real |
+| `GetTenderList`    | POST        | 📋     | Category C test: lectura formas de pago contra BDP real     |
 | `GetPOSTenderList` | POST        | 🔧     | Preflight: verifica formas de pago del terminal |
 
 ### 2.12 No implementados en absoluto (~20 endpoints)
@@ -277,16 +277,24 @@ Glory: Venta creada/actualizada
 | `src/services/bdp_sync.rs`                  | 1258   | `BdpSyncService`: sync_venta, retry, build_order, resolve_article, 32 unit tests |
 | `src/services/bdp_sync_preflight.rs`        | 760    | `BdpSyncPreflightService`: 9 checks + dry-run CreateOrder         |
 | `src/services/venta.rs`                     | 257    | `VentaService`: hooks create/update/delete para spawn BDP sync    |
-| `src/handlers/ventas.rs`                    | 275    | Endpoint `POST /api/ventas/:id/bdp-sync` (retry manual)           |
+| `src/handlers/ventas.rs`                    | 293    | 3 endpoints BDP: `POST bdp-sync`, `GET bdp-status`, `POST bdp-poll` |
+| `src/handlers/configuracion.rs`             | 318    | `GET bdp/diagnostico`, `GET bdp/sync-dry-run`          |
+| `src/handlers/bdp_article_map.rs`           | 228    | CRUD del mapeo artículos Glory ↔ BDP                    |
+| `src/services/bdp_order_poller.rs`          | 165    | Poller de estado de comandas BDP (GetOrder)             |
 | `src/models/venta.rs`                       | 183    | Modelo Venta + campos bdp_synced, bdp_order_id, etc.              |
-| `src/models/configuracion.rs`               | 152    | Config: bdp_url, bdp_login, bdp_sync_enabled, bdp_tender_map, bdp_order_type_map |
+| `src/models/configuracion.rs`               | 152    | Config: bdp_url, bdp_login, bdp_sync_enabled, bdp_tender_map, bdp_order_type_map, bdp_default_customer_code, bdp_poll_interval_secs |
+| `src/models/bdp_article_map.rs`             | 42     | Modelo `BdpArticleMap`                                            |
 | `src/repositories/venta.rs`                 | 405    | `update_bdp_status()` con `sqlx::query()` (sin macro)             |
+| `src/repositories/bdp_article_map.rs`       | 121    | `BdpArticleMapRepository`: buscar_por_codigo, listar, upsert      |
 | `tests/bdp_readonly.rs`                     | 243    | Category C: 6 tests read-only contra BDP real                     |
 | `tests/bdp_article_map.rs`                 | 279    | Category B: 12 tests DB para tabla bdp_article_map                |
 | `tests/bdp_venta_lineas.rs`                | 246    | Category B: 9 tests DB para venta_lineas + BDP                    |
+| `migrations/20260506000000_bdp_weblink_config` | 13   | Config básica BDP (url, login, pass, integrator_code, pos_id, employee_id, items_profile_id) |
 | `migrations/20260607000000_bdp_sync_fields` | 15     | Columnas bdp en ventas (bdp_synced, bdp_order_id, bdp_error) + configuracion |
 | `migrations/20260714000000_bdp_article_map` | 14     | Tabla bdp_article_map: mapeo artículos Glory ↔ BDP                |
-| `migrations/20260714100000_bdp_config_fields`| 8      | Columnas bdp_tender_map y bdp_order_type_map (JSONB) en configuracion |
+| `migrations/20260714100000_bdp_config_fields`| 8      | Columnas bdp_tender_map, bdp_order_type_map, bdp_default_customer_code (JSONB) |
+| `migrations/20260714200000_venta_lineas`    | 13     | Tabla `venta_lineas` (multi-item)                                 |
+| `migrations/20260714300000_bdp_order_status`| 13     | `bdp_order_status`, `bdp_poll_interval_secs`, índice polling      |
 
 ---
 
@@ -306,6 +314,8 @@ Glory: Venta creada/actualizada
 | `bdp_default_article_name` | `CAFE BOMBON`               | Nombre del artículo genérico     |
 | `bdp_tender_map`           | `{}` (JSONB)               | Mapeo `metodo_pago` Glory → código tend BDP (migración 20260714100000) |
 | `bdp_order_type_map`       | `{}` (JSONB)               | Mapeo canal_venta Glory → Type BDP (migración 20260714100000)       |
+| `bdp_default_customer_code`| `""` (String)              | Cliente BDP genérico cuando no hay `cliente_id` (migración 20260714100000) |
+| `bdp_poll_interval_secs`   | `30` (i32)                 | Intervalo polling para `GetOrder` (migración 20260714300000)       |
 
 ### Tablas adicionales de BDP
 
@@ -317,9 +327,7 @@ Glory: Venta creada/actualizada
 
 | Campo propuesto             | Tipo     | Para qué                                                                     |
 | --------------------------- | -------- | ---------------------------------------------------------------------------- |
-| `bdp_default_customer_code` | `String` | Cliente genérico cuando no hay `cliente_id`                                  |
 | `bdp_invoice_on_create`     | `bool`   | Si debe facturar automáticamente al crear comanda                            |
-| `bdp_poll_interval_secs`    | `i32`    | Intervalo de polling para `GetOrder`                                         |
 
 ---
 
@@ -452,17 +460,26 @@ sequenceDiagram
 | `WEBLINK RESTAPI.md`                                       | Documentación completa de la API BDP (raíz del proyecto) |
 | `src/services/bdp_weblink_catalog.rs`                      | Constantes de ruta + BDP_ENDPOINTS + structs request/response |
 | `src/services/bdp_weblink.rs`                              | Cliente HTTP con auth, 23 métodos                        |
-| `src/services/bdp_sync.rs`                                 | Servicio de sync Glory → BDP + 32 unit tests             |
+| `src/services/bdp_order_poller.rs`                         | Poller de estado de comandas BDP (GetOrder)              |
+| `src/services/bdp_sync.rs`                                 | Servicio de sync Glory → BDP + 19 unit tests             |
 | `src/services/bdp_sync_preflight.rs`                       | Preflight/dry-run (9 checks)                            |
+| `src/handlers/ventas.rs`                                   | 3 endpoints BDP: bdp-sync, bdp-status, bdp-poll          |
+| `src/handlers/configuracion.rs`                            | 2 endpoints BDP: bdp/diagnostico, bdp/sync-dry-run       |
+| `src/handlers/bdp_article_map.rs`                          | CRUD mapeo artículos Glory ↔ BDP                         |
 | `src/models/venta.rs`                                      | Modelo Venta con campos BDP (bdp_synced, bdp_order_id, etc.) |
-| `src/models/configuracion.rs`                              | Config con campos BDP existentes (url, login, tender_map, order_type_map) |
+| `src/models/configuracion.rs`                              | Config con campos BDP existentes (url, login, tender_map, order_type_map, customer_code, poll_interval) |
+| `src/models/bdp_article_map.rs`                            | Modelo `BdpArticleMap`                                    |
 | `src/repositories/venta.rs`                                | update_bdp_status() con sqlx::query() sin macro          |
+| `src/repositories/bdp_article_map.rs`                      | `BdpArticleMapRepository`: buscar_por_codigo, listar, upsert |
 | `tests/bdp_readonly.rs`                                    | Category C: 6 tests read-only contra BDP real            |
 | `tests/bdp_article_map.rs`                                 | Category B: 12 tests DB para tabla bdp_article_map       |
 | `tests/bdp_venta_lineas.rs`                                | Category B: 9 tests DB para venta_lineas + BDP           |
+| `migrations/20260506000000_bdp_weblink_config.up.sql`     | Config básica BDP (url, login, pass, pos_id, etc.)       |
 | `migrations/20260607000000_bdp_sync_fields.up.sql`        | Columnas BDP en ventas + configuracion                   |
 | `migrations/20260714000000_bdp_article_map.up.sql`        | Tabla bdp_article_map                                    |
-| `migrations/20260714100000_bdp_config_fields.up.sql`      | Columnas bdp_tender_map, bdp_order_type_map              |
+| `migrations/20260714100000_bdp_config_fields.up.sql`      | Columnas bdp_tender_map, bdp_order_type_map, bdp_default_customer_code |
+| `migrations/20260714200000_venta_lineas.up.sql`           | Tabla venta_lineas (multi-item)                          |
+| `migrations/20260714300000_bdp_order_status.up.sql`       | bdp_order_status, bdp_poll_interval_secs                 |
 | `Agente/planes/plan-bdp-sync-implementation-2026-06-07.md` | Plan de implementación original                          |
 | `Agente/planes/plan-bdp-testing-2026-06-07.md`             | Plan de testing                                          |
 | `Agente/planes/plan-bdp-implementacion-completa-2026-07-14.md` | Plan maestro: 6 fases, análisis cobertura, tests  |
