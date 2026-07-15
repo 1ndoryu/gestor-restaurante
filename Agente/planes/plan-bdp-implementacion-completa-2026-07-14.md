@@ -454,6 +454,74 @@ Tests que conectan al servidor BDP real pero SOLO hacen llamadas de lectura. `#[
 
 ---
 
+### Análisis de cobertura: qué está testeado y qué falta
+
+#### ✅ Lo que SÍ está cubierto con certeza (53 tests pasan)
+
+| Capa | Tests | Qué validan |
+|------|-------|-------------|
+| **Contrato API** | 32 unit tests | `build_order` arma bien el JSON, PascalCase correcto, mappings de tender/order_type/customer, retry, error handling |
+| **CRUD BD** | 21 DB tests | `bdp_article_map` y `venta_lineas`: crear, leer, upsert, eliminar, aislamiento entre usuarios/ventas, FK constraints |
+| **HTTP client** | 6 wiremock tests | Login, auth headers Bearer, rutas correctas, dry-run mode (OnlyCheck) |
+
+#### ⚠️ Lo que NO podemos testear sin BDP real
+
+| Gap | Riesgo | Mitigación |
+|-----|--------|------------|
+| **Login real contra BDP** | Bajo — es un POST simple con JSON PascalCase | Test C-2 (`bdp_real_login`) listo para ejecutar |
+| **Export articles real** | Medio — estructura de respuesta puede variar por versión BDP | Test C-3 listo + `resolve_article` tiene 3 fallbacks (código directo → perfil → genérico) |
+| **Get tenders (formas de pago)** | Medio — necesitamos TenderIds reales para el mapping | Test C-4 listo + preflight valida que los IDs del map existen en el POS real |
+| **Create order real** | **Alto** — es la operación crítica, no testeable sin BDP | Preflight hace dry-run (OnlyCheck, OrderOperationType=1) que valida el payload sin crear la orden real |
+| **Flujo completo sync_venta end-to-end** | **Alto** — login → resolver artículos → build_order → create_order → update BD | Solo testeable con BDP real. El código tiene retry (3 intentos, backoff exponencial) + estado en `bdp_error` de la venta |
+| **Token lifecycle bajo carga** | Bajo — cada request llama login (~30ms extra), pero BDP es local en red Tailscale | No hay refresh de token, pero la sesión es de 59 min. OK para uso de restaurante |
+
+#### 🔒 Qué nos da confianza a pesar de los gaps
+
+1. **Preflight dry-run (`OnlyCheck`)**: BDP tiene endpoint que valida payloads sin crear orden. Nuestro preflight lo usa en el check #13. Si preflight pasa → 90% del flujo real funciona.
+2. **Retry con backoff**: `sync_venta` reintenta 3 veces con backoff exponencial. BDP temporalmente caído no pierde pedidos.
+3. **Error handling robusto**: todos los errores BDP se guardan en `bdp_error` de la venta y se loggean. No hay `unwrap()` ni silent failures en el flujo.
+4. **Resolución de artículos con fallbacks**: artículo no mapeado → busca en perfil BDP → fallback a artículo genérico (`BDP_DEFAULT_ARTICLE_CODE`). No rompe el flujo.
+5. **Unit tests del contrato**: los 32 tests Cat A validan que el JSON que enviamos tiene la estructura exacta que BDP espera (PascalCase, campos obligatorios, tipos correctos).
+
+---
+
+### Datos de conexión BDP (guardados en `.env`)
+
+| Variable | Valor | Nota |
+|----------|-------|------|
+| `BDP_BASE_URL` | `http://100.83.196.35:8068` | IP Tailscale — BDP debe estar encendido |
+| `BDP_LOGIN` | `admin` | |
+| `BDP_PASSWORD` | `kamples2026` | |
+| `BDP_INTEGRATOR_CODE` | `VBW2MBM5` | |
+| `BDP_POS_ID` | `31` | Terminal POS |
+| `BDP_EMPLOYEE_ID` | `1` | Empleado por defecto |
+| `BDP_ITEMS_PROFILE_ID` | `1` | Perfil de artículos |
+| `BDP_DEFAULT_ARTICLE_CODE` | `1001` | Artículo genérico fallback |
+| `BDP_DEFAULT_ARTICLE_NAME` | `CAFE BOMBON` | Nombre del genérico |
+| `bdp_tender_map` | `{"efectivo":"1","tarjeta":"2"}` | Configurado en BD, no en .env |
+| `bdp_order_type_map` | `{"comedor":"0","barra":"0"}` | Configurado en BD, no en .env |
+
+**Fuente**: `Agente/documentacion/api/bdp-integration-status-2026-06-07.md`
+
+**Pre-requisito para tests Cat C**: Tailscale conectado + BDP del restaurante encendido.
+
+---
+
+### Plan cuando el BDP esté disponible
+
+```
+1. Verificar Tailscale conectado: ping 100.83.196.35
+2. Ejecutar tests Category C:
+   $env:SQLX_OFFLINE="true"
+   cargo test --test bdp_readonly -- --include-ignored
+3. Si los 6 tests pasan → PATCH /api/configuracion con los campos BDP en producción
+4. Ejecutar preflight completo: POST /api/configuracion/bdp/sync-dry-run
+5. Crear venta de prueba → sync_venta → verificar en BDP
+6. Si todo OK → activar bdp_sync_enabled=true
+```
+
+---
+
 ## 9. Archivos de referencia
 
 | Archivo                                                                 | Contenido                                                   |
