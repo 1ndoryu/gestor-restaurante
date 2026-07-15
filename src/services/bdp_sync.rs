@@ -1091,4 +1091,283 @@ mod tests {
         venta.canal = "delivery".into(); /* no configurado, default 0 */
         assert_eq!(BdpSyncService::resolve_order_type(&venta, &config), 0);
     }
+
+    /* [BDP-TEST-A] Tests adicionales: edge cases de build_order */
+
+    /* build_order con Some(&[]) (vec vacío) debe producir Items vacío,
+     * NO caer al fallback legacy. Esto valida que el codegen distingue
+     * Some(vec![]) de None correctamente. */
+    #[test]
+    fn build_order_con_0_lineas_produce_items_vacio() {
+        let config = test_config();
+        let venta = test_venta();
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE BOMBON".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
+
+        let lineas_vacias: Vec<VentaLinea> = vec![];
+        let order = BdpSyncService::build_order(
+            &config,
+            &venta,
+            &article,
+            Some(&lineas_vacias),
+            Some(&[]),
+            &test_order_ctx(),
+        );
+        let items = order
+            .order
+            .get("Items")
+            .and_then(|v| v.as_array())
+            .unwrap();
+        assert_eq!(items.len(), 0, "Some(vec![]) should produce empty Items array");
+    }
+
+    /* build_order con None cae al fallback legacy: 1 item genérico */
+    #[test]
+    fn build_order_con_none_produce_fallback_legacy() {
+        let config = test_config();
+        let venta = test_venta();
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE BOMBON".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
+
+        let order = BdpSyncService::build_order(
+            &config,
+            &venta,
+            &article,
+            None,
+            None,
+            &test_order_ctx(),
+        );
+        let items = order
+            .order
+            .get("Items")
+            .and_then(|v| v.as_array())
+            .unwrap();
+        assert_eq!(items.len(), 1, "None should produce 1 fallback item");
+        assert_eq!(
+            items[0].get("Name").unwrap().as_str().unwrap(),
+            "Cena para 2",
+            "Fallback item Name should be venta.descripcion"
+        );
+    }
+
+    /* build_order con 1 línea explícita: un solo item custom */
+    #[test]
+    fn build_order_con_1_linea_explicita() {
+        let config = test_config();
+        let venta = test_venta();
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE BOMBON".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
+
+        let lineas = vec![VentaLinea {
+            id: uuid::Uuid::new_v4(),
+            venta_id: venta.id,
+            articulo_codigo: "5001".into(),
+            descripcion: "Ensalada César".into(),
+            cantidad: Decimal::from_str("1").unwrap(),
+            precio_unitario: Decimal::from_str("8.50").unwrap(),
+            iva_pct: Decimal::from_str("10.0").unwrap(),
+            descuento: Decimal::from_str("0.00").unwrap(),
+            created_at: Utc::now(),
+        }];
+
+        let order = BdpSyncService::build_order(
+            &config,
+            &venta,
+            &article,
+            Some(&lineas),
+            Some(&[5001]),
+            &test_order_ctx(),
+        );
+        let items = order
+            .order
+            .get("Items")
+            .and_then(|v| v.as_array())
+            .unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].get("Id").unwrap().as_i64().unwrap(), 5001);
+        assert_eq!(
+            items[0].get("Name").unwrap().as_str().unwrap(),
+            "Ensalada César"
+        );
+        assert!((items[0].get("Total").unwrap().as_f64().unwrap() - 8.50).abs() < 0.01);
+    }
+
+    /* build_order con 3 líneas: valida Lin secuencial y totales individuales */
+    #[test]
+    fn build_order_con_3_lineas() {
+        let config = test_config();
+        let venta = test_venta();
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE BOMBON".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
+
+        let lineas = vec![
+            VentaLinea {
+                id: uuid::Uuid::new_v4(),
+                venta_id: venta.id,
+                articulo_codigo: "1001".into(),
+                descripcion: "Café bombón".into(),
+                cantidad: Decimal::from_str("2").unwrap(),
+                precio_unitario: Decimal::from_str("5.00").unwrap(),
+                iva_pct: Decimal::from_str("10.0").unwrap(),
+                descuento: Decimal::from_str("0.00").unwrap(),
+                created_at: Utc::now(),
+            },
+            VentaLinea {
+                id: uuid::Uuid::new_v4(),
+                venta_id: venta.id,
+                articulo_codigo: "2002".into(),
+                descripcion: "Tostada".into(),
+                cantidad: Decimal::from_str("1").unwrap(),
+                precio_unitario: Decimal::from_str("3.50").unwrap(),
+                iva_pct: Decimal::from_str("10.0").unwrap(),
+                descuento: Decimal::from_str("0.50").unwrap(),
+                created_at: Utc::now(),
+            },
+            VentaLinea {
+                id: uuid::Uuid::new_v4(),
+                venta_id: venta.id,
+                articulo_codigo: "3003".into(),
+                descripcion: "Zumo naranja".into(),
+                cantidad: Decimal::from_str("3").unwrap(),
+                precio_unitario: Decimal::from_str("2.00").unwrap(),
+                iva_pct: Decimal::from_str("10.0").unwrap(),
+                descuento: Decimal::from_str("0.00").unwrap(),
+                created_at: Utc::now(),
+            },
+        ];
+
+        let order = BdpSyncService::build_order(
+            &config,
+            &venta,
+            &article,
+            Some(&lineas),
+            Some(&[1001, 2002, 3003]),
+            &test_order_ctx(),
+        );
+        let items = order
+            .order
+            .get("Items")
+            .and_then(|v| v.as_array())
+            .unwrap();
+
+        assert_eq!(items.len(), 3, "Expected 3 items");
+
+        /* Lin secuencial: 1, 2, 3 */
+        assert_eq!(items[0].get("Lin").unwrap(), 1);
+        assert_eq!(items[1].get("Lin").unwrap(), 2);
+        assert_eq!(items[2].get("Lin").unwrap(), 3);
+
+        /* Tercer item: Zumo x3 = 6.00 */
+        assert_eq!(items[2].get("Id").unwrap().as_i64().unwrap(), 3003);
+        assert_eq!(
+            items[2].get("Name").unwrap().as_str().unwrap(),
+            "Zumo naranja"
+        );
+        assert!((items[2].get("Units").unwrap().as_f64().unwrap() - 3.0).abs() < 0.01);
+        assert!((items[2].get("Total").unwrap().as_f64().unwrap() - 6.00).abs() < 0.01);
+    }
+
+    /* build_order con descuento parcial: descuento se refleja en Total */
+    #[test]
+    fn build_order_linea_con_descuento_parcial() {
+        let config = test_config();
+        let venta = test_venta();
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE BOMBON".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
+
+        let lineas = vec![VentaLinea {
+            id: uuid::Uuid::new_v4(),
+            venta_id: venta.id,
+            articulo_codigo: "9999".into(),
+            descripcion: "Menú del día".into(),
+            cantidad: Decimal::from_str("2").unwrap(),
+            precio_unitario: Decimal::from_str("12.00").unwrap(),
+            iva_pct: Decimal::from_str("10.0").unwrap(),
+            descuento: Decimal::from_str("4.00").unwrap(),
+            created_at: Utc::now(),
+        }];
+
+        let order = BdpSyncService::build_order(
+            &config,
+            &venta,
+            &article,
+            Some(&lineas),
+            Some(&[9999]),
+            &test_order_ctx(),
+        );
+        let items = order
+            .order
+            .get("Items")
+            .and_then(|v| v.as_array())
+            .unwrap();
+
+        /* Total = (12.00 * 2) - 4.00 = 20.00 */
+        assert!((items[0].get("Total").unwrap().as_f64().unwrap() - 20.00).abs() < 0.01);
+        assert!((items[0].get("Discount").unwrap().as_f64().unwrap() - 4.00).abs() < 0.01);
+    }
+
+    /* build_order sin line_article_ids usa article.id como fallback */
+    #[test]
+    fn build_order_linea_sin_article_ids_usa_fallback() {
+        let config = test_config();
+        let venta = test_venta();
+        let article = ResolvedArticle {
+            id: 7777,
+            name: "DEFAULT".into(),
+            price: 1.0,
+            vat_pct: 10.0,
+        };
+
+        let lineas = vec![VentaLinea {
+            id: uuid::Uuid::new_v4(),
+            venta_id: venta.id,
+            articulo_codigo: "XXXX".into(),
+            descripcion: "Sin mapeo".into(),
+            cantidad: Decimal::from_str("1").unwrap(),
+            precio_unitario: Decimal::from_str("3.00").unwrap(),
+            iva_pct: Decimal::from_str("10.0").unwrap(),
+            descuento: Decimal::from_str("0.00").unwrap(),
+            created_at: Utc::now(),
+        }];
+
+        /* line_article_ids = None → usa article.id (7777) */
+        let order = BdpSyncService::build_order(
+            &config,
+            &venta,
+            &article,
+            Some(&lineas),
+            None,
+            &test_order_ctx(),
+        );
+        let items = order
+            .order
+            .get("Items")
+            .and_then(|v| v.as_array())
+            .unwrap();
+        assert_eq!(
+            items[0].get("Id").unwrap().as_i64().unwrap(),
+            7777,
+            "Should fallback to article.id when line_article_ids is None"
+        );
+    }
 }

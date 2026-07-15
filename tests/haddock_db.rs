@@ -278,6 +278,10 @@ async fn test_configuracion_actualizar_haddock_fields(pool: PgPool) {
         hora_comida_fin: None,
         hora_cena_inicio: None,
         hora_cena_fin: None,
+        bdp_tender_map: None,
+        bdp_order_type_map: None,
+        bdp_default_customer_code: None,
+        bdp_poll_interval_secs: None,
     };
 
     let updated = ConfiguracionRepository::actualizar(&pool, user_id, &req)
