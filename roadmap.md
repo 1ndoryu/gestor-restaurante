@@ -88,6 +88,35 @@ Proyecto migrado de WordPress a Rust (Axum) + React SPA. El frontend React se in
 
 ## Tareas pendientes
 
+### 🟦 BDP — Fase 9: Catálogo, Plano de Sala y Menús
+
+Plan completo en `Agente/planes/plan-bdp-fase9-catalogo-salas-menus-2026-07-15.md`.
+
+- **Fase 9.1 — ExportArticles: Sync de catálogo BDP → Glory.** 🔴 Alta utilidad
+  - Lee catálogo completo de BDP (`ExportArticles`), sincroniza con `bdp_article_map`.
+  - Campos nuevos en mapa: `descripcion`, `precio_tarifa1`, `iva_pct`, `departamento`, `familia`, `ultima_sync_at`.
+  - Endpoint: `POST /api/bdp/sync-catalog`.
+  - ~2-3h.
+
+- **Fase 9.2 — GetArticle: Consulta individual de artículo.** 🟡 Útil
+  - Fallback en `resolve_article()`: si no está en mapa, buscar en BDP antes de usar default.
+  - ~1h. Dependiente de 9.1.
+
+- **Fase 9.3 — GetPricesArticles: Refresh de precios.** 🟡 Útil
+  - Actualiza precios de artículos ya mapeados sin reimportar todo.
+  - ~1h. Dependiente de 9.1.
+
+- **Fase 9.4 — GetRoomTables: Sync de mesas BDP → Glory.** 🟡 Útil
+  - Pre-carga estructura de mesas desde BDP al plano de sala de Glory.
+  - Mapeo: `RoomId`→`ZonaSala`, `RoomTableData`→`Mesa`.
+  - Endpoint: `POST /api/bdp/sync-tables`.
+  - ~2-3h. Independiente.
+
+- **Fase 9.5 — GetMenuDefinition: Lectura informativa de menús.** 🟢 Futuro
+  - Expone definiciones de menús/packs/fast-food de BDP como JSON raw.
+  - Endpoints: `GET /api/bdp/menus/:id`, `GET /api/bdp/fastfoods/:id`, `GET /api/bdp/packs/:id`.
+  - ~1-1.5h. Independiente.
+
 ### 🟦 Producto de Correo para Hosting
 
 Ver análisis completo en `Agente/documentacion/hosting/producto-correo-proveedores-2026-05-26.md`.

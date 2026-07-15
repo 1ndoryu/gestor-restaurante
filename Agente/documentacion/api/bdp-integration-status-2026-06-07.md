@@ -1,11 +1,11 @@
 # BDP WebLink REST API — Estado de Integración
 
-> **Fecha:** 2026-06-07 (actualizado 2026-07-15)
-> **Autor:** Agente (análisis post-implementación 065A-5 + Category C tests 147A-5 + auditoría código 147A-6 + actualización secciones 3/4/5 por F2.7/F2.8/F3.1-3.3)
+> **Fecha:** 2026-06-07 (actualizado 2026-07-15, post Fase 7.5+8)
+> **Autor:** Agente (análisis post-implementación 065A-5 + Category C tests 147A-5 + auditoría código 147A-6 + actualización secciones 3/4/5 por F2.7/F2.8/F3.1-3.3 + Fase 7.5+8 por 157A-4)
 > **Stack:** Glory Rust Backend (Axum 0.7 + SQLx) ↔ BDP-NET WebLink REST API
 > **Endpoint BDP:** `http://100.83.196.35:8068` (vía Tailscale)
 > **POS:** 31 — CENTRAL 2026 (Series `00031TI`, IVA incluido)
-> **Estado:** ✅ Integración verificada en producción + 6 tests Category C + 21 tests Category B + 19 tests Category A = 46 total (última auditoría 2026-07-15)
+> **Estado:** ✅ Integración verificada en producción + 6 tests Category C + 21 tests Category B + 19 tests Category A + polling + facturación + customer sync = 75 tests (última auditoría 2026-07-15 post Fase 7.5+8)
 
 ---
 
@@ -18,14 +18,16 @@
 | Endpoints con método en cliente (`BdpWeblinkClient`)           | 23 (incluye `check_order` variante + `post_authenticated`) |
 | Endpoints invocados en sync productivo                         | **2** (`CreateOrder`, `GetPOSArticlesList`) |
 | Endpoints invocados solo en preflight                          | 6 (health, get_version, export_departments_from_profile, get_employee, get_pos_employees, get_pos_tenders) |
+| Endpoints invocados en polling                                 | **1** (`GetOrder` — polling periódico de estado de comandas) |
+| Endpoints con orquestación completa (sync+handler)             | **2** (`AddOrderPayment`, `InvoiceOrder` — Fase 8) |
 | Endpoints validados en Category C (read-only)                  | 3 (`ExportArticles`, `GetOrder`, `GetTenderList`) |
-| Endpoints con cliente pero nunca llamados                      | 8 (export_customers, create_customer, cancel_order, add_order_payment, invoice_order, export_departments, get_poses, get_employees) |
+| Endpoints con cliente pero nunca llamados                      | 4 (cancel_order, export_departments, get_poses, get_employees) |
 | Endpoints ⚠️ con problemas conocidos                           | 2 (`GetPOS` → `[404401]`, `GetPOSes` → vacío) |
-| Endpoints no implementados en absoluto                         | ~32                                         |
-| Direccionalidad actual                                         | **Unidireccional (Glory → BDP)**            |
-| Campos Glory no enviados en `CreateOrder`                      | ~10                                         |
-| Tests BDP (Cat A + B + C)                                      | **46 tests, 46 pasando**                    |
-| **Completitud de la integración**                              | **~10% del potencial** (multi-item, tender, customer, order type ya operativos) |
+| Endpoints no implementados en absoluto                         | ~30                                         |
+| Direccionalidad actual                                         | **Bidireccional (Glory ↔ BDP)** — customer sync (F7.5), comandas (Glory→BDP), polling estado (BDP→Glory) |
+| Campos Glory no enviados en `CreateOrder`                      | ~7                                          |
+| Tests BDP (Cat A + B + C)                                      | **75 tests, 75 pasando** (46 originales + 19 bdp_sync + 9 venta_lineas + 1 poller) |
+| **Completitud de la integración**                              | **~25% del potencial** (multi-item, tender, customer, order type, polling, facturación, customer sync operativos) |
 
 ---
 
@@ -62,21 +64,21 @@
 
 ### 2.3 Clientes
 
-| Endpoint          | Método HTTP | Estado | Uso actual                          |
-| ----------------- | ----------- | ------ | ----------------------------------- |
-| `ExportCustomers` | POST        | 📋     | Cliente tiene método, nunca llamado |
-| `CreateCustomer`  | POST        | 📋     | Cliente tiene método, nunca llamado |
+| Endpoint          | Método HTTP | Estado | Uso actual                                                          |
+| ----------------- | ----------- | ------ | ------------------------------------------------------------------- |
+| `ExportCustomers` | POST        | ✅     | Fase 7.1: import masivo BDP→Glory + Fase 7.5: obtener next code    |
+| `CreateCustomer`  | POST        | ✅     | Fase 7.2: push Glory→BDP + Fase 7.5: auto-sync al crear venta      |
 
 ### 2.4 Comandas (el núcleo de la integración)
 
 | Endpoint          | Método HTTP | Estado | Uso actual                                                            |
 | ----------------- | ----------- | ------ | --------------------------------------------------------------------- |
 | `CreateOrder`     | POST        | ✅     | Sync: crea comanda (Type=0 Barra, OrderEndType=1). Preflight: dry-run |
-| `GetOrder`        | POST        | 📋     | Category C test: lectura contra BDP real (ID inexistente)   |
+| `GetOrder`        | POST        | ✅     | Polling periódico: detecta facturación (status=3) → marca bdp_invoiced |
 | `CancelOrder`     | POST        | 📋     | ⚠️ Devuelve "Subscripción no activada" — endpoint NO disponible       |
 | `AddOrderTip`     | POST        | ❌     | —                                                                     |
-| `AddOrderPayment` | POST        | 📋     | Cliente tiene método, nunca llamado                                   |
-| `InvoiceOrder`    | POST        | 📋     | Cliente tiene método, nunca llamado                                   |
+| `AddOrderPayment` | POST        | ✅     | Fase 8.1: orquestación en `BdpSyncService::add_order_payment()`, handler en `POST /api/ventas/:id/bdp-invoice` |
+| `InvoiceOrder`    | POST        | ✅     | Fase 8.2: orquestación en `BdpSyncService::invoice_order()`, handler en `POST /api/ventas/:id/bdp-invoice` |
 
 ### 2.5 Comentarios
 
@@ -145,11 +147,19 @@
 
 ## 3. Flujo actual (lo que funciona hoy)
 
+### Sync de comandas (Glory → BDP)
+
 ```
 Glory: Venta creada/actualizada
   → VentaService::spawn_bdp_sync()
     → BdpSyncService::sync_venta()
       → Login a BDP (admin/kamples2026, JWT ~59 min)
+      → [NUEVO F7.5] Si bdp_auto_sync_customers=true && cliente_id:
+        → ensure_cliente_bdp_synced()
+          → Si cliente no tiene bdp_customer_code:
+            → ExportCustomers para obtener siguiente código BDP
+            → CreateCustomer con nombre, NIF, teléfono, email
+            → Guarda bdp_customer_code en Cliente
       → GetPOSArticlesList para resolver artículo default
       → VentaLineaRepository::listar_por_venta() → líneas (si existen)
       → resolve_line_articles(): mapea cada línea vía bdp_article_map (F2.8)
@@ -159,6 +169,31 @@ Glory: Venta creada/actualizada
           → resolve_customer(): cliente_id → Cliente → Name/Phone/Code (F3.1)
       → CreateOrder multi-item con TenderId, Type y Customer (F2.7+F3.x)
       → Guarda bdp_synced=true, bdp_order_id en BD
+```
+
+### Facturación/Pagos (Glory → BDP)
+
+```
+Glory: POST /api/ventas/:id/bdp-invoice
+  → BdpSyncService::invoice_venta()
+    → Login a BDP
+    → [Si amount + tender_id]: add_order_payment()
+      → POST /API/Orders/Payment/Add (registra pago)
+      → Si respuesta incluye InvoiceNumber → bdp_invoiced=true
+    → invoice_order()
+      → POST /API/Orders/Invoice
+      → bdp_invoiced=true, bdp_order_status="invoiced"
+```
+
+### Polling de estado (BDP → Glory)
+
+```
+BdpOrderPollerService::poll_loop()
+  → Cada bdp_poll_interval_secs (default 30s):
+    → SELECT ventas con bdp_synced=true Y bdp_order_status NO IN ('invoiced','cancelled')
+    → Para cada venta: GetOrder(BDP)
+    → Si status=3 (facturada): UPDATE bdp_invoiced=true, bdp_order_status='invoiced'
+    → Borrado lógico en Glory si BDP indica cancelación
 ```
 
 ### Lo que se envía en `CreateOrder`
@@ -222,8 +257,8 @@ Glory: Venta creada/actualizada
 
 ### Gaps restantes del flujo
 
-1. **Sin tracking post-creación** — No se consulta `GetOrder` para saber el estado real en BDP
-2. **Sin pagos detallados** — `Payments[]` no se envía (solo `TenderId` a nivel de Order)
+1. **Sin pagos detallados al crear** — `Payments[]` no se envía al crear comanda (solo `TenderId` a nivel de Order). Se puede enviar tras crear vía `POST /api/ventas/:id/bdp-invoice` (Fase 8)
+2. **Sin auto-sync default apagado** — `bdp_auto_sync_customers` es `false` por defecto. El admin debe activarlo en configuración
 
 ---
 
@@ -242,7 +277,8 @@ Glory: Venta creada/actualizada
 | `comensales`                   | `i32`     | ❌         | —                            | No hay campo equivalente en BDP                 |
 | `turno`                        | enum      | ❌         | —                            | No hay campo equivalente                        |
 | `reserva_id`                   | FK        | ❌         | —                            | No se incluye                                   |
-| Pagos detallados               | —         | ❌         | `Order.Payments[]`           | Solo se envía TenderId a nivel de Order          |
+| Pagos detallados al crear      | —         | ⚠️         | `Order.Payments[]`           | Solo TenderId a nivel Order. Pagos detallados vía `POST /api/ventas/:id/bdp-invoice` post-creación |
+| `bdp_invoiced`                 | `bool`    | ✅ F8      | `bdp_invoiced` en ventas     | Marcado por AddOrderPayment/InvoiceOrder o polling GetOrder |
 
 ---
 
@@ -251,9 +287,10 @@ Glory: Venta creada/actualizada
 | Endpoint BDP                       | Datos disponibles                                                         | Utilidad                                  |
 | ---------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------- |
 | `ExportArticles`                   | Catálogo completo: código, descripción, 5 tarifas, dto, IVA, departamento | Sincronizar precios sin config manual     |
-| `ExportCustomers`                  | Clientes: nombre, dirección, teléfono, email, NIF                         | Precargar CRM de Glory                    |
-| `GetOrder`                         | Estado comanda (0=abierta, 1=enviada, 2=servida, 3=facturada...)          | Saber en Glory si ya se cobró en TPV      |
-| `GetPOSTenderList`                 | Formas de pago (efectivo, tarjeta, etc.)                                  | **Ya usado en preflight**, no en sync real |
+| `ExportCustomers`                  | Clientes: nombre, dirección, teléfono, email, NIF                         | **✅ Usado**: import masivo + obtener next code |
+| `GetOrder`                         | Estado comanda (0=abierta, 1=enviada, 2=servida, 3=facturada...)          | **✅ Usado**: polling periódico de estado    |
+| `GetPOSTenderList`                 | Formas de pago (efectivo, tarjeta, etc.)                                  | **Ya usado en preflight + polling**           |
+| `CreateCustomer`                   | Crear cliente en BDP                                                      | **✅ Usado**: auto-sync Glory→BDP (F7.5)    |
 | `ExportDepartment`                 | Departamentos/categorías                                                  | Organizar productos en misma taxonomía    |
 | `GetMenuDefinition`                | Definiciones de menús                                                     | Entender agrupaciones de artículos        |
 | `GetFastfoodDefinition`            | Definiciones fast-food                                                    | Agrupaciones de artículos                 |
@@ -272,29 +309,34 @@ Glory: Venta creada/actualizada
 
 | Archivo                                     | Líneas | Rol                                                               |
 | ------------------------------------------- | ------ | ----------------------------------------------------------------- |
-| `src/services/bdp_weblink.rs`               | 572    | Cliente HTTP base: login+token, 23 métodos, error sanitization    |
-| `src/services/bdp_weblink_catalog.rs`       | 448    | 21 constantes de ruta + BDP_ENDPOINTS (21 specs), structs request/response |
-| `src/services/bdp_sync.rs`                  | 1258   | `BdpSyncService`: sync_venta, retry, build_order, resolve_article, 32 unit tests |
+| `src/services/bdp_weblink.rs`               | ~600    | Cliente HTTP base: login+token, 23 métodos, error sanitization    |
+| `src/services/bdp_weblink_catalog.rs`       | 448    | 21 constantes de ruta + BDP_ENDPOINTS (21 specs), structs request/response (incluye BdpAddOrderPaymentRequest, BdpInvoiceOrderRequest) |
+| `src/services/bdp_sync.rs`                  | ~1530   | `BdpSyncService`: sync_venta, retry, build_order, resolve_article, ensure_cliente_bdp_synced, add_order_payment, invoice_order, ~35 unit tests |
 | `src/services/bdp_sync_preflight.rs`        | 760    | `BdpSyncPreflightService`: 9 checks + dry-run CreateOrder         |
+| `src/services/bdp_order_poller.rs`          | ~165    | Poller de estado de comandas BDP (GetOrder) — actualiza bdp_invoiced si status=3 |
 | `src/services/venta.rs`                     | 257    | `VentaService`: hooks create/update/delete para spawn BDP sync    |
-| `src/handlers/ventas.rs`                    | 293    | 3 endpoints BDP: `POST bdp-sync`, `GET bdp-status`, `POST bdp-poll` |
+| `src/handlers/ventas.rs`                    | ~370    | **4 endpoints BDP**: `POST bdp-sync`, `GET bdp-status`, `POST bdp-poll`, `POST bdp-invoice` (F8) |
 | `src/handlers/configuracion.rs`             | 318    | `GET bdp/diagnostico`, `GET bdp/sync-dry-run`          |
 | `src/handlers/bdp_article_map.rs`           | 228    | CRUD del mapeo artículos Glory ↔ BDP                    |
 | `src/services/bdp_order_poller.rs`          | 165    | Poller de estado de comandas BDP (GetOrder)             |
-| `src/models/venta.rs`                       | 183    | Modelo Venta + campos bdp_synced, bdp_order_id, etc.              |
-| `src/models/configuracion.rs`               | 152    | Config: bdp_url, bdp_login, bdp_sync_enabled, bdp_tender_map, bdp_order_type_map, bdp_default_customer_code, bdp_poll_interval_secs |
+| `src/models/venta.rs`                       | ~195    | Modelo Venta + campos bdp_synced, bdp_order_id, bdp_error, bdp_order_status, bdp_invoiced |
+| `src/models/configuracion.rs`               | ~155    | Config: +bdp_auto_sync_customers (bool), bdp_poll_interval_secs |
 | `src/models/bdp_article_map.rs`             | 42     | Modelo `BdpArticleMap`                                            |
-| `src/repositories/venta.rs`                 | 405    | `update_bdp_status()` con `sqlx::query()` (sin macro)             |
+| `src/repositories/venta.rs`                 | ~410    | `update_bdp_status()` con `bdp_invoiced` + listing SELECT con bdp_order_status, bdp_invoiced |
 | `src/repositories/bdp_article_map.rs`       | 121    | `BdpArticleMapRepository`: buscar_por_codigo, listar, upsert      |
+| `src/repositories/configuracion.rs`         | ~370    | UPDATE: COALESCE pattern con 34 campos (incluye bdp_auto_sync_customers) |
 | `tests/bdp_readonly.rs`                     | 243    | Category C: 6 tests read-only contra BDP real                     |
 | `tests/bdp_article_map.rs`                 | 279    | Category B: 12 tests DB para tabla bdp_article_map                |
 | `tests/bdp_venta_lineas.rs`                | 246    | Category B: 9 tests DB para venta_lineas + BDP                    |
+| `tests/haddock_db.rs`                      | ~250    | Category B: tests DB con fixtures actualizados                     |
 | `migrations/20260506000000_bdp_weblink_config` | 13   | Config básica BDP (url, login, pass, integrator_code, pos_id, employee_id, items_profile_id) |
 | `migrations/20260607000000_bdp_sync_fields` | 15     | Columnas bdp en ventas (bdp_synced, bdp_order_id, bdp_error) + configuracion |
 | `migrations/20260714000000_bdp_article_map` | 14     | Tabla bdp_article_map: mapeo artículos Glory ↔ BDP                |
 | `migrations/20260714100000_bdp_config_fields`| 8      | Columnas bdp_tender_map, bdp_order_type_map, bdp_default_customer_code (JSONB) |
 | `migrations/20260714200000_venta_lineas`    | 13     | Tabla `venta_lineas` (multi-item)                                 |
 | `migrations/20260714300000_bdp_order_status`| 13     | `bdp_order_status`, `bdp_poll_interval_secs`, índice polling      |
+| `migrations/20260715000000_bdp_customer_sync` | ~15  | Campos BDP en clientes (bdp_customer_code, bdp_synced_at, bdp_sync_error) |
+| `migrations/20260715100000_bdp_auto_sync_and_invoice` | ~12 | `bdp_auto_sync_customers` en configuracion, `bdp_invoiced` en ventas |
 
 ---
 
@@ -316,6 +358,7 @@ Glory: Venta creada/actualizada
 | `bdp_order_type_map`       | `{}` (JSONB)               | Mapeo canal_venta Glory → Type BDP (migración 20260714100000)       |
 | `bdp_default_customer_code`| `""` (String)              | Cliente BDP genérico cuando no hay `cliente_id` (migración 20260714100000) |
 | `bdp_poll_interval_secs`   | `30` (i32)                 | Intervalo polling para `GetOrder` (migración 20260714300000)       |
+| `bdp_auto_sync_customers`  | `false` (bool)             | Auto-sincronizar Glory clientes a BDP al crear venta (migración 20260715100000) |
 
 ### Tablas adicionales de BDP
 
@@ -327,7 +370,7 @@ Glory: Venta creada/actualizada
 
 | Campo propuesto             | Tipo     | Para qué                                                                     |
 | --------------------------- | -------- | ---------------------------------------------------------------------------- |
-| `bdp_invoice_on_create`     | `bool`   | Si debe facturar automáticamente al crear comanda                            |
+| `bdp_invoice_on_create`     | `bool`   | Si debe facturar automáticamente al crear comanda (actualmente via endpoint manual `POST /api/ventas/:id/bdp-invoice`) |
 
 ---
 
@@ -351,35 +394,42 @@ Glory: Venta creada/actualizada
 
 ## 9. Prioridades para integración completa
 
-### Fase 1 — Comandas reales (🔴 Crítico)
+### Fase 1 — Comandas reales (🔴 Crítico) — ✅ COMPLETADA
 
-| #   | Tarea                                                      | Endpoints                | Archivos afectados                                  | Esfuerzo |
-| --- | ---------------------------------------------------------- | ------------------------ | --------------------------------------------------- | -------- |
-| 1.1 | **Múltiples líneas** — iterar `VentaLinea` → `OrderItem[]` | `CreateOrder`            | `bdp_sync.rs`, modelo `VentaLinea`                  | Medio    |
-| 1.2 | **Mapeo artículos** Glory ↔ BDP                            | `GetPOSArticlesList`     | Nuevo: `bdp_article_map` en config o tabla dedicada | Medio    |
-| 1.3 | **Cliente en comanda**                                     | `CreateOrder.Customer`   | `bdp_sync.rs`, modelo `Cliente`                     | Bajo     |
-| 1.4 | **Pagos en comanda**                                       | `CreateOrder.Payments[]` | `bdp_sync.rs`, config `bdp_tender_id`               | Bajo     |
-| 1.5 | **Canal → Type** configurable                              | `CreateOrder.Type`       | `bdp_sync.rs`, config `bdp_order_type_map`          | Bajo     |
+| #   | Tarea                                                      | Estado  | Notas                                        |
+| --- | ---------------------------------------------------------- | ------- | -------------------------------------------- |
+| 1.1 | **Múltiples líneas** — iterar `VentaLinea` → `OrderItem[]` | ✅ ya   | Multi-item con reintentos (F2.7)             |
+| 1.2 | **Mapeo artículos** Glory ↔ BDP                            | ✅ ya   | Tabla `bdp_article_map` + CRUD (F2.8)        |
+| 1.3 | **Cliente en comanda**                                     | ✅ ya   | resolve_customer() + Customer en CreateOrder (F3.1) |
+| 1.4 | **Pagos en comanda**                                       | ✅ F8   | add_order_payment() post-creación             |
+| 1.5 | **Canal → Type** configurable                              | ✅ ya   | bdp_order_type_map JSONB (F3.3)              |
 
-### Fase 2 — Lifecycle de comandas (🟡 Importante)
+### Fase 2 — Lifecycle de comandas (🟡 Importante) — ✅ COMPLETADA (salvo 2.3 CancelOrder bloqueado por BDP)
 
-| #   | Tarea                                                       | Endpoints         | Archivos afectados                                      | Esfuerzo                        |
-| --- | ----------------------------------------------------------- | ----------------- | ------------------------------------------------------- | ------------------------------- |
-| 2.1 | **Polling de estado** — consultar `GetOrder` tras crear     | `GetOrder`        | Nuevo: `bdp_order_lifecycle.rs` o ampliar `bdp_sync.rs` | Medio                           |
-| 2.2 | **Reflejar facturación** — si BDP factura, actualizar Glory | `GetOrder`        | Modelo `Venta`: nuevo campo `bdp_invoiced`              | Medio                           |
-| 2.3 | **Cancelar desde Glory**                                    | `CancelOrder`     | `bdp_sync.rs`, hook en `VentaService::delete()`         | Bajo (si el endpoint se activa) |
-| 2.4 | **Agregar pago desde Glory**                                | `AddOrderPayment` | Nuevo método en `bdp_sync.rs`                           | Bajo                            |
-| 2.5 | **Facturar desde Glory**                                    | `InvoiceOrder`    | Nuevo método en `bdp_sync.rs`                           | Bajo                            |
+| #   | Tarea                                                       | Estado   | Notas                                                |
+| --- | ----------------------------------------------------------- | -------- | ---------------------------------------------------- |
+| 2.1 | **Polling de estado** — consultar `GetOrder` tras crear     | ✅ ya    | `bdp_order_poller.rs` — actualiza bdp_invoiced si status=3 |
+| 2.2 | **Reflejar facturación** — si BDP factura, actualizar Glory | ✅ ya    | Polling marca bdp_invoiced + bdp_order_status        |
+| 2.3 | **Cancelar desde Glory**                                    | ❌ BDP   | CancelOrder bloqueado: "Subscripción no activada"    |
+| 2.4 | **Agregar pago desde Glory**                                | ✅ F8    | `add_order_payment()` + handler `bdp-invoice`        |
+| 2.5 | **Facturar desde Glory**                                    | ✅ F8    | `invoice_order()` + handler `bdp-invoice`            |
 
-### Fase 3 — Sync bidireccional (🟢 Útil)
+### Fase 1 — Comandas reales (🔴 Crítico) — ✅ COMPLETADA
 
-| #   | Tarea                             | Endpoints           | Archivos afectados                 | Esfuerzo |
-| --- | --------------------------------- | ------------------- | ---------------------------------- | -------- |
-| 3.1 | **Exportar clientes BDP → Glory** | `ExportCustomers`   | Nuevo: `bdp_customer_sync.rs`      | Medio    |
-| 3.2 | **Crear cliente Glory → BDP**     | `CreateCustomer`    | Hook en `ClienteService::create()` | Bajo     |
-| 3.3 | **Exportar catálogo BDP → Glory** | `ExportArticles`    | Nuevo: `bdp_catalog_sync.rs`       | Medio    |
-| 3.4 | **Sincronizar precios**           | `ExportArticles`    | Tabla de mapeo artículos           | Medio    |
-| 3.5 | **Preflight como gatekeeper**     | Todos los preflight | `bdp_sync_preflight.rs`            | Bajo     |
+### Fase 2 — Lifecycle de comandas (🟡 Importante) — ✅ COMPLETADA (salvo 2.3 CancelOrder bloqueado por BDP)
+
+### Fase 3 — Sync bidireccional (🟢 Útil) — ✅ COMPLETADA
+
+| #   | Tarea                             | Estado  | Notas                                        |
+| --- | --------------------------------- | ------- | -------------------------------------------- |
+| 3.1 | **Exportar clientes BDP → Glory** | ✅ F7.1 | Import masivo BDP→Glory con next code        |
+| 3.2 | **Crear cliente Glory → BDP**     | ✅ F7.2 | Push Glory→BDP via CreateCustomer            |
+| 3.3 | **Exportar catálogo BDP → Glory** | 📋     | Futuro: requiere modelo de inventario         |
+| 3.4 | **Sincronizar precios**           | 📋     | Futuro: requiere tabla de tarifas             |
+| 3.5 | **Preflight como gatekeeper**     | ✅ ya   | 9 checks ya operativos desde 065A-5          |
+| 7.5 | **Wire auto-sync customer**       | ✅ F7.5 | ensure_cliente_bdp_synced() en sync_venta     |
+| 8.1 | **AddOrderPayment**               | ✅ F8   | orquestación + handler `bdp-invoice`          |
+| 8.2 | **InvoiceOrder**                  | ✅ F8   | orquestación + handler `bdp-invoice`          |
 
 ### Fase 4 — Extensiones (⚪ Futuro)
 
@@ -450,6 +500,10 @@ sequenceDiagram
 | `MarketplaceOrderId` validado estrictamente      | Máx 15 chars — error `[301011]` si excede                |
 | La API no expone asignación Mesas/Barra          | Solo visible en TPV de escritorio, no por WebLink        |
 | Serie `00031TI` sigue activa tras problemas      | Cliente resolvió los 4 problemas con su técnico          |
+| Al añadir campos a modelos, buscar TODOS los literales | `bdp_invoiced`, `bdp_auto_sync_customers` rompieron 6 fixtures en 5 archivos (E0063) |
+| `AddOrderPayment` devuelve InvoiceNumber          | Si viene `InvoiceNumber` en respuesta → marcar `bdp_invoiced=true` |
+| InvoiceOrder sin OrderId devuelve error genérico  | `invoice_order()` requiere `bdp_order_id` (previamente asignado por CreateOrder) |
+| `ensure_cliente_bdp_synced` es idempotente        | Solo sync si `cliente.bdp_customer_code` es NULL. No hace llamadas redundantes |
 
 ---
 
@@ -466,8 +520,8 @@ sequenceDiagram
 | `src/handlers/ventas.rs`                                   | 3 endpoints BDP: bdp-sync, bdp-status, bdp-poll          |
 | `src/handlers/configuracion.rs`                            | 2 endpoints BDP: bdp/diagnostico, bdp/sync-dry-run       |
 | `src/handlers/bdp_article_map.rs`                          | CRUD mapeo artículos Glory ↔ BDP                         |
-| `src/models/venta.rs`                                      | Modelo Venta con campos BDP (bdp_synced, bdp_order_id, etc.) |
-| `src/models/configuracion.rs`                              | Config con campos BDP existentes (url, login, tender_map, order_type_map, customer_code, poll_interval) |
+| `src/models/venta.rs`                                      | Modelo Venta con campos BDP (bdp_synced, bdp_order_id, bdp_order_status, bdp_invoiced) |
+| `src/models/configuracion.rs`                              | Config con campos BDP (url, login, tender_map, order_type_map, customer_code, poll_interval, auto_sync_customers) |
 | `src/models/bdp_article_map.rs`                            | Modelo `BdpArticleMap`                                    |
 | `src/repositories/venta.rs`                                | update_bdp_status() con sqlx::query() sin macro          |
 | `src/repositories/bdp_article_map.rs`                      | `BdpArticleMapRepository`: buscar_por_codigo, listar, upsert |
@@ -480,9 +534,11 @@ sequenceDiagram
 | `migrations/20260714100000_bdp_config_fields.up.sql`      | Columnas bdp_tender_map, bdp_order_type_map, bdp_default_customer_code |
 | `migrations/20260714200000_venta_lineas.up.sql`           | Tabla venta_lineas (multi-item)                          |
 | `migrations/20260714300000_bdp_order_status.up.sql`       | bdp_order_status, bdp_poll_interval_secs                 |
+| `migrations/20260715000000_bdp_customer_sync.up.sql`     | Campos BDP en clientes (bdp_customer_code, bdp_synced_at, bdp_sync_error) |
+| `migrations/20260715100000_bdp_auto_sync_and_invoice.up.sql` | bdp_auto_sync_customers en configuracion, bdp_invoiced en ventas |
 | `Agente/planes/plan-bdp-sync-implementation-2026-06-07.md` | Plan de implementación original                          |
 | `Agente/planes/plan-bdp-testing-2026-06-07.md`             | Plan de testing                                          |
-| `Agente/planes/plan-bdp-implementacion-completa-2026-07-14.md` | Plan maestro: 6 fases, análisis cobertura, tests  |
+| `Agente/planes/plan-bdp-implementacion-completa-2026-07-14.md` | Plan maestro: 6+ fases, análisis cobertura, tests  |
 
 ---
 
