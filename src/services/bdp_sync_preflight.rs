@@ -116,7 +116,7 @@ impl BdpSyncPreflightService {
         .await;
 
         /* [F3.4] Validar que los tenders configurados existen en el POS */
-        Self::check_tender_mapping(config, &tenders, &mut response);
+        Self::check_tender_mapping(config, tenders.as_ref(), &mut response);
 
         /* [F3.5] Validar que los order types configurados son válidos */
         Self::check_order_type_mapping(config, &mut response);
@@ -328,11 +328,11 @@ impl BdpSyncPreflightService {
         }
     }
 
-    /// [F3.4] Validar que los TenderIds en bdp_tender_map existen en el POS.
+    /// [F3.4] Validar que los `TenderIds` en `bdp_tender_map` existen en el POS.
     /// Compara las claves/valores del JSONB contra la lista de tenders devuelta por BDP.
     fn check_tender_mapping(
         config: &ConfiguracionRestaurante,
-        tenders: &Option<Value>,
+        tenders: Option<&Value>,
         response: &mut BdpSyncDryRunResponse,
     ) {
         let map = match config.bdp_tender_map.as_object() {
@@ -372,19 +372,13 @@ impl BdpSyncPreflightService {
         let mut issues = Vec::new();
         let mut mapped = 0;
         for (key, value) in map {
-            let tender_str = match value.as_str() {
-                Some(s) => s,
-                None => {
-                    issues.push(format!("{key}: valor no es string"));
-                    continue;
-                }
+            let Some(tender_str) = value.as_str() else {
+                issues.push(format!("{key}: valor no es string"));
+                continue;
             };
-            let tender_id: i64 = match tender_str.parse() {
-                Ok(id) => id,
-                Err(_) => {
-                    issues.push(format!("{key}: '{tender_str}' no es numérico"));
-                    continue;
-                }
+            let Ok(tender_id) = tender_str.parse::<i64>() else {
+                issues.push(format!("{key}: '{tender_str}' no es numérico"));
+                continue;
             };
             if valid_ids.is_empty() || valid_ids.contains(&tender_id) {
                 mapped += 1;
@@ -412,7 +406,7 @@ impl BdpSyncPreflightService {
         }
     }
 
-    /// [F3.5] Validar que los order types en bdp_order_type_map son válidos (>= 0).
+    /// [F3.5] Validar que los order types en `bdp_order_type_map` son válidos (>= 0).
     /// BDP Type: 0=Barra, 1=Mesa, 2=Delivery, etc. Valores negativos son inválidos.
     fn check_order_type_mapping(
         config: &ConfiguracionRestaurante,
@@ -438,7 +432,7 @@ impl BdpSyncPreflightService {
             match value.as_str().and_then(|s| s.parse::<i32>().ok()) {
                 Some(t) if t >= 0 => {}
                 Some(t) => issues.push(format!("{key}: Type={t} es negativo")),
-                None => issues.push(format!("{key}: valor '{}' no es numérico válido", value)),
+                None => issues.push(format!("{key}: valor '{value}' no es numérico válido")),
             }
         }
 

@@ -55,6 +55,7 @@ pub struct BdpSyncService;
 
 impl BdpSyncService {
     /// Orquesta el flujo completo Glory → BDP para una venta.
+    #[allow(clippy::too_many_lines)]
     pub async fn sync_venta(
         pool: &PgPool,
         venta: &Venta,
@@ -256,6 +257,7 @@ impl BdpSyncService {
     /// [F2.7] Si hay líneas, genera un pedido multi-item. Si no, usa fallback legacy (1 artículo).
     /// `line_article_ids`: paralelo a `lineas`, con el ID BDP de cada artículo resuelto.
     /// [F3.1] `order_ctx`: tender, order type y customer resueltos.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap, clippy::too_many_lines)]
     fn build_order(
         config: &ConfiguracionRestaurante,
         venta: &Venta,
@@ -492,7 +494,7 @@ impl BdpSyncService {
     }
 
     /// [F3.1-3.3] Resuelve el contexto del pedido: tender, order type y datos del cliente.
-    /// Se ejecuta una sola vez por sync_venta y el resultado se reutiliza en build_order.
+    /// Se ejecuta una sola vez por `sync_venta` y el resultado se reutiliza en `build_order`.
     async fn resolve_order_context(
         pool: &PgPool,
         venta: &Venta,
@@ -517,8 +519,8 @@ impl BdpSyncService {
         }
     }
 
-    /// [F3.2] Resuelve TenderId buscando venta.metodo_pago en bdp_tender_map.
-    /// Ej: `{"efectivo": "1", "tarjeta": "2"}` → metodo_pago="Efectivo" → tender_id=Some(1).
+    /// [F3.2] Resuelve `TenderId` buscando `venta.metodo_pago` en `bdp_tender_map`.
+    /// Ej: `{"efectivo": "1", "tarjeta": "2"}` → `metodo_pago`="Efectivo" → `tender_id=Some(1)`.
     fn resolve_tender_id(venta: &Venta, config: &ConfiguracionRestaurante) -> Option<i32> {
         let map = config.bdp_tender_map.as_object()?;
         let key = venta.metodo_pago.to_lowercase();
@@ -532,17 +534,15 @@ impl BdpSyncService {
         }
     }
 
-    /// [F3.3] Resuelve el order type buscando venta.canal en bdp_order_type_map.
+    /// [F3.3] Resuelve el order type buscando venta.canal en `bdp_order_type_map`.
     /// Default: 0 (Barra/Takeaway) si no hay mapeo o el canal no está configurado.
     fn resolve_order_type(venta: &Venta, config: &ConfiguracionRestaurante) -> i32 {
-        let map = match config.bdp_order_type_map.as_object() {
-            Some(m) => m,
-            None => return 0,
+        let Some(map) = config.bdp_order_type_map.as_object() else {
+            return 0;
         };
         let key = venta.canal.to_lowercase();
-        let value = match map.get(&key) {
-            Some(v) => v,
-            None => return 0,
+        let Some(value) = map.get(&key) else {
+            return 0;
         };
         match value.as_str().and_then(|s| s.parse::<i32>().ok()) {
             Some(t) if t >= 0 => t,
@@ -550,23 +550,20 @@ impl BdpSyncService {
         }
     }
 
-    /// [F3.1] Resuelve datos del cliente si la venta tiene cliente_id.
+    /// [F3.1] Resuelve datos del cliente si la venta tiene `cliente_id`.
     /// Devuelve (code, name, phone) — cada uno puede ser None.
     async fn resolve_customer(
         pool: &PgPool,
         venta: &Venta,
         config: &ConfiguracionRestaurante,
     ) -> (Option<String>, Option<String>, Option<String>) {
-        let cliente_id = match venta.cliente_id {
-            Some(id) => id,
-            None => {
-                /* Sin cliente — usar default_customer_code si existe */
-                let code = &config.bdp_default_customer_code;
-                if code.is_empty() {
-                    return (None, None, None);
-                }
-                return (Some(code.clone()), None, None);
+        let Some(cliente_id) = venta.cliente_id else {
+            /* Sin cliente — usar default_customer_code si existe */
+            let code = &config.bdp_default_customer_code;
+            if code.is_empty() {
+                return (None, None, None);
             }
+            return (Some(code.clone()), None, None);
         };
 
         let user_id = venta.user_id;

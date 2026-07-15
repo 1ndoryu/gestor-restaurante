@@ -39,7 +39,7 @@ impl BdpArticleMapRepository {
         .await
     }
 
-    /// Busca un mapeo por código Glory (usado por bdp_sync::resolve_article)
+    /// Busca un mapeo por código Glory (usado por `bdp_sync::resolve_article`)
     pub async fn buscar_por_codigo(
         pool: &PgPool,
         user_id: Uuid,

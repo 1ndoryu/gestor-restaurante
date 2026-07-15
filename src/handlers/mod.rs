@@ -4,6 +4,7 @@ mod admin;
 mod api_keys;
 mod auth;
 mod bdp_article_map;
+mod bdp_customer_sync;
 mod campanas;
 mod canales_reserva;
 mod chatbot;
@@ -185,6 +186,8 @@ impl utoipa::Modify for SecurityAddon {
         bdp_article_map::actualizar_article_map,
         bdp_article_map::eliminar_article_map,
         bdp_article_map::importar_catalogo,
+        bdp_customer_sync::importar_clientes_bdp,
+        bdp_customer_sync::sincronizar_cliente_bdp,
         trabajadores::crear,
         trabajadores::actualizar,
         trabajadores::eliminar,
@@ -418,6 +421,7 @@ fn api_routes() -> Router<AppState> {
         .merge(plano_sala::routes())
         .merge(configuracion::routes())
         .merge(bdp_article_map::routes())
+        .merge(bdp_customer_sync::routes())
         .merge(campanas::routes())
         .merge(plantillas_whatsapp::routes())
         .merge(recordatorios::routes())

@@ -15,7 +15,7 @@ use crate::services::email::EmailService;
 
 /// Claims del JWT — `sub` es el `user_id`, `exp` la expiración Unix
 /// [094A-3] `tid` opcional = `trabajador_id` (si el token es de un trabajador)
-/// [cargo-fix] `role`/`effective_role`/`impersonator` para middleware AuthUser.
+/// [cargo-fix] `role`/`effective_role`/`impersonator` para middleware `AuthUser`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: Uuid,

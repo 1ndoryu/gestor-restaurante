@@ -270,7 +270,7 @@ pub async fn bdp_poll(
     let config = crate::services::ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     let updated = BdpOrderPollerService::poll_pending(&state.pool, auth.user_id, &config)
         .await
-        .map_err(|e| AppError::Validation(e))?;
+        .map_err(AppError::Validation)?;
     Ok(Json(BdpPollResponse { updated }))
 }
 

@@ -11,6 +11,7 @@ use validator::Validate;
 
 /// Cliente del restaurante
 #[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Cliente {
     pub id: Uuid,
     pub user_id: Uuid,
@@ -30,6 +31,11 @@ pub struct Cliente {
     pub preferencias_ubicacion: String,
     /* [094A-5] Fecha de última visita — se actualiza automáticamente al completar reserva */
     pub ultima_visita: Option<DateTime<Utc>>,
+    /* [Fase 7.3] Campos BDP para sync bidireccional */
+    pub bdp_customer_code: Option<i32>,
+    pub bdp_synced: bool,
+    pub bdp_synced_at: Option<DateTime<Utc>>,
+    pub bdp_sync_error: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

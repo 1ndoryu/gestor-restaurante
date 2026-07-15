@@ -136,9 +136,9 @@ pub async fn eliminar_article_map(
     }
 }
 
-/// Importar catálogo completo de artículos desde BDP WebLink.
-/// Llama a ExportArticles, extrae Code y Name de cada artículo,
-/// y hace upsert en bdp_article_map (articulo_glory_codigo = Code).
+/// Importar catálogo completo de artículos desde BDP `WebLink`.
+/// Llama a `ExportArticles`, extrae Code y Name de cada artículo,
+/// y hace upsert en `bdp_article_map` (`articulo_glory_codigo` = Code).
 #[utoipa::path(
     post,
     path = "/api/bdp/article-maps/import-catalog",

@@ -23,10 +23,10 @@ pub struct VentaLinea {
     pub created_at: DateTime<Utc>,
 }
 
-/// Request para crear una línea de venta (usado dentro de CrearVentaRequest)
+/// Request para crear una línea de venta (usado dentro de `CrearVentaRequest`)
 #[derive(Debug, Clone, Deserialize, Validate, ToSchema)]
 pub struct CrearVentaLineaRequest {
-    /// Código del artículo (puede mapearse a BDP via bdp_article_map)
+    /// Código del artículo (puede mapearse a BDP via `bdp_article_map`)
     #[validate(length(max = 100))]
     pub articulo_codigo: Option<String>,
     /// Descripción del artículo/servicio

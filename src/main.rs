@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let scheduler_pool = pool.clone();
     let scheduler_handle = tokio::spawn(async move {
         let running = std::sync::Arc::new(tokio::sync::Mutex::new(()));
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        let mut interval = tokio::time::interval(std::time::Duration::from_mins(1));
         loop {
             interval.tick().await;
             let guard = running.try_lock();

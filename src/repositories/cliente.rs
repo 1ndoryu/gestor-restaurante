@@ -356,4 +356,59 @@ impl ClienteRepository {
             .await?;
         Ok(())
     }
+
+    /* [Fase 7.3] Buscar cliente por código BDP (para import/sync bidireccional) */
+    pub async fn find_by_bdp_code(
+        pool: &PgPool,
+        user_id: Uuid,
+        bdp_code: i32,
+    ) -> Result<Option<Cliente>, sqlx::Error> {
+        sqlx::query_as::<_, Cliente>(
+            "SELECT * FROM clientes WHERE user_id = $1 AND bdp_customer_code = $2",
+        )
+        .bind(user_id)
+        .bind(bdp_code)
+        .fetch_optional(pool)
+        .await
+    }
+
+    /* [Fase 7.4] Actualizar estado de sync BDP de un cliente */
+    pub async fn update_bdp_sync(
+        pool: &PgPool,
+        cliente_id: Uuid,
+        bdp_code: Option<i32>,
+        synced: bool,
+        error: Option<&str>,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE clientes SET \
+             bdp_customer_code = COALESCE($2, bdp_customer_code), \
+             bdp_synced = $3, \
+             bdp_synced_at = CASE WHEN $3 THEN NOW() ELSE bdp_synced_at END, \
+             bdp_sync_error = $4, \
+             updated_at = NOW() \
+             WHERE id = $1",
+        )
+        .bind(cliente_id)
+        .bind(bdp_code)
+        .bind(synced)
+        .bind(error)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /* [Fase 7.4] Listar clientes pendientes de sync con BDP (sin bdp_customer_code) */
+    pub async fn list_bdp_unsynced(
+        pool: &PgPool,
+        user_id: Uuid,
+    ) -> Result<Vec<Cliente>, sqlx::Error> {
+        sqlx::query_as::<_, Cliente>(
+            "SELECT * FROM clientes WHERE user_id = $1 AND bdp_customer_code IS NULL \
+             ORDER BY created_at DESC LIMIT 100",
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+    }
 }

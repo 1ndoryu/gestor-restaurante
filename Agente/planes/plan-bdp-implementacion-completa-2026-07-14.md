@@ -1,7 +1,7 @@
 # Plan: Implementación completa BDP WebLink REST API
 
-> **Fecha:** 2026-07-14 (v2 — revisado con impacto frontend completo)
-> **Estado:** ✅ Fases 1-6 completas — verificando tests unitarios e integración
+> **Fecha:** 2026-07-15 (v3 — sync bidireccional)
+> **Estado:** ✅ Fases 1-6 completas | Fase 7 pendiente (sync bidireccional clientes/artículos)
 > **Riesgo:** ALTO — la integración actual funciona en producción. Cualquier cambio debe ser retrocompatible.
 
 ---
@@ -25,18 +25,27 @@
 | Tests unitarios que NO llamen a BDP                                 | ✅ Sí     | —                         |
 | Regenerar Orval codegen localmente                                  | ✅ Sí     | —                         |
 | Implementar componentes React/frontend                              | ✅ Sí     | —                         |
-| Deploy a producción (nakomi.studio)                                 | ❌        | ✅ Autorización requerida |
-| Llamadas a API BDP (Login, CreateOrder, GetOrder, etc.)             | ❌        | ✅ Autorización requerida |
+| Deploy a producción (restaurante)                                   | ❌        | ✅ Autorización requerida |
+| **Cualquier** llamada a API BDP (Login, CreateOrder, GetOrder, ExportCustomers, CreateCustomer, etc.) | ❌ | ✅ Autorización requerida |
+| Importar datos de BDP a Glory (ExportCustomers, ExportArticles)     | ❌        | ✅ Autorización requerida |
+| Push de datos de Glory a BDP (CreateCustomer, CreateOrder, etc.)    | ❌        | ✅ Autorización requerida |
+| Sync automática de clientes/artículos a BDP (Fase 7.5)              | ❌        | ✅ Autorización requerida |
 | Pruebas contra el TPV real (preflight, dry-run, escritura)          | ❌        | ✅ Autorización requerida |
-| Crear comandas reales en BDP                                        | ❌        | ✅ Autorización requerida |
+| Crear/Modificar/Eliminar datos reales en BDP                        | ❌        | ✅ Autorización requerida |
+
+> **REGLA ABSOLUTA:** NO se toca el sistema BDP del restaurante sin autorización explícita.
+> Esto incluye: crear comandas, importar/exportar clientes, sincronizar artículos,
+> modificar configuración, o cualquier operación de lectura/escritura contra la API BDP.
+> El código se implementa y compila localmente; las llamadas reales requieren tu OK.
 
 **Flujo de autorización:**
 
 1. Implementar todo el código sin llamar a BDP
 2. Compilar y validar localmente (cargo check, tests unitarios)
 3. Presentar resumen de cambios al usuario
-4. **Esperar autorización** para: deploy, pruebas contra BDP, pruebas en producción
-5. Las pruebas contra BDP NO deben crear datos reales (comandas, clientes) que el cliente no espere
+4. **Esperar autorización explícita** para: deploy, pruebas contra BDP, importaciones, sincronizaciones
+5. Prohibido habilitar auto-sync (Fase 7.5) sin confirmación del usuario
+6. Las pruebas contra BDP NO deben crear ni modificar datos reales que el cliente no espere
 
 ---
 
@@ -83,12 +92,14 @@ Orval codegen regenerado en Fase 5.0. `VentaConCliente` ahora incluye todos los 
 
 | Archivo                               | Líneas | Rol                                                      |
 | ------------------------------------- | ------ | -------------------------------------------------------- |
-| `src/services/bdp_sync.rs`            | ~480   | Orquestación: login → build_order → create_order → retry |
-| `src/services/bdp_weblink.rs`         | ~750   | Cliente HTTP: 23 métodos, token management               |
-| `src/services/bdp_weblink_catalog.rs` | ~200   | Constantes, structs request/response                     |
+| `src/services/bdp_sync.rs`            | ~1258  | Orquestación: login → build_order → create_order → retry |
+| `src/services/bdp_weblink.rs`         | ~600   | Cliente HTTP: 23 métodos, token management               |
+| `src/services/bdp_weblink_catalog.rs` | ~448   | Constantes, structs request/response                     |
 | `src/services/bdp_sync_preflight.rs`  | ~460   | 9 checks + dry-run CreateOrder                           |
+| `src/services/bdp_order_poller.rs`    | ~165   | Polling GetOrder + mapeo estados                         |
 | `src/models/venta.rs`                 | ~160   | Modelo Venta (monolítico, sin líneas)                    |
 | `src/models/configuracion.rs`         | ~100   | Config BDP en tabla `configuracion`                      |
+| `src/models/cliente.rs`               | ~120   | Modelo Cliente CRM (~43k registros)                      |
 
 ### ~~Dato crítico: no existe `VentaLinea`~~ ✅ RESUELTO
 
@@ -244,6 +255,59 @@ Tabla `venta_lineas` creada en Fase 2. Modelo `VentaLinea`, repositorio `VentaLi
 
 ---
 
+### Fase 7 — Sync bidireccional: clientes y artículos ↔ BDP
+
+> ⚠️ **ESTA FASE REQUIERE AUTORIZACIÓN EXPLÍCITA antes de ejecutar cualquier endpoint contra BDP.**
+> El código se escribe y compila localmente, pero los endpoints de import/push NO se llaman sin tu OK.
+> Esto aplica a: `importar_clientes_bdp`, `sincronizar_cliente_bdp`, `import-catalog`, y cualquier auto-sync.
+
+**Objetivo:** Que los datos maestros (clientes, artículos) fluyan en ambas direcciones entre Glory y BDP, eliminando la necesidad de doble captura.
+
+**Depende de:** Fase 1 (mapeos) + infraestructura existente.
+
+| #   | Subtarea                                                                                        | Archivos                                                    | Riesgo | Effort | Estado |
+| --- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------ | ------ | ------ |
+| 7.1 | **Importar clientes BDP → Glory** — `POST /api/bdp/customers/import` usando `ExportCustomers`   | Nuevo handler en `handlers/bdp_customer_sync.rs`            | MEDIO  | 3h     | ❌     |
+| 7.2 | **Push cliente Glory → BDP** — `POST /api/clientes/:id/bdp-sync` usando `CreateCustomer`        | Nuevo handler o extensión en `handlers/clientes.rs`         | MEDIO  | 2h     | ❌     |
+| 7.3 | **Campo `bdp_customer_code` en `clientes`** — para mapeo bidireccional                          | Migración, modelo `cliente.rs`, repository                  | BAJO   | 1h     | ❌     |
+| 7.4 | **Campo `bdp_synced` en `clientes`** — tracking de sync clientes (igual que en ventas)          | Migración (puede ir junto con 7.3), modelo                  | BAJO   | 0.5h   | ❌     |
+| 7.5 | **Sync automática al crear venta con cliente** — si `cliente_id` existe y no tiene `bdp_customer_code`, hacer push a BDP antes de `CreateOrder` | `services/bdp_sync.rs` — `sync_venta()` | MEDIO  | 2h     | ❌     |
+| 7.6 | **Import masivo de artículos mejorado** — `import-catalog` ya existe, añadir import incremental (solo nuevos/actualizados) | `handlers/bdp_article_map.rs` | BAJO   | 1.5h   | ❌     |
+| 7.7 | **Tests unitarios** — mapeo de campos BDP ↔ Glory para clientes, upsert por teléfono/email      | `tests/` en handler y servicio                              | BAJO   | 1.5h   | ❌     |
+
+**Total Fase 7:** ~11.5h
+**Validación:** Importar clientes desde BDP → crear venta con cliente existente → verificar que BDP recibe el Customer con el código correcto.
+
+**Riesgos principales:**
+- BDP `ExportCustomers` puede devolver muchos registros (~43k) → paginación o batch obligatorio.
+- Matching Glory↔BDP: el campo `telefono` es el identificador natural, pero puede haber duplicados.
+- `CreateCustomer` requiere `code` (entero) → asignación de códigos BDP automáticos.
+
+**Notas para el cliente:**
+- Necesitamos confirmar el campo clave de matching (teléfono, email, o código BDP).
+- Si el cliente ya tiene ~43k clientes en Glory, el import inicial es masivo — se puede hacer en batches.
+
+---
+
+### Fase 8 — Lifecycle avanzado: pagos parciales y facturación
+
+**Objetivo:** Completar el ciclo de vida de comandas con pagos parciales (`AddOrderPayment`) y facturación (`InvoiceOrder`).
+
+| #   | Subtarea                                                                                    | Archivos                                          | Riesgo | Effort | Estado |
+| --- | ------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------ | ------ | ------ |
+| 8.1 | **Método `add_order_payment()` en `bdp_sync.rs`** — registra pago parcial en BDP             | `services/bdp_sync.rs`                            | MEDIO  | 2h     | ❌     |
+| 8.2 | **Método `invoice_order()` en `bdp_sync.rs`** — factura la comanda en BDP                   | `services/bdp_sync.rs`                            | MEDIO  | 1.5h   | ❌     |
+| 8.3 | **Endpoint `POST /api/ventas/:id/bdp-invoice`** — trigger manual de facturación             | `handlers/ventas.rs`                              | BAJO   | 1h     | ❌     |
+| 8.4 | **Reflejar facturación automática** — cuando polling detecta status=3, marcar `bdp_invoiced` | `services/bdp_order_poller.rs` + migración        | BAJO   | 1.5h   | ❌     |
+| 8.5 | **Tests** — AddOrderPayment payload, InvoiceOrder payload, mapeo status→invoiced             | `tests/`                                          | BAJO   | 1h     | ❌     |
+
+**Total Fase 8:** ~7h
+**Validación:** Crear venta → sync → add payment → invoice → verificar estado final.
+
+**Restricción conocida:** `CancelOrder` sigue bloqueado por BDP ("Subscripción no activada"). No se incluye en esta fase.
+
+---
+
 ## 3. Resumen de esfuerzo
 
 | Fase                            | Horas    | Riesgo     | Dependencias     |
@@ -254,7 +318,9 @@ Tabla `venta_lineas` creada en Fase 2. Modelo `VentaLinea`, repositorio `VentaLi
 | 4 — Lifecycle polling (backend) | ~9h      | MEDIO      | Fase 2+3         |
 | 5 — Frontend visibilidad BDP    | ~12h     | BAJO-MEDIO | Fase 1 + codegen |
 | 6 — Frontend multi-item         | ~14h     | MEDIO      | Fase 2 + Fase 5  |
-| **Total**                       | **~66h** |            |                  |
+| 7 — Sync bidireccional          | ~11.5h   | MEDIO      | Fase 1           |
+| 8 — Pagos + facturación         | ~7h      | MEDIO      | Fase 4           |
+| **Total**                       | **~84.5h** |            |                  |
 
 ---
 

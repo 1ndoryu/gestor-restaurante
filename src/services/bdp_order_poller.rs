@@ -57,15 +57,12 @@ impl BdpOrderPollerService {
         let mut updated = 0;
 
         for venta in &ventas {
-            let order_id = match venta.bdp_order_id {
-                Some(id) => id,
-                None => {
-                    warn!(
-                        "[276A-4.2] Venta {} tiene bdp_synced=true pero sin bdp_order_id, skip",
-                        venta.id
-                    );
-                    continue;
-                }
+            let Some(order_id) = venta.bdp_order_id else {
+                warn!(
+                    "[276A-4.2] Venta {} tiene bdp_synced=true pero sin bdp_order_id, skip",
+                    venta.id
+                );
+                continue;
             };
 
             match Self::check_order_status(&client, order_id).await {
@@ -99,7 +96,7 @@ impl BdpOrderPollerService {
         Ok(updated)
     }
 
-    /// Consulta GetOrder para un order_id específico y devuelve el status como string.
+    /// Consulta `GetOrder` para un `order_id` específico y devuelve el status como string.
     async fn check_order_status(
         client: &BdpWeblinkClient<'_>,
         order_id: i64,
@@ -118,7 +115,7 @@ impl BdpOrderPollerService {
          * Status values: 0=pending, 1=accepted, 2=cancelled, 3=invoiced */
         let status_code = resp
             .get("Status")
-            .and_then(|v| v.as_i64())
+            .and_then(serde_json::Value::as_i64)
             .ok_or_else(|| "Respuesta BDP sin campo Status".to_string())?;
 
         let error_msg = resp
@@ -138,7 +135,7 @@ impl BdpOrderPollerService {
         Ok(Self::map_status(status_code))
     }
 
-    /// Mapea el integer de status BDP → string legible almacenado en bdp_order_status.
+    /// Mapea el integer de status BDP → string legible almacenado en `bdp_order_status`.
     fn map_status(code: i64) -> String {
         match code {
             0 => "pending".to_string(),

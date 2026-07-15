@@ -45,6 +45,7 @@ async fn main() {
 }
 
 #[derive(Debug)]
+#[allow(clippy::struct_field_names)]
 struct Config {
     tailscale_auth_key: Option<String>,
     rustdesk_password: String,
@@ -145,8 +146,7 @@ impl Config {
             device_name: env_var("GLORY_DEVICE_NAME").or_else(|| env_var("COMPUTERNAME")),
             advertise_tags: env_var("GLORY_TAILSCALE_TAGS"),
             report_path: env_var("GLORY_BOOTSTRAP_REPORT_PATH")
-                .map(PathBuf::from)
-                .unwrap_or_else(default_report_path),
+                .map_or_else(default_report_path, PathBuf::from),
             bdp_port: env_var("GLORY_BOOTSTRAP_BDP_PORT").and_then(|value| value.parse().ok()),
             skip_power: false,
             skip_rdp: false,
@@ -195,7 +195,7 @@ impl Config {
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--tailscale-auth-key" => {
-                    self.tailscale_auth_key = Some(next_value(&mut args, &arg)?)
+                    self.tailscale_auth_key = Some(next_value(&mut args, &arg)?);
                 }
                 "--rustdesk-password" => self.rustdesk_password = next_value(&mut args, &arg)?,
                 "--rustdesk-config" => self.rustdesk_config = Some(next_value(&mut args, &arg)?),
@@ -205,7 +205,7 @@ impl Config {
                 "--bdp-port" => {
                     self.bdp_port = Some(next_value(&mut args, &arg)?.parse().map_err(|_| {
                         BootstrapError::Message("--bdp-port debe ser un entero valido".to_string())
-                    })?)
+                    })?);
                 }
                 "--skip-power" => self.skip_power = true,
                 "--skip-rdp" => self.skip_rdp = true,
@@ -654,7 +654,7 @@ fn relaunch_elevated() -> Result<(), BootstrapError> {
         .map(|arg| format!("'{}'", ps_single_quote(&arg.to_string_lossy())))
         .collect();
     if !args.is_empty() {
-        script.push_str(&format!(" -ArgumentList @({})", args.join(", ")));
+        let _ = write!(script, " -ArgumentList @({})", args.join(", "));
     }
     run_powershell(&script)?;
     Ok(())
@@ -747,8 +747,7 @@ fn command_exists(command: &str) -> bool {
     Command::new("where")
         .arg(command)
         .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+        .is_ok_and(|output| output.status.success())
 }
 
 async fn download_to_file(url: &str, path: &Path) -> Result<(), BootstrapError> {
@@ -816,8 +815,7 @@ fn env_var(name: &str) -> Option<String> {
 
 fn default_report_path() -> PathBuf {
     env::var_os("USERPROFILE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+        .map_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")), PathBuf::from)
         .join("Desktop")
         .join("glory-remote-bootstrap.txt")
 }
