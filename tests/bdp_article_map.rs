@@ -6,7 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use glory_backend::models::{ActualizarBdpArticleMapRequest, CrearBdpArticleMapRequest};
-use glory_backend::repositories::BdpArticleMapRepository;
+use glory_backend::repositories::{BdpArticleMapRepository, BdpArticleUpsertData};
 
 /* Helper: crea un usuario mínimo para satisfacer FK de bdp_article_map.user_id */
 async fn create_test_user(pool: &PgPool) -> Uuid {
@@ -327,4 +327,177 @@ async fn test_aislamiento_entre_usuarios(pool: PgPool) {
     assert_eq!(list_b.len(), 1);
     assert_eq!(list_a[0].articulo_bdp_codigo, "A001");
     assert_eq!(list_b[0].articulo_bdp_codigo, "B001");
+}
+
+/* ── upsert_from_bdp (F9.1) ──────────────────────────────────── */
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_upsert_from_bdp_crea_nuevo(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let data = BdpArticleUpsertData {
+        bdp_code: "1001",
+        descripcion: "CAFE BOMBON",
+        precio_tarifa1: rust_decimal::Decimal::new(250, 2),
+        iva_pct: rust_decimal::Decimal::new(1000, 2),
+        departamento: 1,
+        familia: 1,
+        subfamilia: 1,
+        activo: true,
+        barcode: "8412345678901",
+    };
+
+    let changed = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data)
+        .await
+        .expect("upsert should succeed");
+
+    assert!(changed, "new article should return true (created)");
+
+    let list = BdpArticleMapRepository::listar(&pool, user_id)
+        .await
+        .unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].articulo_glory_codigo, "1001");
+    assert_eq!(list[0].descripcion, "CAFE BOMBON");
+    assert_eq!(list[0].articulo_bdp_codigo, "1001");
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_upsert_from_bdp_actualiza_existente(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let data1 = BdpArticleUpsertData {
+        bdp_code: "2001",
+        descripcion: "TOSTADA",
+        precio_tarifa1: rust_decimal::Decimal::new(350, 2),
+        iva_pct: rust_decimal::Decimal::new(1000, 2),
+        departamento: 1,
+        familia: 2,
+        subfamilia: 1,
+        activo: true,
+        barcode: "",
+    };
+
+    BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data1)
+        .await
+        .unwrap();
+
+    /* Segundo upsert con precio cambiado */
+    let data2 = BdpArticleUpsertData {
+        bdp_code: "2001",
+        descripcion: "TOSTADA",
+        precio_tarifa1: rust_decimal::Decimal::new(400, 2), /* precio cambió */
+        iva_pct: rust_decimal::Decimal::new(1000, 2),
+        departamento: 1,
+        familia: 2,
+        subfamilia: 1,
+        activo: true,
+        barcode: "",
+    };
+
+    let changed = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data2)
+        .await
+        .unwrap();
+
+    assert!(changed, "updated price should return true");
+
+    let list = BdpArticleMapRepository::listar(&pool, user_id)
+        .await
+        .unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].precio_tarifa1, rust_decimal::Decimal::new(400, 2));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_upsert_from_bdp_sin_cambios(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let data = BdpArticleUpsertData {
+        bdp_code: "3001",
+        descripcion: "AGUA",
+        precio_tarifa1: rust_decimal::Decimal::new(100, 2),
+        iva_pct: rust_decimal::Decimal::new(1000, 2),
+        departamento: 1,
+        familia: 1,
+        subfamilia: 1,
+        activo: true,
+        barcode: "",
+    };
+
+    BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data)
+        .await
+        .unwrap();
+
+    /* Mismo upsert idéntico — no debería reportar cambio */
+    let changed = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data)
+        .await
+        .unwrap();
+
+    assert!(!changed, "identical upsert should return false (no changes)");
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_upsert_from_bdp_desactiva_articulo(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let data_active = BdpArticleUpsertData {
+        bdp_code: "4001",
+        descripcion: "VINO",
+        precio_tarifa1: rust_decimal::Decimal::new(800, 2),
+        iva_pct: rust_decimal::Decimal::new(2100, 2),
+        departamento: 2,
+        familia: 3,
+        subfamilia: 1,
+        activo: true,
+        barcode: "123456789",
+    };
+
+    BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data_active)
+        .await
+        .unwrap();
+
+    let data_inactive = BdpArticleUpsertData {
+        activo: false,
+        ..data_active
+    };
+
+    let changed = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data_inactive)
+        .await
+        .unwrap();
+
+    assert!(changed, "deactivating should return true");
+
+    let list = BdpArticleMapRepository::listar(&pool, user_id)
+        .await
+        .unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].activo, false);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_upsert_from_bdp_aisla_usuarios(pool: PgPool) {
+    let user_a = create_test_user(&pool).await;
+    let user_b = create_test_user(&pool).await;
+
+    let data_a = BdpArticleUpsertData {
+        bdp_code: "5001",
+        descripcion: "ARTICULO A",
+        precio_tarifa1: rust_decimal::Decimal::new(100, 2),
+        iva_pct: rust_decimal::Decimal::new(1000, 2),
+        departamento: 1,
+        familia: 1,
+        subfamilia: 1,
+        activo: true,
+        barcode: "",
+    };
+
+    BdpArticleMapRepository::upsert_from_bdp(&pool, user_a, &data_a)
+        .await
+        .unwrap();
+
+    let list_a = BdpArticleMapRepository::listar(&pool, user_a)
+        .await
+        .unwrap();
+    let list_b = BdpArticleMapRepository::listar(&pool, user_b)
+        .await
+        .unwrap();
+
+    assert_eq!(list_a.len(), 1);
+    assert_eq!(list_b.len(), 0, "user_b should not see user_a articles");
 }

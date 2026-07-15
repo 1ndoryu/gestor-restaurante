@@ -3,10 +3,16 @@
  * POST   /api/bdp/article-maps              — crear/upsert un mapeo
  * POST   /api/bdp/article-maps/import-catalog — importar catálogo desde BDP
  * POST   /api/bdp/article-maps/sync-catalog   — sync enriquecida F9.1
+ * POST   /api/bdp/article-maps/sync-prices    — refresh precios F9.3
  * PATCH  /api/bdp/article-maps/:id          — actualizar parcialmente
  * DELETE /api/bdp/article-maps/:id          — eliminar un mapeo
+ * POST   /api/bdp/sync-tables               — sync mesas BDP F9.4
+ * GET    /api/bdp/menus/:id                 — definición menú F9.5
+ * GET    /api/bdp/fastfoods/:id             — definición fastfood F9.5
+ * GET    /api/bdp/packs/:id                 — definición pack F9.5
  * [147A-F5.7] import-catalog conecta con BDP Weblink para rellenar mapeos.
- * [157A-7] F9.1: sync-catalog sincroniza catálogo completo con datos enriquecidos. */
+ * [157A-7] F9.1: sync-catalog sincroniza catálogo completo con datos enriquecidos.
+ * [157A-9] F9.3-F9.5: sync-prices, sync-tables, menús/fastfoods/packs. */
 
 use axum::extract::{Path, State};
 use axum::routing::{get, patch};
@@ -20,7 +26,10 @@ use crate::models::{ActualizarBdpArticleMapRequest, BdpArticleMap, CrearBdpArtic
 use crate::repositories::BdpArticleMapRepository;
 use crate::services::{
     BdpCatalogSyncResult, BdpExportArticlesRequest, BdpSyncService, BdpWeblinkClient,
-    ConfiguracionService,
+    ConfiguracionService, SyncTablesResult,
+};
+use crate::services::bdp_weblink_catalog::{
+    BdpGetFastfoodRequest, BdpGetMenuRequest, BdpGetPackRequest,
 };
 use crate::AppState;
 
@@ -38,6 +47,15 @@ pub fn routes() -> Router<AppState> {
             "/bdp/article-maps/sync-catalog",
             axum::routing::post(sync_catalog),
         )
+        /* [157A-9] F9.3-F9.5: endpoints de precios, mesas, menús */
+        .route(
+            "/bdp/article-maps/sync-prices",
+            axum::routing::post(sync_prices),
+        )
+        .route("/bdp/sync-tables", axum::routing::post(sync_tables))
+        .route("/bdp/menus/:id", get(get_menu_definition))
+        .route("/bdp/fastfoods/:id", get(get_fastfood_definition))
+        .route("/bdp/packs/:id", get(get_pack_definition))
         .route(
             "/bdp/article-maps/:id",
             patch(actualizar_article_map).delete(eliminar_article_map),
@@ -265,6 +283,144 @@ pub async fn sync_catalog(
     let result = BdpSyncService::sync_catalog(&client, &state.pool, auth.user_id, 1)
         .await
         .map_err(AppError::Internal)?;
+
+    Ok(Json(result))
+}
+
+/* [157A-9] F9.3: Sincroniza precios de artículos mapeados desde BDP.
+ * Consulta GetPricesArticles para cada artículo y actualiza precio_tarifa1. */
+async fn sync_prices(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<Json<BdpCatalogSyncResult>, AppError> {
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
+        .await
+        .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
+
+    if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
+        return Err(AppError::Validation("Faltan credenciales BDP configuradas".into()));
+    }
+
+    let client = BdpWeblinkClient::new(&config);
+    let _session = client
+        .login()
+        .await
+        .map_err(|e| AppError::Internal(format!("Error login BDP: {e}")))?;
+
+    let result = BdpSyncService::sync_prices(&client, &state.pool, auth.user_id)
+        .await
+        .map_err(AppError::Internal)?;
+
+    Ok(Json(result))
+}
+
+/* [157A-9] F9.4: Sincroniza salones/mesas de BDP al plano de sala Glory.
+ * Consulta GetRoomsTables → crea ZonaSala + Mesa según corresponda. */
+async fn sync_tables(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<Json<SyncTablesResult>, AppError> {
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
+        .await
+        .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
+
+    if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
+        return Err(AppError::Validation("Faltan credenciales BDP configuradas".into()));
+    }
+
+    let client = BdpWeblinkClient::new(&config);
+    let _session = client
+        .login()
+        .await
+        .map_err(|e| AppError::Internal(format!("Error login BDP: {e}")))?;
+
+    let result = BdpSyncService::sync_tables(&client, &state.pool, auth.user_id)
+        .await
+        .map_err(AppError::Internal)?;
+
+    Ok(Json(result))
+}
+
+/* [157A-9] F9.5: Consulta la definición de un menú en BDP (grupos + items). */
+async fn get_menu_definition(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
+        .await
+        .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
+
+    if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
+        return Err(AppError::Validation("Faltan credenciales BDP configuradas".into()));
+    }
+
+    let client = BdpWeblinkClient::new(&config);
+    let _session = client
+        .login()
+        .await
+        .map_err(|e| AppError::Internal(format!("Error login BDP: {e}")))?;
+
+    let result = client
+        .get_menu_definition(&BdpGetMenuRequest { menu_id: id })
+        .await
+        .map_err(|e| AppError::Internal(format!("Error GetMenuDefinition: {e}")))?;
+
+    Ok(Json(result))
+}
+
+/* [157A-9] F9.5: Consulta la definición de un fastfood en BDP (items fijos + extras). */
+async fn get_fastfood_definition(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
+        .await
+        .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
+
+    if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
+        return Err(AppError::Validation("Faltan credenciales BDP configuradas".into()));
+    }
+
+    let client = BdpWeblinkClient::new(&config);
+    let _session = client
+        .login()
+        .await
+        .map_err(|e| AppError::Internal(format!("Error login BDP: {e}")))?;
+
+    let result = client
+        .get_fastfood_definition(&BdpGetFastfoodRequest { fastfood_id: id })
+        .await
+        .map_err(|e| AppError::Internal(format!("Error GetFastfoodDefinition: {e}")))?;
+
+    Ok(Json(result))
+}
+
+/* [157A-9] F9.5: Consulta la definición de un pack en BDP (grupos + items). */
+async fn get_pack_definition(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
+        .await
+        .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
+
+    if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
+        return Err(AppError::Validation("Faltan credenciales BDP configuradas".into()));
+    }
+
+    let client = BdpWeblinkClient::new(&config);
+    let _session = client
+        .login()
+        .await
+        .map_err(|e| AppError::Internal(format!("Error login BDP: {e}")))?;
+
+    let result = client
+        .get_pack_definition(&BdpGetPackRequest { pack_id: id })
+        .await
+        .map_err(|e| AppError::Internal(format!("Error GetPackDefinition: {e}")))?;
 
     Ok(Json(result))
 }

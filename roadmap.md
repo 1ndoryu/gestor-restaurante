@@ -90,60 +90,28 @@ Proyecto migrado de WordPress a Rust (Axum) + React SPA. El frontend React se in
 
 ### 🟦 BDP — Fase 9: Catálogo, Plano de Sala y Menús
 
-- **Fase 9.1 — ExportArticles: Sync de catálogo BDP → Glory.** 🔧 Implementado (pendiente tests Category A/B + deploy)
+- **Fase 9.1 — ExportArticles: Sync de catálogo BDP → Glory.** ✅ 157A-7+157A-9
   - Lee catálogo completo de BDP (`ExportArticles`), sincroniza con `bdp_article_map`.
   - Campos nuevos en mapa: `descripcion`, `precio_tarifa1`, `iva_pct`, `departamento`, `familia`, `ultima_sync_at`.
   - Endpoint: `POST /api/bdp/article-maps/sync-catalog`.
-  - ~2-3h.
+  - Tests: 17 tests (12 existentes + 5 nuevos `upsert_from_bdp`).
 
-- **Fase 9.2 — GetArticle: Consulta individual de artículo.** 🟡 Útil
-  - Fallback en `resolve_article()`: si no está en mapa, buscar en BDP antes de usar default.
-  - ~1h. Dependiente de 9.1.
+- **Fase 9.2 — GetArticle: Consulta individual de artículo.** ✅ 157A-9
+  - `resolve_article()` enriquece nombre, precio e IVA vía GetArticle. Fallback a config si falla.
+  - Client method: `get_article(&BdpGetArticleRequest)`.
 
-- **Fase 9.3 — GetPricesArticles: Refresh de precios.** 🟡 Útil
-  - Actualiza precios de artículos ya mapeados sin reimportar todo.
-  - ~1h. Dependiente de 9.1.
+- **Fase 9.3 — GetPricesArticles: Refresh de precios.** ✅ 157A-9
+  - `BdpSyncService::sync_prices()` actualiza `precio_tarifa1` de artículos mapeados.
+  - Endpoint: `POST /api/bdp/article-maps/sync-prices`.
 
-- **Fase 9.4 — GetRoomTables: Sync de mesas BDP → Glory.** 🟡 Útil
-  - Pre-carga estructura de mesas desde BDP al plano de sala de Glory.
-  - Mapeo: `RoomId`→`ZonaSala`, `RoomTableData`→`Mesa`.
+- **Fase 9.4 — GetRoomTables: Sync de mesas BDP → Glory.** ✅ 157A-9
+  - `BdpSyncService::sync_tables()` → `PlanoSalaRepository` para crear zonas/mesas.
+  - Mapeo: `RoomName`→`ZonaSala.nombre`, `Table`→`Mesa.numero`.
   - Endpoint: `POST /api/bdp/sync-tables`.
-  - ~2-3h. Independiente.
 
-- **Fase 9.5 — GetMenuDefinition: Lectura informativa de menús.** 🟢 Futuro
+- **Fase 9.5 — GetMenuDefinition: Lectura informativa de menús.** ✅ 157A-9
   - Expone definiciones de menús/packs/fast-food de BDP como JSON raw.
   - Endpoints: `GET /api/bdp/menus/:id`, `GET /api/bdp/fastfoods/:id`, `GET /api/bdp/packs/:id`.
-  - ~1-1.5h. Independiente.
-
-### 🟦 Producto de Correo para Hosting
-
-Ver análisis completo en `Agente/documentacion/hosting/producto-correo-proveedores-2026-05-26.md`.
-
-**Decisión pendiente (bloqueante):** Elegir proveedor — MXroute ($59/año, más barato, sin API) vs Migadu ($9/mes, API REST). Esto define la arquitectura de provisioning.
-
-- **265A-11 — Fase 1: Aliases/reenvíos gratis con Cloudflare Email Routing.**
-  - Configurar MX/SPF/DKIM/DMARC del dominio del cliente apuntando a Cloudflare.
-  - Solo reenvío a Gmail/Outlook del cliente (sin IMAP/SMTP).
-  - Incluir 3 alias en plan Pro, 5 alias en Avanzado.
-  - Sin costo operativo para Nakomi.
-  - Backend: `POST /api/hosting/{id}/aliases`, `DELETE /api/hosting/{id}/aliases/{alias}`.
-  - Frontend: TabCorreo con lista de aliases y estado DNS.
-  - ~8-10h estimado.
-
-- **265A-12 — Fase 2: Buzones IMAP (MXroute o Migadu).**
-  - Contratar proveedor y configurar cuenta reseller.
-  - Implementar provisioning: crear/suspender/eliminar mailbox vía API (Migadu) o automatización panel (MXroute).
-  - Modelos BD: `mail_domains`, `mailboxes`, `mail_events`.
-  - Backend: CRUD de buzones, reset password, DNS automático.
-  - Frontend: TabCorreo completo con indicadores de estado.
-  - Billing: Stripe add-on a $1.50/buzón/mes.
-  - ~20-26h estimado.
-
-- **265A-13 — Incluir 1 buzón IMAP gratis en plan Avanzado.**
-  - Modificar `hosting_plan_configs` (nuevo campo `included_mailboxes`).
-  - Actualizar pricing en frontend y catálogo.
-  - Stripe: nuevo price para el add-on.
-  - ~3-4h estimado.
 
 ### ✅ Resuelto
 

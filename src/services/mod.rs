@@ -31,11 +31,13 @@ pub use api_key::ApiKeyService;
 pub use auth::AuthService;
 pub use bdp_order_poller::BdpOrderPollerService;
 pub use bdp_sync::BdpSyncService;
+pub use bdp_sync::SyncTablesResult;
 pub use bdp_sync_preflight::{BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncPreflightService};
 pub use bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
 pub use bdp_weblink_catalog::{
     BdpCatalogSyncResult, BdpCreateCustomerRequest, BdpExportArticlesRequest,
-    BdpExportCustomersRequest,
+    BdpExportCustomersRequest, BdpGetPricesArticlesResponse, BdpGetRoomsTablesResponse,
+    BdpGetRoomTablesResponse, BdpRoomData,
 };
 pub use campana::CampanaService;
 pub use canal_reserva::CanalReservaService;

@@ -28,6 +28,17 @@ pub const BDP_PATH_GET_EMPLOYEES: &str = "/API/Employees/Get";
 pub const BDP_PATH_GET_POS_EMPLOYEES: &str = "/API/POS/Employees/Get";
 pub const BDP_PATH_GET_TENDERS: &str = "/API/Tenders/GetList";
 pub const BDP_PATH_GET_POS_TENDERS: &str = "/API/Tenders/GetPOSList";
+/* [157A-9] F9.2: consulta individual de artículo */
+pub const BDP_PATH_GET_ARTICLE: &str = "/API/Articles/Get";
+/* [157A-9] F9.3: refresh de precios de artículo */
+pub const BDP_PATH_GET_PRICES_ARTICLES: &str = "/API/Articles/GetPrices";
+/* [157A-9] F9.4: mesas por salón / todos los salones */
+pub const BDP_PATH_GET_ROOM_TABLES: &str = "/API/Room/GetTables";
+pub const BDP_PATH_GET_ROOMS_TABLES: &str = "/API/Rooms/GetTables";
+/* [157A-9] F9.5: definiciones de menús, fastfoods y packs */
+pub const BDP_PATH_GET_MENU: &str = "/API/Menus/Get";
+pub const BDP_PATH_GET_FASTFOOD: &str = "/API/FastFoods/Get";
+pub const BDP_PATH_GET_PACK: &str = "/API/Packs/Get";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BdpEndpointArea {
@@ -39,6 +50,8 @@ pub enum BdpEndpointArea {
     Terminales,
     Empleados,
     Pagos,
+    Salones,
+    Menus,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -175,6 +188,49 @@ pub const BDP_ENDPOINTS: &[BdpEndpointSpec] = &[
         area: BdpEndpointArea::Pagos,
         path: BDP_PATH_GET_POS_TENDERS,
         purpose: "formas de pago por terminal",
+    },
+    /* [157A-9] F9.2-F9.5: nuevos endpoints catálogo/salones/menús */
+    BdpEndpointSpec {
+        name: "GetArticle",
+        area: BdpEndpointArea::Articulos,
+        path: BDP_PATH_GET_ARTICLE,
+        purpose: "consulta individual de articulo",
+    },
+    BdpEndpointSpec {
+        name: "GetPricesArticles",
+        area: BdpEndpointArea::Articulos,
+        path: BDP_PATH_GET_PRICES_ARTICLES,
+        purpose: "precios de venta de un articulo",
+    },
+    BdpEndpointSpec {
+        name: "GetRoomTables",
+        area: BdpEndpointArea::Salones,
+        path: BDP_PATH_GET_ROOM_TABLES,
+        purpose: "mesas de un salon",
+    },
+    BdpEndpointSpec {
+        name: "GetRoomsTables",
+        area: BdpEndpointArea::Salones,
+        path: BDP_PATH_GET_ROOMS_TABLES,
+        purpose: "salones con mesas",
+    },
+    BdpEndpointSpec {
+        name: "GetMenuDefinition",
+        area: BdpEndpointArea::Menus,
+        path: BDP_PATH_GET_MENU,
+        purpose: "definicion de menu",
+    },
+    BdpEndpointSpec {
+        name: "GetFastfoodDefinition",
+        area: BdpEndpointArea::Menus,
+        path: BDP_PATH_GET_FASTFOOD,
+        purpose: "definicion de fastfood",
+    },
+    BdpEndpointSpec {
+        name: "GetPackDefinition",
+        area: BdpEndpointArea::Menus,
+        path: BDP_PATH_GET_PACK,
+        purpose: "definicion de pack",
     },
 ];
 
@@ -548,6 +604,111 @@ pub struct BdpGetPosTendersRequest {
     pub pos_id: i32,
 }
 
+/* [157A-9] F9.2: GetArticle — consulta individual de artículo por código.
+ * Path: POST /API/Articles/Get
+ * Input: { "ArtCode": 1001 }
+ * Output: ArticleData con campos extensos (DeptCode, TAVPer, Price1..5, etc.) */
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetArticleRequest {
+    pub art_code: i64,
+}
+
+/* [157A-9] F9.3: GetPricesArticles — precios de venta de un artículo.
+ * Path: POST /API/Articles/GetPrices
+ * Input: { "ArtCode": 1001 }
+ * Output: { "Prices": [1.05,...], "Discounts": [25.0,...], "ErrorMessage": "" } */
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetPricesArticlesRequest {
+    pub art_code: i64,
+}
+
+/// Respuesta tipada de `POST /API/Articles/GetPrices`.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetPricesArticlesResponse {
+    #[serde(default)]
+    pub prices: Vec<Decimal>,
+    #[serde(default, alias = "Disconts")]
+    pub discounts: Vec<Decimal>,
+    #[serde(default)]
+    pub error_message: String,
+}
+
+/* [157A-9] F9.4: GetRoomTables — mesas de un salón.
+ * Path: POST /API/Room/GetTables
+ * Input: { "Id": 1 }
+ * Output: { "Tables": [1,3,5,...], "ErrorMessage": "" } */
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetRoomTablesRequest {
+    pub id: i32,
+}
+
+/// Respuesta tipada de `POST /API/Room/GetTables`.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetRoomTablesResponse {
+    #[serde(default)]
+    pub tables: Vec<i32>,
+    #[serde(default)]
+    pub error_message: String,
+}
+
+/* [157A-9] F9.4: GetRoomsTables — todos los salones con mesas.
+ * Path: POST /API/Rooms/GetTables
+ * Input: { "Ids": [1,2] } o {}
+ * Output: { "Rooms": [{ "Id": 1, "Name": "Comedor", "Tables": [...] }], "ErrorMessage": "" } */
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetRoomsTablesRequest {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub ids: Vec<i32>,
+}
+
+/// Un salón con sus mesas en la respuesta de `GetRoomsTables`.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpRoomData {
+    pub id: i32,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub tables: Vec<i32>,
+}
+
+/// Respuesta tipada de `POST /API/Rooms/GetTables`.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetRoomsTablesResponse {
+    #[serde(default)]
+    pub rooms: Vec<BdpRoomData>,
+    #[serde(default)]
+    pub error_message: String,
+}
+
+/* [157A-9] F9.5: GetMenuDefinition, GetFastfoodDefinition, GetPackDefinition.
+ * Endpoints informativos que exponen JSON raw de BDP. */
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetMenuRequest {
+    pub menu_id: i32,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetFastfoodRequest {
+    pub fastfood_id: i32,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetPackRequest {
+    pub pack_id: i32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -563,6 +724,8 @@ mod tests {
             BdpEndpointArea::Terminales,
             BdpEndpointArea::Empleados,
             BdpEndpointArea::Pagos,
+            BdpEndpointArea::Salones,
+            BdpEndpointArea::Menus,
         ] {
             assert!(BDP_ENDPOINTS.iter().any(|endpoint| endpoint.area == area));
         }

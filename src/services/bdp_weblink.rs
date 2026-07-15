@@ -18,14 +18,18 @@ use crate::services::bdp_weblink_catalog::{
     BdpAddOrderPaymentRequest, BdpCancelOrderRequest, BdpCreateCustomerRequest,
     BdpCreateOrderRequest, BdpDepartmentsExportFromProfileRequest, BdpEmptyRequest,
     BdpExportArticlesRequest, BdpExportCustomersRequest, BdpExportDepartmentsRequest,
-    BdpGetEmployeeRequest, BdpGetEmployeesRequest, BdpGetOrderRequest, BdpGetPosArticlesRequest,
-    BdpGetPosEmployeesRequest, BdpGetPosRequest, BdpGetPosTendersRequest, BdpInvoiceOrderRequest,
-    BDP_PATH_CANCEL_ORDER, BDP_PATH_CREATE_CUSTOMER, BDP_PATH_CREATE_ORDER,
-    BDP_PATH_EXPORT_ARTICLES, BDP_PATH_EXPORT_CUSTOMERS, BDP_PATH_EXPORT_DEPARTMENTS,
-    BDP_PATH_EXPORT_DEPARTMENTS_FROM_PROFILE, BDP_PATH_GET_EMPLOYEE, BDP_PATH_GET_EMPLOYEES,
-    BDP_PATH_GET_ORDER, BDP_PATH_GET_POS, BDP_PATH_GET_POSES, BDP_PATH_GET_POS_ARTICLES,
-    BDP_PATH_GET_POS_EMPLOYEES, BDP_PATH_GET_POS_TENDERS, BDP_PATH_GET_TENDERS,
-    BDP_PATH_INVOICE_ORDER, BDP_PATH_ORDER_PAYMENT_ADD,
+    BdpGetArticleRequest, BdpGetEmployeeRequest, BdpGetEmployeesRequest, BdpGetFastfoodRequest,
+    BdpGetMenuRequest, BdpGetOrderRequest, BdpGetPackRequest, BdpGetPosArticlesRequest,
+    BdpGetPosEmployeesRequest, BdpGetPosRequest, BdpGetPosTendersRequest,
+    BdpGetPricesArticlesRequest, BdpGetRoomTablesRequest, BdpGetRoomsTablesRequest,
+    BdpInvoiceOrderRequest, BDP_PATH_CANCEL_ORDER, BDP_PATH_CREATE_CUSTOMER,
+    BDP_PATH_CREATE_ORDER, BDP_PATH_EXPORT_ARTICLES, BDP_PATH_EXPORT_CUSTOMERS,
+    BDP_PATH_EXPORT_DEPARTMENTS, BDP_PATH_EXPORT_DEPARTMENTS_FROM_PROFILE, BDP_PATH_GET_ARTICLE,
+    BDP_PATH_GET_EMPLOYEE, BDP_PATH_GET_EMPLOYEES, BDP_PATH_GET_FASTFOOD, BDP_PATH_GET_MENU,
+    BDP_PATH_GET_ORDER, BDP_PATH_GET_PACK, BDP_PATH_GET_POS, BDP_PATH_GET_POSES,
+    BDP_PATH_GET_POS_ARTICLES, BDP_PATH_GET_POS_EMPLOYEES, BDP_PATH_GET_POS_TENDERS,
+    BDP_PATH_GET_PRICES_ARTICLES, BDP_PATH_GET_ROOM_TABLES, BDP_PATH_GET_ROOMS_TABLES,
+    BDP_PATH_GET_TENDERS, BDP_PATH_INVOICE_ORDER, BDP_PATH_ORDER_PAYMENT_ADD,
 };
 
 const BDP_SESSION_MINUTES: u8 = 59;
@@ -283,6 +287,70 @@ impl<'a> BdpWeblinkClient<'a> {
         request: &BdpGetPosTendersRequest,
     ) -> Result<Value, BdpWeblinkError> {
         self.post_authenticated_json(BDP_PATH_GET_POS_TENDERS, request)
+            .await
+    }
+
+    /* [157A-9] F9.2: consulta individual de artículo por código.
+     * Devuelve ArticleData con campos extensos (precios, IVA, combinados, etc.). */
+    pub async fn get_article(
+        &self,
+        request: &BdpGetArticleRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_GET_ARTICLE, request)
+            .await
+    }
+
+    /* [157A-9] F9.3: precios de venta (1-5) y descuentos de un artículo. */
+    pub async fn get_prices_articles(
+        &self,
+        request: &BdpGetPricesArticlesRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_GET_PRICES_ARTICLES, request)
+            .await
+    }
+
+    /* [157A-9] F9.4: mesas configuradas de un salón concreto. */
+    pub async fn get_room_tables(
+        &self,
+        request: &BdpGetRoomTablesRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_GET_ROOM_TABLES, request)
+            .await
+    }
+
+    /* [157A-9] F9.4: todos los salones con sus mesas. */
+    pub async fn get_rooms_tables(
+        &self,
+        request: &BdpGetRoomsTablesRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_GET_ROOMS_TABLES, request)
+            .await
+    }
+
+    /* [157A-9] F9.5: definición completa de un menú (grupos + platos + suplementos). */
+    pub async fn get_menu_definition(
+        &self,
+        request: &BdpGetMenuRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_GET_MENU, request)
+            .await
+    }
+
+    /* [157A-9] F9.5: definición completa de un fastfood (ingredientes + precios base). */
+    pub async fn get_fastfood_definition(
+        &self,
+        request: &BdpGetFastfoodRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_GET_FASTFOOD, request)
+            .await
+    }
+
+    /* [157A-9] F9.5: definición completa de un pack (grupos + elementos). */
+    pub async fn get_pack_definition(
+        &self,
+        request: &BdpGetPackRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_GET_PACK, request)
             .await
     }
 

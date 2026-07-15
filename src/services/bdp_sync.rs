@@ -32,10 +32,12 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::models::{ConfiguracionRestaurante, Venta, VentaLinea};
-use crate::repositories::{ClienteRepository, VentaLineaRepository, VentaRepository};
+use crate::repositories::{ClienteRepository, VentaLineaRepository, VentaRepository, BdpArticleMapRepository};
 use crate::services::bdp_weblink::BdpWeblinkClient;
 use crate::services::bdp_weblink_catalog::{
-    BdpAddOrderPaymentRequest, BdpCreateOrderRequest, BdpGetPosArticlesRequest,
+    BdpAddOrderPaymentRequest, BdpCatalogSyncResult, BdpCreateOrderRequest,
+    BdpGetArticleRequest, BdpGetPosArticlesRequest, BdpGetPricesArticlesRequest,
+    BdpGetPricesArticlesResponse, BdpGetRoomsTablesRequest, BdpGetRoomsTablesResponse,
     BdpInvoiceOrderRequest, BdpOrderIdentifier, BdpOrderPayment,
 };
 
@@ -428,22 +430,54 @@ impl BdpSyncService {
     }
 
     /// Resuelve qué artículo BDP usar. Intenta:
-    /// 1. Si `bdp_default_article_code` es numérico, usarlo directamente
+    /// 1. Si `bdp_default_article_code` es numérico, enriquecer con `GetArticle`
     /// 2. Si no, buscar el primer artículo del perfil
     /// 3. Fallback: artículo genérico con código 0
     async fn resolve_article(
         client: &BdpWeblinkClient<'_>,
         config: &ConfiguracionRestaurante,
     ) -> ResolvedArticle {
-        /* Intento 1: código configurado como número */
+        /* Intento 1: código configurado como número → intentar GetArticle para datos reales */
         if let Ok(code) = config.bdp_default_article_code.trim().parse::<i64>() {
             if code > 0 {
-                return ResolvedArticle {
-                    id: code,
-                    name: config.bdp_default_article_name.clone(),
-                    price: 0.0, /* El precio real viene de la venta */
-                    vat_pct: 10.0,
-                };
+                /* [157A-9] F9.2: GetArticle enriquece nombre, precio e IVA desde BDP */
+                match client
+                    .get_article(&BdpGetArticleRequest { art_code: code })
+                    .await
+                {
+                    Ok(value) => {
+                        let article_data = value.get("ArticleData").unwrap_or(&value);
+                        let name = article_data
+                            .get("ArtDescription")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(&config.bdp_default_article_name)
+                            .to_string();
+                        #[allow(clippy::cast_precision_loss)]
+                        let price = article_data
+                            .get("Price1")
+                            .and_then(Value::as_f64)
+                            .unwrap_or(0.0);
+                        let vat_pct = article_data
+                            .get("TAVPer")
+                            .and_then(Value::as_f64)
+                            .unwrap_or(10.0);
+                        return ResolvedArticle {
+                            id: code,
+                            name,
+                            price,
+                            vat_pct,
+                        };
+                    }
+                    Err(e) => {
+                        warn!("[157A-9] GetArticle falló para código {code}, usando config: {e}");
+                        return ResolvedArticle {
+                            id: code,
+                            name: config.bdp_default_article_name.clone(),
+                            price: 0.0,
+                            vat_pct: 10.0,
+                        };
+                    }
+                }
             }
         }
 
@@ -1097,6 +1131,187 @@ impl BdpSyncService {
             total_bdp,
         })
     }
+
+    /* [157A-9] F9.3: Refresh de precios de artículos ya mapeados.
+     * Consulta GetPricesArticles para cada artículo mapeado y actualiza precio_tarifa1.
+     * Devuelve conteo de actualizados/errores. */
+    pub async fn sync_prices(
+        client: &BdpWeblinkClient<'_>,
+        pool: &PgPool,
+        user_id: Uuid,
+    ) -> Result<BdpCatalogSyncResult, String> {
+        let maps = BdpArticleMapRepository::listar(pool, user_id)
+            .await
+            .map_err(|e| format!("Error listando mapeos: {e}"))?;
+
+        let total_bdp = maps.len();
+        let mut actualizados: u32 = 0;
+        let mut sin_cambios: u32 = 0;
+        let mut errores: u32 = 0;
+
+        for map in &maps {
+            let code: i64 = if let Ok(c) = map.articulo_glory_codigo.parse() {
+                c
+            } else {
+                sin_cambios += 1;
+                continue;
+            };
+
+            match client
+                .get_prices_articles(&BdpGetPricesArticlesRequest { art_code: code })
+                .await
+            {
+                Ok(value) => {
+                    let resp: BdpGetPricesArticlesResponse =
+                        match serde_json::from_value(value) {
+                            Ok(r) => r,
+                            Err(e) => {
+                                warn!("[157A-9] Error parseando precios BDP para {code}: {e}");
+                                errores += 1;
+                                continue;
+                            }
+                        };
+
+                    if !resp.error_message.is_empty() {
+                        warn!(
+                            "[157A-9] BDP error en precios para {code}: {}",
+                            resp.error_message
+                        );
+                        errores += 1;
+                        continue;
+                    }
+
+                    let new_price = resp.prices.first().copied().unwrap_or(Decimal::ZERO);
+                    if (new_price - map.precio_tarifa1).abs() > Decimal::new(1, 4) {
+                        /* Precio cambió — actualizar directamente via SQL */
+                        match sqlx::query(
+                            "UPDATE bdp_article_map SET precio_tarifa1 = $1, ultima_sync_at = NOW(), updated_at = NOW() \
+                             WHERE id = $2",
+                        )
+                        .bind(new_price)
+                        .bind(map.id)
+                        .execute(pool)
+                        .await
+                        {
+                            Ok(_) => actualizados += 1,
+                            Err(e) => {
+                                warn!("[157A-9] Error actualizando precio de {code}: {e}");
+                                errores += 1;
+                            }
+                        }
+                    } else {
+                        sin_cambios += 1;
+                    }
+                }
+                Err(e) => {
+                    warn!("[157A-9] Error GetPricesArticles para {code}: {e}");
+                    errores += 1;
+                }
+            }
+        }
+
+        info!(
+            "[157A-9] sync_prices completado: {total_bdp} artículos → {actualizados} precios actualizados, {sin_cambios} sin cambios, {errores} errores"
+        );
+
+        Ok(BdpCatalogSyncResult {
+            creados: 0,
+            actualizados,
+            sin_cambios,
+            errores,
+            total_bdp,
+        })
+    }
+
+    /* [157A-9] F9.4: Sincroniza salones/mesas de BDP al plano de sala de Glory.
+     * Consulta GetRoomsTables → crea/actualiza ZonaSala por cada Room y Mesa por cada table.
+     * Devuelve conteo de zonas y mesas procesadas. */
+    pub async fn sync_tables(
+        client: &BdpWeblinkClient<'_>,
+        pool: &PgPool,
+        user_id: Uuid,
+    ) -> Result<SyncTablesResult, String> {
+        let resp_value = client
+            .get_rooms_tables(&BdpGetRoomsTablesRequest::default())
+            .await
+            .map_err(|e| format!("Error consultando salones BDP: {e}"))?;
+
+        let resp: BdpGetRoomsTablesResponse = serde_json::from_value(resp_value)
+            .map_err(|e| format!("Error parseando respuesta GetRoomsTables: {e}"))?;
+
+        if !resp.error_message.is_empty() {
+            return Err(format!("BDP error: {}", resp.error_message));
+        }
+
+        let mut zonas_creadas: u32 = 0;
+        let mut mesas_creadas: u32 = 0;
+
+        for room in &resp.rooms {
+            /* Buscar o crear zona por nombre del salón */
+            let zonas = crate::repositories::PlanoSalaRepository::listar_zonas(pool, user_id)
+                .await
+                .map_err(|e| format!("Error listando zonas: {e}"))?;
+
+            let zona = if let Some(existing) = zonas.iter().find(|z| z.nombre == room.name) {
+                existing.clone()
+            } else {
+                let created =
+                    crate::repositories::PlanoSalaRepository::crear_zona(pool, user_id, &room.name, room.id, 800, 600)
+                        .await
+                        .map_err(|e| format!("Error creando zona '{}': {e}", room.name))?;
+                zonas_creadas += 1;
+                created
+            };
+
+            /* Crear mesas que no existan aún en la zona */
+            for &table_num in &room.tables {
+                let existing =
+                    crate::repositories::PlanoSalaRepository::buscar_mesa_por_zona_numero(
+                        pool, user_id, &zona.nombre, table_num,
+                    )
+                    .await
+                    .map_err(|e| format!("Error buscando mesa {table_num}: {e}"))?;
+
+                if existing.is_none() {
+                    /* [157A-9] crear_mesa recibe CrearMesaRequest que incluye zona_id */
+                    let mesa_req = crate::models::CrearMesaRequest {
+                        zona_id: zona.id,
+                        numero: table_num,
+                        pos_x: Some(0),
+                        pos_y: Some(0),
+                        ancho: Some(60),
+                        alto: Some(60),
+                        forma: Some("cuadrada".to_string()),
+                        min_personas: Some(2),
+                        max_personas: Some(4),
+                    };
+                    crate::repositories::PlanoSalaRepository::crear_mesa(pool, &mesa_req)
+                        .await
+                        .map_err(|e| format!("Error creando mesa {table_num}: {e}"))?;
+                    mesas_creadas += 1;
+                }
+            }
+        }
+
+        info!(
+            "[157A-9] sync_tables completado: {} salones BDP → {zonas_creadas} zonas nuevas, {mesas_creadas} mesas nuevas",
+            resp.rooms.len()
+        );
+
+        Ok(SyncTablesResult {
+            salones_bdp: u32::try_from(resp.rooms.len()).unwrap_or(u32::MAX),
+            zonas_creadas,
+            mesas_creadas,
+        })
+    }
+}
+
+/// Resultado del sync de mesas BDP → Glory (F9.4).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SyncTablesResult {
+    pub salones_bdp: u32,
+    pub zonas_creadas: u32,
+    pub mesas_creadas: u32,
 }
 
 /// Artículo BDP resuelto para el mapeo.
