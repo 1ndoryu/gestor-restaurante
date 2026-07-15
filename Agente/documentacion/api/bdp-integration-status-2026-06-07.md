@@ -1,11 +1,11 @@
 # BDP WebLink REST API — Estado de Integración
 
-> **Fecha:** 2026-06-07 (actualizado 2026-07-02)
-> **Autor:** Agente (análisis post-implementación 065A-5)
+> **Fecha:** 2026-06-07 (actualizado 2026-07-14)
+> **Autor:** Agente (análisis post-implementación 065A-5 + Category C tests 147A-5)
 > **Stack:** Glory Rust Backend (Axum 0.7 + SQLx) ↔ BDP-NET WebLink REST API
 > **Endpoint BDP:** `http://100.83.196.35:8068` (vía Tailscale)
 > **POS:** 31 — CENTRAL 2026 (Series `00031TI`, IVA incluido)
-> **Estado:** ✅ Integración verificada y funcionando en producción (última verificación 2026-06-30)
+> **Estado:** ✅ Integración verificada en producción + 6 tests Category C pasando contra BDP real (última verificación 2026-07-14)
 
 ---
 
@@ -50,7 +50,7 @@
 | --------------------------------- | ----------- | ------ | ------------------------------------------------------- |
 | `GetArticle`                      | POST        | ❌     | —                                                       |
 | `GetPricesArticles`               | POST        | ❌     | —                                                       |
-| `ExportArticles`                  | POST        | 📋     | Cliente tiene método, nunca llamado                     |
+| `ExportArticles`                  | POST        | �     | Category C test: lectura catálogo contra BDP real   |
 | `GetPOSArticlesList`              | POST        | ✅     | Sync: resuelve artículo por código. Preflight: verifica |
 | `GetFullArticlesList`             | POST        | ❌     | —                                                       |
 | `CreateArticlesAndUpdateProfiles` | POST        | ❌     | —                                                       |
@@ -69,7 +69,7 @@
 | Endpoint          | Método HTTP | Estado | Uso actual                                                            |
 | ----------------- | ----------- | ------ | --------------------------------------------------------------------- |
 | `CreateOrder`     | POST        | ✅     | Sync: crea comanda (Type=0 Barra, OrderEndType=1). Preflight: dry-run |
-| `GetOrder`        | POST        | 📋     | Cliente tiene método, nunca llamado                                   |
+| `GetOrder`        | POST        | �     | Category C test: lectura contra BDP real (ID inexistente) |
 | `CancelOrder`     | POST        | 📋     | ⚠️ Devuelve "Subscripción no activada" — endpoint NO disponible       |
 | `AddOrderTip`     | POST        | ❌     | —                                                                     |
 | `AddOrderPayment` | POST        | 📋     | Cliente tiene método, nunca llamado                                   |
@@ -125,7 +125,7 @@
 
 | Endpoint           | Método HTTP | Estado | Uso actual                                      |
 | ------------------ | ----------- | ------ | ----------------------------------------------- |
-| `GetTenderList`    | POST        | 📋     | Cliente tiene método, nunca llamado             |
+| `GetTenderList`    | POST        | �     | Category C test: lectura formas de pago contra BDP real |
 | `GetPOSTenderList` | POST        | 🔧     | Preflight: verifica formas de pago del terminal |
 
 ### 2.12 No implementados en absoluto (~20 endpoints)
@@ -407,3 +407,47 @@ sequenceDiagram
 | `src/services/bdp_sync_preflight.rs`                       | Preflight/dry-run                                        |
 | `Agente/planes/plan-bdp-sync-implementation-2026-06-07.md` | Plan de implementación original                          |
 | `Agente/planes/plan-bdp-testing-2026-06-07.md`             | Plan de testing                                          |
+
+---
+
+## 13. Tests Category C — Resultados contra BDP real
+
+> **Fecha ejecución:** 2026-07-14
+> **Comando:** `cargo test --test bdp_readonly -- --include-ignored`
+> **BDP endpoint:** `http://100.83.196.35:8068` (Tailscale, online)
+> **Resultado global:** ✅ **6/6 pasaron, 0 fallaron**
+
+### Tests ejecutados
+
+| # | Test                                   | Qué hace                                       | Resultado | Tiempo |
+| --- | -------------------------------------- | ---------------------------------------------- | --------- | ------ |
+| 1 | `bdp_real_health`                      | GET `/ServiceHealth` (sin auth)                | ✅ PASS   | ~0ms   |
+| 2 | `bdp_real_login`                       | POST `/Login` con credenciales de `.env`       | ✅ PASS   | ~0ms   |
+| 3 | `bdp_real_export_articles`             | Login + POST `ExportArticles` (lectura catálogo) | ✅ PASS | ~0ms   |
+| 4 | `bdp_real_get_tenders`                 | Login + POST `GetTenderList` (formas de pago)  | ✅ PASS   | ~0ms   |
+| 5 | `bdp_real_get_order_inexistente`       | Login + POST `GetOrder` con ID inexistente     | ✅ PASS   | ~0ms   |
+| 6 | `bdp_real_login_then_export_articles`  | Login + ExportArticles (flujo combinado)       | ✅ PASS   | ~0ms   |
+
+### Cobertura Category C
+
+| Dimensión                           | Cubierta | Test(s)                                      |
+| ----------------------------------- | -------- | -------------------------------------------- |
+| Conectividad HTTP → BDP             | ✅       | `bdp_real_health`                            |
+| Autenticación (Login + JWT)         | ✅       | `bdp_real_login`, `bdp_real_login_then_export_articles` |
+| Lectura catálogo artículos          | ✅       | `bdp_real_export_articles`, `bdp_real_login_then_export_articles` |
+| Lectura formas de pago              | ✅       | `bdp_real_get_tenders`                       |
+| Lectura comanda (caso inexistente)  | ✅       | `bdp_real_get_order_inexistente`             |
+| Creación de comanda                 | ❌       | Excluido (requiere OnlyCheck=true para ser read-only) |
+| Cancelación de comanda              | ❌       | Excluido (endpoint no disponible según restricciones) |
+
+### Seguridad — validación previa
+
+Los 6 tests son **estrictamente read-only**:
+- `health`: no requiere auth, solo lectura de estado del servicio
+- `login`: crea un session token pero no modifica datos
+- `export_articles`: lectura del catálogo de artículos
+- `get_tenders`: lectura de formas de pago del terminal
+- `get_order_inexistente`: consulta de una orden que no existe (no crea nada)
+- `login_then_export_articles`: combinación de login + lectura
+
+Ningún test ejecuta `CreateOrder`, `CancelOrder`, `AddOrderPayment`, `InvoiceOrder` ni ningún endpoint de escritura.
