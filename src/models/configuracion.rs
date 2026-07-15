@@ -72,6 +72,13 @@ pub struct ConfiguracionRestaurante {
     pub bdp_poll_interval_secs: i32,
     /* [F7.5] Auto-sync de clientes Glory→BDP al crear venta. Requiere autorización explícita del usuario. */
     pub bdp_auto_sync_customers: bool,
+    /* [BKP-002] Configuración de backup BDP.
+     * bdp_sync_mode: 'read_only' | 'write' — modo de operación de la integración.
+     * bdp_backup_retention_days: días que se retienen snapshots (0 = indefinido).
+     * bdp_auto_backup_before_write: si true, genera snapshot pre-escritura selectivo. */
+    pub bdp_sync_mode: String,
+    pub bdp_backup_retention_days: i32,
+    pub bdp_auto_backup_before_write: bool,
     /* [094A-4] URL de Google Business para redirigir reseñas positivas */
     pub google_review_url: String,
     /* [094A-6] Datos para botones CTA en mensajes WhatsApp */
@@ -146,6 +153,11 @@ pub struct ActualizarConfiguracionRequest {
     pub bdp_poll_interval_secs: Option<i32>,
     /* [F7.5] Auto-sync de clientes Glory→BDP al crear venta */
     pub bdp_auto_sync_customers: Option<bool>,
+    /* [BKP-002] Configuración de backup BDP */
+    #[validate(length(max = 20))]
+    pub bdp_sync_mode: Option<String>,
+    pub bdp_backup_retention_days: Option<i32>,
+    pub bdp_auto_backup_before_write: Option<bool>,
 }
 
 fn validar_iva(valor: &rust_decimal::Decimal) -> Result<(), validator::ValidationError> {

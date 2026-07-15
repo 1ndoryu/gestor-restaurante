@@ -6,6 +6,8 @@ mod bdp_sync;
 mod bdp_sync_preflight;
 pub mod bdp_weblink;
 pub mod bdp_weblink_catalog;
+mod bdp_explorer;
+mod bdp_backup;
 mod campana;
 mod canal_reserva;
 mod chatbot;
@@ -39,6 +41,8 @@ pub use bdp_weblink_catalog::{
     BdpExportCustomersRequest, BdpGetPricesArticlesResponse, BdpGetRoomsTablesResponse,
     BdpGetRoomTablesResponse, BdpRoomData,
 };
+pub use bdp_explorer::{BdpExplorerService, BdpExploracionResultado, ExploracionCategoria};
+pub use bdp_backup::{BdpBackupService, BdpSnapshot, BdpAuditEntry, RestoreResult};
 pub use campana::CampanaService;
 pub use canal_reserva::CanalReservaService;
 pub use chatbot::ChatbotService;

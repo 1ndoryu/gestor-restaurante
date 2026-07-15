@@ -80,6 +80,9 @@ impl ConfiguracionRepository {
                      bdp_default_customer_code = COALESCE($32, bdp_default_customer_code), \
                      bdp_poll_interval_secs = COALESCE($33, bdp_poll_interval_secs), \
                      bdp_auto_sync_customers = COALESCE($34, bdp_auto_sync_customers), \
+                     bdp_sync_mode = COALESCE($35, bdp_sync_mode), \
+                     bdp_backup_retention_days = COALESCE($36, bdp_backup_retention_days), \
+                     bdp_auto_backup_before_write = COALESCE($37, bdp_auto_backup_before_write), \
                 updated_at = NOW() \
              WHERE user_id = $1 RETURNING *",
         )
@@ -117,6 +120,9 @@ impl ConfiguracionRepository {
         .bind(req.bdp_default_customer_code.as_deref())
         .bind(req.bdp_poll_interval_secs)
         .bind(req.bdp_auto_sync_customers)
+        .bind(req.bdp_sync_mode.as_deref())
+        .bind(req.bdp_backup_retention_days)
+        .bind(req.bdp_auto_backup_before_write)
         .fetch_one(pool)
         .await
     }

@@ -530,6 +530,9 @@ mod tests {
             telefono_restaurante: String::new(),
             url_reservas: String::new(),
             bdp_auto_sync_customers: false,
+            bdp_sync_mode: "read_only".to_string(),
+            bdp_backup_retention_days: 30,
+            bdp_auto_backup_before_write: true,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

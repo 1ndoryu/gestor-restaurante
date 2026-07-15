@@ -4,6 +4,7 @@ mod admin;
 mod api_keys;
 mod auth;
 mod bdp_article_map;
+mod bdp_backup;
 mod bdp_customer_sync;
 mod campanas;
 mod canales_reserva;
@@ -195,6 +196,15 @@ impl utoipa::Modify for SecurityAddon {
         bdp_article_map::get_pack_definition,
         bdp_customer_sync::importar_clientes_bdp,
         bdp_customer_sync::sincronizar_cliente_bdp,
+        bdp_backup::explorar_bdp,
+        bdp_backup::snapshot_completo,
+        bdp_backup::snapshot_parcial,
+        bdp_backup::snapshot_glory,
+        bdp_backup::listar_snapshots,
+        bdp_backup::obtener_snapshot,
+        bdp_backup::eliminar_snapshot,
+        bdp_backup::restaurar_glory,
+        bdp_backup::listar_audit,
         trabajadores::crear,
         trabajadores::actualizar,
         trabajadores::eliminar,
@@ -352,6 +362,11 @@ impl utoipa::Modify for SecurityAddon {
         crate::models::ActualizarBdpArticleMapRequest,
         crate::services::BdpCatalogSyncResult,
         crate::services::SyncTablesResult,
+        crate::services::BdpExploracionResultado,
+        crate::services::ExploracionCategoria,
+        crate::services::BdpSnapshot,
+        crate::services::BdpAuditEntry,
+        crate::services::RestoreResult,
         crate::models::VentaLinea,
         crate::models::CrearVentaLineaRequest,
         ventas::BdpOrderStatusResponse,
@@ -432,6 +447,7 @@ fn api_routes() -> Router<AppState> {
         .merge(plano_sala::routes())
         .merge(configuracion::routes())
         .merge(bdp_article_map::routes())
+        .merge(bdp_backup::routes())
         .merge(bdp_customer_sync::routes())
         .merge(campanas::routes())
         .merge(plantillas_whatsapp::routes())
