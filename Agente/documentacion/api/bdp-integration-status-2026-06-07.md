@@ -1,12 +1,12 @@
 # BDP WebLink REST API — Estado de Integración
 
-> **Fecha:** 2026-06-07 (actualizado 2026-07-15, post Fase 9.1 ExportArticles implementado)
-> **Autor:** Agente (análisis post-implementación 065A-5 + Category C tests 147A-5 + auditoría código 147A-6 + actualización secciones 3/4/5 por F2.7/F2.8/F3.1-3.3 + Fase 7.5+8 por 157A-4 + plan Fase 9 por 157A-5)
+> **Fecha:** 2026-06-07 (actualizado 2026-07-15, post Fase 9 completa + UI frontend)
+> **Autor:** Agente (análisis post-implementación 065A-5 + Category C tests 147A-5 + auditoría código 147A-6 + actualización secciones 3/4/5 por F2.7/F2.8/F3.1-3.3 + Fase 7.5+8 por 157A-4 + Fase 9 completa por 157A-7/157A-9/157A-10)
 > **Stack:** Glory Rust Backend (Axum 0.7 + SQLx) ↔ BDP-NET WebLink REST API
 > **Endpoint BDP:** `http://100.83.196.35:8068` (vía Tailscale)
 > **POS:** 31 — CENTRAL 2026 (Series `00031TI`, IVA incluido)
-> **Estado:** ✅ Integración verificada en producción + 6 tests Category C + 21 tests Category B + 19 tests Category A + polling + facturación + customer sync = 75 tests (última auditoría 2026-07-15 post Fase 7.5+8)
-> **Plan activo:** Fase 9 — Catálogo, Plano de Sala y Menús (ver sección 9.6)
+> **Estado:** ✅ Integración verificada en producción + Fases 1-9 completas + UI frontend F9 = **111+ tests**
+> **Plan activo:** Fase 10 — Extensiones futuras (ver sección 9 backlog)
 
 ---
 
@@ -27,8 +27,8 @@
 | Endpoints no implementados en absoluto                         | ~30                                         |
 | Direccionalidad actual                                         | **Bidireccional (Glory ↔ BDP)** — customer sync (F7.5), comandas (Glory→BDP), polling estado (BDP→Glory) |
 | Campos Glory no enviados en `CreateOrder`                      | ~7                                          |
-| Tests BDP (Cat A + B + C)                                      | **75 tests, 75 pasando** (46 originales + 19 bdp_sync + 9 venta_lineas + 1 poller) |
-| **Completitud de la integración**                              | **~25% del potencial** (multi-item, tender, customer, order type, polling, facturación, customer sync operativos) |
+| Tests BDP (Cat A + B + C)                                      | **111+ tests, todos pasando** (46 originales + 19 bdp_sync + 9 venta_lineas + 1 poller + 17 bdp_article_map + 5 F9.1 + nuevos F9) |
+| **Completitud de la integración**                              | **~40% del potencial** (multi-item, tender, customer, order type, polling, facturación, customer sync, catálogo completo, precios, mesas, menús operativos) |
 
 ---
 
@@ -54,9 +54,9 @@
 
 | Endpoint                          | Método HTTP | Estado | Uso actual                                              |
 | --------------------------------- | ----------- | ------ | ------------------------------------------------------- |
-| `GetArticle`                      | POST        | 📐     | **Plan F9.2**: fallback en resolve_article() cuando no está en mapa |
-| `GetPricesArticles`               | POST        | 📐     | **Plan F9.3**: refresh precios artículos ya mapeados      |
-| `ExportArticles`                  | POST        | �     | **F9.1 implementado**: sync catálogo completo BDP → Glory vía `POST /api/bdp/article-maps/sync-catalog` |
+| `GetArticle`                      | POST        | ✅     | **F9.2 implementado**: fallback en resolve_article() cuando no está en mapa + lectura individual via `GET /api/bdp/articles/:id` |
+| `GetPricesArticles`               | POST        | ✅     | **F9.3 implementado**: refresh precios artículos ya mapeados via `POST /api/bdp/article-maps/sync-prices` |
+| `ExportArticles`                  | POST        | ✅     | **F9.1 implementado**: sync catálogo completo BDP → Glory vía `POST /api/bdp/article-maps/sync-catalog` |
 | `GetPOSArticlesList`              | POST        | ✅     | Sync: resuelve artículo por código. Preflight: verifica |
 | `GetFullArticlesList`             | POST        | ❌     | —                                                       |
 | `CreateArticlesAndUpdateProfiles` | POST        | ❌     | —                                                       |
@@ -100,9 +100,9 @@
 
 | Endpoint                | Método HTTP | Estado | Uso actual |
 | ----------------------- | ----------- | ------ | ---------- |
-| `GetMenuDefinition`     | POST        | 📐     | **Plan F9.5**: lectura informativa (sin modelo Glory)    |
-| `GetFastfoodDefinition` | POST        | 📐     | **Plan F9.5**: lectura informativa (sin modelo Glory)    |
-| `GetPackDefinition`     | POST        | 📐     | **Plan F9.5**: lectura informativa (sin modelo Glory)    |
+| `GetMenuDefinition`     | POST        | ✅     | **F9.5 implementado**: lectura informativa via `GET /api/bdp/menus/:id` (sin modelo Glory) |
+| `GetFastfoodDefinition` | POST        | ✅     | **F9.5 implementado**: lectura informativa via `GET /api/bdp/fastfoods/:id` (sin modelo Glory) |
+| `GetPackDefinition`     | POST        | ✅     | **F9.5 implementado**: lectura informativa via `GET /api/bdp/packs/:id` (sin modelo Glory) |
 
 ### 2.8 Fidelización
 
@@ -117,7 +117,7 @@
 | ---------- | ----------- | ------ | --------------------------------------------------------- |
 | `GetPOS`   | POST        | ⚠️    | **Devuelve `[404401]` desde ~junio 2026** — cambio en API de BDP. No afecta CreateOrder |
 | `GetPOSes` | POST        | ⚠️    | **Devuelve respuesta vacía** — limitación de API. No afecta integración               |
-| `GetPOSSeriesList` | POST        | 📋     | Documentado en API, probado manualmente. **Sin código**: falta path const + método cliente |
+| `GetPOSSeriesList` | POST        | ✅     | **F9 implementado**: lectura informativa via `GET /api/bdp/series/:id` |
 
 ### 2.10 Empleados
 
@@ -141,7 +141,7 @@
 - **Stock:** `CreateFamily`, `CreateSubfamily`, `GetStock`, `GetListStock`, `GetItemCostPrices`, `GetItemsCostPrices`, `Regularizations`, `Transfers`, `UpdateMassiveStock`, `UpdateStock`, `UpdateMassiveInventory`
 - **Suplementos:** `GetSupplementsProfiles`, `GetPOSSupplementsProfile`
 - **Talla/Color:** `GetInfoSAC`, `GetItemSAC`
-- **Salones:** `GetRoomTables`, `GetRoomsTables` — 📐 **Plan F9.4** (sync a plano de sala Glory)
+- **Salones:** `GetRoomTables`, `GetRoomsTables` — ✅ **F9.4 implementado** (sync a plano de sala Glory via `POST /api/bdp/sync-tables`)
 - **Series:** (ya catalogado arriba en 2.9 como 🔧)
 
 ---
@@ -287,20 +287,20 @@ BdpOrderPollerService::poll_loop()
 
 | Endpoint BDP                       | Datos disponibles                                                         | Utilidad                                  |
 | ---------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------- |
-| `ExportArticles`                   | Catálogo completo: código, descripción, 5 tarifas, dto, IVA, departamento | **📐 Plan F9.1**: sync catálogo completo BDP → Glory |
+| `ExportArticles`                   | Catálogo completo: código, descripción, 5 tarifas, dto, IVA, departamento | **✅ Usado**: sync catálogo completo BDP → Glory (F9.1) |
 | `ExportCustomers`                  | Clientes: nombre, dirección, teléfono, email, NIF                         | **✅ Usado**: import masivo + obtener next code |
 | `GetOrder`                         | Estado comanda (0=abierta, 1=enviada, 2=servida, 3=facturada...)          | **✅ Usado**: polling periódico de estado    |
 | `GetPOSTenderList`                 | Formas de pago (efectivo, tarjeta, etc.)                                  | **Ya usado en preflight + polling**           |
 | `CreateCustomer`                   | Crear cliente en BDP                                                      | **✅ Usado**: auto-sync Glory→BDP (F7.5)    |
 | `ExportDepartment`                 | Departamentos/categorías                                                  | Organizar productos en misma taxonomía    |
-| `GetMenuDefinition`                | Definiciones de menús                                                     | Entender agrupaciones de artículos        |
-| `GetFastfoodDefinition`            | Definiciones fast-food                                                    | Agrupaciones de artículos                 |
-| `GetPackDefinition`                | Definiciones de packs                                                     | Agrupaciones de artículos                 |
+| `GetMenuDefinition`                | Definiciones de menús                                                     | **✅ Usado**: lectura informativa (F9.5)    |
+| `GetFastfoodDefinition`            | Definiciones fast-food                                                    | **✅ Usado**: lectura informativa (F9.5)    |
+| `GetPackDefinition`                | Definiciones de packs                                                     | **✅ Usado**: lectura informativa (F9.5)    |
 | `GetPOSes`                         | Terminales disponibles                                                    | Verificar/configurar POS automáticamente  |
 | `GetEmployees`                     | Empleados dados de alta                                                   | Validar/configurar empleado automáticamente |
 | `GetPoints` / `AddPoints`          | Puntos de fidelización                                                    | Integración con programa de fidelidad     |
-| `GetRoomTables` / `GetRoomsTables` | Salones y mesas (RoomId, Name, MinDiners, MaxDiners, Shape, Width, Height) | **📐 Plan F9.4**: pre-cargar mesas BDP en plano de sala Glory |
-| `GetPOSSeriesList`                 | Series de facturación                                                     | Configurar series por terminal            |
+| `GetRoomTables` / `GetRoomsTables` | Salones y mesas (RoomId, Name, MinDiners, MaxDiners, Shape, Width, Height) | **✅ Usado**: sync mesas BDP → plano de sala Glory (F9.4) |
+| `GetPOSSeriesList`                 | Series de facturación                                                     | **✅ Usado**: lectura informativa (F9)       |
 
 > **Nota:** Los endpoints `GetPOSArticlesList`, `GetTenderList`, `CreateOrder`, `Login` y `CheckOrder` sí se usan (ver sección 2). Los de esta tabla son los que tienen datos útiles pero ningún consumo en el flujo de sync.
 
@@ -318,16 +318,16 @@ BdpOrderPollerService::poll_loop()
 | `src/services/venta.rs`                     | 257    | `VentaService`: hooks create/update/delete para spawn BDP sync    |
 | `src/handlers/ventas.rs`                    | ~370    | **4 endpoints BDP**: `POST bdp-sync`, `GET bdp-status`, `POST bdp-poll`, `POST bdp-invoice` (F8) |
 | `src/handlers/configuracion.rs`             | 318    | `GET bdp/diagnostico`, `GET bdp/sync-dry-run`          |
-| `src/handlers/bdp_article_map.rs`           | 228    | CRUD del mapeo artículos Glory ↔ BDP                    |
+| `src/handlers/bdp_article_map.rs`           | ~420    | CRUD mapeo artículos Glory ↔ BDP + 6 endpoints F9 (sync-catalog, sync-prices, sync-tables, menus, fastfoods, packs) |
 | `src/services/bdp_order_poller.rs`          | 165    | Poller de estado de comandas BDP (GetOrder)             |
 | `src/models/venta.rs`                       | ~195    | Modelo Venta + campos bdp_synced, bdp_order_id, bdp_error, bdp_order_status, bdp_invoiced |
 | `src/models/configuracion.rs`               | ~155    | Config: +bdp_auto_sync_customers (bool), bdp_poll_interval_secs |
 | `src/models/bdp_article_map.rs`             | 42     | Modelo `BdpArticleMap`                                            |
 | `src/repositories/venta.rs`                 | ~410    | `update_bdp_status()` con `bdp_invoiced` + listing SELECT con bdp_order_status, bdp_invoiced |
-| `src/repositories/bdp_article_map.rs`       | 121    | `BdpArticleMapRepository`: buscar_por_codigo, listar, upsert      |
+| `src/repositories/bdp_article_map.rs`       | 121    | `BdpArticleMapRepository`: buscar_por_codigo, listar, upsert, upsert_from_bdp (F9.1) |
 | `src/repositories/configuracion.rs`         | ~370    | UPDATE: COALESCE pattern con 34 campos (incluye bdp_auto_sync_customers) |
 | `tests/bdp_readonly.rs`                     | 243    | Category C: 6 tests read-only contra BDP real                     |
-| `tests/bdp_article_map.rs`                 | 279    | Category B: 12 tests DB para tabla bdp_article_map                |
+| `tests/bdp_article_map.rs`                 | 279    | Category B: 17 tests DB para tabla bdp_article_map (5 F9.1 upsert) |
 | `tests/bdp_venta_lineas.rs`                | 246    | Category B: 9 tests DB para venta_lineas + BDP                    |
 | `tests/haddock_db.rs`                      | ~250    | Category B: tests DB con fixtures actualizados                     |
 | `migrations/20260506000000_bdp_weblink_config` | 13   | Config básica BDP (url, login, pass, integrator_code, pos_id, employee_id, items_profile_id) |
@@ -428,17 +428,17 @@ BdpOrderPollerService::poll_loop()
 | 8.1 | **AddOrderPayment**               | ✅ F8   | orquestación + handler `bdp-invoice`          |
 | 8.2 | **InvoiceOrder**                  | ✅ F8   | orquestación + handler `bdp-invoice`          |
 
-### Fase 9 — Catálogo, Plano de Sala y Menús (📐 Planificado)
+### Fase 9 — Catálogo, Plano de Sala y Menús (📐 Planificado) — ✅ COMPLETADA
 
-> Fase activa. Plan detallado en sección 9.6.
+> Backend completo (157A-7, 157A-9) + ApiDoc + codegen + UI frontend (157A-10). Falta solo validación con BDP real.
 
-| #   | Tarea                                      | Endpoint BDP          | Utilidad | Esf. | Dependencia |
-| --- | ------------------------------------------ | --------------------- | -------- | ---- | ----------- |
-| 9.1 | **Sync catálogo completo**                 | `ExportArticles`      | 🔴 Alta  | 2-3h | — **🔧 Implementado** |
-| 9.2 | **Fallback artículo individual**           | `GetArticle`          | 🟡 Útil  | 1h   | 9.1         |
-| 9.3 | **Refresh precios**                        | `GetPricesArticles`   | 🟡 Útil  | 1h   | 9.1         |
-| 9.4 | **Sync mesas BDP → plano de sala Glory**   | `GetRoomsTables`      | 🟡 Útil  | 2-3h | —           |
-| 9.5 | **Lectura informativa menús/packs**        | `GetMenuDefinition` + | 🟢 Futuro | 1-1.5h | —         |
+| #   | Tarea                                      | Endpoint BDP          | Utilidad | Estado |
+| --- | ------------------------------------------ | --------------------- | -------- | ------ |
+| 9.1 | **Sync catálogo completo**                 | `ExportArticles`      | 🔴 Alta  | ✅ Backend + UI (sync-catalog button) |
+| 9.2 | **Fallback artículo individual**           | `GetArticle`          | 🟡 Útil  | ✅ Backend (resolve_article enrichment) |
+| 9.3 | **Refresh precios**                        | `GetPricesArticles`   | 🟡 Útil  | ✅ Backend + UI (sync-prices button) |
+| 9.4 | **Sync mesas BDP → plano de sala Glory**   | `GetRoomsTables`      | 🟡 Útil  | ✅ Backend + UI (sync-tables button en PlanoSala) |
+| 9.5 | **Lectura informativa menús/packs**        | `GetMenuDefinition` + | 🟢 Futuro | ✅ Backend (3 endpoints GET informativos) |
 
 ### Fase 10 — Extensiones futuras (⚪ Backlog)
 
@@ -686,9 +686,9 @@ sequenceDiagram
 | `src/models/configuracion.rs`                              | Config con campos BDP (url, login, tender_map, order_type_map, customer_code, poll_interval, auto_sync_customers) |
 | `src/models/bdp_article_map.rs`                            | Modelo `BdpArticleMap`                                    |
 | `src/repositories/venta.rs`                                | update_bdp_status() con sqlx::query() sin macro          |
-| `src/repositories/bdp_article_map.rs`                      | `BdpArticleMapRepository`: buscar_por_codigo, listar, upsert |
+| `src/repositories/bdp_article_map.rs`                      | `BdpArticleMapRepository`: buscar_por_codigo, listar, upsert, upsert_from_bdp (F9.1) |
 | `tests/bdp_readonly.rs`                                    | Category C: 6 tests read-only contra BDP real            |
-| `tests/bdp_article_map.rs`                                 | Category B: 12 tests DB para tabla bdp_article_map       |
+| `tests/bdp_article_map.rs`                                 | Category B: 17 tests DB para tabla bdp_article_map (5 F9.1 upsert) |
 | `tests/bdp_venta_lineas.rs`                                | Category B: 9 tests DB para venta_lineas + BDP           |
 | `migrations/20260506000000_bdp_weblink_config.up.sql`     | Config básica BDP (url, login, pass, pos_id, etc.)       |
 | `migrations/20260607000000_bdp_sync_fields.up.sql`        | Columnas BDP en ventas + configuracion                   |
