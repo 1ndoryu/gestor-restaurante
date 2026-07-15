@@ -6,7 +6,7 @@
 use axum::extract::State;
 use axum::routing::get;
 use axum::{Json, Router};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
 
@@ -144,6 +144,46 @@ pub async fn actualizar_configuracion(
     Ok(Json(config))
 }
 
+/// Request para cambiar el modo de sincronización BDP
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct CambiarBdpSyncModeRequest {
+    /// Nuevo modo: "read_only", "unidirectional" o "bidirectional"
+    #[validate(length(min = 1, message = "modo es requerido"))]
+    pub modo: String,
+}
+
+/// Cambiar el modo de sincronización BDP (read_only / unidirectional / bidirectional)
+///
+/// En modo `read_only` ningún dato se envía a BDP (solo lectura).
+/// En modo `unidirectional` Glory → BDP (ventas, clientes).
+/// En modo `bidirectional` BDP ↔ Glory (reservas, mesas, etc).
+#[utoipa::path(
+    put,
+    path = "/api/configuracion/bdp/sync-mode",
+    tag = "Configuracion",
+    request_body = CambiarBdpSyncModeRequest,
+    responses(
+        (status = 200, description = "Modo actualizado", body = ConfiguracionRestaurante),
+        (status = 401, description = "No autorizado", body = ErrorResponse),
+        (status = 422, description = "Modo inválido", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn cambiar_bdp_sync_mode(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(req): Json<CambiarBdpSyncModeRequest>,
+) -> Result<Json<ConfiguracionRestaurante>, AppError> {
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+    let update = ActualizarConfiguracionRequest {
+        bdp_sync_mode: Some(req.modo),
+        ..Default::default()
+    };
+    let config = ConfiguracionService::actualizar(&state.pool, auth.user_id, &update).await?;
+    Ok(Json(config))
+}
+
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route(
@@ -159,6 +199,7 @@ pub fn routes() -> Router<AppState> {
             "/configuracion/bdp/sync-dry-run",
             get(diagnosticar_bdp_sync_dry_run),
         )
+        .route("/configuracion/bdp/sync-mode", axum::routing::put(cambiar_bdp_sync_mode))
 }
 
 /// Diagnosticar conexión BDP/WebLink sin exponer credenciales

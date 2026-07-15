@@ -26,6 +26,17 @@ impl ConfiguracionService {
         user_id: Uuid,
         req: &ActualizarConfiguracionRequest,
     ) -> Result<ConfiguracionRestaurante, AppError> {
+        /* [F3] Validar bdp_sync_mode si se proporciona */
+        if let Some(ref mode) = req.bdp_sync_mode {
+            let valid_modes = ["read_only", "unidirectional", "bidirectional"];
+            if !valid_modes.contains(&mode.as_str()) {
+                return Err(AppError::Validation(format!(
+                    "bdp_sync_mode inválido: '{mode}'. Valores permitidos: {}",
+                    valid_modes.join(", ")
+                )));
+            }
+        }
+
         /* Asegurar que existe antes de actualizar */
         Repo::obtener_o_crear(pool, user_id).await?;
         let config = Repo::actualizar(pool, user_id, req).await?;

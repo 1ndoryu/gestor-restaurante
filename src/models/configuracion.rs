@@ -89,7 +89,7 @@ pub struct ConfiguracionRestaurante {
 }
 
 /// Request para actualizar la configuración
-#[derive(Debug, Deserialize, Validate, ToSchema)]
+#[derive(Debug, Default, Deserialize, Validate, ToSchema)]
 pub struct ActualizarConfiguracionRequest {
     pub reserva_email_obligatorio: Option<bool>,
     pub reserva_telefono_obligatorio: Option<bool>,

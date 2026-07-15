@@ -74,6 +74,12 @@ impl BdpSyncService {
             return;
         }
 
+        /* [F3] Gate: en modo read_only, no enviar ventas a BDP */
+        if config.bdp_sync_mode.is_empty() || config.bdp_sync_mode == "read_only" {
+            info!("[F3] BDP en modo read_only — sync_venta omitida para venta {}", venta.id);
+            return;
+        }
+
         let lock = {
             let mut map = SYNC_LOCKS.lock().expect("SYNC_LOCKS poisoned");
             map.entry(venta.id)
@@ -791,6 +797,12 @@ impl BdpSyncService {
             BdpCreateCustomerRequest, BdpExportCustomersRequest,
         };
 
+        /* [F3] Gate: en modo read_only, no sincronizar clientes con BDP */
+        if config.bdp_sync_mode.is_empty() || config.bdp_sync_mode == "read_only" {
+            info!("[F3] BDP en modo read_only — ensure_cliente_bdp_synced omitida para cliente {cliente_id}");
+            return None;
+        }
+
         /* 1. Si ya tiene código BDP, devolverlo directo */
         let Ok(Some(cliente)) = ClienteRepository::find_by_id(pool, cliente_id, user_id).await
         else {
@@ -926,6 +938,11 @@ impl BdpSyncService {
             return Err("BDP no está habilitado o configurado".into());
         }
 
+        /* [F3] Gate: en modo read_only, no registrar pagos en BDP */
+        if config.bdp_sync_mode.is_empty() || config.bdp_sync_mode == "read_only" {
+            return Err("BDP en modo solo lectura. Cambia el modo en configuración para registrar pagos.".into());
+        }
+
         let order_id = venta
             .bdp_order_id
             .ok_or_else(|| format!("Venta {} no tiene bdp_order_id", venta.id))?;
@@ -996,6 +1013,11 @@ impl BdpSyncService {
         if !config.bdp_sync_enabled || !crate::services::bdp_sync_preflight::bdp_configurado(config)
         {
             return Err("BDP no está habilitado o configurado".into());
+        }
+
+        /* [F3] Gate: en modo read_only, no facturar en BDP */
+        if config.bdp_sync_mode.is_empty() || config.bdp_sync_mode == "read_only" {
+            return Err("BDP en modo solo lectura. Cambia el modo en configuración para facturar.".into());
         }
 
         let order_id = venta
