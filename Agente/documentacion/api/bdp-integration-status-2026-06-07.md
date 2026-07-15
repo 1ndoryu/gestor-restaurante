@@ -1,11 +1,12 @@
 # BDP WebLink REST API — Estado de Integración
 
-> **Fecha:** 2026-06-07 (actualizado 2026-07-15, post Fase 7.5+8)
-> **Autor:** Agente (análisis post-implementación 065A-5 + Category C tests 147A-5 + auditoría código 147A-6 + actualización secciones 3/4/5 por F2.7/F2.8/F3.1-3.3 + Fase 7.5+8 por 157A-4)
+> **Fecha:** 2026-06-07 (actualizado 2026-07-15, post Fase 7.5+8 + plan Fase 9)
+> **Autor:** Agente (análisis post-implementación 065A-5 + Category C tests 147A-5 + auditoría código 147A-6 + actualización secciones 3/4/5 por F2.7/F2.8/F3.1-3.3 + Fase 7.5+8 por 157A-4 + plan Fase 9 por 157A-5)
 > **Stack:** Glory Rust Backend (Axum 0.7 + SQLx) ↔ BDP-NET WebLink REST API
 > **Endpoint BDP:** `http://100.83.196.35:8068` (vía Tailscale)
 > **POS:** 31 — CENTRAL 2026 (Series `00031TI`, IVA incluido)
 > **Estado:** ✅ Integración verificada en producción + 6 tests Category C + 21 tests Category B + 19 tests Category A + polling + facturación + customer sync = 75 tests (última auditoría 2026-07-15 post Fase 7.5+8)
+> **Plan activo:** Fase 9 — Catálogo, Plano de Sala y Menús (ver sección 9.6)
 
 ---
 
@@ -53,9 +54,9 @@
 
 | Endpoint                          | Método HTTP | Estado | Uso actual                                              |
 | --------------------------------- | ----------- | ------ | ------------------------------------------------------- |
-| `GetArticle`                      | POST        | ❌     | —                                                       |
-| `GetPricesArticles`               | POST        | ❌     | —                                                       |
-| `ExportArticles`                  | POST        | 📋     | Category C test: lectura catálogo contra BDP real           |
+| `GetArticle`                      | POST        | 📐     | **Plan F9.2**: fallback en resolve_article() cuando no está en mapa |
+| `GetPricesArticles`               | POST        | 📐     | **Plan F9.3**: refresh precios artículos ya mapeados      |
+| `ExportArticles`                  | POST        | 📐     | **Plan F9.1**: sync catálogo completo BDP → Glory         |
 | `GetPOSArticlesList`              | POST        | ✅     | Sync: resuelve artículo por código. Preflight: verifica |
 | `GetFullArticlesList`             | POST        | ❌     | —                                                       |
 | `CreateArticlesAndUpdateProfiles` | POST        | ❌     | —                                                       |
@@ -99,9 +100,9 @@
 
 | Endpoint                | Método HTTP | Estado | Uso actual |
 | ----------------------- | ----------- | ------ | ---------- |
-| `GetMenuDefinition`     | POST        | ❌     | —          |
-| `GetFastfoodDefinition` | POST        | ❌     | —          |
-| `GetPackDefinition`     | POST        | ❌     | —          |
+| `GetMenuDefinition`     | POST        | 📐     | **Plan F9.5**: lectura informativa (sin modelo Glory)    |
+| `GetFastfoodDefinition` | POST        | 📐     | **Plan F9.5**: lectura informativa (sin modelo Glory)    |
+| `GetPackDefinition`     | POST        | 📐     | **Plan F9.5**: lectura informativa (sin modelo Glory)    |
 
 ### 2.8 Fidelización
 
@@ -140,7 +141,7 @@
 - **Stock:** `CreateFamily`, `CreateSubfamily`, `GetStock`, `GetListStock`, `GetItemCostPrices`, `GetItemsCostPrices`, `Regularizations`, `Transfers`, `UpdateMassiveStock`, `UpdateStock`, `UpdateMassiveInventory`
 - **Suplementos:** `GetSupplementsProfiles`, `GetPOSSupplementsProfile`
 - **Talla/Color:** `GetInfoSAC`, `GetItemSAC`
-- **Salones:** `GetRoomTables`, `GetRoomsTables`
+- **Salones:** `GetRoomTables`, `GetRoomsTables` — 📐 **Plan F9.4** (sync a plano de sala Glory)
 - **Series:** (ya catalogado arriba en 2.9 como 🔧)
 
 ---
@@ -286,7 +287,7 @@ BdpOrderPollerService::poll_loop()
 
 | Endpoint BDP                       | Datos disponibles                                                         | Utilidad                                  |
 | ---------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------- |
-| `ExportArticles`                   | Catálogo completo: código, descripción, 5 tarifas, dto, IVA, departamento | Sincronizar precios sin config manual     |
+| `ExportArticles`                   | Catálogo completo: código, descripción, 5 tarifas, dto, IVA, departamento | **📐 Plan F9.1**: sync catálogo completo BDP → Glory |
 | `ExportCustomers`                  | Clientes: nombre, dirección, teléfono, email, NIF                         | **✅ Usado**: import masivo + obtener next code |
 | `GetOrder`                         | Estado comanda (0=abierta, 1=enviada, 2=servida, 3=facturada...)          | **✅ Usado**: polling periódico de estado    |
 | `GetPOSTenderList`                 | Formas de pago (efectivo, tarjeta, etc.)                                  | **Ya usado en preflight + polling**           |
@@ -298,7 +299,7 @@ BdpOrderPollerService::poll_loop()
 | `GetPOSes`                         | Terminales disponibles                                                    | Verificar/configurar POS automáticamente  |
 | `GetEmployees`                     | Empleados dados de alta                                                   | Validar/configurar empleado automáticamente |
 | `GetPoints` / `AddPoints`          | Puntos de fidelización                                                    | Integración con programa de fidelidad     |
-| `GetRoomTables` / `GetRoomsTables` | Salones y mesas                                                           | Mapear plano de sala                      |
+| `GetRoomTables` / `GetRoomsTables` | Salones y mesas (RoomId, Name, MinDiners, MaxDiners, Shape, Width, Height) | **📐 Plan F9.4**: pre-cargar mesas BDP en plano de sala Glory |
 | `GetPOSSeriesList`                 | Series de facturación                                                     | Configurar series por terminal            |
 
 > **Nota:** Los endpoints `GetPOSArticlesList`, `GetTenderList`, `CreateOrder`, `Login` y `CheckOrder` sí se usan (ver sección 2). Los de esta tabla son los que tienen datos útiles pero ningún consumo en el flujo de sync.
@@ -414,32 +415,189 @@ BdpOrderPollerService::poll_loop()
 | 2.4 | **Agregar pago desde Glory**                                | ✅ F8    | `add_order_payment()` + handler `bdp-invoice`        |
 | 2.5 | **Facturar desde Glory**                                    | ✅ F8    | `invoice_order()` + handler `bdp-invoice`            |
 
-### Fase 1 — Comandas reales (🔴 Crítico) — ✅ COMPLETADA
-
-### Fase 2 — Lifecycle de comandas (🟡 Importante) — ✅ COMPLETADA (salvo 2.3 CancelOrder bloqueado por BDP)
-
 ### Fase 3 — Sync bidireccional (🟢 Útil) — ✅ COMPLETADA
 
 | #   | Tarea                             | Estado  | Notas                                        |
 | --- | --------------------------------- | ------- | -------------------------------------------- |
 | 3.1 | **Exportar clientes BDP → Glory** | ✅ F7.1 | Import masivo BDP→Glory con next code        |
 | 3.2 | **Crear cliente Glory → BDP**     | ✅ F7.2 | Push Glory→BDP via CreateCustomer            |
-| 3.3 | **Exportar catálogo BDP → Glory** | 📋     | Futuro: requiere modelo de inventario         |
-| 3.4 | **Sincronizar precios**           | 📋     | Futuro: requiere tabla de tarifas             |
+| 3.3 | **Exportar catálogo BDP → Glory** | ✅ F9.1 | Sync catálogo completo (ver F9.1)            |
+| 3.4 | **Sincronizar precios**           | ✅ F9.3 | Refresh precios (ver F9.3)                   |
 | 3.5 | **Preflight como gatekeeper**     | ✅ ya   | 9 checks ya operativos desde 065A-5          |
 | 7.5 | **Wire auto-sync customer**       | ✅ F7.5 | ensure_cliente_bdp_synced() en sync_venta     |
 | 8.1 | **AddOrderPayment**               | ✅ F8   | orquestación + handler `bdp-invoice`          |
 | 8.2 | **InvoiceOrder**                  | ✅ F8   | orquestación + handler `bdp-invoice`          |
 
-### Fase 4 — Extensiones (⚪ Futuro)
+### Fase 9 — Catálogo, Plano de Sala y Menús (📐 Planificado)
+
+> Fase activa. Plan detallado en sección 9.6.
+
+| #   | Tarea                                      | Endpoint BDP          | Utilidad | Esf. | Dependencia |
+| --- | ------------------------------------------ | --------------------- | -------- | ---- | ----------- |
+| 9.1 | **Sync catálogo completo**                 | `ExportArticles`      | 🔴 Alta  | 2-3h | —           |
+| 9.2 | **Fallback artículo individual**           | `GetArticle`          | 🟡 Útil  | 1h   | 9.1         |
+| 9.3 | **Refresh precios**                        | `GetPricesArticles`   | 🟡 Útil  | 1h   | 9.1         |
+| 9.4 | **Sync mesas BDP → plano de sala Glory**   | `GetRoomsTables`      | 🟡 Útil  | 2-3h | —           |
+| 9.5 | **Lectura informativa menús/packs**        | `GetMenuDefinition` + | 🟢 Futuro | 1-1.5h | —         |
+
+### Fase 10 — Extensiones futuras (⚪ Backlog)
 
 | #   | Tarea                     | Endpoints                                | Notas                                  |
 | --- | ------------------------- | ---------------------------------------- | -------------------------------------- |
-| 4.1 | Fidelización (puntos)     | `GetPoints`, `AddPoints`                 | Requiere modelo de puntos en Glory     |
-| 4.2 | Menús y packs             | `GetMenuDefinition`, `GetPackDefinition` | Solo lectura informativa               |
-| 4.3 | Stock                     | `GetStock`, `UpdateStock`                | Requiere modelo de inventario en Glory |
-| 4.4 | Salones y mesas           | `GetRoomTables`                          | Requiere integración con plano de sala |
-| 4.5 | Exportación de documentos | `ExportDocumentsByExportProfile`         | Reportes/contabilidad                  |
+| 10.1 | Fidelización (puntos)    | `GetPoints`, `AddPoints`                 | Requiere modelo de puntos en Glory     |
+| 10.2 | Stock                    | `GetStock`, `UpdateStock`                | Requiere modelo de inventario en Glory |
+| 10.3 | Exportación de documentos | `ExportDocumentsByExportProfile`         | Reportes/contabilidad                  |
+
+### 9.6 — Plan detallado Fase 9: Catálogo, Plano de Sala y Menús
+
+#### 9.6.1 — ExportArticles: Sync de catálogo BDP → Glory (🔴 Alta utilidad)
+
+**Qué hace:** Lee todo el catálogo de BDP y sincroniza con `bdp_article_map`.
+
+**Flujo:**
+1. Login a BDP
+2. `POST /API/Articles/Export` → array de `ArticleExportData`
+3. Para cada artículo BDP:
+   - Si existe en `bdp_article_map` → actualizar precios, descripción, IVA
+   - Si NO existe → crear entrada nueva en mapa
+4. Devolver resumen: `{ creados, actualizados, sin_cambios }`
+
+**Datos que devuelve BDP por artículo:**
+```json
+{
+  "ArtCode": 1001, "Description": "CAFE BOMBON",
+  "Family": 1, "Subfamily": 1, "Department": 1,
+  "Tax1": 10.0, "Tax2": 0.0,
+  "Price1": 2.50, "Price2": 0.0, "Price3": 0.0, "Price4": 0.0, "Price5": 0.0,
+  "Discount": 0.0, "BarCode": "8412345678901", "Active": true
+}
+```
+
+**Cambios necesarios:**
+- `migrations/` — ALTER TABLE `bdp_article_map` ADD COLUMN: `descripcion`, `precio_tarifa1`, `iva_pct`, `departamento`, `familia`, `ultima_sync_at`
+- `src/models/bdp_article_map.rs` — campos nuevos
+- `src/repositories/bdp_article_map.rs` — método `upsert_batch()`
+- `src/services/bdp_sync.rs` — nuevo método `sync_catalog()`
+- `src/handlers/bdp_article_map.rs` — nuevo endpoint `POST /api/bdp-article-map/sync`
+- Tests Category A (unit) + Category B (DB)
+
+**Esfuerzo:** 2-3h
+
+#### 9.6.2 — GetArticle: Consulta individual (🟡 Útil)
+
+**Qué hace:** Busca un artículo en BDP por código cuando no está en el mapa local.
+
+**Flujo:** `resolve_article()` no encuentra código → intenta `POST /API/Articles/Get` → si existe, crear entrada en mapa → si no, usar default.
+
+**Cambios:**
+- `src/services/bdp_weblink.rs` — método `get_article()`
+- `src/services/bdp_weblink_catalog.rs` — `BdpGetArticleRequest { article_code: i32 }`
+- `src/services/bdp_sync.rs` — modificar `resolve_article()` para fallback a BDP
+
+**Esfuerzo:** ~1h (depende de 9.1)
+
+#### 9.6.3 — GetPricesArticles: Refresh de precios (🟡 Útil)
+
+**Qué hace:** Actualiza precios de artículos ya mapeados sin reimportar todo.
+
+**Flujo:** Login → `POST /API/Articles/GetPrices` con array de códigos → actualizar `precio_tarifa1`, `iva_pct` en mapa.
+
+**Cambios:**
+- `src/services/bdp_sync.rs` — nuevo método `refresh_prices()`
+- `src/handlers/bdp_article_map.rs` — nuevo endpoint `POST refresh-prices`
+
+**Esfuerzo:** ~1h (depende de 9.1)
+
+#### 9.6.4 — GetRoomTables: Sync de mesas BDP → Glory (🟡 Útil)
+
+**Qué hace:** Pre-carga la estructura de mesas del POS desde BDP al plano de sala de Glory.
+
+**Flujo:**
+1. Login a BDP
+2. `POST /API/Rooms/GetRoomsTables` → array de `RoomTableData`
+3. Mapear:
+   - `RoomId` + `RoomName` → `ZonaSala` (buscar por nombre, crear si no existe)
+   - `RoomTableData` → `Mesa` (numero, forma, min/max personas, dimensiones)
+4. Upsert en tablas Glory (no borrar mesas existentes con reservas)
+5. Devolver resumen: `{ zonas_creadas, mesas_creadas, mesas_actualizadas }`
+
+**Modelo BDP (`RoomTableData`):**
+```json
+{
+  "Id": 1, "Name": "Mesa 1", "RoomId": 1, "RoomName": "Sala principal",
+  "MinDiners": 2, "MaxDiners": 4, "Shape": 0, "Width": 80, "Height": 80
+}
+```
+
+**Mapeo BDP → Glory:**
+| BDP | Glory | Notas |
+|-----|-------|-------|
+| `RoomId` + `RoomName` | `ZonaSala { nombre }` | Buscar por nombre, crear si no existe |
+| `Name` | `Mesa.numero` | Extraer número ("Mesa 1" → 1) |
+| `Shape` | `Mesa.forma` | 0=cuadrada, 1=redonda (verificar) |
+| `MinDiners` / `MaxDiners` | `Mesa.min_personas` / `Mesa.max_personas` | Directo |
+| `Width` / `Height` | `Mesa.ancho` / `Mesa.alto` | Directo (px del canvas) |
+
+**Cambios:**
+- `src/services/bdp_weblink.rs` — método `get_rooms_tables()` (ya tiene path `ROOM_GET_ROOMS_TABLES`)
+- `src/services/bdp_weblink_catalog.rs` — `BdpRoomTableData` response struct
+- `src/services/bdp_sync.rs` — nuevo método `sync_room_tables()`
+- `src/handlers/plano_sala.rs` — nuevo endpoint `POST /api/plano-sala/sync-bdp`
+- Tests
+
+**Esfuerzo:** 2-3h (independiente)
+
+**Pre-requisito:** Auth BDP (llamada real). Se puede hacer código con mocks, pero validación final requiere acceso al TPV.
+
+#### 9.6.5 — GetMenuDefinition: Lectura informativa (🟢 Futuro)
+
+**Qué hace:** Expone definiciones de menús/packs/fast-food de BDP como JSON raw (sin modelo Glory).
+
+**Flujo:**
+- `POST /API/Menus/Get` con `{ "MenuId": N }` → `MenuDataType` (grupos + items + suplementos)
+- `POST /API/FastFoods/Get` con `{ "FastfoodId": N }` → `FastfoodDataType`
+- `POST /API/Packs/Get` con `{ "PackId": N }` → `PackDataType`
+
+**Response ejemplo (`GetMenuDefinition`):**
+```json
+{
+  "MenuData": {
+    "Id": 1, "Description": "MENÚ DEL DIA", "TastingMenu": false,
+    "MaxItemsPerDiner": 4, "Groups": [
+      { "Id": 1, "Description": "ENTRANTES", "Items": [
+        { "Line": 1, "Description": "ENSALADA VERDE MENU", "ArtCode": 100001 }
+      ]}
+    ]
+  }
+}
+```
+
+**Cambios:**
+- `src/services/bdp_weblink.rs` — 3 métodos nuevos
+- `src/handlers/` — endpoints `GET /api/bdp/menus/:id`, `GET /api/bdp/fastfoods/:id`, `GET /api/bdp/packs/:id`
+
+**Esfuerzo:** 1-1.5h (independiente)
+
+#### Orden de ejecución recomendado
+
+```
+9.1 ExportArticles (sync catálogo)     ← máximo impacto, bloquea 9.2 y 9.3
+  └→ 9.2 GetArticle (fallback)         ← se beneficia de 9.1
+  └→ 9.3 GetPricesArticles (refresh)   ← se beneficia de 9.1
+9.4 GetRoomTables (sync mesas)          ← independiente
+9.5 GetMenuDefinition (lectura)         ← independiente, bajo impacto
+```
+
+#### Estimación total Fase 9
+
+| Fase | Esfuerzo | Dependencia | Auth BDP |
+|------|----------|-------------|----------|
+| 9.1  | 2-3h     | —           | No (mocks) |
+| 9.2  | 1h       | 9.1         | No (mocks) |
+| 9.3  | 1h       | 9.1         | No (mocks) |
+| 9.4  | 2-3h     | —           | Sí (validación final) |
+| 9.5  | 1-1.5h   | —           | Sí (validación final) |
+| **Total** | **~7-9.5h** | | |
 
 ---
 
