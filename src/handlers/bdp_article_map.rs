@@ -2,9 +2,11 @@
  * GET    /api/bdp/article-maps              — listar todos los mapeos
  * POST   /api/bdp/article-maps              — crear/upsert un mapeo
  * POST   /api/bdp/article-maps/import-catalog — importar catálogo desde BDP
+ * POST   /api/bdp/article-maps/sync-catalog   — sync enriquecida F9.1
  * PATCH  /api/bdp/article-maps/:id          — actualizar parcialmente
  * DELETE /api/bdp/article-maps/:id          — eliminar un mapeo
- * [147A-F5.7] import-catalog conecta con BDP Weblink para rellenar mapeos. */
+ * [147A-F5.7] import-catalog conecta con BDP Weblink para rellenar mapeos.
+ * [157A-7] F9.1: sync-catalog sincroniza catálogo completo con datos enriquecidos. */
 
 use axum::extract::{Path, State};
 use axum::routing::{get, patch};
@@ -14,12 +16,11 @@ use validator::Validate;
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
-use crate::models::{
-    ActualizarBdpArticleMapRequest, BdpArticleMap, CrearBdpArticleMapRequest,
-};
+use crate::models::{ActualizarBdpArticleMapRequest, BdpArticleMap, CrearBdpArticleMapRequest};
 use crate::repositories::BdpArticleMapRepository;
 use crate::services::{
-    BdpExportArticlesRequest, BdpWeblinkClient, ConfiguracionService,
+    BdpCatalogSyncResult, BdpExportArticlesRequest, BdpSyncService, BdpWeblinkClient,
+    ConfiguracionService,
 };
 use crate::AppState;
 
@@ -32,6 +33,10 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/bdp/article-maps/import-catalog",
             axum::routing::post(importar_catalogo),
+        )
+        .route(
+            "/bdp/article-maps/sync-catalog",
+            axum::routing::post(sync_catalog),
         )
         .route(
             "/bdp/article-maps/:id",
@@ -179,11 +184,7 @@ pub async fn importar_catalogo(
     let articles = articles_json
         .get("Articles")
         .and_then(|v| v.as_array())
-        .ok_or_else(|| {
-            AppError::Internal(
-                "Respuesta BDP no contiene array 'Articles'.".into(),
-            )
-        })?;
+        .ok_or_else(|| AppError::Internal("Respuesta BDP no contiene array 'Articles'.".into()))?;
 
     let mut importados: u32 = 0;
     let mut errores: u32 = 0;
@@ -225,4 +226,45 @@ pub async fn importar_catalogo(
         "errors": errores,
         "total": articles.len(),
     })))
+}
+
+/* [157A-7] F9.1: sync-catalog — Sincronización enriquecida del catálogo BDP → Glory.
+ * Similar a import-catalog pero almacena precios, IVA, departamento, familia, etc.
+ * Usa BdpSyncService::sync_catalog() con parseo tipado. */
+#[utoipa::path(
+    post,
+    path = "/api/bdp/article-maps/sync-catalog",
+    tag = "BDP Mapeos",
+    responses(
+        (status = 200, description = "Catálogo sincronizado", body = BdpCatalogSyncResult),
+        (status = 400, description = "BDP no configurado", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn sync_catalog(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<Json<BdpCatalogSyncResult>, AppError> {
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+
+    if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
+        return Err(AppError::Validation(
+            "BDP no está configurado. Configura URL y credenciales primero.".into(),
+        ));
+    }
+
+    let client = BdpWeblinkClient::new(&config);
+
+    /* Login — session needed for auth token lifecycle */
+    let _session = client
+        .login()
+        .await
+        .map_err(|e| AppError::Internal(format!("Error login BDP: {e}")))?;
+
+    let result = BdpSyncService::sync_catalog(&client, &state.pool, auth.user_id, 1)
+        .await
+        .map_err(AppError::Internal)?;
+
+    Ok(Json(result))
 }

@@ -29,6 +29,7 @@ use serde_json::{json, Value};
 use sqlx::PgPool;
 use tokio::sync::Mutex as TokioMutex;
 use tracing::{info, warn};
+use uuid::Uuid;
 
 use crate::models::{ConfiguracionRestaurante, Venta, VentaLinea};
 use crate::repositories::{ClienteRepository, VentaLineaRepository, VentaRepository};
@@ -116,7 +117,8 @@ impl BdpSyncService {
          * ensure_cliente_bdp_synced() crea el cliente en BDP si no existe (ExportCustomers→CreateCustomer). */
         if config.bdp_auto_sync_customers {
             if let Some(cliente_id) = venta.cliente_id {
-                match Self::ensure_cliente_bdp_synced(pool, cliente_id, venta.user_id, config).await {
+                match Self::ensure_cliente_bdp_synced(pool, cliente_id, venta.user_id, config).await
+                {
                     Some(bdp_code) => {
                         info!("[F7.5] Cliente {} auto-sincronizado con BDP (code={bdp_code}) para venta {}", cliente_id, venta.id);
                     }
@@ -146,9 +148,7 @@ impl BdpSyncService {
          * Si una línea tiene articulo_codigo mapeado en bdp_article_map, se usa ese artículo BDP.
          * Si no, se usa el artículo default configurado. */
         let line_article_ids: Option<Vec<i64>> = if let Some(ref lineas) = lineas {
-            Some(
-                Self::resolve_line_articles(pool, venta.user_id, lineas, article.id).await,
-            )
+            Some(Self::resolve_line_articles(pool, venta.user_id, lineas, article.id).await)
         } else {
             None
         };
@@ -219,7 +219,17 @@ impl BdpSyncService {
     ) -> Result<i64, (bool, String)> {
         let mut last_error = String::new();
         for attempt in 0..MAX_RETRIES {
-            match Self::send_order(client, config, venta, article, lineas, line_article_ids, order_ctx).await {
+            match Self::send_order(
+                client,
+                config,
+                venta,
+                article,
+                lineas,
+                line_article_ids,
+                order_ctx,
+            )
+            .await
+            {
                 Ok(order_id) => return Ok(order_id),
                 Err(BdpSyncError::Auth(msg)) => return Err((true, msg)),
                 Err(BdpSyncError::Api(msg) | BdpSyncError::Network(msg)) => {
@@ -277,7 +287,11 @@ impl BdpSyncService {
     /// [F2.7] Si hay líneas, genera un pedido multi-item. Si no, usa fallback legacy (1 artículo).
     /// `line_article_ids`: paralelo a `lineas`, con el ID BDP de cada artículo resuelto.
     /// [F3.1] `order_ctx`: tender, order type y customer resueltos.
-    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap, clippy::too_many_lines)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap,
+        clippy::too_many_lines
+    )]
     fn build_order(
         config: &ConfiguracionRestaurante,
         venta: &Venta,
@@ -600,7 +614,11 @@ impl BdpSyncService {
                         Some(full)
                     }
                 };
-                let phone = if cliente.telefono.is_empty() { None } else { Some(cliente.telefono.clone()) };
+                let phone = if cliente.telefono.is_empty() {
+                    None
+                } else {
+                    Some(cliente.telefono.clone())
+                };
                 /* [F7.5] Priorizar bdp_customer_code del cliente sobre default config.
                  * Si el cliente ya fue sincronizado con BDP, usamos su código real.
                  * Si no, fallback al código genérico de config. */
@@ -608,12 +626,19 @@ impl BdpSyncService {
                     Some(bdp_code.to_string())
                 } else {
                     let default = config.bdp_default_customer_code.clone();
-                    if default.is_empty() { None } else { Some(default) }
+                    if default.is_empty() {
+                        None
+                    } else {
+                        Some(default)
+                    }
                 };
                 (code, name, phone)
             }
             Ok(None) => {
-                info!("[F3.1] Cliente {} no encontrado para venta {}", cliente_id, venta.id);
+                info!(
+                    "[F3.1] Cliente {} no encontrado para venta {}",
+                    cliente_id, venta.id
+                );
                 (None, None, None)
             }
             Err(e) => {
@@ -747,7 +772,10 @@ impl BdpSyncService {
         let _session = match client.login().await {
             Ok(s) => s,
             Err(e) => {
-                warn!("[F7.5] Login BDP falló para auto-sync cliente {}: {e}", cliente_id);
+                warn!(
+                    "[F7.5] Login BDP falló para auto-sync cliente {}: {e}",
+                    cliente_id
+                );
                 return None;
             }
         };
@@ -776,22 +804,17 @@ impl BdpSyncService {
             Err(e) => {
                 warn!("[F7.5] ExportCustomers falló: {e}. Usando código alto.");
                 /* Fallback: usar hash del UUID como código (rango seguro 90000-99999) */
-                let hash = cliente_id
-                    .as_bytes()
-                    .iter()
-                    .fold(0u32, |acc, &b| acc.wrapping_mul(31).wrapping_add(u32::from(b)));
+                let hash = cliente_id.as_bytes().iter().fold(0u32, |acc, &b| {
+                    acc.wrapping_mul(31).wrapping_add(u32::from(b))
+                });
                 90_000 + (hash % 9_999).cast_signed()
             }
         };
 
         /* 4. Crear cliente en BDP */
-        let fiscal_name = format!(
-            "{} {}",
-            cliente.nombre,
-            cliente.apellidos
-        )
-        .trim()
-        .to_string();
+        let fiscal_name = format!("{} {}", cliente.nombre, cliente.apellidos)
+            .trim()
+            .to_string();
 
         let req = BdpCreateCustomerRequest {
             code: next_code,
@@ -840,14 +863,8 @@ impl BdpSyncService {
         }
 
         /* 5. Guardar código BDP en el cliente */
-        let _ = ClienteRepository::update_bdp_sync(
-            pool,
-            cliente_id,
-            Some(next_code),
-            true,
-            None,
-        )
-        .await;
+        let _ =
+            ClienteRepository::update_bdp_sync(pool, cliente_id, Some(next_code), true, None).await;
 
         info!(
             "[F7.5] Cliente {} sincronizado con BDP code={}",
@@ -990,6 +1007,96 @@ impl BdpSyncService {
 
         Ok(invoice_number)
     }
+
+    /* [157A-7] F9.1: sync_catalog — Sincroniza catálogo completo BDP → Glory.
+     * Llama a ExportArticles, parsea respuesta tipada, hace upsert enriquecido
+     * en bdp_article_map. Devuelve resumen de creados/actualizados/sin_cambios/errores.
+     * NO requiere auth BDP en modo mock — se puede testear sin conexión. */
+    pub async fn sync_catalog(
+        client: &BdpWeblinkClient<'_>,
+        pool: &PgPool,
+        user_id: Uuid,
+        type_price: i32,
+    ) -> Result<crate::services::bdp_weblink_catalog::BdpCatalogSyncResult, String> {
+        use crate::repositories::BdpArticleMapRepository;
+        use crate::services::bdp_weblink_catalog::{
+            BdpCatalogSyncResult, BdpExportArticlesRequest, BdpExportArticlesResponse,
+        };
+
+        /* 1. Llamar ExportArticles */
+        let articles_json = client
+            .export_articles(&BdpExportArticlesRequest::all_web_articles(type_price))
+            .await
+            .map_err(|e| format!("Error ExportArticles: {e}"))?;
+
+        /* 2. Parsear respuesta tipada */
+        let response: BdpExportArticlesResponse = serde_json::from_value(articles_json)
+            .map_err(|e| format!("Error parseando ExportArticles: {e}"))?;
+
+        let articles = response.articles;
+        let total_bdp = articles.len();
+        let mut actualizados: u32 = 0;
+        let mut sin_cambios: u32 = 0;
+        let mut errores: u32 = 0;
+
+        /* 3. Upsert cada artículo */
+        for art in &articles {
+            let Some(code) = art.art_code() else {
+                errores += 1;
+                continue;
+            };
+
+            let descripcion = art.description().to_string();
+            let precio = art.price1.unwrap_or(Decimal::ZERO);
+            let iva = art.tax1.unwrap_or(Decimal::ZERO);
+            let dept = art.department.unwrap_or(0);
+            let fam = art.family.unwrap_or(0);
+            let subfam = art.subfamily.unwrap_or(0);
+            let barcode = art.bar_code.as_deref().unwrap_or("");
+
+            let upsert_data = crate::repositories::BdpArticleUpsertData {
+                bdp_code: code,
+                descripcion: &descripcion,
+                precio_tarifa1: precio,
+                iva_pct: iva,
+                departamento: dept,
+                familia: fam,
+                subfamilia: subfam,
+                activo: art.active,
+                barcode,
+            };
+
+            match BdpArticleMapRepository::upsert_from_bdp(pool, user_id, &upsert_data).await {
+                Ok(true) => {
+                    /* upsert_from_bdp returns true when row was created or changed */
+                    /* Heuristic: if the row didn't exist before, it's "creado".
+                     * We can't distinguish created vs updated from the SQL result alone,
+                     * so we count all changes as "actualizados" (upsert semantics). */
+                    actualizados += 1;
+                }
+                Ok(false) => {
+                    sin_cambios += 1;
+                }
+                Err(e) => {
+                    warn!("[157A-7] Error upsert artículo BDP {code}: {e}");
+                    errores += 1;
+                }
+            }
+        }
+
+        info!(
+            "[157A-7] sync_catalog completado: {} artículos BDP → {actualizados} cambios, {sin_cambios} sin cambios, {errores} errores",
+            total_bdp
+        );
+
+        Ok(BdpCatalogSyncResult {
+            creados: 0,
+            actualizados,
+            sin_cambios,
+            errores,
+            total_bdp,
+        })
+    }
 }
 
 /// Artículo BDP resuelto para el mapeo.
@@ -1090,7 +1197,8 @@ mod tests {
             vat_pct: 10.0,
         };
 
-        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
+        let order =
+            BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
         let order_json = &order.order;
 
         /* El total debe ser importe_base + importe_iva = 27.50 */
@@ -1136,7 +1244,8 @@ mod tests {
             vat_pct: 10.0,
         };
 
-        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
+        let order =
+            BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
         assert_eq!(order.employee_id, 1);
         assert_eq!(order.items_profile_id, 1);
 
@@ -1155,7 +1264,8 @@ mod tests {
             vat_pct: 10.0,
         };
 
-        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
+        let order =
+            BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
         let item_name = order
             .order
             .get("Items")
@@ -1203,12 +1313,15 @@ mod tests {
             },
         ];
 
-        let order = BdpSyncService::build_order(&config, &venta, &article, Some(&lineas), Some(&[1001, 2002]), &test_order_ctx());
-        let items = order
-            .order
-            .get("Items")
-            .and_then(|v| v.as_array())
-            .unwrap();
+        let order = BdpSyncService::build_order(
+            &config,
+            &venta,
+            &article,
+            Some(&lineas),
+            Some(&[1001, 2002]),
+            &test_order_ctx(),
+        );
+        let items = order.order.get("Items").and_then(|v| v.as_array()).unwrap();
 
         /* Debe tener 2 items */
         assert_eq!(items.len(), 2, "Expected 2 items, got {}", items.len());
@@ -1216,7 +1329,10 @@ mod tests {
         /* Primer item: Café bombón x2 */
         assert_eq!(items[0].get("Lin").unwrap(), 1);
         assert_eq!(items[0].get("Id").unwrap().as_i64().unwrap(), 1001);
-        assert_eq!(items[0].get("Name").unwrap().as_str().unwrap(), "Café bombón");
+        assert_eq!(
+            items[0].get("Name").unwrap().as_str().unwrap(),
+            "Café bombón"
+        );
         assert!((items[0].get("Units").unwrap().as_f64().unwrap() - 2.0).abs() < 0.01);
         assert!((items[0].get("Price").unwrap().as_f64().unwrap() - 5.0).abs() < 0.01);
         assert!((items[0].get("Total").unwrap().as_f64().unwrap() - 10.0).abs() < 0.01);
@@ -1274,7 +1390,12 @@ mod tests {
     fn build_order_maps_tender_id_from_metodo_pago() {
         let config = test_config();
         let venta = test_venta(); /* metodo_pago = "efectivo" */
-        let article = ResolvedArticle { id: 1001, name: "CAFE".into(), price: 5.0, vat_pct: 10.0 };
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
 
         let ctx = OrderContext {
             tender_id: Some(1), /* efectivo → 1 */
@@ -1284,7 +1405,11 @@ mod tests {
             customer_phone: None,
         };
         let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &ctx);
-        let tender = order.order.get("TenderId").and_then(|v| v.as_i64()).unwrap();
+        let tender = order
+            .order
+            .get("TenderId")
+            .and_then(|v| v.as_i64())
+            .unwrap();
         assert_eq!(tender, 1, "TenderId should be 1 for efectivo");
     }
 
@@ -1293,7 +1418,12 @@ mod tests {
     fn build_order_no_tender_when_none() {
         let config = test_config();
         let venta = test_venta();
-        let article = ResolvedArticle { id: 1001, name: "CAFE".into(), price: 5.0, vat_pct: 10.0 };
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
 
         let ctx = OrderContext {
             tender_id: None,
@@ -1303,7 +1433,10 @@ mod tests {
             customer_phone: None,
         };
         let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &ctx);
-        assert!(order.order.get("TenderId").is_none(), "TenderId should not be present");
+        assert!(
+            order.order.get("TenderId").is_none(),
+            "TenderId should not be present"
+        );
     }
 
     /* [F3.3] Test: Order type se mapea desde canal */
@@ -1311,7 +1444,12 @@ mod tests {
     fn build_order_uses_order_type_from_canal() {
         let config = test_config();
         let venta = test_venta(); /* canal = "comedor" */
-        let article = ResolvedArticle { id: 1001, name: "CAFE".into(), price: 5.0, vat_pct: 10.0 };
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
 
         let ctx = OrderContext {
             tender_id: None,
@@ -1330,7 +1468,12 @@ mod tests {
     fn build_order_includes_customer_when_present() {
         let config = test_config();
         let venta = test_venta();
-        let article = ResolvedArticle { id: 1001, name: "CAFE".into(), price: 5.0, vat_pct: 10.0 };
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
 
         let ctx = OrderContext {
             tender_id: Some(1),
@@ -1341,8 +1484,14 @@ mod tests {
         };
         let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &ctx);
         let customer = order.order.get("Customer").unwrap();
-        assert_eq!(customer.get("Name").unwrap().as_str().unwrap(), "Juan Pérez");
-        assert_eq!(customer.get("Phone").unwrap().as_str().unwrap(), "600123456");
+        assert_eq!(
+            customer.get("Name").unwrap().as_str().unwrap(),
+            "Juan Pérez"
+        );
+        assert_eq!(
+            customer.get("Phone").unwrap().as_str().unwrap(),
+            "600123456"
+        );
         assert_eq!(customer.get("Code").unwrap().as_str().unwrap(), "GENERIC");
     }
 
@@ -1351,7 +1500,12 @@ mod tests {
     fn build_order_no_customer_when_name_none() {
         let config = test_config();
         let venta = test_venta();
-        let article = ResolvedArticle { id: 1001, name: "CAFE".into(), price: 5.0, vat_pct: 10.0 };
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
 
         let ctx = OrderContext {
             tender_id: Some(1),
@@ -1361,7 +1515,10 @@ mod tests {
             customer_phone: None,
         };
         let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &ctx);
-        assert!(order.order.get("Customer").is_none(), "Customer should not be present");
+        assert!(
+            order.order.get("Customer").is_none(),
+            "Customer should not be present"
+        );
     }
 
     /* [F3.2-3.3] Test: resolve_tender_id y resolve_order_type helpers */
@@ -1420,12 +1577,12 @@ mod tests {
             Some(&[]),
             &test_order_ctx(),
         );
-        let items = order
-            .order
-            .get("Items")
-            .and_then(|v| v.as_array())
-            .unwrap();
-        assert_eq!(items.len(), 0, "Some(vec![]) should produce empty Items array");
+        let items = order.order.get("Items").and_then(|v| v.as_array()).unwrap();
+        assert_eq!(
+            items.len(),
+            0,
+            "Some(vec![]) should produce empty Items array"
+        );
     }
 
     /* build_order con None cae al fallback legacy: 1 item genérico */
@@ -1440,19 +1597,9 @@ mod tests {
             vat_pct: 10.0,
         };
 
-        let order = BdpSyncService::build_order(
-            &config,
-            &venta,
-            &article,
-            None,
-            None,
-            &test_order_ctx(),
-        );
-        let items = order
-            .order
-            .get("Items")
-            .and_then(|v| v.as_array())
-            .unwrap();
+        let order =
+            BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
+        let items = order.order.get("Items").and_then(|v| v.as_array()).unwrap();
         assert_eq!(items.len(), 1, "None should produce 1 fallback item");
         assert_eq!(
             items[0].get("Name").unwrap().as_str().unwrap(),
@@ -1493,11 +1640,7 @@ mod tests {
             Some(&[5001]),
             &test_order_ctx(),
         );
-        let items = order
-            .order
-            .get("Items")
-            .and_then(|v| v.as_array())
-            .unwrap();
+        let items = order.order.get("Items").and_then(|v| v.as_array()).unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].get("Id").unwrap().as_i64().unwrap(), 5001);
         assert_eq!(
@@ -1563,11 +1706,7 @@ mod tests {
             Some(&[1001, 2002, 3003]),
             &test_order_ctx(),
         );
-        let items = order
-            .order
-            .get("Items")
-            .and_then(|v| v.as_array())
-            .unwrap();
+        let items = order.order.get("Items").and_then(|v| v.as_array()).unwrap();
 
         assert_eq!(items.len(), 3, "Expected 3 items");
 
@@ -1618,11 +1757,7 @@ mod tests {
             Some(&[9999]),
             &test_order_ctx(),
         );
-        let items = order
-            .order
-            .get("Items")
-            .and_then(|v| v.as_array())
-            .unwrap();
+        let items = order.order.get("Items").and_then(|v| v.as_array()).unwrap();
 
         /* Total = (12.00 * 2) - 4.00 = 20.00 */
         assert!((items[0].get("Total").unwrap().as_f64().unwrap() - 20.00).abs() < 0.01);
@@ -1662,11 +1797,7 @@ mod tests {
             None,
             &test_order_ctx(),
         );
-        let items = order
-            .order
-            .get("Items")
-            .and_then(|v| v.as_array())
-            .unwrap();
+        let items = order.order.get("Items").and_then(|v| v.as_array()).unwrap();
         assert_eq!(
             items[0].get("Id").unwrap().as_i64().unwrap(),
             7777,

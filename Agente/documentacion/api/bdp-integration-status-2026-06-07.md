@@ -1,6 +1,6 @@
 # BDP WebLink REST API — Estado de Integración
 
-> **Fecha:** 2026-06-07 (actualizado 2026-07-15, post Fase 7.5+8 + plan Fase 9)
+> **Fecha:** 2026-06-07 (actualizado 2026-07-15, post Fase 9.1 ExportArticles implementado)
 > **Autor:** Agente (análisis post-implementación 065A-5 + Category C tests 147A-5 + auditoría código 147A-6 + actualización secciones 3/4/5 por F2.7/F2.8/F3.1-3.3 + Fase 7.5+8 por 157A-4 + plan Fase 9 por 157A-5)
 > **Stack:** Glory Rust Backend (Axum 0.7 + SQLx) ↔ BDP-NET WebLink REST API
 > **Endpoint BDP:** `http://100.83.196.35:8068` (vía Tailscale)
@@ -56,7 +56,7 @@
 | --------------------------------- | ----------- | ------ | ------------------------------------------------------- |
 | `GetArticle`                      | POST        | 📐     | **Plan F9.2**: fallback en resolve_article() cuando no está en mapa |
 | `GetPricesArticles`               | POST        | 📐     | **Plan F9.3**: refresh precios artículos ya mapeados      |
-| `ExportArticles`                  | POST        | 📐     | **Plan F9.1**: sync catálogo completo BDP → Glory         |
+| `ExportArticles`                  | POST        | �     | **F9.1 implementado**: sync catálogo completo BDP → Glory vía `POST /api/bdp/article-maps/sync-catalog` |
 | `GetPOSArticlesList`              | POST        | ✅     | Sync: resuelve artículo por código. Preflight: verifica |
 | `GetFullArticlesList`             | POST        | ❌     | —                                                       |
 | `CreateArticlesAndUpdateProfiles` | POST        | ❌     | —                                                       |
@@ -434,7 +434,7 @@ BdpOrderPollerService::poll_loop()
 
 | #   | Tarea                                      | Endpoint BDP          | Utilidad | Esf. | Dependencia |
 | --- | ------------------------------------------ | --------------------- | -------- | ---- | ----------- |
-| 9.1 | **Sync catálogo completo**                 | `ExportArticles`      | 🔴 Alta  | 2-3h | —           |
+| 9.1 | **Sync catálogo completo**                 | `ExportArticles`      | 🔴 Alta  | 2-3h | — **🔧 Implementado** |
 | 9.2 | **Fallback artículo individual**           | `GetArticle`          | 🟡 Útil  | 1h   | 9.1         |
 | 9.3 | **Refresh precios**                        | `GetPricesArticles`   | 🟡 Útil  | 1h   | 9.1         |
 | 9.4 | **Sync mesas BDP → plano de sala Glory**   | `GetRoomsTables`      | 🟡 Útil  | 2-3h | —           |
@@ -450,7 +450,7 @@ BdpOrderPollerService::poll_loop()
 
 ### 9.6 — Plan detallado Fase 9: Catálogo, Plano de Sala y Menús
 
-#### 9.6.1 — ExportArticles: Sync de catálogo BDP → Glory (🔴 Alta utilidad)
+#### 9.6.1 — ExportArticles: Sync de catálogo BDP → Glory (🔴 Alta utilidad) — 🔧 IMPLEMENTADO
 
 **Qué hace:** Lee todo el catálogo de BDP y sincroniza con `bdp_article_map`.
 
@@ -473,15 +473,19 @@ BdpOrderPollerService::poll_loop()
 }
 ```
 
-**Cambios necesarios:**
-- `migrations/` — ALTER TABLE `bdp_article_map` ADD COLUMN: `descripcion`, `precio_tarifa1`, `iva_pct`, `departamento`, `familia`, `ultima_sync_at`
-- `src/models/bdp_article_map.rs` — campos nuevos
-- `src/repositories/bdp_article_map.rs` — método `upsert_batch()`
-- `src/services/bdp_sync.rs` — nuevo método `sync_catalog()`
-- `src/handlers/bdp_article_map.rs` — nuevo endpoint `POST /api/bdp-article-map/sync`
-- Tests Category A (unit) + Category B (DB)
+**Implementación completada (157A-7):**
+- `migrations/20260715200000_bdp_article_map_enriched.up.sql` — ALTER TABLE `bdp_article_map` ADD COLUMN: `descripcion`, `precio_tarifa1`, `iva_pct`, `departamento`, `familia`, `subfamilia`, `activo`, `barcode`, `ultima_sync_at`
+- `src/models/bdp_article_map.rs` — campos nuevos en struct `BdpArticleMap`
+- `src/repositories/bdp_article_map.rs` — método `upsert_from_bdp()` con struct `BdpArticleUpsertData` (upsert por `user_id, articulo_glory_codigo`, WHERE IS DISTINCT FROM para detectar cambios reales)
+- `src/services/bdp_weblink_catalog.rs` — structs `BdpExportArticleItem` y `BdpExportArticlesResponse` + helper `default_true()`
+- `src/services/bdp_sync.rs` — nuevo método `sync_catalog()` que itera artículos y llama `upsert_from_bdp()` por cada uno, devolviendo `BdpCatalogSyncResult`
+- `src/handlers/bdp_article_map.rs` — nuevo endpoint `POST /api/bdp/article-maps/sync-catalog`
+- `src/repositories/mod.rs` — exporta `BdpArticleUpsertData`
+- `src/services/mod.rs` — exporta `BdpCatalogSyncResult`
 
-**Esfuerzo:** 2-3h
+**Tests:** pendientes (Category A unit + Category B DB). Sin llamadas reales a BDP.
+
+**Esfuerzo:** ~2.5h implementación + validación
 
 #### 9.6.2 — GetArticle: Consulta individual (🟡 Útil)
 

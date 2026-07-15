@@ -90,12 +90,10 @@ Proyecto migrado de WordPress a Rust (Axum) + React SPA. El frontend React se in
 
 ### 🟦 BDP — Fase 9: Catálogo, Plano de Sala y Menús
 
-Plan completo en `Agente/planes/plan-bdp-fase9-catalogo-salas-menus-2026-07-15.md`.
-
-- **Fase 9.1 — ExportArticles: Sync de catálogo BDP → Glory.** 🔴 Alta utilidad
+- **Fase 9.1 — ExportArticles: Sync de catálogo BDP → Glory.** 🔧 Implementado (pendiente tests Category A/B + deploy)
   - Lee catálogo completo de BDP (`ExportArticles`), sincroniza con `bdp_article_map`.
   - Campos nuevos en mapa: `descripcion`, `precio_tarifa1`, `iva_pct`, `departamento`, `familia`, `ultima_sync_at`.
-  - Endpoint: `POST /api/bdp/sync-catalog`.
+  - Endpoint: `POST /api/bdp/article-maps/sync-catalog`.
   - ~2-3h.
 
 - **Fase 9.2 — GetArticle: Consulta individual de artículo.** 🟡 Útil

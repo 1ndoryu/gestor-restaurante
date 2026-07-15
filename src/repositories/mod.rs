@@ -38,6 +38,7 @@ pub use trabajador::TrabajadorRepository;
 pub mod resena;
 pub use resena::ResenaRepository;
 pub mod inactividad;
-pub use inactividad::InactividadRepository;
 pub use bdp_article_map::BdpArticleMapRepository;
+pub use bdp_article_map::BdpArticleUpsertData;
+pub use inactividad::InactividadRepository;
 pub use venta_linea::VentaLineaRepository;

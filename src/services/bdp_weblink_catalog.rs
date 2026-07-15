@@ -208,6 +208,104 @@ impl BdpExportArticlesRequest {
     }
 }
 
+/* [157A-7] F9.1: Struct tipado para parsear la respuesta de ExportArticles.
+ * BDP devuelve {"Articles": [{Code, Name, Family, Subfamily, Department,
+ * Tax1, Tax2, Price1..Price5, Discount, BarCode, Active}]}
+ * Usado por BdpSyncService::sync_catalog(). */
+
+/// Un artículo individual del array `Articles` en la respuesta de `ExportArticles`.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpExportArticleItem {
+    /// Código del artículo (puede venir como string o número en BDP)
+    #[serde(default)]
+    pub code: Option<String>,
+    /// Fallback: algunos endpoints usan `ItemCode` en vez de `Code`
+    #[serde(default, alias = "ItemCode")]
+    pub item_code: Option<String>,
+    /// Descripción / nombre del artículo
+    #[serde(default, alias = "Description")]
+    pub name: Option<String>,
+    /// Código de familia
+    #[serde(default)]
+    pub family: Option<i32>,
+    /// Código de subfamilia
+    #[serde(default)]
+    pub subfamily: Option<i32>,
+    /// Código de departamento
+    #[serde(default)]
+    pub department: Option<i32>,
+    /// Porcentaje IVA 1 (venta)
+    #[serde(default)]
+    pub tax1: Option<Decimal>,
+    /// Porcentaje IVA 2
+    #[serde(default)]
+    pub tax2: Option<Decimal>,
+    /// Precio tarifa 1
+    #[serde(default)]
+    pub price1: Option<Decimal>,
+    /// Precio tarifa 2
+    #[serde(default)]
+    pub price2: Option<Decimal>,
+    /// Precio tarifa 3
+    #[serde(default)]
+    pub price3: Option<Decimal>,
+    /// Precio tarifa 4
+    #[serde(default)]
+    pub price4: Option<Decimal>,
+    /// Precio tarifa 5
+    #[serde(default)]
+    pub price5: Option<Decimal>,
+    /// Porcentaje de descuento
+    #[serde(default)]
+    pub discount: Option<Decimal>,
+    /// Código de barras
+    #[serde(default)]
+    pub bar_code: Option<String>,
+    /// Artículo activo
+    #[serde(default = "default_true")]
+    pub active: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl BdpExportArticleItem {
+    /// Devuelve el código del artículo (Code o `ItemCode`)
+    #[must_use]
+    pub fn art_code(&self) -> Option<&str> {
+        self.code
+            .as_deref()
+            .or(self.item_code.as_deref())
+            .filter(|s| !s.is_empty())
+    }
+
+    /// Devuelve la descripción del artículo
+    #[must_use]
+    pub fn description(&self) -> &str {
+        self.name.as_deref().unwrap_or("")
+    }
+}
+
+/// Respuesta tipada de `POST /API/Articles/Export`.
+/// El array viene dentro de la clave `Articles`.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct BdpExportArticlesResponse {
+    #[serde(default)]
+    pub articles: Vec<BdpExportArticleItem>,
+}
+
+/// Resultado del sync de catálogo BDP → Glory (F9.1).
+#[derive(Debug, Clone, Serialize)]
+pub struct BdpCatalogSyncResult {
+    pub creados: u32,
+    pub actualizados: u32,
+    pub sin_cambios: u32,
+    pub errores: u32,
+    pub total_bdp: usize,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct BdpGetPosArticlesRequest {
