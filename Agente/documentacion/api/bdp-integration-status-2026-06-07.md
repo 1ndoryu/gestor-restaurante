@@ -1,11 +1,11 @@
 # BDP WebLink REST API — Estado de Integración
 
-> **Fecha:** 2026-06-07 (actualizado 2026-07-14)
-> **Autor:** Agente (análisis post-implementación 065A-5 + Category C tests 147A-5)
+> **Fecha:** 2026-06-07 (actualizado 2026-07-15)
+> **Autor:** Agente (análisis post-implementación 065A-5 + Category C tests 147A-5 + auditoría código 147A-6)
 > **Stack:** Glory Rust Backend (Axum 0.7 + SQLx) ↔ BDP-NET WebLink REST API
 > **Endpoint BDP:** `http://100.83.196.35:8068` (vía Tailscale)
 > **POS:** 31 — CENTRAL 2026 (Series `00031TI`, IVA incluido)
-> **Estado:** ✅ Integración verificada en producción + 6 tests Category C pasando contra BDP real (última verificación 2026-07-14)
+> **Estado:** ✅ Integración verificada en producción + 6 tests Category C + 21 tests Category B + 32 tests Category A (última auditoría 2026-07-15)
 
 ---
 
@@ -14,14 +14,17 @@
 | Métrica                                                        | Valor                                       |
 | -------------------------------------------------------------- | ------------------------------------------- |
 | Endpoints documentados en API BDP                              | ~55                                         |
-| Endpoints con constante en catálogo (`bdp_weblink_catalog.rs`) | 21                                          |
-| Endpoints con método en cliente (`BdpWeblinkClient`)           | 23                                          |
+| Endpoints con constante en catálogo (`BDP_ENDPOINTS`)          | 21                                          |
+| Endpoints con método en cliente (`BdpWeblinkClient`)           | 23 (incluye `check_order` variante + `post_authenticated`) |
 | Endpoints invocados en sync productivo                         | **2** (`CreateOrder`, `GetPOSArticlesList`) |
-| Endpoints invocados solo en preflight                          | 8                                           |
-| Endpoints con cliente pero sin invocar                         | 11                                          |
+| Endpoints invocados solo en preflight                          | 5 (health, get_version, export_departments_from_profile, get_employee, get_pos_employees) |
+| Endpoints validados en Category C (read-only)                  | 3 (`ExportArticles`, `GetOrder`, `GetTenderList`) |
+| Endpoints con cliente pero nunca llamados                      | 8 (export_customers, create_customer, cancel_order, add_order_payment, invoice_order, export_departments, get_poses, get_employees) |
+| Endpoints ⚠️ con problemas conocidos                           | 2 (`GetPOS` → `[404401]`, `GetPOSes` → vacío) |
 | Endpoints no implementados en absoluto                         | ~32                                         |
 | Direccionalidad actual                                         | **Unidireccional (Glory → BDP)**            |
 | Campos Glory no enviados en `CreateOrder`                      | ~10                                         |
+| Tests BDP (Cat A + B + C)                                      | **59 tests, 59 pasando**                    |
 | **Completitud de la integración**                              | **~5% del potencial**                       |
 
 ---
@@ -111,7 +114,7 @@
 | ---------- | ----------- | ------ | --------------------------------------------------------- |
 | `GetPOS`   | POST        | ⚠️    | **Devuelve `[404401]` desde ~junio 2026** — cambio en API de BDP. No afecta CreateOrder |
 | `GetPOSes` | POST        | ⚠️    | **Devuelve respuesta vacía** — limitación de API. No afecta integración               |
-| `GetPOSSeriesList` | POST | 🔧     | Probado exitosamente: devuelve las 15 series del terminal |
+| `GetPOSSeriesList` | POST | �     | Documentado en API (`/API/POSSeries/GetList`), probado manualmente. **Sin código**: falta path const + método cliente |
 
 ### 2.10 Empleados
 
@@ -234,16 +237,21 @@ Glory: Venta creada/actualizada
 
 | Archivo                                     | Líneas | Rol                                                               |
 | ------------------------------------------- | ------ | ----------------------------------------------------------------- |
-| `src/services/bdp_weblink.rs`               | ~750   | Cliente HTTP base: login+token, 23 métodos, error sanitization    |
-| `src/services/bdp_weblink_catalog.rs`       | ~200   | 21 constantes de ruta, structs request/response, spec inventory   |
-| `src/services/bdp_sync.rs`                  | ~480   | `BdpSyncService`: sync_venta, retry, build_order, resolve_article |
-| `src/services/bdp_sync_preflight.rs`        | ~460   | `BdpSyncPreflightService`: 9 checks + dry-run CreateOrder         |
-| `src/services/venta.rs`                     | ~280   | `VentaService`: hooks create/update/delete para spawn BDP sync    |
-| `src/handlers/ventas.rs`                    | ~210   | Endpoint `POST /api/ventas/:id/bdp-sync` (retry manual)           |
-| `src/models/venta.rs`                       | ~160   | Modelo Venta + campos bdp_synced, bdp_order_id, etc.              |
-| `src/models/configuracion.rs`               | ~100   | Config: bdp_url, bdp_login, bdp_sync_enabled, etc.                |
-| `src/repositories/venta.rs`                 | ~380   | `update_bdp_status()` con `sqlx::query()` (sin macro)             |
-| `migrations/20260607000000_bdp_sync_fields` | ~20    | Columnas bdp en ventas + configuracion                            |
+| `src/services/bdp_weblink.rs`               | 572    | Cliente HTTP base: login+token, 23 métodos, error sanitization    |
+| `src/services/bdp_weblink_catalog.rs`       | 448    | 21 constantes de ruta + BDP_ENDPOINTS (21 specs), structs request/response |
+| `src/services/bdp_sync.rs`                  | 1258   | `BdpSyncService`: sync_venta, retry, build_order, resolve_article, 32 unit tests |
+| `src/services/bdp_sync_preflight.rs`        | 760    | `BdpSyncPreflightService`: 9 checks + dry-run CreateOrder         |
+| `src/services/venta.rs`                     | 257    | `VentaService`: hooks create/update/delete para spawn BDP sync    |
+| `src/handlers/ventas.rs`                    | 275    | Endpoint `POST /api/ventas/:id/bdp-sync` (retry manual)           |
+| `src/models/venta.rs`                       | 183    | Modelo Venta + campos bdp_synced, bdp_order_id, etc.              |
+| `src/models/configuracion.rs`               | 152    | Config: bdp_url, bdp_login, bdp_sync_enabled, bdp_tender_map, bdp_order_type_map |
+| `src/repositories/venta.rs`                 | 405    | `update_bdp_status()` con `sqlx::query()` (sin macro)             |
+| `tests/bdp_readonly.rs`                     | 243    | Category C: 6 tests read-only contra BDP real                     |
+| `tests/bdp_article_map.rs`                 | 279    | Category B: 12 tests DB para tabla bdp_article_map                |
+| `tests/bdp_venta_lineas.rs`                | 246    | Category B: 9 tests DB para venta_lineas + BDP                    |
+| `migrations/20260607000000_bdp_sync_fields` | 15     | Columnas bdp en ventas (bdp_synced, bdp_order_id, bdp_error) + configuracion |
+| `migrations/20260714000000_bdp_article_map` | 14     | Tabla bdp_article_map: mapeo artículos Glory ↔ BDP                |
+| `migrations/20260714100000_bdp_config_fields`| 8      | Columnas bdp_tender_map y bdp_order_type_map (JSONB) en configuracion |
 
 ---
 
@@ -261,13 +269,19 @@ Glory: Venta creada/actualizada
 | `bdp_items_profile_id`     | `1`                         | Perfil de artículos              |
 | `bdp_default_article_code` | `1001`                      | Artículo genérico (fallback)     |
 | `bdp_default_article_name` | `CAFE BOMBON`               | Nombre del artículo genérico     |
+| `bdp_tender_map`           | `{}` (JSONB)               | Mapeo `metodo_pago` Glory → código tend BDP (migración 20260714100000) |
+| `bdp_order_type_map`       | `{}` (JSONB)               | Mapeo canal_venta Glory → Type BDP (migración 20260714100000)       |
+
+### Tablas adicionales de BDP
+
+| Tabla               | Migración              | Propósito                                                          |
+| ------------------- | ---------------------- | ------------------------------------------------------------------ |
+| `bdp_article_map`   | `20260714000000`       | Mapeo artículos Glory ↔ BDP (glory_article_id ↔ bdp_art_code)     |
 
 ### Campos que faltarían para integración completa
 
 | Campo propuesto             | Tipo     | Para qué                                                                     |
 | --------------------------- | -------- | ---------------------------------------------------------------------------- |
-| `bdp_tender_id`             | `i32`    | Forma de pago por defecto para mapear `metodo_pago`                          |
-| `bdp_order_type_map`        | `jsonb`  | Tabla de mapeo canal → Type (ej: `{"comedor": 1, "barra": 0, "terraza": 0}`) |
 | `bdp_default_customer_code` | `String` | Cliente genérico cuando no hay `cliente_id`                                  |
 | `bdp_invoice_on_create`     | `bool`   | Si debe facturar automáticamente al crear comanda                            |
 | `bdp_poll_interval_secs`    | `i32`    | Intervalo de polling para `GetOrder`                                         |
@@ -401,12 +415,22 @@ sequenceDiagram
 | Archivo                                                    | Contenido                                                |
 | ---------------------------------------------------------- | -------------------------------------------------------- |
 | `WEBLINK RESTAPI.md`                                       | Documentación completa de la API BDP (raíz del proyecto) |
-| `src/services/bdp_weblink_catalog.rs`                      | Constantes de ruta + structs de request/response         |
+| `src/services/bdp_weblink_catalog.rs`                      | Constantes de ruta + BDP_ENDPOINTS + structs request/response |
 | `src/services/bdp_weblink.rs`                              | Cliente HTTP con auth, 23 métodos                        |
-| `src/services/bdp_sync.rs`                                 | Servicio de sync Glory → BDP                             |
-| `src/services/bdp_sync_preflight.rs`                       | Preflight/dry-run                                        |
+| `src/services/bdp_sync.rs`                                 | Servicio de sync Glory → BDP + 32 unit tests             |
+| `src/services/bdp_sync_preflight.rs`                       | Preflight/dry-run (9 checks)                            |
+| `src/models/venta.rs`                                      | Modelo Venta con campos BDP (bdp_synced, bdp_order_id, etc.) |
+| `src/models/configuracion.rs`                              | Config con campos BDP existentes (url, login, tender_map, order_type_map) |
+| `src/repositories/venta.rs`                                | update_bdp_status() con sqlx::query() sin macro          |
+| `tests/bdp_readonly.rs`                                    | Category C: 6 tests read-only contra BDP real            |
+| `tests/bdp_article_map.rs`                                 | Category B: 12 tests DB para tabla bdp_article_map       |
+| `tests/bdp_venta_lineas.rs`                                | Category B: 9 tests DB para venta_lineas + BDP           |
+| `migrations/20260607000000_bdp_sync_fields.up.sql`        | Columnas BDP en ventas + configuracion                   |
+| `migrations/20260714000000_bdp_article_map.up.sql`        | Tabla bdp_article_map                                    |
+| `migrations/20260714100000_bdp_config_fields.up.sql`      | Columnas bdp_tender_map, bdp_order_type_map              |
 | `Agente/planes/plan-bdp-sync-implementation-2026-06-07.md` | Plan de implementación original                          |
 | `Agente/planes/plan-bdp-testing-2026-06-07.md`             | Plan de testing                                          |
+| `Agente/planes/plan-bdp-implementacion-completa-2026-07-14.md` | Plan maestro: 6 fases, análisis cobertura, tests  |
 
 ---
 
