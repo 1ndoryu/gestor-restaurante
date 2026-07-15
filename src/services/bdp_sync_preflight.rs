@@ -735,6 +735,7 @@ mod tests {
             google_review_url: String::new(),
             telefono_restaurante: String::new(),
             url_reservas: String::new(),
+            bdp_auto_sync_customers: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

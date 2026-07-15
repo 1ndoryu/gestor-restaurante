@@ -422,6 +422,7 @@ mod tests {
             bdp_order_id: None,
             /* [276A-4.1] Estado BDP polling */
             bdp_order_status: None,
+            bdp_invoiced: false,
         }
     }
 
@@ -461,6 +462,7 @@ mod tests {
             bdp_order_type_map: serde_json::json!({}),
             bdp_default_customer_code: String::new(),
             bdp_poll_interval_secs: 60,
+            bdp_auto_sync_customers: false,
             google_review_url: String::new(),
             telefono_restaurante: String::new(),
             url_reservas: String::new(),
@@ -1213,6 +1215,7 @@ mod tests {
             hora_comida_fin: None,
             hora_cena_inicio: None,
             hora_cena_fin: None,
+            bdp_auto_sync_customers: None,
         };
         ConfiguracionRepository::actualizar(pool, user_id, &req)
             .await

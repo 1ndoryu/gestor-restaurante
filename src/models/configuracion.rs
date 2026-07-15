@@ -70,6 +70,8 @@ pub struct ConfiguracionRestaurante {
     pub bdp_default_customer_code: String,
     /* [F4.5] Intervalo de polling para consultar estado de comandas BDP (segundos) */
     pub bdp_poll_interval_secs: i32,
+    /* [F7.5] Auto-sync de clientes Glory→BDP al crear venta. Requiere autorización explícita del usuario. */
+    pub bdp_auto_sync_customers: bool,
     /* [094A-4] URL de Google Business para redirigir reseñas positivas */
     pub google_review_url: String,
     /* [094A-6] Datos para botones CTA en mensajes WhatsApp */
@@ -142,6 +144,8 @@ pub struct ActualizarConfiguracionRequest {
     pub bdp_default_customer_code: Option<String>,
     /* [F4.5] Intervalo de polling BDP */
     pub bdp_poll_interval_secs: Option<i32>,
+    /* [F7.5] Auto-sync de clientes Glory→BDP al crear venta */
+    pub bdp_auto_sync_customers: Option<bool>,
 }
 
 fn validar_iva(valor: &rust_decimal::Decimal) -> Result<(), validator::ValidationError> {

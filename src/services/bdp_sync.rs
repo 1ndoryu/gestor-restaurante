@@ -24,6 +24,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex as StdMutex};
 
 use chrono::Utc;
+use rust_decimal::Decimal;
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use tokio::sync::Mutex as TokioMutex;
@@ -32,7 +33,10 @@ use tracing::{info, warn};
 use crate::models::{ConfiguracionRestaurante, Venta, VentaLinea};
 use crate::repositories::{ClienteRepository, VentaLineaRepository, VentaRepository};
 use crate::services::bdp_weblink::BdpWeblinkClient;
-use crate::services::bdp_weblink_catalog::{BdpCreateOrderRequest, BdpGetPosArticlesRequest};
+use crate::services::bdp_weblink_catalog::{
+    BdpAddOrderPaymentRequest, BdpCreateOrderRequest, BdpGetPosArticlesRequest,
+    BdpInvoiceOrderRequest, BdpOrderIdentifier, BdpOrderPayment,
+};
 
 const MAX_RETRIES: u32 = 3;
 const BDP_SYNC_MARKET_ID: i32 = 9_900;
@@ -106,6 +110,22 @@ impl BdpSyncService {
 
         let client = BdpWeblinkClient::new(config);
         let article = Self::resolve_article(&client, config).await;
+
+        /* [F7.5] Auto-sync de cliente Glory→BDP antes de resolver contexto del pedido.
+         * Solo si el flag está habilitado Y la venta tiene cliente asignado.
+         * ensure_cliente_bdp_synced() crea el cliente en BDP si no existe (ExportCustomers→CreateCustomer). */
+        if config.bdp_auto_sync_customers {
+            if let Some(cliente_id) = venta.cliente_id {
+                match Self::ensure_cliente_bdp_synced(pool, cliente_id, venta.user_id, config).await {
+                    Some(bdp_code) => {
+                        info!("[F7.5] Cliente {} auto-sincronizado con BDP (code={bdp_code}) para venta {}", cliente_id, venta.id);
+                    }
+                    None => {
+                        warn!("[F7.5] No se pudo sincronizar cliente {} con BDP — venta {} usará cliente por defecto", cliente_id, venta.id);
+                    }
+                }
+            }
+        }
 
         /* [F3.1] Resolver contexto del pedido: tender, order type, customer. */
         let order_ctx = Self::resolve_order_context(pool, venta, config).await;
@@ -581,8 +601,15 @@ impl BdpSyncService {
                     }
                 };
                 let phone = if cliente.telefono.is_empty() { None } else { Some(cliente.telefono.clone()) };
-                let code = config.bdp_default_customer_code.clone();
-                let code = if code.is_empty() { None } else { Some(code) };
+                /* [F7.5] Priorizar bdp_customer_code del cliente sobre default config.
+                 * Si el cliente ya fue sincronizado con BDP, usamos su código real.
+                 * Si no, fallback al código genérico de config. */
+                let code = if let Some(bdp_code) = cliente.bdp_customer_code {
+                    Some(bdp_code.to_string())
+                } else {
+                    let default = config.bdp_default_customer_code.clone();
+                    if default.is_empty() { None } else { Some(default) }
+                };
                 (code, name, phone)
             }
             Ok(None) => {
@@ -685,6 +712,284 @@ impl BdpSyncService {
             }
         }
     }
+
+    /// [F7.5] Auto-sync de cliente Glory → BDP.
+    /// Si el cliente no tiene `bdp_customer_code`, lo crea en BDP y guarda el código.
+    /// Devuelve el código BDP del cliente (existente o recién creado), o None si falla.
+    ///
+    /// Nota: `CreateCustomer` con Code=0 auto-asigna pero no devuelve el código asignado.
+    /// Por eso asignamos codes secuenciales consultando el máximo existente vía `ExportCustomers`.
+    ///
+    /// ⚠️ Este método llama a la API de BDP — solo usar con autorización del usuario.
+    #[allow(dead_code, clippy::too_many_lines)]
+    pub async fn ensure_cliente_bdp_synced(
+        pool: &PgPool,
+        cliente_id: uuid::Uuid,
+        user_id: uuid::Uuid,
+        config: &ConfiguracionRestaurante,
+    ) -> Option<i32> {
+        use crate::services::bdp_weblink_catalog::{
+            BdpCreateCustomerRequest, BdpExportCustomersRequest,
+        };
+
+        /* 1. Si ya tiene código BDP, devolverlo directo */
+        let Ok(Some(cliente)) = ClienteRepository::find_by_id(pool, cliente_id, user_id).await
+        else {
+            return None;
+        };
+
+        if let Some(code) = cliente.bdp_customer_code {
+            return Some(code);
+        }
+
+        /* 2. Login a BDP */
+        let client = BdpWeblinkClient::new(config);
+        let _session = match client.login().await {
+            Ok(s) => s,
+            Err(e) => {
+                warn!("[F7.5] Login BDP falló para auto-sync cliente {}: {e}", cliente_id);
+                return None;
+            }
+        };
+
+        /* 3. Buscar siguiente código BDP disponible.
+         * ExportCustomers devuelve todos los clientes; extraemos el máximo code. */
+        let next_code = match client
+            .export_customers(&BdpExportCustomersRequest::default())
+            .await
+        {
+            Ok(json) => {
+                let max_code = json
+                    .get("Customers")
+                    .and_then(|v| v.as_array())
+                    .map_or(0, |arr| {
+                        i32::try_from(
+                            arr.iter()
+                                .filter_map(|c| c.get("Code").and_then(Value::as_i64))
+                                .max()
+                                .unwrap_or(0),
+                        )
+                        .unwrap_or(0)
+                    });
+                max_code + 1
+            }
+            Err(e) => {
+                warn!("[F7.5] ExportCustomers falló: {e}. Usando código alto.");
+                /* Fallback: usar hash del UUID como código (rango seguro 90000-99999) */
+                let hash = cliente_id
+                    .as_bytes()
+                    .iter()
+                    .fold(0u32, |acc, &b| acc.wrapping_mul(31).wrapping_add(u32::from(b)));
+                90_000 + (hash % 9_999).cast_signed()
+            }
+        };
+
+        /* 4. Crear cliente en BDP */
+        let fiscal_name = format!(
+            "{} {}",
+            cliente.nombre,
+            cliente.apellidos
+        )
+        .trim()
+        .to_string();
+
+        let req = BdpCreateCustomerRequest {
+            code: next_code,
+            fiscal_name,
+            commercial_name: String::new(),
+            mobile_phone: cliente.telefono.clone(),
+            email: cliente.email.clone(),
+            overwrite: false,
+        };
+
+        match client.create_customer(&req).await {
+            Ok(resp) => {
+                let error_msg = resp
+                    .get("ErrorMessage")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                if !error_msg.is_empty() {
+                    warn!(
+                        "[F7.5] CreateCustomer error para cliente {}: {error_msg}",
+                        cliente_id
+                    );
+                    let _ = ClienteRepository::update_bdp_sync(
+                        pool,
+                        cliente_id,
+                        None,
+                        false,
+                        Some(error_msg),
+                    )
+                    .await;
+                    return None;
+                }
+            }
+            Err(e) => {
+                warn!("[F7.5] CreateCustomer request falló: {e}");
+                let err_str = format!("{e}");
+                let _ = ClienteRepository::update_bdp_sync(
+                    pool,
+                    cliente_id,
+                    None,
+                    false,
+                    Some(&err_str),
+                )
+                .await;
+                return None;
+            }
+        }
+
+        /* 5. Guardar código BDP en el cliente */
+        let _ = ClienteRepository::update_bdp_sync(
+            pool,
+            cliente_id,
+            Some(next_code),
+            true,
+            None,
+        )
+        .await;
+
+        info!(
+            "[F7.5] Cliente {} sincronizado con BDP code={}",
+            cliente_id, next_code
+        );
+        Some(next_code)
+    }
+
+    /* ===== FASE 8: AddOrderPayment + InvoiceOrder ===== */
+
+    /* [F8.1] Registrar pago contra una orden BDP existente.
+     * Llama a `POST /API/Orders/Payment/Add` con el order_id de la venta.
+     * Retorna el InvoiceNumber si BDP lo devuelve (algunos pagos no facturan automáticamente).
+     *
+     * ⚠️ REQUIERE AUTORIZACIÓN DEL USUARIO para llamadas reales a BDP. */
+    pub async fn add_order_payment(
+        pool: &PgPool,
+        venta: &Venta,
+        config: &ConfiguracionRestaurante,
+        amount: Decimal,
+        tender_id: i32,
+    ) -> Result<Option<String>, String> {
+        if !config.bdp_sync_enabled || !crate::services::bdp_sync_preflight::bdp_configurado(config)
+        {
+            return Err("BDP no está habilitado o configurado".into());
+        }
+
+        let order_id = venta
+            .bdp_order_id
+            .ok_or_else(|| format!("Venta {} no tiene bdp_order_id", venta.id))?;
+
+        let client = BdpWeblinkClient::new(config);
+        client
+            .login()
+            .await
+            .map_err(|e| format!("Error login BDP: {e}"))?;
+
+        let payment_id = format!("glory-{}-{}", venta.id, chrono::Utc::now().timestamp());
+
+        let request = BdpAddOrderPaymentRequest {
+            order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+            payment: BdpOrderPayment {
+                tender_id,
+                amount,
+                payment_id: payment_id.clone(),
+            },
+            invoice: None,
+            pos_id: Some(config.bdp_pos_id),
+            employee_id: Some(config.bdp_employee_id),
+            invoice_parameters: None,
+        };
+
+        let response = client
+            .add_order_payment(&request)
+            .await
+            .map_err(|e| format!("Error AddOrderPayment: {e}"))?;
+
+        let invoice_number = response
+            .get("InvoiceNumber")
+            .and_then(|v| v.as_str())
+            .map(String::from);
+
+        if let Some(ref inv) = invoice_number {
+            /* [F8.3] Si BDP devolvió InvoiceNumber, marcar venta como facturada. */
+            info!(
+                "[F8.1] Pago registrado en BDP para venta {} → InvoiceNumber={inv}",
+                venta.id
+            );
+            let _ = sqlx::query(
+                "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
+            )
+            .bind(venta.id)
+            .execute(pool)
+            .await;
+        } else {
+            info!(
+                "[F8.1] Pago registrado en BDP para venta {} (sin InvoiceNumber)",
+                venta.id
+            );
+        }
+
+        Ok(invoice_number)
+    }
+
+    /* [F8.2] Facturar una orden BDP existente.
+     * Llama a `POST /API/Orders/Invoice` con el order_id de la venta.
+     * Retorna el InvoiceNumber.
+     *
+     * ⚠️ REQUIERE AUTORIZACIÓN DEL USUARIO para llamadas reales a BDP. */
+    pub async fn invoice_order(
+        pool: &PgPool,
+        venta: &Venta,
+        config: &ConfiguracionRestaurante,
+    ) -> Result<String, String> {
+        if !config.bdp_sync_enabled || !crate::services::bdp_sync_preflight::bdp_configurado(config)
+        {
+            return Err("BDP no está habilitado o configurado".into());
+        }
+
+        let order_id = venta
+            .bdp_order_id
+            .ok_or_else(|| format!("Venta {} no tiene bdp_order_id", venta.id))?;
+
+        let client = BdpWeblinkClient::new(config);
+        client
+            .login()
+            .await
+            .map_err(|e| format!("Error login BDP: {e}"))?;
+
+        let request = BdpInvoiceOrderRequest {
+            pos_id: config.bdp_pos_id,
+            employee_id: config.bdp_employee_id,
+            order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+            invoice_parameters: None,
+        };
+
+        let response = client
+            .invoice_order(&request)
+            .await
+            .map_err(|e| format!("Error InvoiceOrder: {e}"))?;
+
+        let invoice_number = response
+            .get("InvoiceNumber")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        /* [F8.3] Marcar venta como facturada. */
+        let _ = sqlx::query(
+            "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
+        )
+        .bind(venta.id)
+        .execute(pool)
+        .await;
+
+        info!(
+            "[F8.2] Orden {} facturada en BDP → InvoiceNumber={invoice_number}",
+            venta.id
+        );
+
+        Ok(invoice_number)
+    }
 }
 
 /// Artículo BDP resuelto para el mapeo.
@@ -770,6 +1075,7 @@ mod tests {
             bdp_sync_error: None,
             bdp_order_id: None,
             bdp_order_status: None,
+            bdp_invoiced: false,
         }
     }
 

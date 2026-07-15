@@ -67,6 +67,7 @@ fn bdp_config_from_env() -> Option<ConfiguracionRestaurante> {
         bdp_order_type_map: json!({"comedor": "0", "barra": "0"}),
         bdp_default_customer_code: String::new(),
         bdp_poll_interval_secs: 60,
+        bdp_auto_sync_customers: false,
         google_review_url: String::new(),
         telefono_restaurante: String::new(),
         url_reservas: String::new(),

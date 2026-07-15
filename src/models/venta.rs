@@ -74,6 +74,8 @@ pub struct Venta {
     pub bdp_order_id: Option<i64>,
     /* [F4.1] Estado del pedido BDP: pending, confirmed, invoiced, error */
     pub bdp_order_status: Option<String>,
+    /* [F8.4] Indica si la venta fue facturada en BDP (InvoiceOrder exitoso). */
+    pub bdp_invoiced: bool,
 }
 
 /// Request para crear una venta
@@ -152,6 +154,8 @@ pub struct VentaConCliente {
     pub bdp_order_id: Option<i64>,
     /* [F4.1] Estado del pedido BDP */
     pub bdp_order_status: Option<String>,
+    /* [F8.4] Indica si la venta fue facturada en BDP */
+    pub bdp_invoiced: bool,
 }
 
 /// Query params para listar ventas con filtro por fecha

@@ -12,7 +12,7 @@ use crate::middleware::AuthUser;
 use crate::models::{
     ActualizarVentaRequest, CrearVentaRequest, Venta, VentasPaginadas, VentasQuery,
 };
-use crate::services::{BdpOrderPollerService, VentaService};
+use crate::services::{BdpOrderPollerService, BdpSyncService, VentaService};
 use crate::AppState;
 
 /// Crear una venta
@@ -274,6 +274,76 @@ pub async fn bdp_poll(
     Ok(Json(BdpPollResponse { updated }))
 }
 
+/* [F8.5] POST /api/ventas/:id/bdp-invoice — Facturar una orden BDP existente.
+ * Llama a InvoiceOrder en BDP y marca la venta como facturada.
+ * ⚠️ Requiere bdp_order_id (la venta debe estar sincronizada con BDP primero). */
+#[derive(serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
+pub struct BdpInvoiceRequest {
+    /// Si se envía `amount` + `tender_id`, primero registra el pago (`AddOrderPayment`) y luego factura.
+    /// Si no se envía, solo factura la orden existente.
+    pub amount: Option<rust_decimal::Decimal>,
+    pub tender_id: Option<i32>,
+}
+
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct BdpInvoiceResponse {
+    pub venta_id: Uuid,
+    pub invoice_number: String,
+    pub bdp_invoiced: bool,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/ventas/{id}/bdp-invoice",
+    tag = "Ventas",
+    params(("id" = Uuid, Path, description = "ID de la venta")),
+    request_body = BdpInvoiceRequest,
+    responses(
+        (status = 200, description = "Orden facturada en BDP", body = BdpInvoiceResponse),
+        (status = 404, description = "Venta no encontrada", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse),
+        (status = 422, description = "Venta no sincronizada con BDP o BDP no habilitado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn bdp_invoice(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(req): Json<BdpInvoiceRequest>,
+) -> Result<Json<BdpInvoiceResponse>, AppError> {
+    let config = crate::services::ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+
+    let venta = crate::repositories::VentaRepository::find_by_id(&state.pool, id, auth.user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
+
+    if venta.bdp_order_id.is_none() {
+        return Err(AppError::Validation(
+            "La venta no tiene bdp_order_id — sincróniza con BDP primero".into(),
+        ));
+    }
+
+    /* [F8.1] Si se proporciona amount + tender_id, registrar pago primero */
+    if let (Some(amount), Some(tender_id)) = (req.amount, req.tender_id) {
+        BdpSyncService::add_order_payment(&state.pool, &venta, &config, amount, tender_id)
+            .await
+            .map_err(AppError::Validation)?;
+    }
+
+    /* [F8.2] Facturar la orden */
+    let invoice_number =
+        BdpSyncService::invoice_order(&state.pool, &venta, &config)
+            .await
+            .map_err(AppError::Validation)?;
+
+    Ok(Json(BdpInvoiceResponse {
+        venta_id: venta.id,
+        invoice_number,
+        bdp_invoiced: true,
+    }))
+}
+
 /* [263A-15] Axum 0.7 (matchit 0.7.x) usa :param, no {param}.
  * Todas las rutas con path params corregidas de {id} a :id.
  * Las anotaciones #[utoipa::path] mantienen {id} (sintaxis OpenAPI, no afecta routing). */
@@ -289,5 +359,6 @@ pub fn routes() -> Router<AppState> {
         .route("/ventas/:id/haddock-sync", post(reintentar_sync_haddock))
         .route("/ventas/:id/bdp-sync", post(reintentar_sync_bdp))
         .route("/ventas/:id/bdp-status", get(obtener_bdp_status))
+        .route("/ventas/:id/bdp-invoice", post(bdp_invoice))
         .route("/ventas/bdp-poll", post(bdp_poll))
 }

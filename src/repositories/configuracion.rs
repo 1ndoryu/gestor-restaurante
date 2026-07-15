@@ -79,6 +79,7 @@ impl ConfiguracionRepository {
                      bdp_order_type_map = COALESCE($31, bdp_order_type_map), \
                      bdp_default_customer_code = COALESCE($32, bdp_default_customer_code), \
                      bdp_poll_interval_secs = COALESCE($33, bdp_poll_interval_secs), \
+                     bdp_auto_sync_customers = COALESCE($34, bdp_auto_sync_customers), \
                 updated_at = NOW() \
              WHERE user_id = $1 RETURNING *",
         )
@@ -115,6 +116,7 @@ impl ConfiguracionRepository {
         .bind(req.bdp_order_type_map.as_ref())
         .bind(req.bdp_default_customer_code.as_deref())
         .bind(req.bdp_poll_interval_secs)
+        .bind(req.bdp_auto_sync_customers)
         .fetch_one(pool)
         .await
     }

@@ -282,6 +282,7 @@ async fn test_configuracion_actualizar_haddock_fields(pool: PgPool) {
         bdp_order_type_map: None,
         bdp_default_customer_code: None,
         bdp_poll_interval_secs: None,
+        bdp_auto_sync_customers: None,
     };
 
     let updated = ConfiguracionRepository::actualizar(&pool, user_id, &req)

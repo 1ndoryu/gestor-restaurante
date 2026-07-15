@@ -135,7 +135,8 @@ impl VentaRepository {
                     END AS nombre_cliente, \
                     v.created_at, v.updated_at, \
                     v.haddock_synced, v.haddock_synced_at, v.haddock_sync_error, \
-                    v.bdp_synced, v.bdp_synced_at, v.bdp_sync_error, v.bdp_order_id \
+                    v.bdp_synced, v.bdp_synced_at, v.bdp_sync_error, v.bdp_order_id, \
+                    v.bdp_order_status, v.bdp_invoiced \
              FROM ventas v \
              LEFT JOIN clientes c ON c.id = v.cliente_id \
              WHERE v.user_id = $1 \
@@ -395,17 +396,20 @@ impl VentaRepository {
         Ok(())
     }
 
-    /* [276A-4.2] Actualiza bdp_order_status de una venta — polling/endpoint manual. */
+    /* [276A-4.2] Actualiza bdp_order_status de una venta — polling/endpoint manual.
+     * [F8.4] Si el status es "invoiced", también marca bdp_invoiced = true. */
     pub async fn update_bdp_order_status(
         pool: &PgPool,
         id: Uuid,
         status: &str,
     ) -> Result<(), sqlx::Error> {
+        let invoiced = status == "invoiced";
         sqlx::query(
-            "UPDATE ventas SET bdp_order_status = $2, updated_at = NOW() WHERE id = $1",
+            "UPDATE ventas SET bdp_order_status = $2, bdp_invoiced = $3, updated_at = NOW() WHERE id = $1",
         )
         .bind(id)
         .bind(status)
+        .bind(invoiced)
         .execute(pool)
         .await?;
         Ok(())
