@@ -24,21 +24,15 @@ use crate::middleware::AuthUser;
 use crate::models::CrearClienteRequest;
 use crate::repositories::ClienteRepository;
 use crate::services::{
-    BdpCreateCustomerRequest, BdpExportCustomersRequest, BdpWeblinkClient,
-    ClienteService, ConfiguracionService,
+    BdpCreateCustomerRequest, BdpExportCustomersRequest, BdpWeblinkClient, ClienteService,
+    ConfiguracionService,
 };
 use crate::AppState;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route(
-            "/bdp/customers/import",
-            post(importar_clientes_bdp),
-        )
-        .route(
-            "/clientes/:id/bdp-sync",
-            post(sincronizar_cliente_bdp),
-        )
+        .route("/bdp/customers/import", post(importar_clientes_bdp))
+        .route("/clientes/:id/bdp-sync", post(sincronizar_cliente_bdp))
 }
 
 /* [Fase 7.1] Importar clientes desde BDP a Glory.
@@ -84,9 +78,7 @@ pub async fn importar_clientes_bdp(
     let customers = customers_json
         .get("Customers")
         .and_then(|v| v.as_array())
-        .ok_or_else(|| {
-            AppError::Internal("Respuesta BDP no contiene array 'Customers'.".into())
-        })?;
+        .ok_or_else(|| AppError::Internal("Respuesta BDP no contiene array 'Customers'.".into()))?;
 
     let error_msg = customers_json
         .get("ErrorMessage")
@@ -106,7 +98,10 @@ pub async fn importar_clientes_bdp(
 
     for cust in customers {
         #[allow(clippy::cast_possible_truncation)]
-        let bdp_code = cust.get("Customer").and_then(serde_json::Value::as_i64).unwrap_or(0) as i32;
+        let bdp_code = cust
+            .get("Customer")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0) as i32;
         let fiscal_name = cust
             .get("FiscalName")
             .and_then(|v| v.as_str())
@@ -148,9 +143,7 @@ pub async fn importar_clientes_bdp(
                     None,
                 )
                 .await
-                .map_err(|e| {
-                    AppError::Internal(format!("Error actualizando sync BDP: {e}"))
-                })?;
+                .map_err(|e| AppError::Internal(format!("Error actualizando sync BDP: {e}")))?;
                 actualizados += 1;
             } else {
                 sin_cambios += 1;

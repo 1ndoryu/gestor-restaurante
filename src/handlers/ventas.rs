@@ -332,10 +332,9 @@ pub async fn bdp_invoice(
     }
 
     /* [F8.2] Facturar la orden */
-    let invoice_number =
-        BdpSyncService::invoice_order(&state.pool, &venta, &config)
-            .await
-            .map_err(AppError::Validation)?;
+    let invoice_number = BdpSyncService::invoice_order(&state.pool, &venta, &config)
+        .await
+        .map_err(AppError::Validation)?;
 
     Ok(Json(BdpInvoiceResponse {
         venta_id: venta.id,

@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::models::{ActualizarVentaRequest, CrearVentaRequest, Venta, VentasPaginadas};
 use crate::repositories::venta::{ActualizarVentaData, NuevaVenta};
-use crate::repositories::{ConfiguracionRepository, VentaRepository, VentaLineaRepository};
+use crate::repositories::{ConfiguracionRepository, VentaLineaRepository, VentaRepository};
 
 use super::{BdpSyncService, HaddockService};
 

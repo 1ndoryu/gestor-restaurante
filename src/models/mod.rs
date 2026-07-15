@@ -65,7 +65,7 @@ pub use trabajador::{
 };
 pub use user::{
     AuthResponse, ForgotPasswordRequest, LoginRequest, MessageResponse, RegisterRequest,
-    ResetPasswordRequest, User, UserRole, UserResponse,
+    ResetPasswordRequest, User, UserResponse, UserRole,
 };
 pub use venta::{
     ActualizarVentaRequest, CanalVenta, CrearVentaRequest, MetodoPago, Turno, Venta,
@@ -94,10 +94,10 @@ pub use resena::{
     ResponderResenaRequest, ResponderResenaResponse,
 };
 mod inactividad;
-pub use inactividad::{
-    ActualizarReglaInactividadRequest, CrearReglaInactividadRequest, ReglaInactividad,
-};
 pub use bdp_article_map::{
     ActualizarBdpArticleMapRequest, BdpArticleMap, CrearBdpArticleMapRequest,
+};
+pub use inactividad::{
+    ActualizarReglaInactividadRequest, CrearReglaInactividadRequest, ReglaInactividad,
 };
 pub use venta_linea::{CrearVentaLineaRequest, VentaLinea};

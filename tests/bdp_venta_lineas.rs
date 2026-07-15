@@ -88,10 +88,7 @@ async fn test_crear_batch_y_listar(pool: PgPool) {
     /* Verificar que los datos persistieron correctamente */
     assert_eq!(listed[0].articulo_codigo, "1001");
     assert_eq!(listed[1].articulo_codigo, "2002");
-    assert_eq!(
-        listed[0].cantidad,
-        Decimal::from_str("2").unwrap()
-    );
+    assert_eq!(listed[0].cantidad, Decimal::from_str("2").unwrap());
     assert_eq!(
         listed[1].precio_unitario,
         Decimal::from_str("3.50").unwrap()
@@ -223,13 +220,9 @@ async fn test_aislamiento_entre_ventas(pool: PgPool) {
     let venta_a = create_test_venta(&pool, user_id).await;
     let venta_b = create_test_venta(&pool, user_id).await;
 
-    VentaLineaRepository::crear_batch(
-        &pool,
-        venta_a,
-        &[linea_req("A001", "Item A", "1", "10.00")],
-    )
-    .await
-    .unwrap();
+    VentaLineaRepository::crear_batch(&pool, venta_a, &[linea_req("A001", "Item A", "1", "10.00")])
+        .await
+        .unwrap();
 
     VentaLineaRepository::crear_batch(
         &pool,
@@ -264,21 +257,13 @@ async fn test_eliminar_no_afecta_otras_ventas(pool: PgPool) {
     let venta_a = create_test_venta(&pool, user_id).await;
     let venta_b = create_test_venta(&pool, user_id).await;
 
-    VentaLineaRepository::crear_batch(
-        &pool,
-        venta_a,
-        &[linea_req("A001", "Item A", "1", "10.00")],
-    )
-    .await
-    .unwrap();
+    VentaLineaRepository::crear_batch(&pool, venta_a, &[linea_req("A001", "Item A", "1", "10.00")])
+        .await
+        .unwrap();
 
-    VentaLineaRepository::crear_batch(
-        &pool,
-        venta_b,
-        &[linea_req("B001", "Item B", "1", "20.00")],
-    )
-    .await
-    .unwrap();
+    VentaLineaRepository::crear_batch(&pool, venta_b, &[linea_req("B001", "Item B", "1", "20.00")])
+        .await
+        .unwrap();
 
     /* Delete lines from venta_a only */
     VentaLineaRepository::eliminar_por_venta(&pool, venta_a)
@@ -288,10 +273,6 @@ async fn test_eliminar_no_afecta_otras_ventas(pool: PgPool) {
     let remaining_b = VentaLineaRepository::listar_por_venta(&pool, venta_b)
         .await
         .unwrap();
-    assert_eq!(
-        remaining_b.len(),
-        1,
-        "Venta B lines should not be affected"
-    );
+    assert_eq!(remaining_b.len(), 1, "Venta B lines should not be affected");
     assert_eq!(remaining_b[0].articulo_codigo, "B001");
 }

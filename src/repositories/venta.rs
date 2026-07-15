@@ -70,13 +70,11 @@ impl VentaRepository {
         id: Uuid,
         user_id: Uuid,
     ) -> Result<Option<Venta>, sqlx::Error> {
-        sqlx::query_as::<_, Venta>(
-            "SELECT * FROM ventas WHERE id = $1 AND user_id = $2",
-        )
-        .bind(id)
-        .bind(user_id)
-        .fetch_optional(pool)
-        .await
+        sqlx::query_as::<_, Venta>("SELECT * FROM ventas WHERE id = $1 AND user_id = $2")
+            .bind(id)
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await
     }
 
     /* [044A-8+9] Whitelist de columnas — previene SQL injection.
@@ -417,10 +415,7 @@ impl VentaRepository {
 
     /* [276A-4.2] Ventas pendientes de polling BDP:
      * bdp_synced=true, bdp_order_status no final ('invoiced' ni 'error'). */
-    pub async fn list_bdp_pending(
-        pool: &PgPool,
-        user_id: Uuid,
-    ) -> Result<Vec<Venta>, sqlx::Error> {
+    pub async fn list_bdp_pending(pool: &PgPool, user_id: Uuid) -> Result<Vec<Venta>, sqlx::Error> {
         sqlx::query_as::<_, Venta>(
             "SELECT * FROM ventas \
              WHERE user_id = $1 \

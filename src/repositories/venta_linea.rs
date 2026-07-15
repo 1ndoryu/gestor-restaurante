@@ -53,16 +53,11 @@ impl VentaLineaRepository {
     }
 
     /// Elimina todas las líneas de una venta (usado antes de re-crear en actualización)
-    pub async fn eliminar_por_venta(
-        pool: &PgPool,
-        venta_id: Uuid,
-    ) -> Result<u64, sqlx::Error> {
-        let result = sqlx::query(
-            "DELETE FROM venta_lineas WHERE venta_id = $1",
-        )
-        .bind(venta_id)
-        .execute(pool)
-        .await?;
+    pub async fn eliminar_por_venta(pool: &PgPool, venta_id: Uuid) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query("DELETE FROM venta_lineas WHERE venta_id = $1")
+            .bind(venta_id)
+            .execute(pool)
+            .await?;
 
         Ok(result.rows_affected())
     }

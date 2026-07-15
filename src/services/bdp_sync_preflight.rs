@@ -289,13 +289,13 @@ impl BdpSyncPreflightService {
                 response.checks.push(BdpSyncDryRunCheck::ok(
                     "Mapeo de articulos",
                     "bdp_article_map",
-                    format!(
-                        "{} articulos mapeados Glory→BDP",
-                        mapas.len()
-                    ),
+                    format!("{} articulos mapeados Glory→BDP", mapas.len()),
                     Some(mapas.len()),
                     mapas.first().map(|m| {
-                        format!("{} → {} ({})", m.articulo_glory_codigo, m.articulo_bdp_codigo, m.articulo_bdp_nombre)
+                        format!(
+                            "{} → {} ({})",
+                            m.articulo_glory_codigo, m.articulo_bdp_codigo, m.articulo_bdp_nombre
+                        )
                     }),
                 ));
             }
@@ -419,7 +419,8 @@ impl BdpSyncPreflightService {
                     nombre: "Mapeo de order types".into(),
                     endpoint: "bdp_order_type_map".into(),
                     ok: true,
-                    mensaje: "Sin mapeo de order types. Todas las ventas usaran Type=0 (Barra).".into(),
+                    mensaje: "Sin mapeo de order types. Todas las ventas usaran Type=0 (Barra)."
+                        .into(),
                     cantidad: Some(0),
                     muestra: None,
                 });

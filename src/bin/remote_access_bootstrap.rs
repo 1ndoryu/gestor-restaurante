@@ -815,7 +815,10 @@ fn env_var(name: &str) -> Option<String> {
 
 fn default_report_path() -> PathBuf {
     env::var_os("USERPROFILE")
-        .map_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")), PathBuf::from)
+        .map_or_else(
+            || env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            PathBuf::from,
+        )
         .join("Desktop")
         .join("glory-remote-bootstrap.txt")
 }

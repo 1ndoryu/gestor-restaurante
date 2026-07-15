@@ -48,10 +48,7 @@ impl BdpOrderPollerService {
             return Ok(0);
         }
 
-        info!(
-            "[276A-4.2] Polling BDP: {} ventas pendientes",
-            ventas.len()
-        );
+        info!("[276A-4.2] Polling BDP: {} ventas pendientes", ventas.len());
 
         let client = BdpWeblinkClient::new(config);
         let mut updated = 0;

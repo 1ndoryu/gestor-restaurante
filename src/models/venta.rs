@@ -1,13 +1,13 @@
 /* 253A-5: Modelo de venta para el restaurante.
 Campos basados en especificaciones del cliente (audios 4, 8-9) y roadmap sección 4. */
 
+use super::venta_linea::CrearVentaLineaRequest;
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 use validator::Validate;
-use super::venta_linea::CrearVentaLineaRequest;
 
 /// Turnos de servicio del restaurante
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, sqlx::Type)]
