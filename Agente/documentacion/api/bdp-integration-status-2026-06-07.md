@@ -1,7 +1,7 @@
 # BDP WebLink REST API — Estado de Integración
 
 > **Fecha:** 2026-06-07 (actualizado 2026-07-15)
-> **Autor:** Agente (análisis post-implementación 065A-5 + Category C tests 147A-5 + auditoría código 147A-6)
+> **Autor:** Agente (análisis post-implementación 065A-5 + Category C tests 147A-5 + auditoría código 147A-6 + actualización secciones 3/4/5 por F2.7/F2.8/F3.1-3.3)
 > **Stack:** Glory Rust Backend (Axum 0.7 + SQLx) ↔ BDP-NET WebLink REST API
 > **Endpoint BDP:** `http://100.83.196.35:8068` (vía Tailscale)
 > **POS:** 31 — CENTRAL 2026 (Series `00031TI`, IVA incluido)
@@ -150,8 +150,14 @@ Glory: Venta creada/actualizada
   → VentaService::spawn_bdp_sync()
     → BdpSyncService::sync_venta()
       → Login a BDP (admin/kamples2026, JWT ~59 min)
-      → GetPOSArticlesList para resolver artículo por código
-      → CreateOrder con 1 artículo, Type=0 (Barra), OrderEndType=1 (pendiente)
+      → GetPOSArticlesList para resolver artículo default
+      → VentaLineaRepository::listar_por_venta() → líneas (si existen)
+      → resolve_line_articles(): mapea cada línea vía bdp_article_map (F2.8)
+      → resolve_order_context():
+          → resolve_tender_id(): metodo_pago → bdp_tender_map → TenderId (F3.2)
+          → resolve_order_type(): canal → bdp_order_type_map → Type (F3.3)
+          → resolve_customer(): cliente_id → Cliente → Name/Phone/Code (F3.1)
+      → CreateOrder multi-item con TenderId, Type y Customer (F2.7+F3.x)
       → Guarda bdp_synced=true, bdp_order_id en BD
 ```
 
@@ -167,69 +173,98 @@ Glory: Venta creada/actualizada
         "AlreadyInvoiced": false,
         "Invoice": false,
         "MarketplaceOrderId": "G<timestamp_15chars>",
-        "ExecutionTime": "2026-06-07T12:00:00",
-        "Comments": "Venta #<uuid>",
+        "ExecutionTime": "2026-07-15T12:00:00Z",
+        "Comments": "Glory venta <id>",
+        "TenderId": 1,
+        "Customer": { "Name": "Juan García", "Phone": "600123456" },
         "Items": [
             {
-                "ArtCode": 1001,
-                "Units": 1,
-                "Price": 45.5,
+                "Lin": 1,
+                "Id": 549,
+                "Name": "CAFE BOMBON",
+                "Units": 2.0,
+                "Price": 2.5,
+                "Supplement": 0.0,
+                "Discount": 0.0,
+                "DiscountPct": false,
+                "Total": 5.0,
                 "VatPct": 10.0,
-                "Description": "Venta #<uuid>",
-                "Op": 0
+                "OrderItemType": 0
+            },
+            {
+                "Lin": 2,
+                "Id": 831,
+                "Name": "TOSTADA",
+                "Units": 1.0,
+                "Price": 3.5,
+                "Supplement": 0.0,
+                "Discount": 0.0,
+                "DiscountPct": false,
+                "Total": 3.5,
+                "VatPct": 10.0,
+                "OrderItemType": 0
             }
-        ],
-        "Payments": []
+        ]
     }
 }
 ```
 
-### Problemas del flujo actual
+### Resolución de datos (F2.7–F3.3)
 
-1. **1 sola línea** — Si la venta tiene 3 productos, BDP recibe 1 línea con el total
-2. **Artículo genérico** — Mapea todo a `bdp_default_article_code` (1001 = CAFE BOMBON)
-3. **Sin cliente** — `Customer` no se envía
-4. **Sin pagos** — `Payments` siempre vacío
-5. **Type hardcodeado** — Siempre 0 (Barra), ignora canal real
-6. **Sin tracking post-creación** — No se consulta `GetOrder` para saber el estado
+| Dato                 | Fuente Glory                    | Resolver                                    |
+| -------------------- | ------------------------------- | ------------------------------------------- |
+| Artículos por línea  | `venta_lineas[].articulo_codigo`| `bdp_article_map` → código BDP (F2.8)      |
+| TenderId             | `venta.metodo_pago`             | `config.bdp_tender_map` JSONB (F3.2)       |
+| Type                 | `venta.canal`                   | `config.bdp_order_type_map` JSONB (F3.3)   |
+| Customer             | `venta.cliente_id`              | lookup `ClienteRepository` (F3.1)           |
+| IVA% por línea       | `venta_lineas[].iva_pct`        | directo del modelo                          |
+| Descuento por línea  | `venta_lineas[].descuento`      | directo del modelo                          |
+
+### Gaps restantes del flujo
+
+1. **Sin tracking post-creación** — No se consulta `GetOrder` para saber el estado real en BDP
+2. **Sin pagos detallados** — `Payments[]` no se envía (solo `TenderId` a nivel de Order)
 
 ---
 
 ## 4. Gap de datos: Venta Glory → Order BDP
 
-| Campo Glory                    | Tipo      | ¿Se envía? | Campo BDP disponible        | Notas                                           |
-| ------------------------------ | --------- | ---------- | --------------------------- | ----------------------------------------------- |
-| `descripcion`                  | `String`  | ❌         | `Order.Comments`            | Trivial de añadir                               |
-| `canal`                        | enum      | ❌         | `Order.Type`                | 0=Barra, 1=Mesa, 2=Comedor, etc. Requiere mapeo |
-| `metodo_pago`                  | `String`  | ❌         | `Order.Payments[].TenderId` | Requiere mapeo Glory→BDP                        |
-| `cliente_id` / datos cliente   | FK        | ❌         | `Order.Customer`            | Requiere lookup de Cliente                      |
-| `comensales`                   | `i32`     | ❌         | —                           | No hay campo equivalente en BDP                 |
-| `turno`                        | enum      | ❌         | —                           | No hay campo equivalente                        |
-| `reserva_id`                   | FK        | ❌         | —                           | No se incluye                                   |
-| `importe_base` + `importe_iva` | `Decimal` | Parcial    | `OrderItem.Price`           | Solo se usa `Total`, no desglose                |
-| Múltiples líneas               | —         | ❌         | `Order.Items[]`             | **Siempre 1 línea**                             |
-| `iva_porcentaje` por línea     | `Decimal` | ❌         | `OrderItem.VatPct`          | Hardcodeado a 10%                               |
-| Descuentos por línea           | —         | ❌         | `OrderItem.Discount`        | No implementado                                 |
+| Campo Glory                    | Tipo      | ¿Se envía? | Campo BDP                    | Notas                                           |
+| ------------------------------ | --------- | ---------- | ---------------------------- | ----------------------------------------------- |
+| `descripcion`                  | `String`  | ✅         | `Order.Comments`             | Via `format!("Glory venta {}", venta.id)`       |
+| `canal`                        | enum      | ✅         | `Order.Type`                 | Mapeado vía `config.bdp_order_type_map` (F3.3)  |
+| `metodo_pago`                  | `String`  | ✅         | `Order.TenderId`             | Mapeado vía `config.bdp_tender_map` (F3.2)      |
+| `cliente_id` / datos cliente   | FK        | ✅         | `Order.Customer`             | Name + Phone + Code desde ClienteRepository (F3.1) |
+| Múltiples líneas               | `Vec`     | ✅         | `Order.Items[]`              | Itera `VentaLinea[]` con artículo por línea (F2.7) |
+| `iva_porcentaje` por línea     | `Decimal` | ✅         | `OrderItem.VatPct`           | `linea.iva_pct` directo del modelo              |
+| Descuentos por línea           | `Decimal` | ✅         | `OrderItem.Discount`         | `linea.descuento` directo del modelo             |
+| `articulo_codigo` por línea    | `String`  | ✅         | `OrderItem.Id`               | Resuelto vía `bdp_article_map` (F2.8)           |
+| `comensales`                   | `i32`     | ❌         | —                            | No hay campo equivalente en BDP                 |
+| `turno`                        | enum      | ❌         | —                            | No hay campo equivalente                        |
+| `reserva_id`                   | FK        | ❌         | —                            | No se incluye                                   |
+| Pagos detallados               | —         | ❌         | `Order.Payments[]`           | Solo se envía TenderId a nivel de Order          |
 
 ---
 
 ## 5. Datos que BDP ofrece y Aplicación no consume
 
-| Endpoint BDP                       | Datos disponibles                                                         | Utilidad                      |
-| ---------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------- |
-| `ExportArticles`                   | Catálogo completo: código, descripción, 5 tarifas, dto, IVA, departamento | Sincronizar precios sin config manual       |
-| `ExportCustomers`                  | Clientes: nombre, dirección, teléfono, email, NIF                         | Precargar CRM de Glory                      |
-| `GetOrder`                         | Estado comanda (0=abierta, 1=enviada, 2=servida, 3=facturada...)          | Saber en Glory si ya se cobró en TPV        |
-| `GetPOSTenderList`                 | Formas de pago (efectivo, tarjeta, etc.)                                  | Mapear métodos de pago automáticamente      |
-| `ExportDepartment`                 | Departamentos/categorías                                                  | Organizar productos en misma taxonomía      |
-| `GetMenuDefinition`                | Definiciones de menús                                                     | Entender agrupaciones de artículos          |
-| `GetFastfoodDefinition`            | Definiciones fast-food                                                    | Agrupaciones de artículos                   |
-| `GetPackDefinition`                | Definiciones de packs                                                     | Agrupaciones de artículos                   |
-| `GetPOSes`                         | Terminales disponibles                                                    | Verificar/configurar POS automáticamente    |
+| Endpoint BDP                       | Datos disponibles                                                         | Utilidad                                  |
+| ---------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------- |
+| `ExportArticles`                   | Catálogo completo: código, descripción, 5 tarifas, dto, IVA, departamento | Sincronizar precios sin config manual     |
+| `ExportCustomers`                  | Clientes: nombre, dirección, teléfono, email, NIF                         | Precargar CRM de Glory                    |
+| `GetOrder`                         | Estado comanda (0=abierta, 1=enviada, 2=servida, 3=facturada...)          | Saber en Glory si ya se cobró en TPV      |
+| `GetPOSTenderList`                 | Formas de pago (efectivo, tarjeta, etc.)                                  | **Ya usado en preflight**, no en sync real |
+| `ExportDepartment`                 | Departamentos/categorías                                                  | Organizar productos en misma taxonomía    |
+| `GetMenuDefinition`                | Definiciones de menús                                                     | Entender agrupaciones de artículos        |
+| `GetFastfoodDefinition`            | Definiciones fast-food                                                    | Agrupaciones de artículos                 |
+| `GetPackDefinition`                | Definiciones de packs                                                     | Agrupaciones de artículos                 |
+| `GetPOSes`                         | Terminales disponibles                                                    | Verificar/configurar POS automáticamente  |
 | `GetEmployees`                     | Empleados dados de alta                                                   | Validar/configurar empleado automáticamente |
-| `GetPoints` / `AddPoints`          | Puntos de fidelización                                                    | Integración con programa de fidelidad       |
-| `GetRoomTables` / `GetRoomsTables` | Salones y mesas                                                           | Mapear plano de sala                        |
-| `GetPOSSeriesList`                 | Series de facturación                                                     | Configurar series por terminal              |
+| `GetPoints` / `AddPoints`          | Puntos de fidelización                                                    | Integración con programa de fidelidad     |
+| `GetRoomTables` / `GetRoomsTables` | Salones y mesas                                                           | Mapear plano de sala                      |
+| `GetPOSSeriesList`                 | Series de facturación                                                     | Configurar series por terminal            |
+
+> **Nota:** Los endpoints `GetPOSArticlesList`, `GetTenderList`, `CreateOrder`, `Login` y `CheckOrder` sí se usan (ver sección 2). Los de esta tabla son los que tienen datos útiles pero ningún consumo en el flujo de sync.
 
 ---
 
