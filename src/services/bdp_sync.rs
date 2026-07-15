@@ -161,6 +161,20 @@ impl BdpSyncService {
             None
         };
 
+        /* [F2] Pre-write audit: registrar escritura antes de enviar a BDP.
+         * Si bdp_auto_backup_before_write está activo, genera snapshot selectivo del estado actual. */
+        let operacion = if is_update { "update_order" } else { "create_order" };
+        let datos_enviados = serde_json::json!({
+            "venta_id": venta.id,
+            "importe_base": venta.importe_base,
+            "is_update": is_update
+        });
+        if let Err(e) = crate::services::BdpBackupService::registrar_escritura(
+            pool, venta.user_id, operacion, &datos_enviados, config, None,
+        ).await {
+            warn!("[F2] Pre-write audit falló para venta {}: {e} — continuando con sync", venta.id);
+        }
+
         let result = Self::retry_send_order(
             &client,
             config,
@@ -871,6 +885,19 @@ impl BdpSyncService {
             overwrite: false,
         };
 
+        /* [F2] Pre-write audit: registrar creación de cliente en BDP */
+        let datos_cliente = serde_json::json!({
+            "cliente_id": cliente_id,
+            "next_code": next_code,
+            "nombre": cliente.nombre,
+            "apellidos": cliente.apellidos
+        });
+        if let Err(e) = crate::services::BdpBackupService::registrar_escritura(
+            pool, user_id, "create_customer", &datos_cliente, config, None,
+        ).await {
+            warn!("[F2] Pre-write audit falló para cliente {}: {e} — continuando", cliente_id);
+        }
+
         match client.create_customer(&req).await {
             Ok(resp) => {
                 let error_msg = resp
@@ -953,6 +980,19 @@ impl BdpSyncService {
             .await
             .map_err(|e| format!("Error login BDP: {e}"))?;
 
+        /* [F2] Pre-write audit: snapshot del estado de la orden antes de registrar pago */
+        let datos_pago = serde_json::json!({
+            "venta_id": venta.id,
+            "order_id": order_id,
+            "amount": amount,
+            "tender_id": tender_id
+        });
+        if let Err(e) = crate::services::BdpBackupService::registrar_escritura(
+            pool, venta.user_id, "add_payment", &datos_pago, config, Some(order_id),
+        ).await {
+            warn!("[F2] Pre-write audit falló para pago venta {}: {e} — continuando", venta.id);
+        }
+
         let payment_id = format!("glory-{}-{}", venta.id, chrono::Utc::now().timestamp());
 
         let request = BdpAddOrderPaymentRequest {
@@ -1029,6 +1069,17 @@ impl BdpSyncService {
             .login()
             .await
             .map_err(|e| format!("Error login BDP: {e}"))?;
+
+        /* [F2] Pre-write audit: snapshot del estado de la orden antes de facturar */
+        let datos_factura = serde_json::json!({
+            "venta_id": venta.id,
+            "order_id": order_id
+        });
+        if let Err(e) = crate::services::BdpBackupService::registrar_escritura(
+            pool, venta.user_id, "invoice", &datos_factura, config, Some(order_id),
+        ).await {
+            warn!("[F2] Pre-write audit falló para factura venta {}: {e} — continuando", venta.id);
+        }
 
         let request = BdpInvoiceOrderRequest {
             pos_id: config.bdp_pos_id,
