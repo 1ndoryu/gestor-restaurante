@@ -28,7 +28,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 /**
- * @summary Reportar un error desde el frontend — envía email al administrador
+ * @summary Reportar un error desde el frontend ÔÇö env├¡a email al administrador
  */
 export type reportarErrorResponse200 = {
   data: ReportarErrorResponse
@@ -97,7 +97,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ReportarErrorMutationError = unknown
 
     /**
- * @summary Reportar un error desde el frontend — envía email al administrador
+ * @summary Reportar un error desde el frontend ÔÇö env├¡a email al administrador
  */
 export const useReportarError = <TError = unknown,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportarError>>, TError,{data: ReportarErrorRequest}, TContext>, request?: SecondParameter<typeof customInstance>}

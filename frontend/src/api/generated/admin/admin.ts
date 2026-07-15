@@ -116,7 +116,7 @@ export const useEliminarDatos = <TError = ErrorResponse,
       return useMutation(getEliminarDatosMutationOptions(options), queryClient);
     }
     /**
- * @summary Ejecutar seed — recarga todos los datos de prueba del usuario demo
+ * @summary Ejecutar seed ÔÇö recarga todos los datos de prueba del usuario demo
  */
 export type ejecutarSeedResponse200 = {
   data: AdminResult
@@ -191,7 +191,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type EjecutarSeedMutationError = ErrorResponse
 
     /**
- * @summary Ejecutar seed — recarga todos los datos de prueba del usuario demo
+ * @summary Ejecutar seed ÔÇö recarga todos los datos de prueba del usuario demo
  */
 export const useEjecutarSeed = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ejecutarSeed>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}

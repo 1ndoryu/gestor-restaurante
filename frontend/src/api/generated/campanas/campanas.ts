@@ -42,7 +42,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 /**
- * @summary Listar campañas con paginación y filtro de estado
+ * @summary Listar campa├▒as con paginaci├│n y filtro de estado
  */
 export type listarCampanasResponse200 = {
   data: CampanasPaginadas
@@ -147,7 +147,7 @@ export function useListarCampanas<TData = Awaited<ReturnType<typeof listarCampan
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Listar campañas con paginación y filtro de estado
+ * @summary Listar campa├▒as con paginaci├│n y filtro de estado
  */
 
 export function useListarCampanas<TData = Awaited<ReturnType<typeof listarCampanas>>, TError = void>(
@@ -166,7 +166,7 @@ export function useListarCampanas<TData = Awaited<ReturnType<typeof listarCampan
 
 
 /**
- * @summary Crear una campaña de marketing
+ * @summary Crear una campa├▒a de marketing
  */
 export type crearCampanaResponse201 = {
   data: Campana
@@ -247,7 +247,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CrearCampanaMutationError = void
 
     /**
- * @summary Crear una campaña de marketing
+ * @summary Crear una campa├▒a de marketing
  */
 export const useCrearCampana = <TError = void,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof crearCampana>>, TError,{data: CrearCampanaRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -260,7 +260,7 @@ export const useCrearCampana = <TError = void,
       return useMutation(getCrearCampanaMutationOptions(options), queryClient);
     }
     /**
- * @summary Preview de segmentación: cuántos clientes recibirían la campaña
+ * @summary Preview de segmentaci├│n: cu├íntos clientes recibir├¡an la campa├▒a
  */
 export type previewSegmentoResponse200 = {
   data: SegmentoPreview
@@ -370,7 +370,7 @@ export function usePreviewSegmento<TData = Awaited<ReturnType<typeof previewSegm
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Preview de segmentación: cuántos clientes recibirían la campaña
+ * @summary Preview de segmentaci├│n: cu├íntos clientes recibir├¡an la campa├▒a
  */
 
 export function usePreviewSegmento<TData = Awaited<ReturnType<typeof previewSegmento>>, TError = void>(
@@ -389,7 +389,7 @@ export function usePreviewSegmento<TData = Awaited<ReturnType<typeof previewSegm
 
 
 /**
- * @summary Obtener una campaña por ID
+ * @summary Obtener una campa├▒a por ID
  */
 export type obtenerCampanaResponse200 = {
   data: Campana
@@ -492,7 +492,7 @@ export function useObtenerCampana<TData = Awaited<ReturnType<typeof obtenerCampa
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Obtener una campaña por ID
+ * @summary Obtener una campa├▒a por ID
  */
 
 export function useObtenerCampana<TData = Awaited<ReturnType<typeof obtenerCampana>>, TError = void>(
@@ -511,7 +511,7 @@ export function useObtenerCampana<TData = Awaited<ReturnType<typeof obtenerCampa
 
 
 /**
- * @summary Actualizar una campaña (solo borradores)
+ * @summary Actualizar una campa├▒a (solo borradores)
  */
 export type actualizarCampanaResponse200 = {
   data: Campana
@@ -593,7 +593,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ActualizarCampanaMutationError = void
 
     /**
- * @summary Actualizar una campaña (solo borradores)
+ * @summary Actualizar una campa├▒a (solo borradores)
  */
 export const useActualizarCampana = <TError = void,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof actualizarCampana>>, TError,{id: string;data: ActualizarCampanaRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -606,7 +606,7 @@ export const useActualizarCampana = <TError = void,
       return useMutation(getActualizarCampanaMutationOptions(options), queryClient);
     }
     /**
- * @summary Eliminar una campaña
+ * @summary Eliminar una campa├▒a
  */
 export type eliminarCampanaResponse204 = {
   data: void
@@ -686,7 +686,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type EliminarCampanaMutationError = void
 
     /**
- * @summary Eliminar una campaña
+ * @summary Eliminar una campa├▒a
  */
 export const useEliminarCampana = <TError = void,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof eliminarCampana>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -699,7 +699,7 @@ export const useEliminarCampana = <TError = void,
       return useMutation(getEliminarCampanaMutationOptions(options), queryClient);
     }
     /**
- * @summary Enviar una campaña (genera destinatarios y dispara envío)
+ * @summary Enviar una campa├▒a (genera destinatarios y dispara env├¡o)
  */
 export type enviarCampanaResponse200 = {
   data: Campana
@@ -784,7 +784,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type EnviarCampanaMutationError = void
 
     /**
- * @summary Enviar una campaña (genera destinatarios y dispara envío)
+ * @summary Enviar una campa├▒a (genera destinatarios y dispara env├¡o)
  */
 export const useEnviarCampana = <TError = void,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof enviarCampana>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}

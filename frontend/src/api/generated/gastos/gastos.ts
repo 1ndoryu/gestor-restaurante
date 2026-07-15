@@ -45,7 +45,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 /**
- * @summary Listar categorías de gasto — endpoint público
+ * @summary Listar categor├¡as de gasto ÔÇö endpoint p├║blico
  */
 export type listarCategoriasResponse200 = {
   data: CategoriaGasto[]
@@ -136,7 +136,7 @@ export function useListarCategorias<TData = Awaited<ReturnType<typeof listarCate
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Listar categorías de gasto — endpoint público
+ * @summary Listar categor├¡as de gasto ÔÇö endpoint p├║blico
  */
 
 export function useListarCategorias<TData = Awaited<ReturnType<typeof listarCategorias>>, TError = unknown>(
@@ -155,7 +155,7 @@ export function useListarCategorias<TData = Awaited<ReturnType<typeof listarCate
 
 
 /**
- * @summary Listar gastos con paginación y filtros
+ * @summary Listar gastos con paginaci├│n y filtros
  */
 export type listarGastosResponse200 = {
   data: GastosPaginados
@@ -260,7 +260,7 @@ export function useListarGastos<TData = Awaited<ReturnType<typeof listarGastos>>
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Listar gastos con paginación y filtros
+ * @summary Listar gastos con paginaci├│n y filtros
  */
 
 export function useListarGastos<TData = Awaited<ReturnType<typeof listarGastos>>, TError = ErrorResponse>(
@@ -373,7 +373,7 @@ export const useCrearGasto = <TError = ErrorResponse,
       return useMutation(getCrearGastoMutationOptions(options), queryClient);
     }
     /**
- * @summary Digitalizar un documento de gasto (factura, albarán, ticket) usando Groq IA
+ * @summary Digitalizar un documento de gasto (factura, albar├ín, ticket) usando Groq IA
  */
 export type digitalizarDocumentoResponse200 = {
   data: DatosDocumentoExtraidos
@@ -459,7 +459,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type DigitalizarDocumentoMutationError = ErrorResponse
 
     /**
- * @summary Digitalizar un documento de gasto (factura, albarán, ticket) usando Groq IA
+ * @summary Digitalizar un documento de gasto (factura, albar├ín, ticket) usando Groq IA
  */
 export const useDigitalizarDocumento = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof digitalizarDocumento>>, TError,{data: DigitalizarDocumentoRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -472,7 +472,7 @@ export const useDigitalizarDocumento = <TError = ErrorResponse,
       return useMutation(getDigitalizarDocumentoMutationOptions(options), queryClient);
     }
     /**
- * @summary Listar proveedores únicos para autocomplete
+ * @summary Listar proveedores ├║nicos para autocomplete
  */
 export type listarProveedoresResponse200 = {
   data: string[]
@@ -577,7 +577,7 @@ export function useListarProveedores<TData = Awaited<ReturnType<typeof listarPro
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Listar proveedores únicos para autocomplete
+ * @summary Listar proveedores ├║nicos para autocomplete
  */
 
 export function useListarProveedores<TData = Awaited<ReturnType<typeof listarProveedores>>, TError = ErrorResponse>(

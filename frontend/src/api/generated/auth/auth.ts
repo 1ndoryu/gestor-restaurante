@@ -33,7 +33,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 /**
- * @summary Solicitar enlace de recuperación por email
+ * @summary Solicitar enlace de recuperaci├│n por email
  */
 export type forgotPasswordResponse200 = {
   data: MessageResponse
@@ -109,7 +109,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ForgotPasswordMutationError = ErrorResponse
 
     /**
- * @summary Solicitar enlace de recuperación por email
+ * @summary Solicitar enlace de recuperaci├│n por email
  */
 export const useForgotPassword = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forgotPassword>>, TError,{data: ForgotPasswordRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -122,7 +122,7 @@ export const useForgotPassword = <TError = ErrorResponse,
       return useMutation(getForgotPasswordMutationOptions(options), queryClient);
     }
     /**
- * @summary Iniciar sesión
+ * @summary Iniciar sesi├│n
  */
 export type loginResponse200 = {
   data: AuthResponse
@@ -198,7 +198,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type LoginMutationError = ErrorResponse
 
     /**
- * @summary Iniciar sesión
+ * @summary Iniciar sesi├│n
  */
 export const useLogin = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: LoginRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -305,7 +305,7 @@ export const useRegister = <TError = ErrorResponse,
       return useMutation(getRegisterMutationOptions(options), queryClient);
     }
     /**
- * @summary Restablecer contraseña con token
+ * @summary Restablecer contrase├▒a con token
  */
 export type resetPasswordResponse200 = {
   data: MessageResponse
@@ -386,7 +386,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ResetPasswordMutationError = ErrorResponse
 
     /**
- * @summary Restablecer contraseña con token
+ * @summary Restablecer contrase├▒a con token
  */
 export const useResetPassword = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPassword>>, TError,{data: ResetPasswordRequest}, TContext>, request?: SecondParameter<typeof customInstance>}

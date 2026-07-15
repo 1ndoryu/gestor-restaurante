@@ -43,7 +43,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 /**
- * @summary Listar clientes con paginación y búsqueda
+ * @summary Listar clientes con paginaci├│n y b├║squeda
  */
 export type listarClientesResponse200 = {
   data: ClientesPaginados
@@ -148,7 +148,7 @@ export function useListarClientes<TData = Awaited<ReturnType<typeof listarClient
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Listar clientes con paginación y búsqueda
+ * @summary Listar clientes con paginaci├│n y b├║squeda
  */
 
 export function useListarClientes<TData = Awaited<ReturnType<typeof listarClientes>>, TError = ErrorResponse>(

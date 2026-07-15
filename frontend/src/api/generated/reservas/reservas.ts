@@ -262,7 +262,7 @@ export function useObtenerReserva<TData = Awaited<ReturnType<typeof obtenerReser
 
 
 /**
- * @summary Listar reservas con paginación y filtro por fecha
+ * @summary Listar reservas con paginaci├│n y filtro por fecha
  */
 export type listarReservasResponse200 = {
   data: ReservasPaginadas
@@ -367,7 +367,7 @@ export function useListarReservas<TData = Awaited<ReturnType<typeof listarReserv
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Listar reservas con paginación y filtro por fecha
+ * @summary Listar reservas con paginaci├│n y filtro por fecha
  */
 
 export function useListarReservas<TData = Awaited<ReturnType<typeof listarReservas>>, TError = ErrorResponse>(
@@ -386,7 +386,7 @@ export function useListarReservas<TData = Awaited<ReturnType<typeof listarReserv
 
 
 /**
- * @summary Conteo de reservas del mes y día actual — para el widget de Home
+ * @summary Conteo de reservas del mes y d├¡a actual ÔÇö para el widget de Home
  */
 export type conteoReservasResponse200 = {
   data: ReservasConteo
@@ -484,7 +484,7 @@ export function useConteoReservas<TData = Awaited<ReturnType<typeof conteoReserv
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Conteo de reservas del mes y día actual — para el widget de Home
+ * @summary Conteo de reservas del mes y d├¡a actual ÔÇö para el widget de Home
  */
 
 export function useConteoReservas<TData = Awaited<ReturnType<typeof conteoReservas>>, TError = ErrorResponse>(
@@ -503,7 +503,7 @@ export function useConteoReservas<TData = Awaited<ReturnType<typeof conteoReserv
 
 
 /**
- * @summary Estadísticas de no-shows con desglose por canal (263A-8)
+ * @summary Estad├¡sticas de no-shows con desglose por canal (263A-8)
  */
 export type noShowStatsResponse200 = {
   data: NoShowStats
@@ -608,7 +608,7 @@ export function useNoShowStats<TData = Awaited<ReturnType<typeof noShowStats>>, 
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Estadísticas de no-shows con desglose por canal (263A-8)
+ * @summary Estad├¡sticas de no-shows con desglose por canal (263A-8)
  */
 
 export function useNoShowStats<TData = Awaited<ReturnType<typeof noShowStats>>, TError = ErrorResponse>(
@@ -627,7 +627,7 @@ export function useNoShowStats<TData = Awaited<ReturnType<typeof noShowStats>>, 
 
 
 /**
- * @summary Resumen diario de un mes — para la vista calendario
+ * @summary Resumen diario de un mes ÔÇö para la vista calendario
  */
 export type resumenMensualResponse200 = {
   data: ResumenDiario[]
@@ -732,7 +732,7 @@ export function useResumenMensual<TData = Awaited<ReturnType<typeof resumenMensu
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Resumen diario de un mes — para la vista calendario
+ * @summary Resumen diario de un mes ÔÇö para la vista calendario
  */
 
 export function useResumenMensual<TData = Awaited<ReturnType<typeof resumenMensual>>, TError = ErrorResponse>(

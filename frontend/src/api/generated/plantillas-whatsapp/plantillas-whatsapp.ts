@@ -40,7 +40,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 /**
- * @summary Listar plantillas con paginación y filtro de estado
+ * @summary Listar plantillas con paginaci├│n y filtro de estado
  */
 export type listarPlantillasResponse200 = {
   data: PlantillasPaginadas
@@ -145,7 +145,7 @@ export function useListarPlantillas<TData = Awaited<ReturnType<typeof listarPlan
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Listar plantillas con paginación y filtro de estado
+ * @summary Listar plantillas con paginaci├│n y filtro de estado
  */
 
 export function useListarPlantillas<TData = Awaited<ReturnType<typeof listarPlantillas>>, TError = void>(
@@ -573,7 +573,7 @@ export const useEliminarPlantilla = <TError = void,
       return useMutation(getEliminarPlantillaMutationOptions(options), queryClient);
     }
     /**
- * @summary Enviar plantilla a Meta para aprobación
+ * @summary Enviar plantilla a Meta para aprobaci├│n
  */
 export type enviarAMetaResponse200 = {
   data: PlantillaWhatsapp
@@ -658,7 +658,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type EnviarAMetaMutationError = void
 
     /**
- * @summary Enviar plantilla a Meta para aprobación
+ * @summary Enviar plantilla a Meta para aprobaci├│n
  */
 export const useEnviarAMeta = <TError = void,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof enviarAMeta>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}

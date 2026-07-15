@@ -5,9 +5,12 @@
  * [303A-13] Resize handle arrastrable en borde inferior.
  * Lógica en usePlanoSala, mesa arrastrable en MesaDraggable, config en PanelConfigMesa. */
 
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, Download, Upload, ZoomIn, ZoomOut } from 'lucide-react';
+import { Pencil, Trash2, Download, Upload, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { useSyncTables } from '../api/generated/bdp-mapeos/bdp-mapeos';
 import MesaDraggable from './plano-sala/MesaDraggable';
 import PanelConfigMesa from './plano-sala/PanelConfigMesa';
 import PanelConfigPared from './plano-sala/PanelConfigPared';
@@ -27,6 +30,20 @@ import '../estilos/PlanoSala.css';
 function PlanoSala() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const setCanvasHeight = useZoomStore(s => s.setCanvasHeight);
+  const queryClient = useQueryClient();
+  const [sincronizandoMesas, setSincronizandoMesas] = useState(false);
+
+  const syncTablesMutation = useSyncTables({
+    mutation: {
+      onSuccess: (resp) => {
+        const d = resp as unknown as { salones_bdp?: number; zonas_creadas?: number; mesas_creadas?: number };
+        toast.success(`Mesas sincronizadas: ${d.mesas_creadas ?? 0} mesas en ${d.zonas_creadas ?? 0} zonas`);
+        queryClient.invalidateQueries({ queryKey: ['/api/plano-sala'] });
+      },
+      onError: () => toast.error('Error al sincronizar mesas desde BDP'),
+      onSettled: () => setSincronizandoMesas(false),
+    },
+  });
 
   const {
     plano, zonaActiva, zonaData, mesasZona, paredesZona, mesaSeleccionada,
@@ -124,6 +141,10 @@ function PlanoSala() {
         <div className="ml-auto flex gap-2">
           <Button size="sm" variant="ghost" onClick={handleExportar}><Download className="size-4 mr-1" />Exportar</Button>
           <Button size="sm" variant="ghost" onClick={handleImportar}><Upload className="size-4 mr-1" />Importar</Button>
+          <Button size="sm" variant="outline" onClick={() => { setSincronizandoMesas(true); syncTablesMutation.mutate(); }} disabled={sincronizandoMesas}>
+            {sincronizandoMesas ? <RefreshCw className="size-4 mr-1 animate-spin" /> : <RefreshCw className="size-4 mr-1" />}
+            Sync BDP
+          </Button>
         </div>
         <div className="flex items-center gap-1">
           <Button size="sm" variant="outline" onClick={() => setZoom(z => Math.max(0.5, +(z - 0.1).toFixed(2)))}><ZoomOut className="size-4" /></Button>

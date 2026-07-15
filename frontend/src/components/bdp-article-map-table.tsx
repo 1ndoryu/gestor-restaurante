@@ -2,7 +2,7 @@
  * Permite listar, crear y eliminar mapeos. Importa catálogo desde BDP (F5.7). */
 
 import { useState } from 'react';
-import { Plus, Trash2, Download, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Download, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListarArticleMaps } from '../api/generated/bdp-mapeos/bdp-mapeos';
 import { useCrearArticleMap, useEliminarArticleMap } from '../api/generated/bdp-mapeos/bdp-mapeos';
-import { useImportarCatalogo } from '../api/generated/bdp-mapeos/bdp-mapeos';
+import { useImportarCatalogo, useSyncCatalog, useSyncPrices } from '../api/generated/bdp-mapeos/bdp-mapeos';
 
 interface NuevoMapeo {
   articulo_glory_codigo: string;
@@ -50,6 +50,8 @@ function BdpArticleMapTable() {
 
   const [nuevo, setNuevo] = useState<NuevoMapeo>(mapeoVacio);
   const [importando, setImportando] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
+  const [actualizandoPrecios, setActualizandoPrecios] = useState(false);
   const importarMutation = useImportarCatalogo({
     mutation: {
       onSuccess: (resp) => {
@@ -59,6 +61,29 @@ function BdpArticleMapTable() {
       },
       onError: () => toast.error('Error al importar catálogo BDP'),
       onSettled: () => setImportando(false),
+    },
+  });
+
+  const syncCatalogMutation = useSyncCatalog({
+    mutation: {
+      onSuccess: (resp) => {
+        const d = resp as unknown as { creados?: number; actualizados?: number; sin_cambios?: number; errores?: number };
+        toast.success(`Sync completado: ${d.creados ?? 0} nuevos, ${d.actualizados ?? 0} actualizados`);
+        queryClient.invalidateQueries({ queryKey: ['/api/bdp/article-maps'] });
+      },
+      onError: () => toast.error('Error al sincronizar catálogo BDP'),
+      onSettled: () => setSincronizando(false),
+    },
+  });
+
+  const syncPricesMutation = useSyncPrices({
+    mutation: {
+      onSuccess: (resp) => {
+        const d = resp as unknown as { actualizados?: number; sin_cambios?: number };
+        toast.success(`Precios actualizados: ${d.actualizados ?? 0} artículos`);
+      },
+      onError: () => toast.error('Error al sincronizar precios BDP'),
+      onSettled: () => setActualizandoPrecios(false),
     },
   });
 
@@ -84,10 +109,20 @@ function BdpArticleMapTable() {
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">Mapeo artículos Glory → BDP</span>
-        <Button variant="outline" size="sm" onClick={importarCatalogo} disabled={importando}>
-          {importando ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-          Importar catálogo
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={importarCatalogo} disabled={importando}>
+            {importando ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+            Importar catálogo
+          </Button>
+          <Button variant="default" size="sm" onClick={() => { setSincronizando(true); syncCatalogMutation.mutate(); }} disabled={sincronizando}>
+            {sincronizando ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+            Sync catálogo
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { setActualizandoPrecios(true); syncPricesMutation.mutate(); }} disabled={actualizandoPrecios}>
+            {actualizandoPrecios ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+            Sync precios
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (

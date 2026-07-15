@@ -26,6 +26,8 @@ import type {
 
 import type {
   ActualizarVentaRequest,
+  BdpInvoiceRequest,
+  BdpInvoiceResponse,
   BdpOrderStatusResponse,
   BdpPollResponse,
   CrearVentaRequest,
@@ -43,7 +45,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 /**
- * @summary Listar ventas con paginación y filtros de fecha
+ * @summary Listar ventas con paginaci├│n y filtros de fecha
  */
 export type listarVentasResponse200 = {
   data: VentasPaginadas
@@ -148,7 +150,7 @@ export function useListarVentas<TData = Awaited<ReturnType<typeof listarVentas>>
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Listar ventas con paginación y filtros de fecha
+ * @summary Listar ventas con paginaci├│n y filtros de fecha
  */
 
 export function useListarVentas<TData = Awaited<ReturnType<typeof listarVentas>>, TError = ErrorResponse>(
@@ -657,6 +659,100 @@ export const useEliminarVenta = <TError = ErrorResponse,
       > => {
       return useMutation(getEliminarVentaMutationOptions(options), queryClient);
     }
+    export type bdpInvoiceResponse200 = {
+  data: BdpInvoiceResponse
+  status: 200
+}
+
+export type bdpInvoiceResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type bdpInvoiceResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type bdpInvoiceResponse422 = {
+  data: ErrorResponse
+  status: 422
+}
+
+export type bdpInvoiceResponseSuccess = (bdpInvoiceResponse200) & {
+  headers: Headers;
+};
+export type bdpInvoiceResponseError = (bdpInvoiceResponse401 | bdpInvoiceResponse404 | bdpInvoiceResponse422) & {
+  headers: Headers;
+};
+
+export type bdpInvoiceResponse = (bdpInvoiceResponseSuccess | bdpInvoiceResponseError)
+
+export const getBdpInvoiceUrl = (id: string,) => {
+
+
+
+
+  return `/api/ventas/${id}/bdp-invoice`
+}
+
+export const bdpInvoice = async (id: string,
+    bdpInvoiceRequest: BdpInvoiceRequest, options?: RequestInit): Promise<bdpInvoiceResponse> => {
+
+  return customInstance<bdpInvoiceResponse>(getBdpInvoiceUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      bdpInvoiceRequest,)
+  }
+);}
+
+
+
+
+export const getBdpInvoiceMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bdpInvoice>>, TError,{id: string;data: BdpInvoiceRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof bdpInvoice>>, TError,{id: string;data: BdpInvoiceRequest}, TContext> => {
+
+const mutationKey = ['bdpInvoice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bdpInvoice>>, {id: string;data: BdpInvoiceRequest}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  bdpInvoice(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BdpInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof bdpInvoice>>>
+    export type BdpInvoiceMutationBody = BdpInvoiceRequest
+    export type BdpInvoiceMutationError = ErrorResponse
+
+    export const useBdpInvoice = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bdpInvoice>>, TError,{id: string;data: BdpInvoiceRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof bdpInvoice>>,
+        TError,
+        {id: string;data: BdpInvoiceRequest},
+        TContext
+      > => {
+      return useMutation(getBdpInvoiceMutationOptions(options), queryClient);
+    }
     export type obtenerBdpStatusResponse200 = {
   data: BdpOrderStatusResponse
   status: 200
@@ -774,7 +870,7 @@ export function useObtenerBdpStatus<TData = Awaited<ReturnType<typeof obtenerBdp
 
 
 /**
- * @summary Reintentar sincronización con `BDP` `WebLink`
+ * @summary Reintentar sincronizaci├│n con `BDP` `WebLink`
  */
 export type reintentarSyncBdpResponse200 = {
   data: Venta
@@ -859,7 +955,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ReintentarSyncBdpMutationError = ErrorResponse
 
     /**
- * @summary Reintentar sincronización con `BDP` `WebLink`
+ * @summary Reintentar sincronizaci├│n con `BDP` `WebLink`
  */
 export const useReintentarSyncBdp = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reintentarSyncBdp>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -872,7 +968,7 @@ export const useReintentarSyncBdp = <TError = ErrorResponse,
       return useMutation(getReintentarSyncBdpMutationOptions(options), queryClient);
     }
     /**
- * @summary Reintentar sincronización con Haddock
+ * @summary Reintentar sincronizaci├│n con Haddock
  */
 export type reintentarSyncHaddockResponse200 = {
   data: Venta
@@ -957,7 +1053,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ReintentarSyncHaddockMutationError = ErrorResponse
 
     /**
- * @summary Reintentar sincronización con Haddock
+ * @summary Reintentar sincronizaci├│n con Haddock
  */
 export const useReintentarSyncHaddock = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reintentarSyncHaddock>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}

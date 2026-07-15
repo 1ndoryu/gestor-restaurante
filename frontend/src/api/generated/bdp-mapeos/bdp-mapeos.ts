@@ -27,8 +27,10 @@ import type {
 import type {
   ActualizarBdpArticleMapRequest,
   BdpArticleMap,
+  BdpCatalogSyncResult,
   CrearBdpArticleMapRequest,
-  ErrorResponse
+  ErrorResponse,
+  SyncTablesResult
 } from '../gestionRestauranteAPI.schemas';
 
 import { customInstance } from '../../axios-instance';
@@ -39,7 +41,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 /**
- * @summary Listar todos los mapeos de artículos BDP del usuario
+ * @summary Listar todos los mapeos de art├¡culos BDP del usuario
  */
 export type listarArticleMapsResponse200 = {
   data: BdpArticleMap[]
@@ -137,7 +139,7 @@ export function useListarArticleMaps<TData = Awaited<ReturnType<typeof listarArt
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Listar todos los mapeos de artículos BDP del usuario
+ * @summary Listar todos los mapeos de art├¡culos BDP del usuario
  */
 
 export function useListarArticleMaps<TData = Awaited<ReturnType<typeof listarArticleMaps>>, TError = ErrorResponse>(
@@ -156,7 +158,7 @@ export function useListarArticleMaps<TData = Awaited<ReturnType<typeof listarArt
 
 
 /**
- * @summary Crear o actualizar un mapeo de artículo (upsert por código Glory)
+ * @summary Crear o actualizar un mapeo de art├¡culo (upsert por c├│digo Glory)
  */
 export type crearArticleMapResponse201 = {
   data: BdpArticleMap
@@ -237,7 +239,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CrearArticleMapMutationError = ErrorResponse
 
     /**
- * @summary Crear o actualizar un mapeo de artículo (upsert por código Glory)
+ * @summary Crear o actualizar un mapeo de art├¡culo (upsert por c├│digo Glory)
  */
 export const useCrearArticleMap = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof crearArticleMap>>, TError,{data: CrearBdpArticleMapRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -250,9 +252,9 @@ export const useCrearArticleMap = <TError = ErrorResponse,
       return useMutation(getCrearArticleMapMutationOptions(options), queryClient);
     }
     /**
- * Llama a ExportArticles, extrae Code y Name de cada artículo,
-y hace upsert en bdp_article_map (articulo_glory_codigo = Code).
- * @summary Importar catálogo completo de artículos desde BDP WebLink.
+ * Llama a `ExportArticles`, extrae Code y Name de cada art├¡culo,
+y hace upsert en `bdp_article_map` (`articulo_glory_codigo` = Code).
+ * @summary Importar cat├ílogo completo de art├¡culos desde BDP `WebLink`.
  */
 export type importarCatalogoResponse200 = {
   data: unknown
@@ -332,7 +334,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ImportarCatalogoMutationError = ErrorResponse
 
     /**
- * @summary Importar catálogo completo de artículos desde BDP WebLink.
+ * @summary Importar cat├ílogo completo de art├¡culos desde BDP `WebLink`.
  */
 export const useImportarCatalogo = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importarCatalogo>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -344,8 +346,182 @@ export const useImportarCatalogo = <TError = ErrorResponse,
       > => {
       return useMutation(getImportarCatalogoMutationOptions(options), queryClient);
     }
+    export type syncCatalogResponse200 = {
+  data: BdpCatalogSyncResult
+  status: 200
+}
+
+export type syncCatalogResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type syncCatalogResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type syncCatalogResponseSuccess = (syncCatalogResponse200) & {
+  headers: Headers;
+};
+export type syncCatalogResponseError = (syncCatalogResponse400 | syncCatalogResponse401) & {
+  headers: Headers;
+};
+
+export type syncCatalogResponse = (syncCatalogResponseSuccess | syncCatalogResponseError)
+
+export const getSyncCatalogUrl = () => {
+
+
+
+
+  return `/api/bdp/article-maps/sync-catalog`
+}
+
+export const syncCatalog = async ( options?: RequestInit): Promise<syncCatalogResponse> => {
+
+  return customInstance<syncCatalogResponse>(getSyncCatalogUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getSyncCatalogMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncCatalog>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncCatalog>>, TError,void, TContext> => {
+
+const mutationKey = ['syncCatalog'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncCatalog>>, void> = () => {
+
+
+          return  syncCatalog(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncCatalogMutationResult = NonNullable<Awaited<ReturnType<typeof syncCatalog>>>
+
+    export type SyncCatalogMutationError = ErrorResponse
+
+    export const useSyncCatalog = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncCatalog>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof syncCatalog>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSyncCatalogMutationOptions(options), queryClient);
+    }
+    export type syncPricesResponse200 = {
+  data: BdpCatalogSyncResult
+  status: 200
+}
+
+export type syncPricesResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type syncPricesResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type syncPricesResponseSuccess = (syncPricesResponse200) & {
+  headers: Headers;
+};
+export type syncPricesResponseError = (syncPricesResponse400 | syncPricesResponse401) & {
+  headers: Headers;
+};
+
+export type syncPricesResponse = (syncPricesResponseSuccess | syncPricesResponseError)
+
+export const getSyncPricesUrl = () => {
+
+
+
+
+  return `/api/bdp/article-maps/sync-prices`
+}
+
+export const syncPrices = async ( options?: RequestInit): Promise<syncPricesResponse> => {
+
+  return customInstance<syncPricesResponse>(getSyncPricesUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getSyncPricesMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncPrices>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncPrices>>, TError,void, TContext> => {
+
+const mutationKey = ['syncPrices'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncPrices>>, void> = () => {
+
+
+          return  syncPrices(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncPricesMutationResult = NonNullable<Awaited<ReturnType<typeof syncPrices>>>
+
+    export type SyncPricesMutationError = ErrorResponse
+
+    export const useSyncPrices = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncPrices>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof syncPrices>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSyncPricesMutationOptions(options), queryClient);
+    }
     /**
- * @summary Eliminar un mapeo de artículo
+ * @summary Eliminar un mapeo de art├¡culo
  */
 export type eliminarArticleMapResponse200 = {
   data: void
@@ -425,7 +601,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type EliminarArticleMapMutationError = ErrorResponse
 
     /**
- * @summary Eliminar un mapeo de artículo
+ * @summary Eliminar un mapeo de art├¡culo
  */
 export const useEliminarArticleMap = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof eliminarArticleMap>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -438,7 +614,7 @@ export const useEliminarArticleMap = <TError = ErrorResponse,
       return useMutation(getEliminarArticleMapMutationOptions(options), queryClient);
     }
     /**
- * @summary Actualizar parcialmente un mapeo de artículo
+ * @summary Actualizar parcialmente un mapeo de art├¡culo
  */
 export type actualizarArticleMapResponse200 = {
   data: BdpArticleMap
@@ -520,7 +696,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ActualizarArticleMapMutationError = ErrorResponse
 
     /**
- * @summary Actualizar parcialmente un mapeo de artículo
+ * @summary Actualizar parcialmente un mapeo de art├¡culo
  */
 export const useActualizarArticleMap = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof actualizarArticleMap>>, TError,{id: string;data: ActualizarBdpArticleMapRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -531,4 +707,439 @@ export const useActualizarArticleMap = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getActualizarArticleMapMutationOptions(options), queryClient);
+    }
+    export type getFastfoodDefinitionResponse200 = {
+  data: void
+  status: 200
+}
+
+export type getFastfoodDefinitionResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getFastfoodDefinitionResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type getFastfoodDefinitionResponseSuccess = (getFastfoodDefinitionResponse200) & {
+  headers: Headers;
+};
+export type getFastfoodDefinitionResponseError = (getFastfoodDefinitionResponse400 | getFastfoodDefinitionResponse401) & {
+  headers: Headers;
+};
+
+export type getFastfoodDefinitionResponse = (getFastfoodDefinitionResponseSuccess | getFastfoodDefinitionResponseError)
+
+export const getGetFastfoodDefinitionUrl = (id: number,) => {
+
+
+
+
+  return `/api/bdp/fastfoods/${id}`
+}
+
+export const getFastfoodDefinition = async (id: number, options?: RequestInit): Promise<getFastfoodDefinitionResponse> => {
+
+  return customInstance<getFastfoodDefinitionResponse>(getGetFastfoodDefinitionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFastfoodDefinitionQueryKey = (id: number,) => {
+    return [
+    `/api/bdp/fastfoods/${id}`
+    ] as const;
+    }
+
+
+export const getGetFastfoodDefinitionQueryOptions = <TData = Awaited<ReturnType<typeof getFastfoodDefinition>>, TError = ErrorResponse>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getFastfoodDefinition>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFastfoodDefinitionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFastfoodDefinition>>> = ({ signal }) => getFastfoodDefinition(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFastfoodDefinition>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetFastfoodDefinitionQueryResult = NonNullable<Awaited<ReturnType<typeof getFastfoodDefinition>>>
+export type GetFastfoodDefinitionQueryError = ErrorResponse
+
+
+export function useGetFastfoodDefinition<TData = Awaited<ReturnType<typeof getFastfoodDefinition>>, TError = ErrorResponse>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getFastfoodDefinition>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getFastfoodDefinition>>,
+          TError,
+          Awaited<ReturnType<typeof getFastfoodDefinition>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetFastfoodDefinition<TData = Awaited<ReturnType<typeof getFastfoodDefinition>>, TError = ErrorResponse>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getFastfoodDefinition>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getFastfoodDefinition>>,
+          TError,
+          Awaited<ReturnType<typeof getFastfoodDefinition>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetFastfoodDefinition<TData = Awaited<ReturnType<typeof getFastfoodDefinition>>, TError = ErrorResponse>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getFastfoodDefinition>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetFastfoodDefinition<TData = Awaited<ReturnType<typeof getFastfoodDefinition>>, TError = ErrorResponse>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getFastfoodDefinition>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetFastfoodDefinitionQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+export type getMenuDefinitionResponse200 = {
+  data: void
+  status: 200
+}
+
+export type getMenuDefinitionResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getMenuDefinitionResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type getMenuDefinitionResponseSuccess = (getMenuDefinitionResponse200) & {
+  headers: Headers;
+};
+export type getMenuDefinitionResponseError = (getMenuDefinitionResponse400 | getMenuDefinitionResponse401) & {
+  headers: Headers;
+};
+
+export type getMenuDefinitionResponse = (getMenuDefinitionResponseSuccess | getMenuDefinitionResponseError)
+
+export const getGetMenuDefinitionUrl = (id: number,) => {
+
+
+
+
+  return `/api/bdp/menus/${id}`
+}
+
+export const getMenuDefinition = async (id: number, options?: RequestInit): Promise<getMenuDefinitionResponse> => {
+
+  return customInstance<getMenuDefinitionResponse>(getGetMenuDefinitionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMenuDefinitionQueryKey = (id: number,) => {
+    return [
+    `/api/bdp/menus/${id}`
+    ] as const;
+    }
+
+
+export const getGetMenuDefinitionQueryOptions = <TData = Awaited<ReturnType<typeof getMenuDefinition>>, TError = ErrorResponse>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMenuDefinition>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMenuDefinitionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMenuDefinition>>> = ({ signal }) => getMenuDefinition(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMenuDefinition>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMenuDefinitionQueryResult = NonNullable<Awaited<ReturnType<typeof getMenuDefinition>>>
+export type GetMenuDefinitionQueryError = ErrorResponse
+
+
+export function useGetMenuDefinition<TData = Awaited<ReturnType<typeof getMenuDefinition>>, TError = ErrorResponse>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMenuDefinition>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMenuDefinition>>,
+          TError,
+          Awaited<ReturnType<typeof getMenuDefinition>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMenuDefinition<TData = Awaited<ReturnType<typeof getMenuDefinition>>, TError = ErrorResponse>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMenuDefinition>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMenuDefinition>>,
+          TError,
+          Awaited<ReturnType<typeof getMenuDefinition>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMenuDefinition<TData = Awaited<ReturnType<typeof getMenuDefinition>>, TError = ErrorResponse>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMenuDefinition>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetMenuDefinition<TData = Awaited<ReturnType<typeof getMenuDefinition>>, TError = ErrorResponse>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMenuDefinition>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMenuDefinitionQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+export type getPackDefinitionResponse200 = {
+  data: void
+  status: 200
+}
+
+export type getPackDefinitionResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPackDefinitionResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type getPackDefinitionResponseSuccess = (getPackDefinitionResponse200) & {
+  headers: Headers;
+};
+export type getPackDefinitionResponseError = (getPackDefinitionResponse400 | getPackDefinitionResponse401) & {
+  headers: Headers;
+};
+
+export type getPackDefinitionResponse = (getPackDefinitionResponseSuccess | getPackDefinitionResponseError)
+
+export const getGetPackDefinitionUrl = (id: number,) => {
+
+
+
+
+  return `/api/bdp/packs/${id}`
+}
+
+export const getPackDefinition = async (id: number, options?: RequestInit): Promise<getPackDefinitionResponse> => {
+
+  return customInstance<getPackDefinitionResponse>(getGetPackDefinitionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPackDefinitionQueryKey = (id: number,) => {
+    return [
+    `/api/bdp/packs/${id}`
+    ] as const;
+    }
+
+
+export const getGetPackDefinitionQueryOptions = <TData = Awaited<ReturnType<typeof getPackDefinition>>, TError = ErrorResponse>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPackDefinition>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPackDefinitionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPackDefinition>>> = ({ signal }) => getPackDefinition(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPackDefinition>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPackDefinitionQueryResult = NonNullable<Awaited<ReturnType<typeof getPackDefinition>>>
+export type GetPackDefinitionQueryError = ErrorResponse
+
+
+export function useGetPackDefinition<TData = Awaited<ReturnType<typeof getPackDefinition>>, TError = ErrorResponse>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPackDefinition>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPackDefinition>>,
+          TError,
+          Awaited<ReturnType<typeof getPackDefinition>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPackDefinition<TData = Awaited<ReturnType<typeof getPackDefinition>>, TError = ErrorResponse>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPackDefinition>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPackDefinition>>,
+          TError,
+          Awaited<ReturnType<typeof getPackDefinition>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPackDefinition<TData = Awaited<ReturnType<typeof getPackDefinition>>, TError = ErrorResponse>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPackDefinition>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetPackDefinition<TData = Awaited<ReturnType<typeof getPackDefinition>>, TError = ErrorResponse>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPackDefinition>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPackDefinitionQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+export type syncTablesResponse200 = {
+  data: SyncTablesResult
+  status: 200
+}
+
+export type syncTablesResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type syncTablesResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type syncTablesResponseSuccess = (syncTablesResponse200) & {
+  headers: Headers;
+};
+export type syncTablesResponseError = (syncTablesResponse400 | syncTablesResponse401) & {
+  headers: Headers;
+};
+
+export type syncTablesResponse = (syncTablesResponseSuccess | syncTablesResponseError)
+
+export const getSyncTablesUrl = () => {
+
+
+
+
+  return `/api/bdp/sync-tables`
+}
+
+export const syncTables = async ( options?: RequestInit): Promise<syncTablesResponse> => {
+
+  return customInstance<syncTablesResponse>(getSyncTablesUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getSyncTablesMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncTables>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncTables>>, TError,void, TContext> => {
+
+const mutationKey = ['syncTables'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncTables>>, void> = () => {
+
+
+          return  syncTables(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncTablesMutationResult = NonNullable<Awaited<ReturnType<typeof syncTables>>>
+
+    export type SyncTablesMutationError = ErrorResponse
+
+    export const useSyncTables = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncTables>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof syncTables>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSyncTablesMutationOptions(options), queryClient);
     }

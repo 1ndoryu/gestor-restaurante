@@ -289,6 +289,17 @@ pub async fn sync_catalog(
 
 /* [157A-9] F9.3: Sincroniza precios de artículos mapeados desde BDP.
  * Consulta GetPricesArticles para cada artículo y actualiza precio_tarifa1. */
+#[utoipa::path(
+    post,
+    path = "/api/bdp/article-maps/sync-prices",
+    tag = "BDP Mapeos",
+    responses(
+        (status = 200, description = "Precios sincronizados", body = BdpCatalogSyncResult),
+        (status = 400, description = "BDP no configurado", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
 async fn sync_prices(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -316,6 +327,17 @@ async fn sync_prices(
 
 /* [157A-9] F9.4: Sincroniza salones/mesas de BDP al plano de sala Glory.
  * Consulta GetRoomsTables → crea ZonaSala + Mesa según corresponda. */
+#[utoipa::path(
+    post,
+    path = "/api/bdp/sync-tables",
+    tag = "BDP Mapeos",
+    responses(
+        (status = 200, description = "Mesas sincronizadas", body = SyncTablesResult),
+        (status = 400, description = "BDP no configurado", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
 async fn sync_tables(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -342,6 +364,18 @@ async fn sync_tables(
 }
 
 /* [157A-9] F9.5: Consulta la definición de un menú en BDP (grupos + items). */
+#[utoipa::path(
+    get,
+    path = "/api/bdp/menus/{id}",
+    tag = "BDP Mapeos",
+    params(("id" = i32, Path, description = "ID del menú en BDP")),
+    responses(
+        (status = 200, description = "Definición del menú"),
+        (status = 400, description = "BDP no configurado", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
 async fn get_menu_definition(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -370,6 +404,18 @@ async fn get_menu_definition(
 }
 
 /* [157A-9] F9.5: Consulta la definición de un fastfood en BDP (items fijos + extras). */
+#[utoipa::path(
+    get,
+    path = "/api/bdp/fastfoods/{id}",
+    tag = "BDP Mapeos",
+    params(("id" = i32, Path, description = "ID del fastfood en BDP")),
+    responses(
+        (status = 200, description = "Definición del fastfood"),
+        (status = 400, description = "BDP no configurado", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
 async fn get_fastfood_definition(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -398,6 +444,18 @@ async fn get_fastfood_definition(
 }
 
 /* [157A-9] F9.5: Consulta la definición de un pack en BDP (grupos + items). */
+#[utoipa::path(
+    get,
+    path = "/api/bdp/packs/{id}",
+    tag = "BDP Mapeos",
+    params(("id" = i32, Path, description = "ID del pack en BDP")),
+    responses(
+        (status = 200, description = "Definición del pack"),
+        (status = 400, description = "BDP no configurado", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
 async fn get_pack_definition(
     State(state): State<AppState>,
     auth: AuthUser,

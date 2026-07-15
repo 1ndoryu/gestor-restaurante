@@ -1307,7 +1307,7 @@ impl BdpSyncService {
 }
 
 /// Resultado del sync de mesas BDP → Glory (F9.4).
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct SyncTablesResult {
     pub salones_bdp: u32,
     pub zonas_creadas: u32,

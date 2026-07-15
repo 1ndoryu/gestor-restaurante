@@ -160,7 +160,7 @@ export function useDashboardReservas<TData = Awaited<ReturnType<typeof dashboard
 
 
 /**
- * @summary Resumen económico mensual: ventas, gastos, margen
+ * @summary Resumen econ├│mico mensual: ventas, gastos, margen
  */
 export type resumenResponse200 = {
   data: ResumenEconomico
@@ -265,7 +265,7 @@ export function useResumen<TData = Awaited<ReturnType<typeof resumen>>, TError =
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Resumen económico mensual: ventas, gastos, margen
+ * @summary Resumen econ├│mico mensual: ventas, gastos, margen
  */
 
 export function useResumen<TData = Awaited<ReturnType<typeof resumen>>, TError = ErrorResponse>(

@@ -353,7 +353,7 @@ pub struct BdpExportArticlesResponse {
 }
 
 /// Resultado del sync de catálogo BDP → Glory (F9.1).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct BdpCatalogSyncResult {
     pub creados: u32,
     pub actualizados: u32,

@@ -344,7 +344,7 @@ export const useAsignarEtiquetaCliente = <TError = ErrorResponse,
       return useMutation(getAsignarEtiquetaClienteMutationOptions(options), queryClient);
     }
     /**
- * @summary Listar etiquetas (con filtro opcional por categoría)
+ * @summary Listar etiquetas (con filtro opcional por categor├¡a)
  */
 export type listarEtiquetasResponse200 = {
   data: EtiquetaConCategoria[]
@@ -449,7 +449,7 @@ export function useListarEtiquetas<TData = Awaited<ReturnType<typeof listarEtiqu
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Listar etiquetas (con filtro opcional por categoría)
+ * @summary Listar etiquetas (con filtro opcional por categor├¡a)
  */
 
 export function useListarEtiquetas<TData = Awaited<ReturnType<typeof listarEtiquetas>>, TError = ErrorResponse>(
@@ -562,7 +562,7 @@ export const useCrearEtiqueta = <TError = ErrorResponse,
       return useMutation(getCrearEtiquetaMutationOptions(options), queryClient);
     }
     /**
- * @summary Crear una categoría de etiquetas
+ * @summary Crear una categor├¡a de etiquetas
  */
 export type crearCategoriaResponse201 = {
   data: CategoriaEtiqueta
@@ -643,7 +643,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CrearCategoriaMutationError = ErrorResponse
 
     /**
- * @summary Crear una categoría de etiquetas
+ * @summary Crear una categor├¡a de etiquetas
  */
 export const useCrearCategoria = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof crearCategoria>>, TError,{data: CrearCategoriaEtiquetaRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
