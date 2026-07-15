@@ -30,6 +30,10 @@ export interface EstadoConfiguracion {
   bdp_order_type_map: string;
   bdp_default_customer_code: string;
   bdp_poll_interval_secs: number;
+  /* [BKP-005] Configuración de backup BDP */
+  bdp_sync_mode: string;
+  bdp_backup_retention_days: number;
+  bdp_auto_backup_before_write: boolean;
   google_review_url: string;
   telefono_restaurante: string;
   url_reservas: string;
@@ -65,6 +69,9 @@ export const DEFAULTS: EstadoConfiguracion = {
   bdp_order_type_map: '{}',
   bdp_default_customer_code: '',
   bdp_poll_interval_secs: 60,
+  bdp_sync_mode: 'read_only',
+  bdp_backup_retention_days: 30,
+  bdp_auto_backup_before_write: false,
   google_review_url: '',
   telefono_restaurante: '',
   url_reservas: '',
