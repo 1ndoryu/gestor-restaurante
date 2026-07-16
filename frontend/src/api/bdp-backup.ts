@@ -10,36 +10,35 @@ import { customInstance } from '@/api/axios-instance';
 export interface BdpSnapshot {
   id: string;
   user_id: string;
-  tipo_snapshot: string;
-  fecha_snapshot: string;
+  tipo: string;
+  direccion: string;
+  trigger_tipo: string;
   datos: Record<string, unknown>;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  expires_at: string | null;
   notas: string | null;
-  tamano_bytes: number;
-  cantidad_articulos: number | null;
-  cantidad_clientes: number | null;
-  cantidad_departamentos: number | null;
-  cantidad_salones: number | null;
-  cantidad_empleados: number | null;
-  expira_en: string | null;
 }
 
 export interface BdpAuditEntry {
   id: string;
   user_id: string;
   operacion: string;
-  bdp_order_id: number | null;
-  resultado: string;
+  direccion: string;
   snapshot_pre_id: string | null;
   datos_enviados: Record<string, unknown> | null;
-  error_message: string | null;
+  resultado: string;
+  datos_respuesta: Record<string, unknown> | null;
+  error_mensaje: string | null;
   created_at: string;
 }
 
 export interface RestoreResult {
-  exitoso: boolean;
-  mensaje: string;
-  entidades_restauradas: number;
-  errores: string[];
+  snapshot_id: string;
+  tipo: string;
+  registros_restaurados: number;
+  errores: number;
+  detalles: string;
 }
 
 export type SyncMode = 'read_only' | 'unidirectional' | 'bidirectional';

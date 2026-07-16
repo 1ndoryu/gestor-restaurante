@@ -60,14 +60,6 @@ const SNAPSHOT_TIPOS_GLORY = ['ventas', 'clientes', 'mapeos'];
 
 /* ========== Helpers ========== */
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;
-}
-
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString('es-ES', {
     day: '2-digit',
@@ -86,6 +78,14 @@ function tipoSnapshotBadge(tipo: string) {
     pre_write: 'outline',
   };
   return <Badge variant={variants[tipo] ?? 'outline'}>{tipo}</Badge>;
+}
+
+function datosResumen(datos: Record<string, unknown>): string {
+  const parts: string[] = [];
+  for (const [key, val] of Object.entries(datos)) {
+    if (Array.isArray(val)) parts.push(`${val.length} ${key}`);
+  }
+  return parts.length > 0 ? parts.join(', ') : '—';
 }
 
 function resultadoBadge(resultado: string) {
@@ -258,7 +258,6 @@ function SnapshotTable({ snapshots }: { snapshots: BdpSnapshot[] }) {
         <TableRow>
           <TableHead>Tipo</TableHead>
           <TableHead>Fecha</TableHead>
-          <TableHead>Tamaño</TableHead>
           <TableHead>Datos</TableHead>
           <TableHead>Notas</TableHead>
           <TableHead className="text-right">Acciones</TableHead>
@@ -267,16 +266,9 @@ function SnapshotTable({ snapshots }: { snapshots: BdpSnapshot[] }) {
       <TableBody>
         {snapshots.map((s) => (
           <TableRow key={s.id}>
-            <TableCell>{tipoSnapshotBadge(s.tipo_snapshot)}</TableCell>
-            <TableCell className="text-sm">{formatDate(s.fecha_snapshot)}</TableCell>
-            <TableCell className="text-sm">{formatBytes(s.tamano_bytes)}</TableCell>
-            <TableCell className="text-xs text-muted-foreground">
-              {s.cantidad_articulos != null && `${s.cantidad_articulos} art. `}
-              {s.cantidad_clientes != null && `${s.cantidad_clientes} cli. `}
-              {s.cantidad_departamentos != null && `${s.cantidad_departamentos} dep. `}
-              {s.cantidad_salones != null && `${s.cantidad_salones} sal. `}
-              {s.cantidad_empleados != null && `${s.cantidad_empleados} emp.`}
-            </TableCell>
+            <TableCell>{tipoSnapshotBadge(s.tipo)}</TableCell>
+            <TableCell className="text-sm">{formatDate(s.created_at)}</TableCell>
+            <TableCell className="text-xs text-muted-foreground">{datosResumen(s.datos)}</TableCell>
             <TableCell className="text-xs max-w-[200px] truncate">{s.notas ?? '—'}</TableCell>
             <TableCell className="text-right">
               <div className="flex justify-end gap-1">
@@ -289,7 +281,7 @@ function SnapshotTable({ snapshots }: { snapshots: BdpSnapshot[] }) {
                         restaurar.mutate(s.id, {
                           onSuccess: (r) => {
                             toast.success('Restauración completada', {
-                              description: `${r.entidades_restauradas} entidades restauradas. ${r.mensaje}`,
+                              description: `${r.registros_restaurados} registros restaurados. ${r.detalles}`,
                             });
                             setConfirmRestore(null);
                           },
@@ -360,7 +352,7 @@ function AuditTable({ entries }: { entries: BdpAuditEntry[] }) {
         <TableRow>
           <TableHead>Fecha</TableHead>
           <TableHead>Operación</TableHead>
-          <TableHead>Order ID</TableHead>
+          <TableHead>Dirección</TableHead>
           <TableHead>Resultado</TableHead>
           <TableHead>Snapshot pre</TableHead>
           <TableHead>Error</TableHead>
@@ -373,13 +365,15 @@ function AuditTable({ entries }: { entries: BdpAuditEntry[] }) {
             <TableCell>
               <Badge variant="outline">{e.operacion}</Badge>
             </TableCell>
-            <TableCell className="text-sm font-mono">{e.bdp_order_id ?? '—'}</TableCell>
+            <TableCell>
+              <Badge variant="outline">{e.direccion}</Badge>
+            </TableCell>
             <TableCell>{resultadoBadge(e.resultado)}</TableCell>
             <TableCell className="text-xs font-mono">
               {e.snapshot_pre_id ? e.snapshot_pre_id.slice(0, 8) + '…' : '—'}
             </TableCell>
             <TableCell className="text-xs text-destructive max-w-[200px] truncate">
-              {e.error_message ?? '—'}
+              {e.error_mensaje ?? '—'}
             </TableCell>
           </TableRow>
         ))}
