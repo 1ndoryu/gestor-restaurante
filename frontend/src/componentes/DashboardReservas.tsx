@@ -46,7 +46,7 @@ function AccionesRapidas() {
                 </Button>
             </div>
             <Dialog open={modalVenta} onOpenChange={setModalVenta}>
-                <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader><DialogTitle>Nueva Venta</DialogTitle></DialogHeader>
                     <FormularioVenta onExito={() => setModalVenta(false)} />
                 </DialogContent>

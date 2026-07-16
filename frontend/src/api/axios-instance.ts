@@ -51,11 +51,19 @@ export const customInstance = async <T>(
 ): Promise<T> => {
   const { body, headers, method, signal } = config;
 
+  /* [BKP-008d] Si body es un string (JSON.stringify), axios lo envía como
+   * text/plain por defecto. Axum con Json<T> extractor requiere application/json.
+   * Detectamos string y forzamos Content-Type para que el backend lo acepte. */
+  const extraHeaders: Record<string, string> = { ...(headers as Record<string, string>) };
+  if (typeof body === 'string' && !extraHeaders['Content-Type']) {
+    extraHeaders['Content-Type'] = 'application/json';
+  }
+
   const response = await instance.request({
     url,
     method: method as string,
     data: body,
-    headers: headers as Record<string, string>,
+    headers: extraHeaders,
     signal: signal ?? undefined,
   });
 

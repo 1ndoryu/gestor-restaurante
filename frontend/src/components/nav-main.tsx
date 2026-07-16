@@ -74,7 +74,7 @@ export function NavMain({
       </SidebarGroupContent>
 
       <Dialog open={modalVenta} onOpenChange={setModalVenta}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nueva Venta</DialogTitle>
           </DialogHeader>

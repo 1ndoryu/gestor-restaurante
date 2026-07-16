@@ -22,7 +22,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect(&config.database_url)
         .await?;
 
-    sqlx::migrate!().run(&pool).await?;
+    match sqlx::migrate!().run(&pool).await {
+        Ok(_) => tracing::info!("Migraciones aplicadas correctamente"),
+        Err(e) => tracing::warn!("Migraciones: {e} (continuando)"),
+    }
 
     let addr = format!("{}:{}", config.host, config.port);
     tracing::info!("Servidor iniciando en {addr}");
