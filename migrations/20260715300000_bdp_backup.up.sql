@@ -6,7 +6,7 @@
 -- Tabla de snapshots: cada snapshot es un punto de restauración
 CREATE TABLE IF NOT EXISTS bdp_snapshots (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES usuarios(id),
+    user_id UUID NOT NULL REFERENCES users(id),
     tipo VARCHAR(50) NOT NULL,
     /* Tipos BDP: 'completo', 'articulos', 'clientes', 'departamentos', 'salones', 'empleados', 'tenders', 'poses'
        Tipos Glory: 'glory_ventas', 'glory_clientes', 'glory_mapeos' */
@@ -32,7 +32,7 @@ CREATE INDEX IF NOT EXISTS idx_bdp_snapshots_expires ON bdp_snapshots(expires_at
 -- Tabla de auditoría: cada operación de sync queda registrada
 CREATE TABLE IF NOT EXISTS bdp_audit_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES usuarios(id),
+    user_id UUID NOT NULL REFERENCES users(id),
     operacion VARCHAR(50) NOT NULL,
     /* 'create_order', 'create_customer', 'add_payment', 'invoice',
        'sync_catalog', 'sync_prices', 'sync_tables' */

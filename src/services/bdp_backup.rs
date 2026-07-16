@@ -4,7 +4,7 @@
  * Restauración: solo datos locales de Glory (BDP no permite delete/update via API).
  * Todas las queries usan runtime sqlx (no macros compile-time) para compatibilidad SQLX_OFFLINE. */
 
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use tracing::warn;
 use uuid::Uuid;
@@ -26,8 +26,8 @@ pub struct BdpSnapshot {
     pub trigger_tipo: String,
     pub datos: serde_json::Value,
     pub metadata: Option<serde_json::Value>,
-    pub created_at: NaiveDateTime,
-    pub expires_at: Option<NaiveDateTime>,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
     pub notas: Option<String>,
 }
 
@@ -43,7 +43,7 @@ pub struct BdpAuditEntry {
     pub resultado: String,
     pub datos_respuesta: Option<serde_json::Value>,
     pub error_mensaje: Option<String>,
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
 }
 
 /// Resultado de una restauración.
@@ -101,7 +101,7 @@ impl BdpBackupService {
         /* Calcular expiración */
         let retention_days = Self::get_retention_days(pool, user_id).await;
         let expires_at = if retention_days > 0 {
-            Some((chrono::Utc::now() + chrono::Duration::days(i64::from(retention_days))).naive_utc())
+            Some(chrono::Utc::now() + chrono::Duration::days(i64::from(retention_days)))
         } else {
             None
         };
@@ -182,7 +182,7 @@ impl BdpBackupService {
 
         let retention_days = Self::get_retention_days(pool, user_id).await;
         let expires_at = if retention_days > 0 {
-            Some((chrono::Utc::now() + chrono::Duration::days(i64::from(retention_days))).naive_utc())
+            Some(chrono::Utc::now() + chrono::Duration::days(i64::from(retention_days)))
         } else {
             None
         };
@@ -286,7 +286,7 @@ impl BdpBackupService {
 
         let retention_days = Self::get_retention_days(pool, user_id).await;
         let expires_at = if retention_days > 0 {
-            Some((chrono::Utc::now() + chrono::Duration::days(i64::from(retention_days))).naive_utc())
+            Some(chrono::Utc::now() + chrono::Duration::days(i64::from(retention_days)))
         } else {
             None
         };
@@ -635,7 +635,7 @@ impl BdpBackupService {
         trigger_tipo: &str,
         datos: serde_json::Value,
         metadata: Option<serde_json::Value>,
-        expires_at: Option<NaiveDateTime>,
+        expires_at: Option<DateTime<Utc>>,
         notas: Option<String>,
     ) -> Result<BdpSnapshot, String> {
         sqlx::query_as::<_, BdpSnapshot>(
