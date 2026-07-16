@@ -2,7 +2,7 @@
  * [147A-F5.9] Refactorizado: tipos a configuracion-types.ts, sync a useConfiguracionSync.ts.
  * Cumple límite de 120 líneas (Regla 8). */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useObtenerConfiguracion,
@@ -20,9 +20,16 @@ export function useConfiguracion() {
   const { data: datos, isLoading } = useObtenerConfiguracion();
   const mutacion = useActualizarConfiguracion();
   const [mensaje, setMensaje] = useState('');
-  const { config, setConfig } = useConfiguracionSync(
-    datos?.status === 200 ? { status: 200, data: datos.data as unknown as Record<string, string | number | boolean> } : undefined,
+
+  /* [BKP-008c] Memoize server data to prevent infinite re-render loop.
+   * The object literal { status: 200, data: datos.data } was creating a new
+   * reference on every render, triggering useEffect in useConfiguracionSync
+   * which called setConfig → re-render → new object → infinite loop. */
+  const serverData = useMemo(
+    () => (datos?.status === 200 ? { status: 200, data: datos.data as unknown as Record<string, string | number | boolean> } : undefined),
+    [datos],
   );
+  const { config, setConfig } = useConfiguracionSync(serverData);
 
   const cambiarCampo = useCallback(
     <K extends keyof EstadoConfiguracion>(campo: K, valor: EstadoConfiguracion[K]) => {

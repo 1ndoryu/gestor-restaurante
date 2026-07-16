@@ -2,7 +2,7 @@
 
 > **Fecha:** 2026-07-16 (v2)
 > **Alcance:** Sync BDP + Backup/Restauración + Configuración + Multi-item + Clientes + Pagos + Facturación
-> **URL local:** http://localhost:5174/configuracion
+> **URL local:** http://localhost:5175/configuracion
 > **URL producción:** https://restaurante.wandori.us
 >
 > **Orden de pruebas:** Sin BDP → Solo lectura BDP → Escritura BDP
@@ -15,60 +15,60 @@
 > Verifican que la interfaz, los snapshots, la auditoría y el flujo de ventas funcionan localmente.
 
 ### Pestañas de Configuración (BKP-008)
-- [ ] **5 pestañas visibles:** General, Integraciones, Chatbot, BDP Conexión, BDP Backup
-- [ ] **Pestaña "BDP Conexión":** Muestra formulario de conexión (URL, login, password, código integrador, POS, empleado, perfil artículos)
-- [ ] **Pestaña "BDP Backup":** Muestra panel de snapshots sin crashes
-- [ ] **Sin errores en consola:** DevTools → Console no muestra errores rojos al navegar entre pestañas
+- [x] **5 pestañas visibles:** General, Integraciones, Chatbot, BDP Conexión, BDP Backup ✅ verificado
+- [x] **Pestaña "BDP Conexión":** Muestra formulario de conexión (URL, login, password, código integrador, POS, empleado, perfil artículos) ✅ verificado
+- [x] **Pestaña "BDP Backup":** Muestra panel de snapshots sin crashes ✅ verificado
+- [x] **Sin errores en consola:** DevTools → Console no muestra errores rojos al navegar entre pestañas ✅ verificado (fix infinite loop BKP-008c)
 
 ### Configuración BDP Conexión (Fase 1)
-- [ ] **Campos visibles:** URL pública BDP, Login, Password, Código integrador, Terminal POS, Empleado, Perfil artículos
-- [ ] **Toggle sync:** Switch "Sincronización BDP activa" funciona (on/off)
-- [ ] **Mapeos colapsados:** "Configuración avanzada (mapeos)" con chevron derecho y nota informativa
-- [ ] **Expandir mapeos:** Click → despliega JSON de tender_map, order_type_map, customer_code, poll_interval
-- [ ] **Tabla de mapeo artículos:** `BdpArticleMapTable` visible al expandir mapeos
-- [ ] **Importar catálogo BDP:** Botón visible (funcionalidad requiere BDP — sección 2)
-- [ ] **Guardar conexión:** Click "Guardar conexión BDP" → "Guardando..." → éxito, persiste al recargar
+- [x] **Campos visibles:** URL pública BDP, Login, Password, Código integrador, Terminal POS, Empleado, Perfil artículos ✅ verificado
+- [x] **Toggle sync:** Switch "Sincronización BDP activa" funciona (on/off) ✅ verificado
+- [x] **Mapeos colapsados:** "Configuración avanzada (mapeos)" con chevron derecho y nota informativa ✅ verificado
+- [x] **Expandir mapeos:** Click → despliega JSON de tender_map, order_type_map, customer_code, poll_interval ✅ verificado
+- [x] **Tabla de mapeo artículos:** `BdpArticleMapTable` visible al expandir mapeos ✅ verificado
+- [x] **Importar catálogo BDP:** Botón visible (funcionalidad requiere BDP — sección 2) ✅ verificado
+- [x] **Guardar conexión:** Click "Guardar conexión BDP" → "Guardando..." → éxito, persiste al recargar ✅ verificado
 
 ### Configuración Backup & Seguridad BDP (BKP-005)
-- [ ] **Sync mode selector:** Muestra modo actual (read_only / unidirectional / bidirectional)
-- [ ] **Cambiar modo:** Seleccionar otro modo → se actualiza en el panel
-- [ ] **Campos de retención:** `bdp_backup_retention_days` visible y editable
-- [ ] **Toggle auto-backup:** `bdp_auto_backup_before_write` visible
+- [x] **Sync mode selector:** Muestra modo actual (read_only / unidirectional / bidirectional) ✅ verificado ("Solo lectura")
+- [ ] **Cambiar modo:** Seleccionar otro modo → se actualiza en el panel (⚠️ requiere backend endpoint)
+- [ ] **Campos de retención:** `bdp_backup_retention_days` visible y editable (⚠️ no visible en UI actual)
+- [ ] **Toggle auto-backup:** `bdp_auto_backup_before_write` visible (⚠️ no visible en UI actual)
 
 ### Snapshots — Crear (BKP-001, BKP-005)
-- [ ] **Tab "Snapshots" visible:** Muestra tabla (vacía o con datos existentes)
-- [ ] **Snapshot completo:** Click "Crear completo" → aparece con tipo `completo`, estado `disponible`, fecha actual
-- [ ] **Snapshot parcial:** Seleccionar tipos (menú, productos, etc.) → "Crear parcial" → tipo `parcial`
-- [ ] **Snapshot Glory:** Seleccionar tipos → "Crear Glory" → tipo `glory`
-- [ ] **Notas opcionales:** Crear con y sin nota, verificar que se guarda
-- [ ] **Loading state:** Botón muestra spinner/deshabilitado mientras procesa
-- [ ] **Metadatos:** Cada snapshot muestra cantidad de registros, trigger, dirección
+- [x] **Tab "Snapshots" visible:** Muestra tabla (vacía o con datos existentes) ✅ verificado ("No hay snapshots todavía")
+- [ ] **Snapshot completo:** Click "Crear completo" → aparece con tipo `completo`, estado `disponible`, fecha actual (⚠️ 415 backend error)
+- [ ] **Snapshot parcial:** Seleccionar tipos (menú, productos, etc.) → "Crear parcial" → tipo `parcial` (⚠️ requiere backend)
+- [ ] **Snapshot Glory:** Seleccionar tipos → "Crear Glory" → tipo `glory` (⚠️ 415 backend error)
+- [ ] **Notas opcionales:** Crear con y sin nota, verificar que se guarda (⚠️ requiere backend)
+- [ ] **Loading state:** Botón muestra spinner/deshabilitado mientras procesa (⚠️ requiere backend)
+- [ ] **Metadatos:** Cada snapshot muestra cantidad de registros, trigger, dirección (⚠️ requiere backend)
 
 ### Snapshots — Eliminar (BKP-001)
-- [ ] **Eliminar:** Click botón eliminar → confirmar → snapshot desaparece
-- [ ] **Confirmación:** Pide confirmación antes de eliminar
+- [ ] **Eliminar:** Click botón eliminar → confirmar → snapshot desaparece (⚠️ requiere snapshots creados)
+- [ ] **Confirmación:** Pide confirmación antes de eliminar (⚠️ requiere snapshots creados)
 
 ### Snapshots — Restaurar (BKP-004, BKP-005)
-- [ ] **Restaurar Glory:** Click restaurar → confirmar → resultado con detalle de tablas restauradas
-- [ ] **Restaurar no destructiva:** Datos del restaurante (reservas, ventas) NO se pierden
-- [ ] **Error: snapshot inexistente:** Intentar restaurar eliminado → error claro
+- [ ] **Restaurar Glory:** Click restaurar → confirmar → resultado con detalle de tablas restauradas (⚠️ requiere snapshots creados)
+- [ ] **Restaurar no destructiva:** Datos del restaurante (reservas, ventas) NO se pierden (⚠️ requiere snapshots creados)
+- [ ] **Error: snapshot inexistente:** Intentar restaurar eliminado → error claro (⚠️ requiere snapshots creados)
 
 ### Auditoría (BKP-001)
-- [ ] **Tab "Auditoría" visible:** Muestra tabla (vacía o con datos)
-- [ ] **Registros aparecen:** Después de crear/eliminar/restaurar snapshots, hay entradas
-- [ ] **Detalle correcto:** Cada entrada muestra operación, resultado (éxito/error), timestamp, usuario
-- [ ] **Operaciones registradas:** snapshot_crear, snapshot_eliminar, snapshot_restaurar
+- [x] **Tab "Auditoría" visible:** Muestra tabla (vacía o con datos) ✅ verificado ("Sin registros de auditoría todavía")
+- [ ] **Registros aparecen:** Después de crear/eliminar/restaurar snapshots, hay entradas (⚠️ requiere operaciones)
+- [ ] **Detalle correcto:** Cada entrada muestra operación, resultado (éxito/error), timestamp, usuario (⚠️ requiere operaciones)
+- [ ] **Operaciones registradas:** snapshot_crear, snapshot_eliminar, snapshot_restaurar (⚠️ requiere operaciones)
 
 ### Ventas — Multi-item (Fase 2, Fase 6)
-- [ ] **Formulario de venta carga:** Sin errores, muestra campos habituales
-- [ ] **LineasVentaEditor visible:** Editor de líneas debajo de los campos de venta
-- [ ] **Añadir línea:** Click "+" → nueva línea con selector de artículo, cantidad, precio, IVA, descuento
-- [ ] **Eliminar línea:** Click "−" → línea desaparece, total se recalcula
-- [ ] **Múltiples líneas:** Añadir 3 líneas → total = suma correcta
-- [ ] **Autocomplete artículos:** Buscar artículo → muestra sugerencias del catálogo Glory
-- [ ] **Indicador mapeo BDP:** Cada línea muestra ✅/⚠️ si tiene/no tiene mapeo BDP
-- [ ] **Retrocompatibilidad:** Si no se añaden líneas, el formulario funciona como antes (campo total manual)
-- [ ] **Crear venta con líneas:** Submit → venta creada con líneas asociadas en BD
+- [x] **Formulario de venta carga:** Sin errores, muestra campos habituales ✅ verificado
+- [x] **LineasVentaEditor visible:** Editor de líneas debajo de los campos de venta ✅ verificado
+- [x] **Añadir línea:** Click "+" → nueva línea con selector de artículo, cantidad, precio, IVA, descuento ✅ verificado
+- [ ] **Eliminar línea:** Click "−" → línea desaparece, total se recalcula (⚠️ requiere más líneas)
+- [ ] **Múltiples líneas:** Añadir 3 líneas → total = suma correcta (⚠️ requiere más líneas)
+- [x] **Autocomplete artículos:** Buscar artículo → muestra sugerencias del catálogo Glory ✅ verificado (fix maps?.find BKP-008c)
+- [x] **Indicador mapeo BDP:** Cada línea muestra ✅/⚠️ si tiene/no tiene mapeo BDP ✅ verificado (muestra "—" sin mapeo)
+- [x] **Retrocompatibilidad:** Si no se añaden líneas, el formulario funciona como antes (campo total manual) ✅ verificado
+- [ ] **Crear venta con líneas:** Submit → venta creada con líneas asociadas en BD (⚠️ requiere submit)
 
 ### Ventas — Lista de ventas con BDP (Fase 5)
 - [ ] **Columna BDP visible:** `BdpSyncBadge` en la tabla de ventas (✅/❌/⏳)
@@ -87,10 +87,10 @@
 - [ ] **Campo `bdp_sync_error`:** Existe en tabla `clientes` (TEXT)
 
 ### Manejo de errores sin BDP
-- [ ] **Botón "Probar conexión":** Error claro (no crash) porque no hay BDP
-- [ ] **Botón "Probar sincronización segura":** Error o estado pendiente (no crash)
-- [ ] **Crear snapshot sin BDP:** Funciona (es backup local, no depende de BDP)
-- [ ] **Retry BDP sin BDP:** Botón retry → error manejado (no crash)
+- [x] **Botón "Probar conexión":** Error claro (no crash) porque no hay BDP ✅ verificado (toast "BDP no esta configurado")
+- [ ] **Botón "Probar sincronización segura":** Error o estado pendiente (no crash) (⚠️ pendiente verificación)
+- [ ] **Crear snapshot sin BDP:** Funciona (es backup local, no depende de BDP) (⚠️ 415 backend error)
+- [ ] **Retry BDP sin BDP:** Botón retry → error manejado (no crash) (⚠️ requiere venta con BDP)
 
 ---
 
@@ -243,6 +243,8 @@ npm run dev
 - ✅ Config BDP separada en pestaña propia, mapeos colapsados (BKP-008)
 - ✅ Error 300035 — Serie creada, cliente confirmó
 - ✅ Orval codegen regenerado con campos BDP (Fase 5.0)
+- ✅ Infinite re-render loop in Configuracion — Fix: useMemo in useConfiguracionSync (BKP-008c)
+- ✅ `maps?.find is not a function` in ArticleAutocomplete — Fix: extract .data from customInstance (BKP-008c)
 
 ---
 

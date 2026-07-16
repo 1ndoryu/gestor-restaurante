@@ -58,16 +58,21 @@ export function mapBdpStatus(
 
 /* ── API functions ──────────────────────────────────────────────────── */
 
+/* [BKP-008c] customInstance returns { data, status, headers } (Orval pattern).
+ * Manual fetchers must extract .data to return the raw payload to consumers. */
+
 export async function fetchBdpStatus(ventaId: string): Promise<BdpOrderStatusResponse> {
-  return customInstance<BdpOrderStatusResponse>(`/api/ventas/${ventaId}/bdp-status`, {
+  const resp = await customInstance(`/api/ventas/${ventaId}/bdp-status`, {
     method: 'GET',
-  });
+  }) as { data: BdpOrderStatusResponse };
+  return resp.data;
 }
 
 export async function fetchBdpPoll(): Promise<BdpPollResponse> {
-  return customInstance<BdpPollResponse>('/api/ventas/bdp-poll', {
+  const resp = await customInstance('/api/ventas/bdp-poll', {
     method: 'POST',
-  });
+  }) as { data: BdpPollResponse };
+  return resp.data;
 }
 
 /** Estructura de un mapeo artículo Glory → BDP (GET /api/bdp/article-maps). */
@@ -81,9 +86,10 @@ export interface BdpArticleMapItem {
 
 /** Listar todos los mapeos de artículos Glory → BDP. */
 export async function fetchBdpArticleMaps(): Promise<BdpArticleMapItem[]> {
-  return customInstance<BdpArticleMapItem[]>('/api/bdp/article-maps', {
+  const resp = await customInstance('/api/bdp/article-maps', {
     method: 'GET',
-  });
+  }) as { data: BdpArticleMapItem[] };
+  return resp.data;
 }
 
 /* ── Hooks ──────────────────────────────────────────────────────────── */
