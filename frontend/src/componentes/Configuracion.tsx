@@ -47,6 +47,8 @@ function Configuracion() {
         <TabsTrigger value="general">General</TabsTrigger>
         <TabsTrigger value="integraciones">Integraciones</TabsTrigger>
         <TabsTrigger value="chatbot">Chatbot</TabsTrigger>
+        <TabsTrigger value="bdp-conexion">BDP Conexión</TabsTrigger>
+        <TabsTrigger value="bdp-backup">BDP Backup</TabsTrigger>
       </TabsList>
 
       <TabsContent value="general" className="flex flex-col gap-6 mt-4">
@@ -255,11 +257,6 @@ function Configuracion() {
         </CardContent>
       </Card>
 
-      <ConfigBdp config={config} cambiarCampo={cambiarCampo} />
-
-      {/* [BKP-005] Panel de Backup BDP — snapshots, restauración, auditoría */}
-      <PanelBdpBackup config={config} />
-
       {/* [134A-4] Reseñas y CTA WhatsApp — configuración para review gating y botones CTA */}
       <Card>
         <CardHeader>
@@ -393,6 +390,14 @@ function Configuracion() {
 
       <TabsContent value="chatbot" className="mt-4">
         <ConfigChatbot />
+      </TabsContent>
+
+      <TabsContent value="bdp-conexion" className="mt-4">
+        <ConfigBdp config={config} cambiarCampo={cambiarCampo} guardar={guardar} guardando={guardando} mensaje={mensaje} />
+      </TabsContent>
+
+      <TabsContent value="bdp-backup" className="mt-4">
+        <PanelBdpBackup config={config} />
       </TabsContent>
     </Tabs>
   );

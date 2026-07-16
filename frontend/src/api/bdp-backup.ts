@@ -46,54 +46,60 @@ export type SyncMode = 'read_only' | 'unidirectional' | 'bidirectional';
 /* ========== Fetchers ========== */
 
 async function fetchSnapshots(limit = 50): Promise<BdpSnapshot[]> {
-  return customInstance<BdpSnapshot[]>(`/api/bdp/backup/snapshots?limit=${limit}`, {
+  const res = await customInstance<{ data: BdpSnapshot[] }>(`/api/bdp/backup/snapshots?limit=${limit}`, {
     method: 'GET',
   });
+  return res.data;
 }
 
 async function fetchAudit(limit = 100): Promise<BdpAuditEntry[]> {
-  return customInstance<BdpAuditEntry[]>(`/api/bdp/audit?limit=${limit}`, {
+  const res = await customInstance<{ data: BdpAuditEntry[] }>(`/api/bdp/audit?limit=${limit}`, {
     method: 'GET',
   });
+  return res.data;
 }
 
 async function createSnapshotCompleto(notas?: string): Promise<BdpSnapshot> {
-  return customInstance<BdpSnapshot>('/api/bdp/backup/completo', {
+  const res = await customInstance<{ data: BdpSnapshot }>('/api/bdp/backup/completo', {
     method: 'POST',
     body: JSON.stringify(notas ?? null),
   });
+  return res.data;
 }
 
 async function createSnapshotParcial(
   tipos: string[],
   notas?: string
 ): Promise<BdpSnapshot> {
-  return customInstance<BdpSnapshot>('/api/bdp/backup/parcial', {
+  const res = await customInstance<{ data: BdpSnapshot }>('/api/bdp/backup/parcial', {
     method: 'POST',
     body: JSON.stringify({ tipos, notas }),
   });
+  return res.data;
 }
 
 async function createSnapshotGlory(
   tipos: string[],
   notas?: string
 ): Promise<BdpSnapshot> {
-  return customInstance<BdpSnapshot>('/api/bdp/backup/glory', {
+  const res = await customInstance<{ data: BdpSnapshot }>('/api/bdp/backup/glory', {
     method: 'POST',
     body: JSON.stringify({ tipos, notas }),
   });
+  return res.data;
 }
 
 async function deleteSnapshot(id: string): Promise<void> {
-  return customInstance<void>(`/api/bdp/backup/snapshots/${id}`, {
+  await customInstance(`/api/bdp/backup/snapshots/${id}`, {
     method: 'DELETE',
   });
 }
 
 async function restoreSnapshot(id: string): Promise<RestoreResult> {
-  return customInstance<RestoreResult>(`/api/bdp/backup/restaurar/${id}`, {
+  const res = await customInstance<{ data: RestoreResult }>(`/api/bdp/backup/restaurar/${id}`, {
     method: 'POST',
   });
+  return res.data;
 }
 
 async function setSyncMode(modo: SyncMode): Promise<unknown> {

@@ -1,10 +1,11 @@
 /* [065A-2] Configuracion de BDP/WebLink REST API.
  * Mantiene credenciales fuera de respuestas publicas y ofrece diagnostico
  * Health + Login + GetVersion para la sesion remota con el PC del restaurante.
- * [147A-F5.6] Secciones de mapeo: tender, order_type, customer_code, poll_interval. */
+ * [147A-F5.6] Secciones de mapeo: tender, order_type, customer_code, poll_interval.
+ * [167A-1] Simplificado: mapeos colapsados por defecto, defaults desde env. */
 
 import { useState } from 'react';
-import { Activity, CheckCircle2, ClipboardCheck, Loader2, XCircle } from 'lucide-react';
+import { Activity, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Loader2, XCircle } from 'lucide-react';
 import axios from '@/api/axios-instance';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,15 +45,19 @@ interface BdpUiState {
 interface ConfigBdpProps {
   config: EstadoConfiguracion;
   cambiarCampo: <K extends keyof EstadoConfiguracion>(campo: K, valor: EstadoConfiguracion[K]) => void;
+  guardar?: () => void;
+  guardando?: boolean;
+  mensaje?: string;
 }
 
-function ConfigBdp({ config, cambiarCampo }: ConfigBdpProps) {
+function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: ConfigBdpProps) {
   const [estadoBdp, setEstadoBdp] = useState<BdpUiState>({
     diagnostico: null,
     dryRun: null,
     diagnosticando: false,
     probandoSync: false,
   });
+  const [mostrarMapeos, setMostrarMapeos] = useState(false);
   const { diagnostico, dryRun, diagnosticando, probandoSync } = estadoBdp;
 
   async function diagnosticar() {
@@ -92,10 +97,11 @@ function ConfigBdp({ config, cambiarCampo }: ConfigBdpProps) {
   }
 
   return (
+    <>
     <Card>
       <CardHeader>
-        <CardTitle>BDP WebLink REST API</CardTitle>
-        <CardDescription>Conexión al TPV/BDP del restaurante para validar servicio, sesión y versión</CardDescription>
+        <CardTitle>Conexión BDP</CardTitle>
+        <CardDescription>Configura la conexión al TPV/BDP del restaurante. Los valores por defecto se cargan desde el servidor.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
@@ -180,8 +186,28 @@ function ConfigBdp({ config, cambiarCampo }: ConfigBdpProps) {
           />
         </div>
 
-        {/* [147A-F5.6] Sección de mapeos BDP — componente separado por límite 300 */}
-        <ConfigBdpMapeos config={config} cambiarCampo={cambiarCampo} />
+        {/* [167A-1] Mapeos colapsados por defecto — defaults desde env del servidor */}
+        <div className="border-t pt-4">
+          <button
+            type="button"
+            className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setMostrarMapeos(!mostrarMapeos)}
+          >
+            {mostrarMapeos ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+            Configuración avanzada (mapeos)
+          </button>
+          {!mostrarMapeos && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Los mapeos de formas de pago, canales y artículos se cargan automáticamente desde la configuración del servidor.
+              Solo modifica si necesitas personalizar la sincronización.
+            </p>
+          )}
+          {mostrarMapeos && (
+            <div className="mt-4">
+              <ConfigBdpMapeos config={config} cambiarCampo={cambiarCampo} />
+            </div>
+          )}
+        </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <Button type="button" variant="outline" onClick={diagnosticar} disabled={diagnosticando}>
@@ -241,6 +267,21 @@ function ConfigBdp({ config, cambiarCampo }: ConfigBdpProps) {
         )}
       </CardContent>
     </Card>
+
+    {/* [167A-1] Botón guardar propio de la pestaña BDP */}
+    {guardar && (
+      <div className="flex items-center gap-4 mt-4">
+        <Button onClick={guardar} disabled={guardando}>
+          {guardando ? 'Guardando...' : 'Guardar conexión BDP'}
+        </Button>
+        {mensaje && (
+          <span className={`text-sm ${mensaje.includes('Error') ? 'text-destructive' : 'text-green-600'}`}>
+            {mensaje}
+          </span>
+        )}
+      </div>
+    )}
+    </>
   );
 }
 
