@@ -19,8 +19,8 @@ pub fn routes() -> Router<crate::handlers::AppState> {
         .route("/bdp/backup/parcial", axum::routing::post(snapshot_parcial))
         .route("/bdp/backup/glory", axum::routing::post(snapshot_glory))
         .route("/bdp/backup/snapshots", get(listar_snapshots))
-        .route("/bdp/backup/snapshots/{id}", get(obtener_snapshot).delete(eliminar_snapshot))
-        .route("/bdp/backup/restaurar/{id}", axum::routing::post(restaurar_glory))
+        .route("/bdp/backup/snapshots/:id", get(obtener_snapshot).delete(eliminar_snapshot))
+        .route("/bdp/backup/restaurar/:id", axum::routing::post(restaurar_glory))
         .route("/bdp/audit", get(listar_audit))
 }
 
