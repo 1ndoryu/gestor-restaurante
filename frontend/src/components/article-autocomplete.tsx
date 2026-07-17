@@ -44,8 +44,8 @@ export default function ArticleAutocomplete({ valor, onSelect, readonly }: Props
   const seleccionActual = maps?.find(m => m.articulo_glory_codigo === valor);
 
   return (
-    <div ref={ref} className="relative">
-      <div className="flex gap-1">
+    <div ref={ref} className="relative w-full min-w-0">
+      <div className="flex gap-1 min-w-0">
         <Input
           value={abierto ? busqueda : (seleccionActual?.articulo_glory_codigo ?? valor)}
           onChange={e => {
@@ -58,7 +58,7 @@ export default function ArticleAutocomplete({ valor, onSelect, readonly }: Props
             setAbierto(true);
           }}
           placeholder="Código artículo"
-          className="h-8 text-xs"
+          className="h-8 text-xs w-full min-w-0"
           readOnly={readonly}
           aria-label="Código del artículo"
         />

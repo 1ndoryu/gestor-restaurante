@@ -46,13 +46,13 @@ function LineaRow({ linea, idx, onActualizar, onEliminar, maps, readonly, puedeE
       className="h-8 text-xs" readOnly={readonly} aria-label={`${campo} línea ${idx + 1}`} {...extra} />
   );
   return (
-    <div className="grid grid-cols-1 gap-2 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-[1fr_2fr_70px_90px_60px_60px_80px_32px] lg:items-center">
-      <div className="flex flex-col gap-1">{lbl('Código')}<ArticleAutocomplete valor={linea.articulo_codigo} onSelect={v => onActualizar(linea.id, 'articulo_codigo', v)} readonly={readonly} /></div>
-      <div className="flex flex-col gap-1">{lbl('Descripción')}{inp('descripcion')}</div>
-      <div className="flex flex-col gap-1">{lbl('Cant.')}{inp('cantidad', 'number')}</div>
-      <div className="flex flex-col gap-1">{lbl('Precio €')}{inp('precio_unitario', 'number', { placeholder: '0.00' })}</div>
-      <div className="flex flex-col gap-1">{lbl('IVA %')}{inp('iva_pct', 'number')}</div>
-      <div className="flex flex-col gap-1">{lbl('Dsct %')}{inp('descuento', 'number')}</div>
+    <div className="grid grid-cols-1 gap-2 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-[minmax(140px,1fr)_minmax(0,1fr)_70px_90px_60px_60px_80px_32px] lg:items-center">
+      <div className="flex flex-col gap-1 min-w-0">{lbl('Código')}<ArticleAutocomplete valor={linea.articulo_codigo} onSelect={v => onActualizar(linea.id, 'articulo_codigo', v)} readonly={readonly} /></div>
+      <div className="flex flex-col gap-1 min-w-0">{lbl('Descripción')}{inp('descripcion')}</div>
+      <div className="flex flex-col gap-1 min-w-0">{lbl('Cant.')}{inp('cantidad', 'number')}</div>
+      <div className="flex flex-col gap-1 min-w-0">{lbl('Precio €')}{inp('precio_unitario', 'number', { placeholder: '0.00' })}</div>
+      <div className="flex flex-col gap-1 min-w-0">{lbl('IVA %')}{inp('iva_pct', 'number')}</div>
+      <div className="flex flex-col gap-1 min-w-0">{lbl('Dsct %')}{inp('descuento', 'number')}</div>
       <div className="flex flex-col gap-1">{lbl('BDP')}<BdpMappingBadge codigo={linea.articulo_codigo} maps={maps} /></div>
       <div className="flex items-center justify-end lg:justify-center">
         <Button type="button" variant="ghost" size="sm" onClick={() => onEliminar(linea.id)} disabled={readonly || !puedeEliminar} className="h-8 w-8 p-0 text-destructive hover:text-destructive" aria-label={`Eliminar línea ${idx + 1}`}>
@@ -74,7 +74,7 @@ export default function LineasVentaEditor({ lineas, onAgregar, onEliminar, onAct
           <Plus className="h-3 w-3" /> Añadir línea
         </Button>
       </div>
-      <div className="hidden lg:grid lg:grid-cols-[1fr_2fr_70px_90px_60px_60px_80px_32px] gap-2 text-[11px] font-medium text-muted-foreground">
+      <div className="hidden lg:grid lg:grid-cols-[minmax(140px,1fr)_minmax(0,1fr)_70px_90px_60px_60px_80px_32px] gap-2 text-[11px] font-medium text-muted-foreground">
         <span>Código</span><span>Descripción</span><span>Cant.</span><span>Precio €</span><span>IVA %</span><span>Dsct %</span><span>BDP</span><span />
       </div>
       {lineas.map((linea, idx) => (

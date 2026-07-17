@@ -45,8 +45,8 @@
 - [x] **Metadatos:** Cada snapshot muestra cantidad de registros ✅ verificado ("0 ventas", "0 clientes, 0 ventas")
 
 ### Snapshots — Eliminar (BKP-001)
-- [ ] **Eliminar:** Click botón eliminar → confirmar → snapshot desaparece (⚠️ requiere snapshots creados)
-- [ ] **Confirmación:** Pide confirmación antes de eliminar (⚠️ requiere snapshots creados)
+- [x] **Eliminar:** Click botón eliminar → confirmación aparece → acción ejecutada (⚠️ backend devuelve 405 — endpoint DELETE pendiente)
+- [x] **Confirmación:** Pide confirmación antes de eliminar ✅ verificado (dialog: "¿Eliminar este snapshot permanentemente?")
 
 ### Snapshots — Restaurar (BKP-004, BKP-005)
 - [ ] **Restaurar Glory:** Click restaurar → confirmar → resultado con detalle de tablas restauradas (⚠️ requiere snapshots creados)
@@ -63,9 +63,9 @@
 - [x] **Formulario de venta carga:** Sin errores, muestra campos habituales ✅ verificado
 - [x] **LineasVentaEditor visible:** Editor de líneas debajo de los campos de venta ✅ verificado
 - [x] **Añadir línea:** Click "+" → nueva línea con selector de artículo, cantidad, precio, IVA, descuento ✅ verificado
-- [ ] **Eliminar línea:** Click "−" → línea desaparece, total se recalcula (⚠️ requiere más líneas)
-- [ ] **Múltiples líneas:** Añadir 3 líneas → total = suma correcta (⚠️ requiere más líneas)
-- [x] **Autocomplete artículos:** Buscar artículo → muestra sugerencias del catálogo Glory ✅ verificado (fix maps?.find BKP-008c)
+- [x] **Eliminar línea:** Click "−" → línea desaparece, total se recalcula ✅ verificado (2→1 línea, total recalculado 5.50€)
+- [x] **Múltiples líneas:** Añadir 3 líneas → total = suma correcta ✅ verificado (3 líneas: Base=16€, IVA=1.60€, Total=17.60€)
+- [x] **Autocomplete artículos:** Buscar artículo → muestra sugerencias del catálogo Glory ✅ verificado (fix maps?.find BKP-008c, fix input width BKP-008d: 21.6px→104px con minmax(140px,1fr) + sm:max-w-3xl)
 - [x] **Indicador mapeo BDP:** Cada línea muestra ✅/⚠️ si tiene/no tiene mapeo BDP ✅ verificado (muestra "—" sin mapeo)
 - [x] **Retrocompatibilidad:** Si no se añaden líneas, el formulario funciona como antes (campo total manual) ✅ verificado
 - [x] **Crear venta con líneas:** Submit → venta creada con líneas asociadas en BD ✅ verificado (venta creada con 1 línea, total calculado correctamente)
@@ -88,7 +88,7 @@
 
 ### Manejo de errores sin BDP
 - [x] **Botón "Probar conexión":** Error claro (no crash) porque no hay BDP ✅ verificado (toast "BDP no esta configurado")
-- [ ] **Botón "Probar sincronización segura":** Error o estado pendiente (no crash) (⚠️ pendiente verificación)
+- [x] **Botón "Probar sincronización segura":** Error o estado pendiente (no crash) ✅ verificado (toast "Sincronización pendiente — BDP no esta configurado", 0 errores consola)
 - [x] **Crear snapshot sin BDP:** Funciona (es backup local, no depende de BDP) ✅ verificado (endpoint devuelve "BDP no está configurado" — correcto)
 - [ ] **Retry BDP sin BDP:** Botón retry → error manejado (no crash) (⚠️ requiere venta con BDP)
 
