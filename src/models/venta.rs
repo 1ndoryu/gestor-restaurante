@@ -111,6 +111,9 @@ pub struct ActualizarVentaRequest {
     pub metodo_pago: Option<MetodoPago>,
     pub importe_base: Option<rust_decimal::Decimal>,
     pub importe_iva: Option<rust_decimal::Decimal>,
+    /// Si se incluye, reemplaza atómicamente todas las líneas de la venta.
+    /// `None` conserva las líneas actuales; `Some([])` las elimina.
+    pub lineas: Option<Vec<CrearVentaLineaRequest>>,
 }
 
 /// Response paginada de ventas

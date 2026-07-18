@@ -15,6 +15,8 @@ export interface BdpSnapshot {
   trigger_tipo: string;
   datos: Record<string, unknown>;
   metadata: Record<string, unknown> | null;
+  target_base_url: string | null;
+  connection_fingerprint: string | null;
   created_at: string;
   expires_at: string | null;
   notas: string | null;
@@ -30,7 +32,11 @@ export interface BdpAuditEntry {
   resultado: string;
   datos_respuesta: Record<string, unknown> | null;
   error_mensaje: string | null;
+  target_base_url: string | null;
+  target_entity_type: string | null;
+  target_entity_id: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface RestoreResult {
@@ -41,7 +47,7 @@ export interface RestoreResult {
   detalles: string;
 }
 
-export type SyncMode = 'read_only' | 'unidirectional' | 'bidirectional';
+export type SyncMode = 'read_only' | 'unidirectional';
 
 /* ========== Fetchers ========== */
 
@@ -102,10 +108,32 @@ async function restoreSnapshot(id: string): Promise<RestoreResult> {
   return res.data;
 }
 
-async function setSyncMode(modo: SyncMode): Promise<unknown> {
+interface SetSyncModeInput {
+  modo: SyncMode;
+  confirmarDestino: string;
+  alcances: string[];
+  duracionMinutos: number;
+  maxOperaciones: number;
+  motivo: string;
+  targetEntityType: 'venta' | 'cliente' | '';
+  targetEntityId: string;
+}
+
+async function setSyncMode(input: SetSyncModeInput): Promise<unknown> {
+  const {modo, confirmarDestino, alcances, duracionMinutos, maxOperaciones, motivo, targetEntityType, targetEntityId} = input;
   return customInstance('/api/configuracion/bdp/sync-mode', {
     method: 'PUT',
-    body: JSON.stringify({ modo }),
+    body: JSON.stringify({
+      modo,
+      confirmar_escritura: modo !== 'read_only',
+      confirmar_destino: modo === 'read_only' ? '' : confirmarDestino,
+      alcances: modo === 'read_only' ? [] : alcances,
+      duracion_minutos: modo === 'read_only' ? 0 : duracionMinutos,
+      max_operaciones: modo === 'read_only' ? 0 : maxOperaciones,
+      motivo: modo === 'read_only' ? '' : motivo,
+      target_entity_type: modo === 'read_only' ? null : targetEntityType,
+      target_entity_id: modo === 'read_only' ? null : targetEntityId,
+    }),
   });
 }
 
@@ -181,7 +209,7 @@ export function useRestoreSnapshot() {
 export function useSetSyncMode() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (modo: SyncMode) => setSyncMode(modo),
+    mutationFn: (input: SetSyncModeInput) => setSyncMode(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracion'] });
     },

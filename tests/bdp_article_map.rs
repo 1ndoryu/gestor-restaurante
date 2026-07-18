@@ -430,7 +430,10 @@ async fn test_upsert_from_bdp_sin_cambios(pool: PgPool) {
         .await
         .unwrap();
 
-    assert!(!changed, "identical upsert should return false (no changes)");
+    assert!(
+        !changed,
+        "identical upsert should return false (no changes)"
+    );
 }
 
 #[sqlx::test(migrations = "./migrations")]

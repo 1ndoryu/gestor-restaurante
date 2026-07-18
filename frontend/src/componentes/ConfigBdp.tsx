@@ -59,6 +59,9 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
   });
   const [mostrarMapeos, setMostrarMapeos] = useState(false);
   const { diagnostico, dryRun, diagnosticando, probandoSync } = estadoBdp;
+  const simuladorLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\/?$/i.test(
+    config.bdp_base_url.trim(),
+  );
 
   async function diagnosticar() {
     setEstadoBdp((actual) => ({ ...actual, diagnosticando: true }));
@@ -214,9 +217,9 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
             {diagnosticando ? <Loader2 className="size-4 animate-spin" /> : <Activity className="size-4" />}
             Probar conexión
           </Button>
-          <Button type="button" variant="secondary" onClick={probarSincronizacion} disabled={probandoSync}>
+          <Button type="button" variant="secondary" onClick={probarSincronizacion} disabled={probandoSync || !simuladorLocal}>
             {probandoSync ? <Loader2 className="size-4 animate-spin" /> : <ClipboardCheck className="size-4" />}
-            Probar sincronización segura
+            Validar con simulador local
           </Button>
           {diagnostico && (
             <span className={diagnostico.health_ok && diagnostico.login_ok ? 'text-sm text-green-600' : 'text-sm text-destructive'}>
@@ -224,6 +227,11 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
             </span>
           )}
         </div>
+        {!simuladorLocal && (
+          <p className="text-xs text-muted-foreground">
+            La validación de comandas está bloqueada contra el restaurante porque utiliza el mismo endpoint de creación. Solo puede ejecutarse con el simulador local.
+          </p>
+        )}
         {diagnostico?.version && (
           <div className="grid gap-2 rounded-md border p-3 text-sm md:grid-cols-2">
             <span>Versión: {diagnostico.version}.{diagnostico.sub_version ?? 0}</span>

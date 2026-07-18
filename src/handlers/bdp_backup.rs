@@ -8,19 +8,28 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
-use crate::services::{BdpBackupService, BdpSnapshot, BdpAuditEntry, RestoreResult};
-use crate::services::{BdpExplorerService, BdpExploracionResultado};
 use crate::services::ConfiguracionService;
+use crate::services::{BdpAuditEntry, BdpBackupService, BdpSnapshot, RestoreResult};
+use crate::services::{BdpExploracionResultado, BdpExplorerService};
 
 pub fn routes() -> Router<crate::handlers::AppState> {
     Router::new()
         .route("/bdp/explorar", get(explorar_bdp))
-        .route("/bdp/backup/completo", axum::routing::post(snapshot_completo))
+        .route(
+            "/bdp/backup/completo",
+            axum::routing::post(snapshot_completo),
+        )
         .route("/bdp/backup/parcial", axum::routing::post(snapshot_parcial))
         .route("/bdp/backup/glory", axum::routing::post(snapshot_glory))
         .route("/bdp/backup/snapshots", get(listar_snapshots))
-        .route("/bdp/backup/snapshots/:id", get(obtener_snapshot).delete(eliminar_snapshot))
-        .route("/bdp/backup/restaurar/:id", axum::routing::post(restaurar_glory))
+        .route(
+            "/bdp/backup/snapshots/:id",
+            get(obtener_snapshot).delete(eliminar_snapshot),
+        )
+        .route(
+            "/bdp/backup/restaurar/:id",
+            axum::routing::post(restaurar_glory),
+        )
         .route("/bdp/audit", get(listar_audit))
 }
 

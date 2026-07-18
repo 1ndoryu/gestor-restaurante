@@ -1,5 +1,7 @@
 # Plan: BDP WebLink — Testing completo pre-producción
 
+> **HISTÓRICO — PROHIBIDO EJECUTAR ESTOS PASOS.** Incluye contacto directo, `OnlyCheck`, creación/cancelación de comandas y supuestos de reversibilidad que no forman parte de la política vigente. Nuestro equipo no prueba el BDP real; el cliente usa la guía no técnica y excluye toda escritura.
+
 > **Fecha:** 2026-06-07
 > **Tarea:** 065A-4 (continuación)
 > **Objetivo:** Verificar que la integración BDP funciona end-to-end antes de confirmar al cliente

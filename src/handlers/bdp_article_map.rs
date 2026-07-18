@@ -24,14 +24,20 @@ use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::models::{ActualizarBdpArticleMapRequest, BdpArticleMap, CrearBdpArticleMapRequest};
 use crate::repositories::BdpArticleMapRepository;
-use crate::services::{
-    BdpCatalogSyncResult, BdpExportArticlesRequest, BdpSyncService, BdpWeblinkClient,
-    ConfiguracionService, SyncTablesResult,
-};
 use crate::services::bdp_weblink_catalog::{
     BdpGetFastfoodRequest, BdpGetMenuRequest, BdpGetPackRequest,
 };
+use crate::services::{
+    BdpCatalogSyncResult, BdpSyncService, BdpWeblinkClient, ConfiguracionService, SyncTablesResult,
+};
 use crate::AppState;
+
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct SyncTablesRequest {
+    #[serde(default)]
+    pub aplicar: bool,
+    pub confirmacion: Option<String>,
+}
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -187,62 +193,23 @@ pub async fn importar_catalogo(
 
     let client = BdpWeblinkClient::new(&config);
 
-    /* Login y exportar artículos — session needed for auth token lifecycle */
+    /* Compatibilidad: el endpoint legado usa exactamente el parser tipado y
+     * el upsert enriquecido del flujo canónico. Así no quedan dos lógicas con
+     * distintos formatos de código ni campos omitidos. */
     let _session = client
         .login()
         .await
         .map_err(|e| AppError::Internal(format!("Error login BDP: {e}")))?;
 
-    let articles_json = client
-        .export_articles(&BdpExportArticlesRequest::all_web_articles(1))
+    let result = BdpSyncService::sync_catalog(&client, &state.pool, auth.user_id, 1)
         .await
-        .map_err(|e| AppError::Internal(format!("Error exportando artículos: {e}")))?;
-
-    /* Parsear array de artículos — BDP devuelve {"Articles": [...]} */
-    let articles = articles_json
-        .get("Articles")
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| AppError::Internal("Respuesta BDP no contiene array 'Articles'.".into()))?;
-
-    let mut importados: u32 = 0;
-    let mut errores: u32 = 0;
-
-    for art in articles {
-        let code = art
-            .get("Code")
-            .and_then(|v| v.as_str())
-            .or_else(|| art.get("ItemCode").and_then(|v| v.as_str()));
-        let name = art
-            .get("Name")
-            .and_then(|v| v.as_str())
-            .or_else(|| art.get("Description").and_then(|v| v.as_str()));
-
-        let (Some(code), Some(name)) = (code, name) else {
-            errores += 1;
-            continue;
-        };
-
-        if code.is_empty() {
-            errores += 1;
-            continue;
-        }
-
-        let req = CrearBdpArticleMapRequest {
-            articulo_glory_codigo: code.to_string(),
-            articulo_bdp_codigo: code.to_string(),
-            articulo_bdp_nombre: Some(name.to_string()),
-        };
-
-        match BdpArticleMapRepository::crear(&state.pool, auth.user_id, &req).await {
-            Ok(_) => importados += 1,
-            Err(_) => errores += 1,
-        }
-    }
-
+        .map_err(AppError::Internal)?;
     Ok(Json(serde_json::json!({
-        "imported": importados,
-        "errors": errores,
-        "total": articles.len(),
+        "imported": result.creados + result.actualizados,
+        "unchanged": result.sin_cambios,
+        "errors": result.errores,
+        "total": result.total_bdp,
+        "compatibility_endpoint": true
     })))
 }
 
@@ -309,7 +276,9 @@ async fn sync_prices(
         .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
-        return Err(AppError::Validation("Faltan credenciales BDP configuradas".into()));
+        return Err(AppError::Validation(
+            "Faltan credenciales BDP configuradas".into(),
+        ));
     }
 
     let client = BdpWeblinkClient::new(&config);
@@ -331,6 +300,7 @@ async fn sync_prices(
     post,
     path = "/api/bdp/sync-tables",
     tag = "BDP Mapeos",
+    request_body = SyncTablesRequest,
     responses(
         (status = 200, description = "Mesas sincronizadas", body = SyncTablesResult),
         (status = 400, description = "BDP no configurado", body = ErrorResponse),
@@ -341,13 +311,22 @@ async fn sync_prices(
 async fn sync_tables(
     State(state): State<AppState>,
     auth: AuthUser,
+    Json(req): Json<SyncTablesRequest>,
 ) -> Result<Json<SyncTablesResult>, AppError> {
+    if req.aplicar && req.confirmacion.as_deref() != Some("IMPORTAR MESAS BDP") {
+        return Err(AppError::Validation(
+            "Aplicación bloqueada: escriba exactamente IMPORTAR MESAS BDP. No se realizaron cambios."
+                .into(),
+        ));
+    }
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
         .await
         .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
-        return Err(AppError::Validation("Faltan credenciales BDP configuradas".into()));
+        return Err(AppError::Validation(
+            "Faltan credenciales BDP configuradas".into(),
+        ));
     }
 
     let client = BdpWeblinkClient::new(&config);
@@ -356,7 +335,7 @@ async fn sync_tables(
         .await
         .map_err(|e| AppError::Internal(format!("Error login BDP: {e}")))?;
 
-    let result = BdpSyncService::sync_tables(&client, &state.pool, auth.user_id)
+    let result = BdpSyncService::sync_tables(&client, &state.pool, auth.user_id, req.aplicar)
         .await
         .map_err(AppError::Internal)?;
 
@@ -386,7 +365,9 @@ async fn get_menu_definition(
         .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
-        return Err(AppError::Validation("Faltan credenciales BDP configuradas".into()));
+        return Err(AppError::Validation(
+            "Faltan credenciales BDP configuradas".into(),
+        ));
     }
 
     let client = BdpWeblinkClient::new(&config);
@@ -426,7 +407,9 @@ async fn get_fastfood_definition(
         .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
-        return Err(AppError::Validation("Faltan credenciales BDP configuradas".into()));
+        return Err(AppError::Validation(
+            "Faltan credenciales BDP configuradas".into(),
+        ));
     }
 
     let client = BdpWeblinkClient::new(&config);
@@ -466,7 +449,9 @@ async fn get_pack_definition(
         .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
-        return Err(AppError::Validation("Faltan credenciales BDP configuradas".into()));
+        return Err(AppError::Validation(
+            "Faltan credenciales BDP configuradas".into(),
+        ));
     }
 
     let client = BdpWeblinkClient::new(&config);

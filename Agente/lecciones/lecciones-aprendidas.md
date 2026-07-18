@@ -395,3 +395,13 @@
 - **Coolify no respalda bind mounts ni DBs automáticamente.** Es responsabilidad del operador configurar backups con `backup_policy.source_paths` y cron VPS.
 - **Guards E19+E20** implementados en coolify-manager-rs: E19 compara credenciales entre compose actual y desired antes de PATCH; E20 verifica que la DB objetivo exista antes de ALTER USER. Cobertura: E19 detecta drift del manager, E20 detecta drift de cualquier mecanismo.
 - Documentación completa: `Agente/documentacion/hosting/incidente-glory-rest-2026-07-01.md` y `Agente/documentacion/hosting/sistema-respaldos-2026-07-02.md`.
+
+## Integraciones POS sin sandbox — confianza local no equivale a confirmación real (2026-07-18)
+- Un snapshot de una API externa es evidencia para comparar y reconciliar; nunca debe presentarse como rollback cuando la API no ofrece operaciones inversas.
+- La evidencia que habilita una escritura debe quedar ligada al destino y a una huella de la conexión exactos. Un snapshot reciente del mismo usuario no basta si cambió URL, credenciales, POS, empleado o perfil.
+- Allowlist, consumo del permiso, auditoría y retorno a solo lectura forman una única frontera de autorización. Si se ejecutan en pasos independientes, un fallo intermedio puede gastar permisos o dejar estados pendientes sin haber enviado nada.
+- El kill switch debe cerrarse antes del HTTP remoto, no después. Así un crash o timeout nunca deja habilitada una segunda escritura accidental.
+- Toda captura previa requerida es fail-closed: si no puede leerse el estado remoto antes de pagar o facturar, no se consume el permiso y no se envía la operación.
+- `OnlyCheck`, “dry-run” o nombres similares no prueban inocuidad cuando comparten un endpoint de escritura. Deben quedar limitados al simulador hasta que el contrato de la instalación real esté demostrado.
+- Una respuesta perdida se trata como ambigua: bloquear reintentos y reconciliar. Nunca convertir incertidumbre de red en un segundo cliente, pedido, pago o factura.
+- Sin una instalación de pruebas ofrecida por el proveedor se puede alcanzar confianza local alta con simulador, BD desechable y tests de contrato; la compatibilidad exacta del BDP del restaurante solo puede validarla el propio cliente y debe rotularse como pendiente, no como garantizada.

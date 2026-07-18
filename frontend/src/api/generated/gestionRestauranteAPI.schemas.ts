@@ -77,6 +77,10 @@ export interface ActualizarConfiguracionRequest {
   /** @nullable */
   bdp_auto_sync_customers?: boolean | null;
   /** @nullable */
+  bdp_default_article_code?: string | null;
+  /** @nullable */
+  bdp_default_article_name?: string | null;
+  /** @nullable */
   bdp_base_url?: string | null;
   /** @nullable */
   bdp_default_customer_code?: string | null;
@@ -93,6 +97,8 @@ export interface ActualizarConfiguracionRequest {
   bdp_password?: string | null;
   /** @nullable */
   bdp_poll_interval_secs?: number | null;
+  /** @nullable */
+  bdp_poll_enabled?: boolean | null;
   /** @nullable */
   bdp_pos_id?: number | null;
   /** @nullable */
@@ -416,6 +422,8 @@ export interface ActualizarVentaRequest {
   /** @nullable */
   importe_iva?: string | null;
   /** @nullable */
+  lineas?: CrearVentaLineaRequest[] | null;
+  /** @nullable */
   iva_porcentaje?: string | null;
   metodo_pago?: MetodoPago | null;
   turno?: Turno | null;
@@ -587,14 +595,28 @@ export interface BdpDiagnosticoResponse {
 }
 
 export interface BdpInvoiceRequest {
-  /**
-     * Si se env├¡a `amount` + `tender_id`, primero registra el pago (`AddOrderPayment`) y luego factura.
-  Si no se env├¡a, solo factura la orden existente.
-     * @nullable
-     */
-  amount?: string | null;
-  /** @nullable */
-  tender_id?: number | null;
+  confirmacion: string;
+}
+
+export interface BdpCustomerImportRequest {
+  aplicar?: boolean;
+  confirmacion?: string | null;
+}
+
+export interface BdpCustomerSyncRequest {
+  bdp_customer_code: number;
+  confirmacion: string;
+}
+
+export interface BdpPaymentRequest {
+  amount: string;
+  confirmacion: string;
+  tender_id: number;
+}
+
+export interface BdpPaymentResponse {
+  registrado: boolean;
+  venta_id: string;
 }
 
 export interface BdpInvoiceResponse {
@@ -861,6 +883,7 @@ export interface ConfiguracionRestaurante {
   bdp_items_profile_id: number;
   bdp_order_type_map: unknown;
   bdp_poll_interval_secs: number;
+  bdp_poll_enabled: boolean;
   bdp_pos_id: number;
   bdp_sync_enabled: boolean;
   bdp_tender_map: unknown;
@@ -1816,12 +1839,18 @@ export interface SolicitarResponse {
  * Resultado del sync de mesas BDP ÔåÆ Glory (F9.4).
  */
 export interface SyncTablesResult {
+  applied: boolean;
   /** @minimum 0 */
   mesas_creadas: number;
   /** @minimum 0 */
   salones_bdp: number;
   /** @minimum 0 */
   zonas_creadas: number;
+}
+
+export interface SyncTablesRequest {
+  aplicar?: boolean;
+  confirmacion?: string | null;
 }
 
 /**
@@ -2302,4 +2331,3 @@ sort_by?: string | null;
  */
 sort_order?: string | null;
 };
-

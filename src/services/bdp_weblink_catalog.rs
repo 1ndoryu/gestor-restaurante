@@ -274,10 +274,14 @@ impl BdpExportArticlesRequest {
 #[serde(rename_all = "PascalCase")]
 pub struct BdpExportArticleItem {
     /// Código del artículo (puede venir como string o número en BDP)
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_string")]
     pub code: Option<String>,
     /// Fallback: algunos endpoints usan `ItemCode` en vez de `Code`
-    #[serde(default, alias = "ItemCode")]
+    #[serde(
+        default,
+        alias = "ItemCode",
+        deserialize_with = "deserialize_optional_string"
+    )]
     pub item_code: Option<String>,
     /// Descripción / nombre del artículo
     #[serde(default, alias = "Description")]
@@ -347,9 +351,25 @@ impl BdpExportArticleItem {
 /// Respuesta tipada de `POST /API/Articles/Export`.
 /// El array viene dentro de la clave `Articles`.
 #[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct BdpExportArticlesResponse {
     #[serde(default)]
     pub articles: Vec<BdpExportArticleItem>,
+}
+
+fn deserialize_optional_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value: Option<serde_json::Value> = serde::Deserialize::deserialize(deserializer)?;
+    match value {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::String(value)) => Ok(Some(value)),
+        Some(serde_json::Value::Number(value)) => Ok(Some(value.to_string())),
+        Some(other) => Err(serde::de::Error::custom(format!(
+            "código BDP debe ser string o número, recibido {other}"
+        ))),
+    }
 }
 
 /// Resultado del sync de catálogo BDP → Glory (F9.1).
@@ -740,5 +760,15 @@ mod tests {
 
         let tenders = serde_json::to_value(BdpGetPosTendersRequest { pos_id: 1 }).unwrap();
         assert_eq!(tenders["POSId"], 1);
+    }
+
+    #[test]
+    fn export_articles_parses_pascal_case_and_numeric_codes() {
+        let parsed: BdpExportArticlesResponse = serde_json::from_value(serde_json::json!({
+            "Articles": [{"Code": 1001, "Name": "Café", "Price1": 2.5}]
+        }))
+        .unwrap();
+        assert_eq!(parsed.articles.len(), 1);
+        assert_eq!(parsed.articles[0].art_code(), Some("1001"));
     }
 }

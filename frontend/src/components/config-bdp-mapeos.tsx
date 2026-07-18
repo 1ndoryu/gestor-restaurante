@@ -6,6 +6,7 @@ import { Settings } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import BdpArticleMapTable from '@/components/bdp-article-map-table';
 import type { EstadoConfiguracion } from '../hooks/useConfiguracion';
 
@@ -45,7 +46,7 @@ function ConfigBdpMapeos({ config, cambiarCampo }: ConfigBdpMapeosProps) {
             rows={4}
             value={config.bdp_tender_map}
             onChange={(e) => handleJsonChange('bdp_tender_map', e.target.value)}
-            placeholder='{"efectivo": "EF", "tarjeta": "TC"}'
+            placeholder='{"efectivo": 1, "tarjeta": 2}'
           />
           <p className="text-xs text-muted-foreground">Formato: {"{\"metodo_pago_glory\": \"CODIGO_TENDER_BDP\"}"}</p>
         </div>
@@ -57,12 +58,32 @@ function ConfigBdpMapeos({ config, cambiarCampo }: ConfigBdpMapeosProps) {
             rows={4}
             value={config.bdp_order_type_map}
             onChange={(e) => handleJsonChange('bdp_order_type_map', e.target.value)}
-            placeholder='{"sala": 1, "barra": 0, "domicilio": 2}'
+            placeholder='{"comedor": 1, "barra": 0, "delivery": 2}'
           />
           <p className="text-xs text-muted-foreground">Formato: {"{\"canal_glory\": orderTypeInt}"} (0=Barra, 1=Mesa, 2=Domicilio)</p>
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="bdp-default-article-code">Código artículo BDP fallback</Label>
+          <Input
+            id="bdp-default-article-code"
+            inputMode="numeric"
+            value={config.bdp_default_article_code}
+            onChange={(e) => cambiarCampo('bdp_default_article_code', e.target.value)}
+            placeholder="1001"
+          />
+          <p className="text-xs text-muted-foreground">Debe ser un código numérico existente en el perfil BDP.</p>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="bdp-default-article-name">Nombre artículo fallback</Label>
+          <Input
+            id="bdp-default-article-name"
+            value={config.bdp_default_article_name}
+            onChange={(e) => cambiarCampo('bdp_default_article_name', e.target.value)}
+            placeholder="Venta Glory"
+          />
+        </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="bdp-default-customer">Código cliente BDP por defecto</Label>
           <Input
@@ -84,6 +105,28 @@ function ConfigBdpMapeos({ config, cambiarCampo }: ConfigBdpMapeosProps) {
             onChange={(e) => cambiarCampo('bdp_poll_interval_secs', Number(e.target.value))}
           />
           <p className="text-xs text-muted-foreground">Frecuencia de consulta de estado de órdenes BDP (10-600 s)</p>
+        </div>
+        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+          <div>
+            <Label htmlFor="bdp-poll-enabled">Polling automático BDP</Label>
+            <p className="text-xs text-muted-foreground">Opt-in: realiza lecturas GetOrder según el intervalo configurado.</p>
+          </div>
+          <Switch
+            id="bdp-poll-enabled"
+            checked={config.bdp_poll_enabled}
+            onCheckedChange={(checked) => cambiarCampo('bdp_poll_enabled', checked)}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+          <div>
+            <Label htmlFor="bdp-auto-sync-customers">Exigir cliente BDP confirmado</Label>
+            <p className="text-xs text-muted-foreground">Si está activo, una venta con cliente sin código BDP se bloquea; nunca genera códigos automáticamente.</p>
+          </div>
+          <Switch
+            id="bdp-auto-sync-customers"
+            checked={config.bdp_auto_sync_customers}
+            onCheckedChange={(checked) => cambiarCampo('bdp_auto_sync_customers', checked)}
+          />
         </div>
       </div>
 

@@ -155,7 +155,8 @@ impl BdpSyncPreflightService {
 
         response.listo_para_sincronizar = response.checks.iter().all(|check| check.ok);
         response.mensaje = if response.listo_para_sincronizar {
-            "BDP valido la sincronizacion en modo seguro sin crear datos".to_string()
+            "El simulador aceptó el contrato local; esto no demuestra el comportamiento de un BDP real"
+                .to_string()
         } else {
             "BDP aun tiene checks pendientes antes de activar escrituras reales".to_string()
         };
@@ -475,7 +476,7 @@ impl BdpSyncPreflightService {
             Ok(value) => BdpSyncDryRunCheck::ok(
                 "CreateOrder OnlyCheck",
                 "/API/Orders/Create",
-                "BDP acepto el payload de comanda sin pagos en modo OnlyCheck",
+                "El destino aceptó OnlyCheck; no se asume que una instalación real sea no persistente",
                 None,
                 summarize_value(&value, &["OrderId", "InvoiceNumber"]),
             ),
@@ -733,6 +734,7 @@ mod tests {
             bdp_order_type_map: serde_json::json!({"comedor": "0", "barra": "0"}),
             bdp_default_customer_code: "DEFAULT".to_string(),
             bdp_poll_interval_secs: 60,
+            bdp_poll_enabled: false,
             google_review_url: String::new(),
             telefono_restaurante: String::new(),
             url_reservas: String::new(),

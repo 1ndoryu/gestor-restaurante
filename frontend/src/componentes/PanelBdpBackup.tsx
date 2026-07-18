@@ -18,8 +18,7 @@ import type {EstadoConfiguracion} from '@/hooks/useConfiguracion';
 
 const SYNC_MODES: {value: SyncMode; label: string; desc: string}[] = [
     {value: 'read_only', label: 'Solo lectura', desc: 'Glory lee datos de BDP pero no envía nada.'},
-    {value: 'unidirectional', label: 'Unidireccional', desc: 'Glory → BDP (ventas, clientes).'},
-    {value: 'bidirectional', label: 'Bidireccional', desc: 'BDP ↔ Glory (sincronización completa).'}
+    {value: 'unidirectional', label: 'Escritura temporal', desc: 'Glory → BDP, limitada por alcance, tiempo y cupo.'}
 ];
 
 const SNAPSHOT_TIPOS_BDP = ['articulos', 'clientes', 'departamentos', 'salones', 'empleados'];
@@ -71,14 +70,65 @@ function resultadoBadge(resultado: string) {
 
 interface SyncModeSelectorProps {
     currentMode: string;
+    bdpBaseUrl: string;
 }
 
-function SyncModeSelector({currentMode}: SyncModeSelectorProps) {
+function SyncModeSelector({currentMode, bdpBaseUrl}: SyncModeSelectorProps) {
     const setMode = useSetSyncMode();
     const effective = currentMode || 'read_only';
 
     function handleChange(value: string) {
-        setMode.mutate(value as SyncMode, {
+        let alcances: string[] = [];
+        let motivo = '';
+        let maxOperaciones = 0;
+        let duracionMinutos = 0;
+        let targetEntityType: 'venta' | 'cliente' | '' = '';
+        let targetEntityId = '';
+        if (value !== 'read_only') {
+            const confirmed = window.confirm(
+                'Este modo habilita escrituras reales e irreversibles en BDP/TPV. ' +
+                    'Confirma únicamente si existe autorización explícita y se completó el checklist pre-write.'
+            );
+            if (!confirmed) return;
+            const typed = window.prompt(
+                'Escribe exactamente la URL BDP de destino para confirmar:',
+                ''
+            );
+            if (typed !== bdpBaseUrl.trim().replace(/\/$/, '')) {
+                toast.error('Destino no confirmado', {description: 'La URL escrita no coincide exactamente.'});
+                return;
+            }
+            const scopeText = window.prompt(
+                'Un único alcance: create_order, create_customer, add_payment o invoice',
+                ''
+            );
+            alcances = (scopeText ?? '').split(',').map(s => s.trim()).filter(Boolean);
+            const customerOnly = alcances.length > 0 && alcances.every(scope => scope === 'create_customer');
+            const saleOnly = alcances.length > 0 && alcances.every(scope => ['create_order', 'add_payment', 'invoice'].includes(scope));
+            if (!customerOnly && !saleOnly) {
+                toast.error('Alcances incompatibles', {description: 'No mezcles clientes con operaciones de venta en un mismo armado.'});
+                return;
+            }
+            targetEntityType = customerOnly ? 'cliente' : 'venta';
+            targetEntityId = window.prompt(`UUID exacto del ${targetEntityType} autorizado:`, '')?.trim() ?? '';
+            motivo = window.prompt('Motivo de esta autorización temporal:', '')?.trim() ?? '';
+            maxOperaciones = 1;
+            duracionMinutos = Number(window.prompt('Duración del armado en minutos (1-15):', '5'));
+            if (!alcances.length || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetEntityId) || motivo.length < 5 || !Number.isInteger(maxOperaciones) || !Number.isInteger(duracionMinutos)) {
+                toast.error('Armado incompleto', {description: 'Revisa alcance, UUID objetivo, motivo, duración y máximo de operaciones.'});
+                return;
+            }
+        }
+        setMode.mutate({
+            modo: value as SyncMode,
+            confirmarDestino: value === 'read_only' ? '' : bdpBaseUrl.trim().replace(/\/$/, ''),
+            alcances,
+            duracionMinutos,
+            maxOperaciones,
+            motivo,
+            targetEntityType,
+            targetEntityId,
+        }, {
             onSuccess: () => toast.success('Modo BDP actualizado', {description: `Modo: ${value}`}),
             onError: (err: unknown) => {
                 const msg = (err as {response?: {data?: {message?: string}}})?.response?.data?.message ?? 'Error al cambiar modo';
@@ -360,7 +410,7 @@ export default function PanelBdpBackup({config}: PanelBdpBackupProps) {
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-sm text-muted-foreground">Modo:</span>
-                        <SyncModeSelector currentMode={config.bdp_sync_mode} />
+                        <SyncModeSelector currentMode={config.bdp_sync_mode} bdpBaseUrl={config.bdp_base_url} />
                     </div>
                 </div>
             </CardHeader>

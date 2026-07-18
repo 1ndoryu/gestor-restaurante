@@ -26,10 +26,14 @@ export interface EstadoConfiguracion {
   bdp_pos_id: number;
   bdp_employee_id: number;
   bdp_items_profile_id: number;
+  bdp_default_article_code: string;
+  bdp_default_article_name: string;
   bdp_tender_map: string;
   bdp_order_type_map: string;
   bdp_default_customer_code: string;
   bdp_poll_interval_secs: number;
+  bdp_poll_enabled: boolean;
+  bdp_auto_sync_customers: boolean;
   /* [BKP-005] Configuración de backup BDP */
   bdp_sync_mode: string;
   bdp_backup_retention_days: number;
@@ -65,13 +69,17 @@ export const DEFAULTS: EstadoConfiguracion = {
   bdp_pos_id: 1,
   bdp_employee_id: 1,
   bdp_items_profile_id: 1,
+  bdp_default_article_code: '',
+  bdp_default_article_name: '',
   bdp_tender_map: '{}',
   bdp_order_type_map: '{}',
   bdp_default_customer_code: '',
   bdp_poll_interval_secs: 60,
+  bdp_poll_enabled: false,
+  bdp_auto_sync_customers: false,
   bdp_sync_mode: 'read_only',
   bdp_backup_retention_days: 30,
-  bdp_auto_backup_before_write: false,
+  bdp_auto_backup_before_write: true,
   google_review_url: '',
   telefono_restaurante: '',
   url_reservas: '',

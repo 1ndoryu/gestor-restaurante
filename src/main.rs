@@ -1,6 +1,6 @@
 use glory_backend::config::AppConfig;
 use glory_backend::handlers;
-use glory_backend::services::RecordatorioService;
+use glory_backend::services::{BdpOrderPollerService, RecordatorioService};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,10 +22,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect(&config.database_url)
         .await?;
 
-    match sqlx::migrate!().run(&pool).await {
-        Ok(_) => tracing::info!("Migraciones aplicadas correctamente"),
-        Err(e) => tracing::warn!("Migraciones: {e} (continuando)"),
-    }
+    /* Fallo cerrado: arrancar con un esquema parcial podría omitir índices de
+     * identidad, armado o agenda BDP. Si una migración falla (por ejemplo por
+     * códigos de cliente históricos duplicados), se reconcilia antes de servir. */
+    sqlx::migrate!().run(&pool).await?;
+    tracing::info!("Migraciones aplicadas correctamente");
 
     let addr = format!("{}:{}", config.host, config.port);
     tracing::info!("Servidor iniciando en {addr}");
@@ -55,6 +56,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    /* Polling BDP separado y opt-in. La configuración nace deshabilitada y
+     * poll_due usa un claim PostgreSQL para evitar duplicados entre instancias. */
+    let bdp_poll_pool = pool.clone();
+    let bdp_poll_handle = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
+        loop {
+            interval.tick().await;
+            if let Err(error) = BdpOrderPollerService::poll_due(&bdp_poll_pool).await {
+                tracing::warn!("Scheduler BDP: {error}");
+            }
+        }
+    });
+
     /* [303A-2] Graceful shutdown: señal SIGTERM/Ctrl+C cierra conexiones limpiamente */
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app)
@@ -65,6 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     scheduler_handle.abort();
+    bdp_poll_handle.abort();
     pool.close().await;
     tracing::info!("Pool cerrado, servidor detenido limpiamente.");
 

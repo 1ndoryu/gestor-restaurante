@@ -41,6 +41,32 @@ impl ClienteService {
         Ok(cliente)
     }
 
+    pub async fn create_bdp_import(
+        pool: &PgPool,
+        user_id: Uuid,
+        req: CrearClienteRequest,
+        bdp_customer_code: i32,
+    ) -> Result<Cliente, AppError> {
+        let data = NuevoCliente {
+            user_id,
+            nombre: &req.nombre,
+            apellidos: req.apellidos.as_deref().unwrap_or(""),
+            telefono: req.telefono.as_deref().unwrap_or(""),
+            prefijo_telefono: req.prefijo_telefono.as_deref().unwrap_or("+34"),
+            email: req.email.as_deref().unwrap_or(""),
+            empresa: req.empresa.as_deref().unwrap_or(""),
+            notas: req.notas.as_deref().unwrap_or(""),
+            foto_url: req.foto_url.as_deref().unwrap_or(""),
+            consentimiento_comercial_email: req.consentimiento_comercial_email.unwrap_or(false),
+            consentimiento_comercial_sms: req.consentimiento_comercial_sms.unwrap_or(false),
+            enviar_encuestas: req.enviar_encuestas.unwrap_or(false),
+            alergias: req.alergias.as_deref().unwrap_or(""),
+            preferencias_bebida: req.preferencias_bebida.as_deref().unwrap_or(""),
+            preferencias_ubicacion: req.preferencias_ubicacion.as_deref().unwrap_or(""),
+        };
+        Ok(ClienteRepository::create_bdp_import(pool, &data, bdp_customer_code).await?)
+    }
+
     pub async fn get(pool: &PgPool, id: Uuid, user_id: Uuid) -> Result<Cliente, AppError> {
         ClienteRepository::find_by_id(pool, id, user_id)
             .await?

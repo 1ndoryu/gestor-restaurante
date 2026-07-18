@@ -10,8 +10,13 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Trash2, Pencil, Merge } from 'lucide-react';
+import { Trash2, Pencil, Merge, Download } from 'lucide-react';
 import FormularioCliente from './FormularioCliente';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { customInstance } from '@/api/axios-instance';
+import type { Cliente } from '@/api/generated';
 
 function ListaClientes() {
   const {
@@ -40,6 +45,14 @@ function ListaClientes() {
 
   /* [263A-26] En el diálogo de merge el usuario elige quién sobrevive (destino) */
   const [destinoId, setDestinoId] = useState<string | null>(null);
+  const [clienteBdp, setClienteBdp] = useState<Cliente | null>(null);
+  const [codigoBdp, setCodigoBdp] = useState('');
+  const [confirmacionBdp, setConfirmacionBdp] = useState('');
+  const [sincronizandoBdp, setSincronizandoBdp] = useState(false);
+  const [importarBdpAbierto, setImportarBdpAbierto] = useState(false);
+  const [importandoBdp, setImportandoBdp] = useState(false);
+  const [confirmacionImportar, setConfirmacionImportar] = useState('');
+  const [previewImportar, setPreviewImportar] = useState<{ imported: number; updated: number; unchanged: number; conflicts: number; errors: number; total: number } | null>(null);
 
   const clientesSeleccionados = clientes?.items.filter((c) => seleccionados.includes(c.id)) ?? [];
 
@@ -48,6 +61,52 @@ function ListaClientes() {
     const origenId = seleccionados.find((id) => id !== destinoId);
     if (!origenId) return;
     mergeMut.mutate({ data: { origen_id: origenId, destino_id: destinoId } });
+  };
+
+  const sincronizarClienteBdp = async () => {
+    if (!clienteBdp || confirmacionBdp !== `CREAR CLIENTE ${clienteBdp.id} ${codigoBdp}`) return;
+    setSincronizandoBdp(true);
+    try {
+      await customInstance(`/api/clientes/${clienteBdp.id}/bdp-sync`, {
+        method: 'POST',
+        body: JSON.stringify({
+          bdp_customer_code: Number(codigoBdp),
+          confirmacion: confirmacionBdp,
+        }),
+      });
+      toast.success('Cliente BDP vinculado o creado con código explícito');
+      setClienteBdp(null);
+      setCodigoBdp('');
+      setConfirmacionBdp('');
+      cerrarModalYRefrescar();
+    } catch (error) {
+      const message = (error as { response?: { data?: { message?: string } } }).response?.data?.message;
+      toast.error('Sincronización BDP bloqueada', { description: message ?? 'Revisa armado, código e identidad.' });
+    } finally {
+      setSincronizandoBdp(false);
+    }
+  };
+
+  const importarClientesBdp = async (aplicar: boolean) => {
+    setImportandoBdp(true);
+    try {
+      const response = await customInstance('/api/bdp/customers/import', {
+        method: 'POST',
+        body: JSON.stringify({ aplicar, confirmacion: aplicar ? confirmacionImportar : null }),
+      }) as { data: typeof previewImportar };
+      if (response.data) setPreviewImportar(response.data);
+      if (aplicar) {
+        toast.success('Importación local aplicada; no se escribió nada en BDP');
+        cerrarModalYRefrescar();
+      } else {
+        toast.success('Previsualización completada sin cambios locales');
+      }
+    } catch (error) {
+      const message = (error as { response?: { data?: { message?: string } } }).response?.data?.message;
+      toast.error('Importación BDP bloqueada', { description: message ?? 'No se aplicaron cambios.' });
+    } finally {
+      setImportandoBdp(false);
+    }
   };
 
   return (
@@ -68,7 +127,10 @@ function ListaClientes() {
             <span className="text-xs text-muted-foreground">Selecciona otro cliente para fusionar</span>
           )}
         </div>
-        <Button onClick={() => setModalCrear(true)}>+ Nuevo Cliente</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => { setImportarBdpAbierto(true); setPreviewImportar(null); setConfirmacionImportar(''); }}><Download className="size-4 mr-1" />Importar BDP</Button>
+          <Button onClick={() => setModalCrear(true)}>+ Nuevo Cliente</Button>
+        </div>
       </div>
 
       <Input
@@ -119,6 +181,7 @@ function ListaClientes() {
                     Empresa {sortBy === 'empresa' && (sortOrder === 'asc' ? '↑' : '↓')}
                   </TableHead>
                   <TableHead>Notas</TableHead>
+                  <TableHead>BDP</TableHead>
                   <TableHead className="w-20"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -138,10 +201,24 @@ function ListaClientes() {
                     <TableCell>{c.empresa || '—'}</TableCell>
                     <TableCell className="max-w-32 truncate">{c.notas || '—'}</TableCell>
                     <TableCell>
+                      {c.bdp_synced ? (
+                        <Badge variant="outline">Código {c.bdp_customer_code}</Badge>
+                      ) : c.bdp_sync_error ? (
+                        <Badge variant="destructive" title={c.bdp_sync_error}>Error</Badge>
+                      ) : (
+                        <Badge variant="secondary">Sin vincular</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" onClick={() => setClienteEditar(c)}>
                           <Pencil className="size-4" />
                         </Button>
+                        {!c.bdp_synced && (
+                          <Button variant="outline" size="sm" onClick={() => { setClienteBdp(c); setCodigoBdp(''); setConfirmacionBdp(''); }}>
+                            BDP
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -210,6 +287,53 @@ function ListaClientes() {
             >
               {mergeMut.isPending ? 'Fusionando...' : 'Confirmar fusión'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!clienteBdp} onOpenChange={(open) => { if (!open) setClienteBdp(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Vincular cliente con BDP</DialogTitle>
+            <DialogDescription>
+              Indica un código BDP reservado. El servidor verificará primero que no pertenezca a otra identidad y siempre enviará Overwrite=false.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="codigo-bdp-cliente">Código BDP explícito</Label>
+              <Input id="codigo-bdp-cliente" type="number" min={1} value={codigoBdp} onChange={(e) => setCodigoBdp(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="confirmar-bdp-cliente">Escribe CREAR CLIENTE {clienteBdp?.id} {codigoBdp || '<código>'}</Label>
+              <Input id="confirmar-bdp-cliente" value={confirmacionBdp} onChange={(e) => setConfirmacionBdp(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClienteBdp(null)}>Cancelar</Button>
+            <Button disabled={!codigoBdp || confirmacionBdp !== `CREAR CLIENTE ${clienteBdp?.id} ${codigoBdp}` || sincronizandoBdp} onClick={sincronizarClienteBdp}>
+              {sincronizandoBdp ? 'Verificando…' : 'Verificar y vincular'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importarBdpAbierto} onOpenChange={setImportarBdpAbierto}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Importar clientes desde BDP</DialogTitle><DialogDescription>Primero previsualiza. Esta operación solo lee BDP y, al aplicar, modifica Glory; nunca escribe clientes en BDP.</DialogDescription></DialogHeader>
+          {previewImportar && (
+            <div className="grid grid-cols-2 gap-2 rounded-md border p-3 text-sm">
+              <span>Nuevos: {previewImportar.imported}</span><span>Vínculos: {previewImportar.updated}</span>
+              <span>Sin cambios: {previewImportar.unchanged}</span><span>Conflictos: {previewImportar.conflicts}</span>
+              <span>Inválidos: {previewImportar.errors}</span><span>Total: {previewImportar.total}</span>
+            </div>
+          )}
+          {previewImportar && (previewImportar.conflicts > 0 || previewImportar.errors > 0) && <p className="text-sm text-destructive">Hay registros no aplicables. Se omitirán; no se sobrescribirá ningún vínculo existente.</p>}
+          {previewImportar && <div><Label htmlFor="confirmar-importar-bdp">Escribe IMPORTAR CLIENTES BDP</Label><Input id="confirmar-importar-bdp" value={confirmacionImportar} onChange={(e) => setConfirmacionImportar(e.target.value)} /></div>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportarBdpAbierto(false)}>Cancelar</Button>
+            <Button variant="secondary" disabled={importandoBdp} onClick={() => importarClientesBdp(false)}>{importandoBdp ? 'Consultando…' : 'Previsualizar sin cambios'}</Button>
+            {previewImportar && <Button disabled={importandoBdp || confirmacionImportar !== 'IMPORTAR CLIENTES BDP'} onClick={() => importarClientesBdp(true)}>Aplicar en Glory</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>

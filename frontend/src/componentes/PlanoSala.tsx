@@ -7,6 +7,9 @@
 
 import { useRef, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Pencil, Trash2, Download, Upload, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -32,13 +35,22 @@ function PlanoSala() {
   const setCanvasHeight = useZoomStore(s => s.setCanvasHeight);
   const queryClient = useQueryClient();
   const [sincronizandoMesas, setSincronizandoMesas] = useState(false);
+  const [dialogoSyncBdp, setDialogoSyncBdp] = useState(false);
+  const [confirmacionSyncBdp, setConfirmacionSyncBdp] = useState('');
+  const [previewSyncBdp, setPreviewSyncBdp] = useState<{ salones_bdp: number; zonas_creadas: number; mesas_creadas: number; applied: boolean } | null>(null);
 
   const syncTablesMutation = useSyncTables({
     mutation: {
       onSuccess: (resp) => {
-        const d = resp as unknown as { salones_bdp?: number; zonas_creadas?: number; mesas_creadas?: number };
-        toast.success(`Mesas sincronizadas: ${d.mesas_creadas ?? 0} mesas en ${d.zonas_creadas ?? 0} zonas`);
-        queryClient.invalidateQueries({ queryKey: ['/api/plano-sala'] });
+        const d = (resp as unknown as { data: { salones_bdp: number; zonas_creadas: number; mesas_creadas: number; applied: boolean } }).data;
+        setPreviewSyncBdp(d);
+        if (d.applied) {
+          toast.success(`Importación local aplicada: ${d.mesas_creadas} mesas en ${d.zonas_creadas} zonas`);
+          queryClient.invalidateQueries({ queryKey: ['/api/plano-sala'] });
+          setDialogoSyncBdp(false);
+        } else {
+          toast.success('Previsualización completada sin cambios');
+        }
       },
       onError: () => toast.error('Error al sincronizar mesas desde BDP'),
       onSettled: () => setSincronizandoMesas(false),
@@ -141,7 +153,7 @@ function PlanoSala() {
         <div className="ml-auto flex gap-2">
           <Button size="sm" variant="ghost" onClick={handleExportar}><Download className="size-4 mr-1" />Exportar</Button>
           <Button size="sm" variant="ghost" onClick={handleImportar}><Upload className="size-4 mr-1" />Importar</Button>
-          <Button size="sm" variant="outline" onClick={() => { setSincronizandoMesas(true); syncTablesMutation.mutate(); }} disabled={sincronizandoMesas}>
+          <Button size="sm" variant="outline" onClick={() => { setDialogoSyncBdp(true); setPreviewSyncBdp(null); setConfirmacionSyncBdp(''); }} disabled={sincronizandoMesas}>
             {sincronizandoMesas ? <RefreshCw className="size-4 mr-1 animate-spin" /> : <RefreshCw className="size-4 mr-1" />}
             Sync BDP
           </Button>
@@ -363,6 +375,18 @@ function PlanoSala() {
         dialogoCombinacion={dialogoCombinacion} setDialogoCombinacion={setDialogoCombinacion}
         mesasZona={mesasZona}
       />
+      <Dialog open={dialogoSyncBdp} onOpenChange={setDialogoSyncBdp}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Importar salones y mesas desde BDP</DialogTitle><DialogDescription>Primero consulta el impacto. BDP solo se lee; al aplicar se crean únicamente zonas/mesas faltantes en Glory y no se elimina nada.</DialogDescription></DialogHeader>
+          {previewSyncBdp && <div className="rounded-md border p-3 text-sm">Se crearían {previewSyncBdp.zonas_creadas} zonas y {previewSyncBdp.mesas_creadas} mesas a partir de {previewSyncBdp.salones_bdp} salones BDP.</div>}
+          {previewSyncBdp && <div><Label htmlFor="confirmar-sync-mesas">Escribe IMPORTAR MESAS BDP</Label><Input id="confirmar-sync-mesas" value={confirmacionSyncBdp} onChange={(e) => setConfirmacionSyncBdp(e.target.value)} /></div>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogoSyncBdp(false)}>Cancelar</Button>
+            <Button variant="secondary" disabled={sincronizandoMesas} onClick={() => { setSincronizandoMesas(true); syncTablesMutation.mutate({ data: { aplicar: false } }); }}>Previsualizar sin cambios</Button>
+            {previewSyncBdp && <Button disabled={sincronizandoMesas || confirmacionSyncBdp !== 'IMPORTAR MESAS BDP'} onClick={() => { setSincronizandoMesas(true); syncTablesMutation.mutate({ data: { aplicar: true, confirmacion: confirmacionSyncBdp } }); }}>Aplicar en Glory</Button>}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

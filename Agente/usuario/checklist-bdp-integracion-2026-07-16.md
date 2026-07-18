@@ -1,5 +1,7 @@
 # Checklist: Integración completa BDP — Pruebas manuales
 
+> **EVIDENCIA HISTÓRICA — NO ENTREGAR NI EJECUTAR COMO GUÍA ACTUAL.** Contiene resultados de pruebas anteriores y clasificaba `OnlyCheck` como inocuo. La política vigente lo bloquea contra el restaurante. Use únicamente `guia-cliente-pruebas-integracion-bdp-2026-07-18.md`.
+
 > **Fecha:** 2026-07-16 (v3 — BKP-008d)
 > **Alcance:** Sync BDP + Backup/Restauración + Configuración + Multi-item + Clientes + Pagos + Facturación
 > **URL local:** http://localhost:5175/configuracion
@@ -109,13 +111,13 @@
 - [ ] **Credenciales incorrectas:** Cambiar password → probar conexión → error de autenticación ✅ SEGURO — el endpoint hace HTTP POST Login a BDP con las credenciales; BDP devuelve error de auth, no se modifica nada localmente. Nota: NO guardar el password incorrecto.
 
 ### Sync dry-run / Preflight (Fase 1, Fase 3)
-- [x] **Probar sincronización segura:** Click → ejecuta 9+ checks de lectura sin escribir ✅ SEGURO — endpoint: `GET /api/configuracion/bdp/sync-dry-run` → `BdpSyncPreflightService::execute`. Usa `OnlyCheck=true` en CreateOrder (BDP no persiste). Solo hace SELECT locales + HTTP GET a BDP. ✅ verificado UI+API: 13 checks ejecutados, 12 OK + 1 CreateOrder rechazo esperado (caja cerrada)
+- [x] **Registro histórico de “Probar sincronización segura”:** se ejecutó anteriormente, pero ya no se clasifica como lectura segura porque usa `/API/Orders/Create`. Actualmente está bloqueado para destinos externos y limitado al simulador local.
 - [x] **Checks individuales:** Cada check muestra nombre, endpoint, ok/error, cantidad de registros ✅ SEGURO — parte del dry-run anterior. ✅ verificado UI: Health, Session, POS, Empleado, Empleados, Tender mapping, Order type mapping, Departamentos (19), Articulos (10) — todos OK
 - [x] **Check tender:** Valida que el tender mapeado existe en el POS ✅ SEGURO — HTTP GET a BDP (GetTenders), solo lectura. ✅ verificado: "2 tenders mapeados correctamente" (2 registros)
 - [x] **Check order type:** Valida que el Type mapeado es válido ✅ SEGURO — HTTP GET a BDP, solo lectura. ✅ verificado: "3 canales mapeados" (3 registros)
 - [x] **Check artículos:** Valida que todas las líneas tienen artículo BDP mapeado ✅ SEGURO — SELECT de `bdp_article_map` local. ✅ verificado: "Sin mapeos de articulos" (usa default '1001')
 - [x] **Check cliente:** Valida que el cliente tiene código BDP (si aplica) ✅ SEGURO — SELECT de `clientes` local. ✅ verificado: cubierto por dry-run (no hay clientes con bdp_customer_code)
-- [x] **Dry-run CreateOrder:** OnlyCheck=true sin crear orden real ✅ SEGURO — BDP no persiste comandas con OnlyCheck=true. ✅ verificado: "BDP rechazo el payload de comanda: [301400]-LA CAJA DEL TERMINAL NO ESTÁ ABIERTA" (rechazo esperado)
+- [x] **Registro histórico OnlyCheck:** una ejecución anterior fue rechazada por caja cerrada. Ese resultado no demuestra ausencia de persistencia; no repetir contra el restaurante.
 - [x] **Estado "listo para sincronizar":** Muestra si todo está configurado ✅ SEGURO — parte del dry-run. ✅ verificado: "BDP aun tiene checks pendientes antes de activar escrituras reales" (correcto: artículos sin mapear + caja cerrada)
 
 ### Importar catálogo BDP → Glory (Fase 1, Fase 5)
@@ -144,66 +146,80 @@
 
 ## 3️⃣ ESCRITURA BDP — Sync real, pagos y facturación
 
-> ⚠️ **Estas pruebas modifican datos en el TPV/BDP.** Dejarlas para el final.
-> Requieren BDP activo + sync_mode != read_only + autorización explícita del usuario.
+> ⛔ **NO EJECUTAR SIN NUEVA AUTORIZACIÓN EXPLÍCITA DEL USUARIO.**
+> Una escritura en el BDP/TPV real no es una prueba inocua ni reversible. Un snapshot permite auditar/comparar, pero no restaurar BDP.
+> Auditoría vigente: `Agente/usuario/auditoria-escritura-bdp-2026-07-17.md`.
+> Plan de validación: `Agente/planes/plan-validacion-segura-escritura-bdp-2026-07-18.md`.
+> **Reauditoría 2026-07-18:** barreras y flujos corregidos y verificados localmente. Todas las casillas de ejecución real permanecen vacías; ninguna corrección constituye autorización.
 
-### Pre-write audit (BKP-002, BKP-003)
-- [ ] **Sync unidirectional:** Al escribir hacia BDP, se registra entrada de auditoría ANTES de la escritura
-- [ ] **Sync bidirectional:** Igual que unidirectional pero en ambas direcciones
-- [ ] **Sync read_only:** NO se permite escritura → endpoint devuelve error 403
-- [ ] **Pre-write snapshot selectivo:** Solo datos que se envían (no backup completo)
-- [ ] **Costo máximo 1 llamada:** Pre-write snapshot cuesta como máximo 1 llamada adicional a BDP
+### Puerta previa obligatoria
 
-### Sync de clientes Glory → BDP (Fase 7.2, Fase 7.5)
-- [ ] **Push cliente individual:** `POST /api/clientes/:id/bdp-sync` → ejecuta `CreateCustomer`
-- [ ] **Auto-sync al crear venta:** Si cliente no tiene `bdp_customer_code`, push automático antes de `CreateOrder`
-- [ ] **Campo `bdp_customer_code`:** Se asigna tras push exitoso
-- [ ] **Campo `bdp_synced`:** Se marca como `true` tras push exitoso
-- [ ] **Error handling:** Si `CreateCustomer` falla, error se guarda en `bdp_sync_error`
+- [ ] **Destino aislado:** Confirmar instancia/empresa/terminal BDP desechable. Si es producción, registrar aceptación explícita del cambio irreversible.
+- [ ] **Autorización granular:** Autorizar por separado `CreateOrder`, `CreateCustomer`, pago y factura; no sirve una autorización genérica de la sección.
+- [ ] **Modo inicial:** Mantener `bdp_sync_mode=read_only` durante toda la preparación.
+- [ ] **Auto-backup:** Confirmar `bdp_auto_backup_before_write=true`.
+- [ ] **Snapshot completo:** Debe ser de las últimas 24 horas, vigente y sin secciones nulas. No equivale a rollback.
+- [ ] **Contexto exacto:** Verificar empresa, POS, empleado, serie, artículos, IVA, tender, canal y entidad de prueba.
+- [ ] **Concurrencia:** Detener/descartar auto-sync concurrente y otras instancias escritoras.
+- [ ] **Remediación:** Responsable del TPV disponible y procedimiento manual definido.
+- [ ] **Una llamada:** Criterio de parada después del primer intento observable; no repetir manualmente sin reconciliar BDP/Glory.
 
-### CreateOrder — Escritura real (Fase 2, Fase 3)
-- [ ] **Venta simple (1 línea):** Crear venta → `sync_venta()` → comanda aparece en BDP
-- [ ] **Venta multi-item (3 líneas):** Crear venta con 3 líneas → BDP recibe 3 `OrderItems` separados
-- [ ] **Artículo genérico fallback:** Si línea no tiene mapeo BDP → usa `bdp_default_article_code`
-- [ ] **Artículo mapeado:** Si línea tiene mapeo → usa código BDP correcto
-- [ ] **Cliente en comanda:** Si venta tiene `cliente_id` → `Customer` con Code/Name/Phone en BDP
-- [ ] **Forma de pago:** `metodo_pago` → `TenderId` mapeado correctamente
-- [ ] **Canal:** `canal` → `Type` mapeado (barra=0, comedor=1, domicilio=2)
-- [ ] **MarketplaceOrderId:** Max 15 chars, prefijo `G`, único por venta
-- [ ] **Serie `00031TI`:** IVA incluido, asignada a POS 31
-- [ ] **Retry automático:** Si falla, reintenta 3 veces con backoff exponencial
-- [ ] **Error en BD:** `bdp_sync_error` se guarda en la venta si falla tras reintentos
+### Interlocks que deben validarse antes de cualquier escritura
 
-### AddOrderPayment — Pagos parciales (Fase 8.1)
-- [ ] **Registrar pago:** `add_order_payment()` → envía pago parcial a BDP
-- [ ] **Endpoint manual:** `POST /api/ventas/:id/bdp-payment` funciona
-- [ ] **Mapeo tender:** Forma de pago Glory → TenderId BDP
-- [ ] **Error handling:** Si falla, error se guarda en venta
+- [x] **Cambio de modo protegido:** La API exige confirmación, snapshot completo, auto-backup, destino, un scope, un UUID objetivo, tiempo y una sola operación.
+- [x] **Read-only manual:** `/api/ventas/:id/bdp-sync` y `/api/clientes/:id/bdp-sync` rechazan antes de escribir.
+- [x] **Read-only automático:** `sync_venta`, cliente, pago y factura solo escriben en modo exactamente `unidirectional`.
+- [x] **Audit fail-closed:** Si audit/pre-write falla, la escritura se bloquea.
+- [x] **Resultado audit:** Cada intento termina en `exito`, `error` o `ambiguo`; pendiente/ambiguo bloquean nuevas escrituras sobre la entidad.
+- [x] **Snapshot selectivo:** Pago/factura capturan `GetOrder`; order/customer registran payload y correlación.
+- [x] **Snapshot completo íntegro:** Si falla una lectura, no se guarda como `completo` válido.
 
-### InvoiceOrder — Facturación (Fase 8.2, Fase 8.3)
-- [ ] **Facturar comanda:** `invoice_order()` → factura en BDP
-- [ ] **Endpoint manual:** `POST /api/ventas/:id/bdp-invoice` funciona
-- [ ] **Campo `bdp_invoiced`:** Se marca como `true` tras facturación exitosa
-- [ ] **Reflejar facturación automática:** Polling detecta status=3 → marca `bdp_invoiced`
+### `CreateCustomer` — escritura real, no reversible
 
-### Polling de estado (Fase 4)
-- [ ] **Polling automático:** Ventas con `bdp_synced=true` y status no final → consulta `GetOrder` periódicamente
-- [ ] **Intervalo configurable:** `bdp_poll_interval_secs` (default 60s) se respeta
-- [ ] **Actualización de estado:** Si BDP devuelve status cambiado → se actualiza en Glory
-- [ ] **Solo ventas recientes:** No consulta ventas antiguas/finales (optimización)
+- [ ] **Manual:** `POST /api/clientes/:id/bdp-sync` solo con cliente aislado y autorización específica.
+- [x] **Automático bloqueado:** Una venta con política de cliente BDP exige un código previamente confirmado; nunca crea clientes durante `CreateOrder`.
+- [ ] **Colisión:** Confirmar que el código propuesto no pertenece a otro cliente.
+- [x] **Overwrite bloqueado:** El flujo manual verifica identidad y siempre usa `Overwrite=false`; no actualiza clientes BDP existentes.
+- [ ] **Datos personales:** No enviar datos reales en un entorno de pruebas.
+- [ ] **Persistencia local:** Solo asignar `bdp_customer_code`/`bdp_synced=true` después de éxito confirmado.
 
-### Sync catálogo BDP → Glory (Fase 1)
-- [ ] **`sync_catalog`:** Lee `ExportArticles` → upsert en `bdp_article_map`
-- [ ] **`sync_prices`:** Lee `GetPricesArticles` → actualiza `precio_tarifa1`
-- [ ] **`sync_tables`:** Lee `GetRoomsTables` → crea zonas/mesas en Glory
+### `CreateOrder` — escritura real, no reversible
 
-### Edge cases de escritura
-- [ ] **Rate limiting:** Demasiadas peticiones → error de rate limit claro
-- [ ] **Timeout:** Operación larga → timeout (no spinner infinito)
-- [ ] **Token expirado mid-sync:** Error de autenticación, re-login automático, reintento
-- [ ] **Rollback parcial:** Escritura parcial falla → audit log lo registra
-- [ ] **BDP caído durante sync:** Error manejado, venta queda con `bdp_sync_error`, retry disponible
-- [ ] **CancelOrder:** Si devuelve "Subscripción no activada" → error claro, no crash
+- [ ] **Venta simple:** Una venta creada exclusivamente para la prueba autorizada.
+- [ ] **Venta multi-item:** Cada línea, cantidad, descuento, IVA y total revisados antes del envío.
+- [ ] **Mapeo:** Artículos mapeados y fallback confirmados contra el BDP destino.
+- [ ] **Contexto:** Cliente, tender, canal, POS, empleado y serie revisados.
+- [ ] **MarketplaceOrderId:** Estable por `venta.id`, máximo 15 caracteres e idéntico entre retries.
+- [ ] **Reconciliación:** Si se pierde la respuesta, consultar antes de cualquier nuevo intento.
+- [ ] **Sin rollback:** No considerar `CancelOrder` una mitigación mientras la suscripción no lo permita.
+
+### Pago y facturación — operación crítica compuesta
+
+- [x] **Pago separado:** Implementado `POST /api/ventas/:id/bdp-payment`; `/bdp-invoice` ya no combina pago y factura.
+- [x] **Contratos separados:** `/bdp-payment` registra únicamente pago y `/bdp-invoice` únicamente factura.
+- [x] **Validar importe:** El servidor exige importe positivo y exactamente igual al saldo completo leído con `GetOrder`; pago parcial bloqueado.
+- [ ] **Doble pago:** No repetir una petición sin reconciliar el estado de la orden.
+- [x] **Sin composición:** Pago y factura nunca se encadenan implícitamente, eliminando el éxito parcial de una operación compuesta.
+- [ ] **InvoiceNumber:** Glory solo debe marcar `bdp_invoiced=true` con número no vacío confirmado.
+- [ ] **Autorización separada:** La factura requiere una autorización específica adicional por ser irreversible.
+
+### Lecturas BDP con escritura local — fuera de la prueba write externa
+
+- [ ] **Polling:** `GetOrder` no escribe en BDP, pero actualiza estados locales y consume API.
+- [ ] **Catálogo:** `ExportArticles` no escribe en BDP, pero hace upsert local.
+- [ ] **Precios:** `GetPricesArticles` no escribe en BDP, pero actualiza precios locales.
+- [ ] **Mesas:** `GetRoomsTables` no escribe en BDP, pero puede crear zonas/mesas locales.
+- [ ] **Autorización:** No ejecutar estas pruebas tampoco hasta autorización, porque pueden alterar Glory/carga operativa.
+
+### Riesgos residuales que bloquean declarar la sección “segura”
+
+- [x] `CreateOrder` usa una sola llamada y reconciliación por ID estable; el comportamiento final de BDP se confirmará únicamente en una prueba autorizada.
+- [x] Concurrencia coordinada mediante mutex local y advisory lock PostgreSQL.
+- [ ] No existe rollback BDP para órdenes, clientes, pagos o facturas.
+- [x] Endpoint de pago aislado y UI independiente implementados.
+- [x] Validación estricta de pago completo implementada; pagos parciales fuera de alcance.
+- [x] `bidirectional` bloqueado en API/UI/gates hasta disponer de contrato real.
+- [x] Correcciones verificadas: 81 unitarias Rust + 62 SQLx locales + 8 simulador + build frontend.
 
 ---
 
@@ -258,4 +274,4 @@ npm run dev
 | **Cat B — DB** | 21 | `bdp_article_map` y `venta_lineas`: CRUD, upsert, aislamiento, FK constraints |
 | **Cat B — Backup** | 25 | `bdp_snapshots` y `bdp_audit_log`: crear, listar, eliminar, restaurar, expirar |
 | **Cat C — Read-only** | 6 | Login real, ExportArticles, GetTenders, GetOrder contra BDP real |
-| **Total** | **84** | 84 pasan, 0 fallan, 0 ignored |
+| **Total local verificado 2026-07-18** | **151** | 81 unitarias + 62 SQLx + 8 simulador; 0 fallos. Las pruebas BDP reales no se ejecutaron |

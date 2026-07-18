@@ -68,6 +68,9 @@ pub struct BdpExplorerService;
 impl BdpExplorerService {
     /// Explora BDP completo usando SOLO endpoints de lectura.
     /// NO modifica NADA. Seguro para llamar en cualquier momento.
+    /* [187A-1] Exploración de solo lectura mantenida como secuencia explícita:
+     * cada endpoint se captura de forma independiente y nunca aborta los demás. */
+    #[allow(clippy::too_many_lines)]
     pub async fn explorar_bdp_completo(
         config: &ConfiguracionRestaurante,
     ) -> BdpExploracionResultado {
@@ -171,16 +174,10 @@ impl BdpExplorerService {
             }
         };
 
-        let errores = [
-            &articulos,
-            &clientes,
-            &departamentos,
-            &salones,
-            &empleados,
-        ]
-        .iter()
-        .filter(|c| c.estado == "error")
-        .count();
+        let errores = [&articulos, &clientes, &departamentos, &salones, &empleados]
+            .iter()
+            .filter(|c| c.estado == "error")
+            .count();
 
         let resumen = if errores == 0 {
             format!(

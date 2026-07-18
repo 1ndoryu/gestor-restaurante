@@ -10,7 +10,7 @@ use validator::Validate;
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::models::{
-    ActualizarVentaRequest, CrearVentaRequest, Venta, VentasPaginadas, VentasQuery,
+    ActualizarVentaRequest, CrearVentaRequest, Venta, VentaLinea, VentasPaginadas, VentasQuery,
 };
 use crate::services::{BdpOrderPollerService, BdpSyncService, VentaService};
 use crate::AppState;
@@ -59,6 +59,28 @@ pub async fn obtener_venta(
 ) -> Result<Json<Venta>, AppError> {
     let venta = VentaService::get(&state.pool, id, auth.user_id).await?;
     Ok(Json(venta))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/ventas/{id}/lineas",
+    tag = "Ventas",
+    params(("id" = Uuid, Path, description = "ID de la venta")),
+    responses(
+        (status = 200, description = "Líneas de la venta", body = [VentaLinea]),
+        (status = 404, description = "Venta no encontrada", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn obtener_lineas_venta(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<VentaLinea>>, AppError> {
+    VentaService::get(&state.pool, id, auth.user_id).await?;
+    let lineas =
+        crate::repositories::VentaLineaRepository::listar_por_venta(&state.pool, id).await?;
+    Ok(Json(lineas))
 }
 
 /// Listar ventas con paginación y filtros de fecha
@@ -228,9 +250,9 @@ pub async fn obtener_bdp_status(
         .await?
         .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
 
-    /* Si tiene order_id y BDP está configurado, hacer polling individual */
+    /* Si tiene order_id y BDP está configurado, refrescar solo esta venta. */
     if venta.bdp_order_id.is_some() && config.bdp_sync_enabled {
-        let _ = BdpOrderPollerService::poll_pending(&state.pool, auth.user_id, &config).await;
+        let _ = BdpOrderPollerService::refresh_one(&state.pool, &venta, &config).await;
     }
 
     /* Releer la venta para obtener el estado actualizado */
@@ -279,10 +301,20 @@ pub async fn bdp_poll(
  * ⚠️ Requiere bdp_order_id (la venta debe estar sincronizada con BDP primero). */
 #[derive(serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
 pub struct BdpInvoiceRequest {
-    /// Si se envía `amount` + `tender_id`, primero registra el pago (`AddOrderPayment`) y luego factura.
-    /// Si no se envía, solo factura la orden existente.
-    pub amount: Option<rust_decimal::Decimal>,
-    pub tender_id: Option<i32>,
+    pub confirmacion: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
+pub struct BdpPaymentRequest {
+    pub amount: rust_decimal::Decimal,
+    pub tender_id: i32,
+    pub confirmacion: String,
+}
+
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct BdpPaymentResponse {
+    pub venta_id: Uuid,
+    pub registrado: bool,
 }
 
 #[derive(serde::Serialize, utoipa::ToSchema)]
@@ -312,6 +344,12 @@ pub async fn bdp_invoice(
     Path(id): Path<Uuid>,
     Json(req): Json<BdpInvoiceRequest>,
 ) -> Result<Json<BdpInvoiceResponse>, AppError> {
+    let expected_confirmation = format!("FACTURAR {id}");
+    if req.confirmacion.trim() != expected_confirmation {
+        return Err(AppError::Validation(format!(
+            "Confirmación inválida. Escriba exactamente: {expected_confirmation}"
+        )));
+    }
     let config = crate::services::ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     let venta = crate::repositories::VentaRepository::find_by_id(&state.pool, id, auth.user_id)
@@ -324,14 +362,6 @@ pub async fn bdp_invoice(
         ));
     }
 
-    /* [F8.1] Si se proporciona amount + tender_id, registrar pago primero */
-    if let (Some(amount), Some(tender_id)) = (req.amount, req.tender_id) {
-        BdpSyncService::add_order_payment(&state.pool, &venta, &config, amount, tender_id)
-            .await
-            .map_err(AppError::Validation)?;
-    }
-
-    /* [F8.2] Facturar la orden */
     let invoice_number = BdpSyncService::invoice_order(&state.pool, &venta, &config)
         .await
         .map_err(AppError::Validation)?;
@@ -340,6 +370,53 @@ pub async fn bdp_invoice(
         venta_id: venta.id,
         invoice_number,
         bdp_invoiced: true,
+    }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/ventas/{id}/bdp-payment",
+    tag = "Ventas",
+    params(("id" = Uuid, Path, description = "ID de la venta")),
+    request_body = BdpPaymentRequest,
+    responses(
+        (status = 200, description = "Pago registrado en BDP", body = BdpPaymentResponse),
+        (status = 422, description = "Pago bloqueado por validación o estado ambiguo", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn bdp_payment(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(req): Json<BdpPaymentRequest>,
+) -> Result<Json<BdpPaymentResponse>, AppError> {
+    if req.amount <= rust_decimal::Decimal::ZERO || req.tender_id <= 0 {
+        return Err(AppError::Validation(
+            "El pago requiere amount mayor que cero y tender_id válido.".into(),
+        ));
+    }
+    if req.amount != req.amount.round_dp(2) {
+        return Err(AppError::Validation(
+            "El pago BDP admite como máximo dos decimales.".into(),
+        ));
+    }
+    let expected_confirmation = format!("PAGAR {id} {:.2}", req.amount);
+    if req.confirmacion.trim() != expected_confirmation {
+        return Err(AppError::Validation(format!(
+            "Confirmación inválida. Escriba exactamente: {expected_confirmation}"
+        )));
+    }
+    let config = crate::services::ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    let venta = crate::repositories::VentaRepository::find_by_id(&state.pool, id, auth.user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
+    BdpSyncService::add_order_payment(&state.pool, &venta, &config, req.amount, req.tender_id)
+        .await
+        .map_err(AppError::Validation)?;
+    Ok(Json(BdpPaymentResponse {
+        venta_id: id,
+        registrado: true,
     }))
 }
 
@@ -358,6 +435,8 @@ pub fn routes() -> Router<AppState> {
         .route("/ventas/:id/haddock-sync", post(reintentar_sync_haddock))
         .route("/ventas/:id/bdp-sync", post(reintentar_sync_bdp))
         .route("/ventas/:id/bdp-status", get(obtener_bdp_status))
+        .route("/ventas/:id/lineas", get(obtener_lineas_venta))
+        .route("/ventas/:id/bdp-payment", post(bdp_payment))
         .route("/ventas/:id/bdp-invoice", post(bdp_invoice))
         .route("/ventas/bdp-poll", post(bdp_poll))
 }

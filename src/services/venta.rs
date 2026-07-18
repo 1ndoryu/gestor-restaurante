@@ -51,19 +51,15 @@ impl VentaService {
             cliente_id: None,
         };
 
-        let venta = VentaRepository::create(pool, &data).await?;
+        let mut tx = pool.begin().await?;
+        let venta = VentaRepository::create_with(&mut *tx, &data).await?;
 
-        /* [F2.5] Guardar líneas de venta si se proporcionan.
-         * Las líneas se usan para construir pedidos multi-item en BDP.
-         * Si no hay líneas, bdp_sync usa el comportamiento legacy (1 artículo genérico). */
+        /* Venta y líneas son un único agregado: no se permite conservar una
+         * cabecera sin sus líneas ni caer silenciosamente al artículo genérico. */
         if let Some(ref lineas) = req.lineas {
-            if !lineas.is_empty() {
-                if let Err(e) = VentaLineaRepository::crear_batch(pool, venta.id, lineas).await {
-                    warn!("[F2.5] Error guardando líneas de venta {}: {e}", venta.id);
-                    /* No fallamos la venta por un error en líneas — el sync usará fallback */
-                }
-            }
+            VentaLineaRepository::crear_batch_conn(&mut tx, venta.id, lineas).await?;
         }
+        tx.commit().await?;
 
         /* [064A-5] Sincronizar con Haddock en background (no bloquea la respuesta) */
         Self::spawn_haddock_sync(pool.clone(), user_id, venta.clone(), false);
@@ -129,6 +125,16 @@ impl VentaService {
         user_id: Uuid,
         req: ActualizarVentaRequest,
     ) -> Result<Venta, AppError> {
+        let actual = VentaRepository::find_by_id(pool, id, user_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
+        if actual.bdp_synced {
+            return Err(AppError::Conflict(
+                "La venta ya fue creada en BDP. Su edición está bloqueada porque WebLink no ofrece una actualización idempotente confirmada; concilie la comanda antes de modificarla."
+                    .into(),
+            ));
+        }
+
         let turno = req.turno.as_ref().and_then(|t| {
             serde_json::to_value(t)
                 .ok()
@@ -159,14 +165,22 @@ impl VentaService {
             importe_iva: req.importe_iva,
         };
 
-        let venta = VentaRepository::update(pool, &data)
+        let mut tx = pool.begin().await?;
+        let venta = VentaRepository::update_with(&mut *tx, &data)
             .await?
             .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
 
+        if let Some(ref lineas) = req.lineas {
+            VentaLineaRepository::reemplazar_conn(&mut tx, venta.id, lineas).await?;
+        }
+        tx.commit().await?;
+
         /* [064A-5] Re-sincronizar con Haddock tras actualización */
         Self::spawn_haddock_sync(pool.clone(), user_id, venta.clone(), true);
-        /* [065A-5] Re-sincronizar con BDP tras actualización */
-        Self::spawn_bdp_sync(pool.clone(), user_id, venta.clone(), true);
+        /* Solo ventas aún no sincronizadas pueden llegar aquí; el reintento
+         * conserva el mismo identificador estable y no intenta "actualizar"
+         * una comanda remota ya creada. */
+        Self::spawn_bdp_sync(pool.clone(), user_id, venta.clone(), false);
 
         Ok(venta)
     }
@@ -274,6 +288,16 @@ impl VentaService {
         if !config.bdp_sync_enabled {
             return Err(AppError::Validation(
                 "La sincronización con BDP no está habilitada.".into(),
+            ));
+        }
+        if config.bdp_sync_mode != "unidirectional" {
+            return Err(AppError::Validation(
+                "BDP está en modo solo lectura; no se ejecutó ninguna escritura.".into(),
+            ));
+        }
+        if !config.bdp_auto_backup_before_write {
+            return Err(AppError::Validation(
+                "Escritura BDP bloqueada: auto-backup pre-write desactivado.".into(),
             ));
         }
 

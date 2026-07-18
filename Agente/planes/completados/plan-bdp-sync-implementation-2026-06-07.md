@@ -1,5 +1,7 @@
 # Plan: BDP Sync Service — Implementación completa
 
+> **HISTÓRICO — NO EJECUTAR.** La sincronización automática y las pruebas con `OnlyCheck` aquí descritas fueron sustituidas por permisos de una sola operación, modo Solo lectura y simulación local.
+
 > **Fecha:** 2026-06-07
 > **Tarea:** 065A-4 (continuación)
 > **Objetivo:** Implementar el flujo Glory → BDP: cuando se crea/actualiza una venta en Glory, crear la comanda correspondiente en el TPV (BDP-Net)

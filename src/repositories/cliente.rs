@@ -79,6 +79,43 @@ impl ClienteRepository {
         .await
     }
 
+    /// Crea un cliente importado y su vínculo BDP en una única sentencia.
+    /// Evita dejar un cliente huérfano si el código remoto colisiona.
+    pub async fn create_bdp_import(
+        pool: &PgPool,
+        data: &NuevoCliente<'_>,
+        bdp_customer_code: i32,
+    ) -> Result<Cliente, sqlx::Error> {
+        let id = Uuid::new_v4();
+        sqlx::query_as::<_, Cliente>(
+            "INSERT INTO clientes (id, user_id, nombre, apellidos, telefono, prefijo_telefono, \
+             email, empresa, notas, foto_url, consentimiento_comercial_email, \
+             consentimiento_comercial_sms, enviar_encuestas, alergias, preferencias_bebida, \
+             preferencias_ubicacion, bdp_customer_code, bdp_synced, bdp_synced_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, TRUE, NOW()) \
+             RETURNING *",
+        )
+        .bind(id)
+        .bind(data.user_id)
+        .bind(data.nombre)
+        .bind(data.apellidos)
+        .bind(data.telefono)
+        .bind(data.prefijo_telefono)
+        .bind(data.email)
+        .bind(data.empresa)
+        .bind(data.notas)
+        .bind(data.foto_url)
+        .bind(data.consentimiento_comercial_email)
+        .bind(data.consentimiento_comercial_sms)
+        .bind(data.enviar_encuestas)
+        .bind(data.alergias)
+        .bind(data.preferencias_bebida)
+        .bind(data.preferencias_ubicacion)
+        .bind(bdp_customer_code)
+        .fetch_one(pool)
+        .await
+    }
+
     pub async fn find_by_id(
         pool: &PgPool,
         id: Uuid,

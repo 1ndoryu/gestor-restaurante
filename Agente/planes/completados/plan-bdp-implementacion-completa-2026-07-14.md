@@ -1,5 +1,7 @@
 # Plan: Implementación completa BDP WebLink REST API
 
+> **HISTÓRICO — NO USAR COMO PROCEDIMIENTO DE PRUEBA.** Sustituido el 18 de julio de 2026 por la validación local fail-closed y por `Agente/usuario/guia-cliente-pruebas-integracion-bdp-2026-07-18.md`. Las referencias a bidireccionalidad, creación automática, pagos parciales y `OnlyCheck` inocuo describen decisiones anteriores.
+
 > **Fecha:** 2026-07-15 (v3 — sync bidireccional)
 > **Estado:** ✅ Fases 1-6 completas | ✅ Fase 7.1-7.5 completas | ✅ Fase 8 completas | Pendiente: Fase 7.6-7.7
 > **Riesgo:** ALTO — la integración actual funciona en producción. Cualquier cambio debe ser retrocompatible.

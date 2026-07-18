@@ -2,7 +2,7 @@
  * Batch insert para crear múltiples líneas junto con la venta.
  * Lectura por venta para poblar el pedido BDP multi-item. */
 
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 use crate::models::{CrearVentaLineaRequest, VentaLinea};
@@ -37,6 +37,46 @@ impl VentaLineaRepository {
             resultado.push(linea_db);
         }
         Ok(resultado)
+    }
+
+    /// Variante para una transacción ya abierta. Todas las líneas comparten
+    /// la misma conexión y cualquier error permite revertir también la venta.
+    pub async fn crear_batch_conn(
+        conn: &mut PgConnection,
+        venta_id: Uuid,
+        lineas: &[CrearVentaLineaRequest],
+    ) -> Result<Vec<VentaLinea>, sqlx::Error> {
+        let mut resultado = Vec::with_capacity(lineas.len());
+        for linea in lineas {
+            let linea_db = sqlx::query_as::<_, VentaLinea>(
+                "INSERT INTO venta_lineas (id, venta_id, articulo_codigo, descripcion, cantidad, precio_unitario, iva_pct, descuento) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+            )
+            .bind(Uuid::new_v4())
+            .bind(venta_id)
+            .bind(linea.articulo_codigo.as_deref().unwrap_or(""))
+            .bind(&linea.descripcion)
+            .bind(linea.cantidad.unwrap_or(rust_decimal::Decimal::ONE))
+            .bind(linea.precio_unitario)
+            .bind(linea.iva_pct.unwrap_or(rust_decimal::Decimal::ZERO))
+            .bind(linea.descuento.unwrap_or(rust_decimal::Decimal::ZERO))
+            .fetch_one(&mut *conn)
+            .await?;
+            resultado.push(linea_db);
+        }
+        Ok(resultado)
+    }
+
+    pub async fn reemplazar_conn(
+        conn: &mut PgConnection,
+        venta_id: Uuid,
+        lineas: &[CrearVentaLineaRequest],
+    ) -> Result<Vec<VentaLinea>, sqlx::Error> {
+        sqlx::query("DELETE FROM venta_lineas WHERE venta_id = $1")
+            .bind(venta_id)
+            .execute(&mut *conn)
+            .await?;
+        Self::crear_batch_conn(conn, venta_id, lineas).await
     }
 
     /// Lista todas las líneas de una venta

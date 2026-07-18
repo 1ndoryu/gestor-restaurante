@@ -56,7 +56,7 @@ function useListaVentas() {
     : false;
 
   /* Sub-hook de edición — depende de haddockSyncEnabled */
-  const edicion = useVentasEdicion(haddockSyncEnabled);
+  const edicion = useVentasEdicion(haddockSyncEnabled, bdpSyncEnabled);
 
   const retryHaddockMutation = useReintentarSyncHaddock({
     mutation: {

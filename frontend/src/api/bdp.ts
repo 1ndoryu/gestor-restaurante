@@ -22,6 +22,7 @@ export interface VentaConClienteBdp {
   bdp_order_id?: string | null;
   bdp_sync_error?: string | null;
   bdp_order_status?: string | null;
+  bdp_invoiced?: boolean;
 }
 
 export interface BdpOrderStatusResponse {

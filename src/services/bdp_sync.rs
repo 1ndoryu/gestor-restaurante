@@ -1,6 +1,7 @@
 /* [065A-5] Servicio de sincronización Glory → BDP WebLink REST API.
  * Crea comandas reales en el TPV cuando se registra una venta en Glory.
- * Patrón: idéntico a HaddockService — background spawn, mutex por venta, retry con backoff.
+ * Usa exclusión local/distribuida y una única escritura con reconciliación;
+ * nunca reintenta CreateOrder a ciegas.
  *
  * Flujo: VentaService::create/update → spawn_bdp_sync → BdpSyncService::sync_venta
  *   1. Login a BDP WebLink
@@ -32,16 +33,17 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::models::{ConfiguracionRestaurante, Venta, VentaLinea};
-use crate::repositories::{ClienteRepository, VentaLineaRepository, VentaRepository, BdpArticleMapRepository};
+use crate::repositories::{
+    BdpArticleMapRepository, ClienteRepository, VentaLineaRepository, VentaRepository,
+};
 use crate::services::bdp_weblink::BdpWeblinkClient;
 use crate::services::bdp_weblink_catalog::{
-    BdpAddOrderPaymentRequest, BdpCatalogSyncResult, BdpCreateOrderRequest,
-    BdpGetArticleRequest, BdpGetPosArticlesRequest, BdpGetPricesArticlesRequest,
+    BdpAddOrderPaymentRequest, BdpCatalogSyncResult, BdpCreateOrderRequest, BdpGetArticleRequest,
+    BdpGetOrderRequest, BdpGetPosArticlesRequest, BdpGetPricesArticlesRequest,
     BdpGetPricesArticlesResponse, BdpGetRoomsTablesRequest, BdpGetRoomsTablesResponse,
     BdpInvoiceOrderRequest, BdpOrderIdentifier, BdpOrderPayment,
 };
 
-const MAX_RETRIES: u32 = 3;
 const BDP_SYNC_MARKET_ID: i32 = 9_900;
 
 /* [F3.1] Contexto resuelto para construir el pedido BDP.
@@ -75,8 +77,18 @@ impl BdpSyncService {
         }
 
         /* [F3] Gate: en modo read_only, no enviar ventas a BDP */
-        if config.bdp_sync_mode.is_empty() || config.bdp_sync_mode == "read_only" {
-            info!("[F3] BDP en modo read_only — sync_venta omitida para venta {}", venta.id);
+        if config.bdp_sync_mode != "unidirectional" {
+            info!(
+                "[F3] BDP en modo read_only — sync_venta omitida para venta {}",
+                venta.id
+            );
+            return;
+        }
+        if !config.bdp_auto_backup_before_write {
+            warn!(
+                "[F2] Escritura BDP bloqueada para venta {}: auto-backup desactivado",
+                venta.id
+            );
             return;
         }
 
@@ -117,22 +129,74 @@ impl BdpSyncService {
             }
         }
 
+        /* Lock distribuido: el mutex anterior solo protege este proceso. La
+         * transacción mantiene un advisory lock durante toda la operación para
+         * impedir que otra instancia envíe la misma venta simultáneamente. */
+        let mut distributed_lock = match pool.begin().await {
+            Ok(transaction) => transaction,
+            Err(error) => {
+                warn!(
+                    "[BDP-SAFE] No se pudo iniciar lock distribuido para venta {}: {error}",
+                    venta.id
+                );
+                Self::cleanup_lock(venta.id);
+                return;
+            }
+        };
+        let acquired = sqlx::query_scalar::<_, bool>(
+            "SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))",
+        )
+        .bind(format!("bdp-order:{}", venta.id))
+        .fetch_one(&mut *distributed_lock)
+        .await
+        .unwrap_or(false);
+        if !acquired {
+            info!(
+                "[BDP-SAFE] Otra instancia procesa la venta {}; escritura omitida",
+                venta.id
+            );
+            Self::cleanup_lock(venta.id);
+            return;
+        }
+
+        if let Err(error) = crate::services::BdpWriteGuard::ensure_no_unresolved(
+            pool,
+            venta.user_id,
+            "venta_id",
+            venta.id,
+            &["create_order", "update_order"],
+        )
+        .await
+        {
+            warn!("[BDP-SAFE] {error}");
+            Self::cleanup_lock(venta.id);
+            return;
+        }
+
         let client = BdpWeblinkClient::new(config);
         let article = Self::resolve_article(&client, config).await;
 
-        /* [F7.5] Auto-sync de cliente Glory→BDP antes de resolver contexto del pedido.
-         * Solo si el flag está habilitado Y la venta tiene cliente asignado.
-         * ensure_cliente_bdp_synced() crea el cliente en BDP si no existe (ExportCustomers→CreateCustomer). */
+        /* [F7.5] Si la política exige cliente BDP, la comanda solo continúa
+         * cuando el cliente ya tiene un código local confirmado. Nunca crea ni
+         * calcula clientes automáticamente durante una venta. */
         if config.bdp_auto_sync_customers {
             if let Some(cliente_id) = venta.cliente_id {
-                match Self::ensure_cliente_bdp_synced(pool, cliente_id, venta.user_id, config).await
+                if let Some(bdp_code) =
+                    Self::ensure_cliente_bdp_synced(pool, cliente_id, venta.user_id, config).await
                 {
-                    Some(bdp_code) => {
-                        info!("[F7.5] Cliente {} auto-sincronizado con BDP (code={bdp_code}) para venta {}", cliente_id, venta.id);
-                    }
-                    None => {
-                        warn!("[F7.5] No se pudo sincronizar cliente {} con BDP — venta {} usará cliente por defecto", cliente_id, venta.id);
-                    }
+                    info!("[F7.5] Cliente {} auto-sincronizado con BDP (code={bdp_code}) para venta {}", cliente_id, venta.id);
+                } else {
+                    let msg = "Cliente sin código BDP confirmado: la comanda se bloqueó para evitar crear un cliente con código automático o asociarla al cliente equivocado";
+                    warn!(
+                        "[BDP-SAFE] {msg} (cliente {cliente_id}, venta {})",
+                        venta.id
+                    );
+                    let _ =
+                        VentaRepository::update_bdp_status(pool, venta.id, false, Some(msg), None)
+                            .await;
+                    let _ = distributed_lock.commit().await;
+                    Self::cleanup_lock(venta.id);
+                    return;
                 }
             }
         }
@@ -161,19 +225,54 @@ impl BdpSyncService {
             None
         };
 
-        /* [F2] Pre-write audit: registrar escritura antes de enviar a BDP.
-         * Si bdp_auto_backup_before_write está activo, genera snapshot selectivo del estado actual. */
-        let operacion = if is_update { "update_order" } else { "create_order" };
+        /* [187A-1] Preparación fail-closed: la autorización, la intención y el
+         * retorno a solo lectura se confirman atómicamente antes del HTTP. */
+        let operacion = "create_order";
         let datos_enviados = serde_json::json!({
             "venta_id": venta.id,
             "importe_base": venta.importe_base,
             "is_update": is_update
         });
-        if let Err(e) = crate::services::BdpBackupService::registrar_escritura(
-            pool, venta.user_id, operacion, &datos_enviados, config, None,
-        ).await {
-            warn!("[F2] Pre-write audit falló para venta {}: {e} — continuando con sync", venta.id);
-        }
+        let snapshot_pre_id = match crate::services::BdpBackupService::preparar_snapshot_escritura(
+            pool,
+            venta.user_id,
+            operacion,
+            config,
+            None,
+        )
+        .await
+        {
+            Ok(id) => id,
+            Err(e) => {
+                let msg = format!("Pre-write audit BDP falló; escritura bloqueada: {e}");
+                warn!("[F2] {msg} (venta {})", venta.id);
+                let _ = VentaRepository::update_bdp_status(pool, venta.id, false, Some(&msg), None)
+                    .await;
+                Self::cleanup_lock(venta.id);
+                return;
+            }
+        };
+
+        let audit_id = match crate::services::BdpWriteGuard::authorize(
+            pool,
+            venta.user_id,
+            config,
+            "create_order",
+            "venta",
+            venta.id,
+            "venta_id",
+            &datos_enviados,
+            snapshot_pre_id,
+        )
+        .await
+        {
+            Ok(id) => id,
+            Err(error) => {
+                warn!("[BDP-SAFE] {error}");
+                Self::cleanup_lock(venta.id);
+                return;
+            }
+        };
 
         let result = Self::retry_send_order(
             &client,
@@ -192,28 +291,69 @@ impl BdpSyncService {
                     "[065A-5] Venta {} sincronizada con BDP → OrderId={order_id}",
                     venta.id
                 );
-                if let Err(e) =
-                    VentaRepository::update_bdp_status(pool, venta.id, true, None, Some(order_id))
-                        .await
+                match VentaRepository::update_bdp_status(pool, venta.id, true, None, Some(order_id))
+                    .await
                 {
-                    warn!(
-                        "[065A-5] Error actualizando bdp_synced de venta {}: {e}",
-                        venta.id
-                    );
+                    Ok(()) => {
+                        let respuesta = serde_json::json!({"order_id": order_id});
+                        if let Err(error) = crate::services::BdpBackupService::actualizar_resultado(
+                            pool,
+                            audit_id,
+                            "exito",
+                            Some(&respuesta),
+                            None,
+                        )
+                        .await
+                        {
+                            warn!(
+                                "[BDP-SAFE] No se pudo cerrar auditoría de venta {}: {error}",
+                                venta.id
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        let msg = format!(
+                            "BDP confirmó OrderId={order_id}, pero no se pudo persistir localmente: {e}"
+                        );
+                        warn!("[BDP-SAFE] {msg} (venta {})", venta.id);
+                        let respuesta = serde_json::json!({"order_id": order_id});
+                        if let Err(error) = crate::services::BdpBackupService::actualizar_resultado(
+                            pool,
+                            audit_id,
+                            "ambiguo",
+                            Some(&respuesta),
+                            Some(&msg),
+                        )
+                        .await
+                        {
+                            warn!("[BDP-SAFE] No se pudo marcar auditoría ambigua de venta {}: {error}", venta.id);
+                        }
+                    }
                 }
             }
-            Err((permanent, msg)) => {
-                if permanent {
+            Err(failure) => {
+                let (resultado, msg) = match failure {
+                    OrderSendFailure::Rejected(msg) => ("error", msg),
+                    OrderSendFailure::Ambiguous(msg) => ("ambiguo", msg),
+                };
+                if let Err(error) = crate::services::BdpBackupService::actualizar_resultado(
+                    pool,
+                    audit_id,
+                    resultado,
+                    None,
+                    Some(&msg),
+                )
+                .await
+                {
                     warn!(
-                        "[065A-5] Error auth BDP para venta {}: {msg} — no se reintenta",
-                        venta.id
-                    );
-                } else {
-                    warn!(
-                        "[065A-5] Fallo definitivo BDP sync venta {}: {msg}",
+                        "[BDP-SAFE] No se pudo cerrar auditoría fallida de venta {}: {error}",
                         venta.id
                     );
                 }
+                warn!(
+                    "[BDP-SAFE] Escritura BDP {} para venta {}: {msg}; no se reintenta a ciegas",
+                    resultado, venta.id
+                );
                 let safe_msg = Self::sanitize_error(&msg);
                 if let Err(e) =
                     VentaRepository::update_bdp_status(pool, venta.id, false, Some(&safe_msg), None)
@@ -226,10 +366,12 @@ impl BdpSyncService {
                 }
             }
         }
+        let _ = distributed_lock.commit().await;
         Self::cleanup_lock(venta.id);
     }
 
-    /// Intenta enviar la comanda con reintentos. Devuelve `Ok(order_id)` o `Err((is_permanent, msg))`.
+    /// Envía una sola vez. Ante un fallo de transporte intenta reconciliar por
+    /// `MarketplaceOrderId`; nunca repite `CreateOrder` a ciegas.
     async fn retry_send_order(
         client: &BdpWeblinkClient<'_>,
         config: &ConfiguracionRestaurante,
@@ -238,36 +380,46 @@ impl BdpSyncService {
         lineas: Option<&[VentaLinea]>,
         line_article_ids: Option<&[i64]>,
         order_ctx: &OrderContext,
-    ) -> Result<i64, (bool, String)> {
-        let mut last_error = String::new();
-        for attempt in 0..MAX_RETRIES {
-            match Self::send_order(
-                client,
-                config,
-                venta,
-                article,
-                lineas,
-                line_article_ids,
-                order_ctx,
-            )
-            .await
-            {
-                Ok(order_id) => return Ok(order_id),
-                Err(BdpSyncError::Auth(msg)) => return Err((true, msg)),
-                Err(BdpSyncError::Api(msg) | BdpSyncError::Network(msg)) => {
-                    last_error = msg;
-                    warn!(
-                        "[065A-5] Error BDP venta {} (intento {}): {last_error}",
-                        venta.id,
-                        attempt + 1
-                    );
+    ) -> Result<i64, OrderSendFailure> {
+        match Self::send_order(
+            client,
+            config,
+            venta,
+            article,
+            lineas,
+            line_article_ids,
+            order_ctx,
+        )
+        .await
+        {
+            Ok(order_id) => Ok(order_id),
+            Err(BdpSyncError::Rejected(msg)) => Err(OrderSendFailure::Rejected(msg)),
+            Err(BdpSyncError::AmbiguousTransport(msg)) => {
+                let marketplace_id = Self::marketplace_order_id(venta.id);
+                let request = BdpGetOrderRequest {
+                    order_identifier: BdpOrderIdentifier::by_market(
+                        BDP_SYNC_MARKET_ID,
+                        marketplace_id.clone(),
+                    ),
+                };
+                match client.get_order(&request).await {
+                    Ok(response) => {
+                        let order_id = response
+                            .get("OrderId")
+                            .and_then(Value::as_i64)
+                            .or_else(|| response.get("Order")?.get("OrderId")?.as_i64());
+                        order_id.filter(|id| *id > 0).ok_or_else(|| {
+                            OrderSendFailure::Ambiguous(format!(
+                                "{msg}; reconciliación sin OrderId para {marketplace_id}"
+                            ))
+                        })
+                    }
+                    Err(error) => Err(OrderSendFailure::Ambiguous(format!(
+                        "{msg}; reconciliación falló para {marketplace_id}: {error}"
+                    ))),
                 }
             }
-            if attempt < MAX_RETRIES - 1 {
-                tokio::time::sleep(std::time::Duration::from_secs(1 << attempt)).await;
-            }
         }
-        Err((false, last_error))
     }
 
     /// Construye y envía una comanda a BDP para la venta dada.
@@ -284,7 +436,26 @@ impl BdpSyncService {
         let response = client
             .create_order(&order)
             .await
-            .map_err(|e| BdpSyncError::Network(format!("{e}")))?;
+            .map_err(|error| match error {
+                crate::services::bdp_weblink::BdpWeblinkError::Remote(message) => {
+                    BdpSyncError::Rejected(format!("BDP: {message}"))
+                }
+                crate::services::bdp_weblink::BdpWeblinkError::NotConfigured => {
+                    BdpSyncError::Rejected("BDP no está configurado".to_string())
+                }
+                crate::services::bdp_weblink::BdpWeblinkError::InvalidBaseUrl(url) => {
+                    BdpSyncError::Rejected(format!("URL BDP inválida: {url}"))
+                }
+                crate::services::bdp_weblink::BdpWeblinkError::WriteTargetDenied(url) => {
+                    BdpSyncError::Rejected(format!("destino de escritura BDP no autorizado: {url}"))
+                }
+                crate::services::bdp_weblink::BdpWeblinkError::Http(message) => {
+                    BdpSyncError::AmbiguousTransport(format!("error de transporte BDP: {message}"))
+                }
+                crate::services::bdp_weblink::BdpWeblinkError::Api { status, body } => {
+                    BdpSyncError::AmbiguousTransport(format!("BDP respondió HTTP {status}: {body}"))
+                }
+            })?;
 
         /* Extraer OrderId y ErrorMessage de la respuesta */
         let order_id = response.get("OrderId").and_then(Value::as_i64).unwrap_or(0);
@@ -297,12 +468,17 @@ impl BdpSyncService {
         if error_msg.is_empty() && order_id > 0 {
             Ok(order_id)
         } else if error_msg.is_empty() {
-            Err(BdpSyncError::Api(
+            Err(BdpSyncError::Rejected(
                 "BDP devolvió OrderId=0 sin error".to_string(),
             ))
         } else {
-            Err(BdpSyncError::Api(format!("BDP: {error_msg}")))
+            Err(BdpSyncError::Rejected(format!("BDP: {error_msg}")))
         }
+    }
+
+    fn marketplace_order_id(venta_id: Uuid) -> String {
+        let venta_hex = venta_id.simple().to_string();
+        format!("G{}", &venta_hex[..14])
     }
 
     /// Construye el payload BDP `CreateOrder` desde una venta Glory.
@@ -323,11 +499,10 @@ impl BdpSyncService {
         order_ctx: &OrderContext,
     ) -> BdpCreateOrderRequest {
         let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-        /* MarketplaceOrderId: max 15 chars. Prefijo "G" + timestamp corto. */
-        let marketplace_order_id = format!(
-            "G{:014}",
-            Utc::now().timestamp_millis() % 100_000_000_000_000
-        );
+        /* MarketplaceOrderId: estable por venta y max 15 chars.
+         * Debe mantenerse idéntico entre reintentos para que BDP pueda deduplicar
+         * una escritura que sí se aplicó pero cuya respuesta se perdió. */
+        let marketplace_order_id = Self::marketplace_order_id(venta.id);
 
         let total =
             Self::decimal_to_f64(&venta.importe_base) + Self::decimal_to_f64(&venta.importe_iva);
@@ -613,8 +788,10 @@ impl BdpSyncService {
         let map = config.bdp_tender_map.as_object()?;
         let key = venta.metodo_pago.to_lowercase();
         let value = map.get(&key)?;
-        let tender_str = value.as_str()?;
-        let id: i32 = tender_str.parse().ok()?;
+        let id = value
+            .as_i64()
+            .and_then(|id| i32::try_from(id).ok())
+            .or_else(|| value.as_str()?.trim().parse::<i32>().ok())?;
         if id > 0 {
             Some(id)
         } else {
@@ -632,7 +809,11 @@ impl BdpSyncService {
         let Some(value) = map.get(&key) else {
             return 0;
         };
-        match value.as_str().and_then(|s| s.parse::<i32>().ok()) {
+        match value
+            .as_i64()
+            .and_then(|value| i32::try_from(value).ok())
+            .or_else(|| value.as_str().and_then(|s| s.trim().parse::<i32>().ok()))
+        {
             Some(t) if t >= 0 => t,
             _ => 0,
         }
@@ -793,157 +974,25 @@ impl BdpSyncService {
     }
 
     /// [F7.5] Auto-sync de cliente Glory → BDP.
-    /// Si el cliente no tiene `bdp_customer_code`, lo crea en BDP y guarda el código.
-    /// Devuelve el código BDP del cliente (existente o recién creado), o None si falla.
-    ///
-    /// Nota: `CreateCustomer` con Code=0 auto-asigna pero no devuelve el código asignado.
-    /// Por eso asignamos codes secuenciales consultando el máximo existente vía `ExportCustomers`.
-    ///
-    /// ⚠️ Este método llama a la API de BDP — solo usar con autorización del usuario.
-    #[allow(dead_code, clippy::too_many_lines)]
+    /// Devuelve únicamente un código BDP previamente confirmado. La creación
+    /// automática quedó deliberadamente deshabilitada: `max + 1` y hashes no
+    /// pueden garantizar ausencia de colisiones con otros escritores del TPV.
     pub async fn ensure_cliente_bdp_synced(
         pool: &PgPool,
         cliente_id: uuid::Uuid,
         user_id: uuid::Uuid,
-        config: &ConfiguracionRestaurante,
+        _config: &ConfiguracionRestaurante,
     ) -> Option<i32> {
-        use crate::services::bdp_weblink_catalog::{
-            BdpCreateCustomerRequest, BdpExportCustomersRequest,
-        };
-
-        /* [F3] Gate: en modo read_only, no sincronizar clientes con BDP */
-        if config.bdp_sync_mode.is_empty() || config.bdp_sync_mode == "read_only" {
-            info!("[F3] BDP en modo read_only — ensure_cliente_bdp_synced omitida para cliente {cliente_id}");
-            return None;
-        }
-
-        /* 1. Si ya tiene código BDP, devolverlo directo */
         let Ok(Some(cliente)) = ClienteRepository::find_by_id(pool, cliente_id, user_id).await
         else {
             return None;
         };
-
         if let Some(code) = cliente.bdp_customer_code {
-            return Some(code);
+            return (code > 0).then_some(code);
         }
-
-        /* 2. Login a BDP */
-        let client = BdpWeblinkClient::new(config);
-        let _session = match client.login().await {
-            Ok(s) => s,
-            Err(e) => {
-                warn!(
-                    "[F7.5] Login BDP falló para auto-sync cliente {}: {e}",
-                    cliente_id
-                );
-                return None;
-            }
-        };
-
-        /* 3. Buscar siguiente código BDP disponible.
-         * ExportCustomers devuelve todos los clientes; extraemos el máximo code. */
-        let next_code = match client
-            .export_customers(&BdpExportCustomersRequest::default())
-            .await
-        {
-            Ok(json) => {
-                let max_code = json
-                    .get("Customers")
-                    .and_then(|v| v.as_array())
-                    .map_or(0, |arr| {
-                        i32::try_from(
-                            arr.iter()
-                                .filter_map(|c| c.get("Code").and_then(Value::as_i64))
-                                .max()
-                                .unwrap_or(0),
-                        )
-                        .unwrap_or(0)
-                    });
-                max_code + 1
-            }
-            Err(e) => {
-                warn!("[F7.5] ExportCustomers falló: {e}. Usando código alto.");
-                /* Fallback: usar hash del UUID como código (rango seguro 90000-99999) */
-                let hash = cliente_id.as_bytes().iter().fold(0u32, |acc, &b| {
-                    acc.wrapping_mul(31).wrapping_add(u32::from(b))
-                });
-                90_000 + (hash % 9_999).cast_signed()
-            }
-        };
-
-        /* 4. Crear cliente en BDP */
-        let fiscal_name = format!("{} {}", cliente.nombre, cliente.apellidos)
-            .trim()
-            .to_string();
-
-        let req = BdpCreateCustomerRequest {
-            code: next_code,
-            fiscal_name,
-            commercial_name: String::new(),
-            mobile_phone: cliente.telefono.clone(),
-            email: cliente.email.clone(),
-            overwrite: false,
-        };
-
-        /* [F2] Pre-write audit: registrar creación de cliente en BDP */
-        let datos_cliente = serde_json::json!({
-            "cliente_id": cliente_id,
-            "next_code": next_code,
-            "nombre": cliente.nombre,
-            "apellidos": cliente.apellidos
-        });
-        if let Err(e) = crate::services::BdpBackupService::registrar_escritura(
-            pool, user_id, "create_customer", &datos_cliente, config, None,
-        ).await {
-            warn!("[F2] Pre-write audit falló para cliente {}: {e} — continuando", cliente_id);
-        }
-
-        match client.create_customer(&req).await {
-            Ok(resp) => {
-                let error_msg = resp
-                    .get("ErrorMessage")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                if !error_msg.is_empty() {
-                    warn!(
-                        "[F7.5] CreateCustomer error para cliente {}: {error_msg}",
-                        cliente_id
-                    );
-                    let _ = ClienteRepository::update_bdp_sync(
-                        pool,
-                        cliente_id,
-                        None,
-                        false,
-                        Some(error_msg),
-                    )
-                    .await;
-                    return None;
-                }
-            }
-            Err(e) => {
-                warn!("[F7.5] CreateCustomer request falló: {e}");
-                let err_str = format!("{e}");
-                let _ = ClienteRepository::update_bdp_sync(
-                    pool,
-                    cliente_id,
-                    None,
-                    false,
-                    Some(&err_str),
-                )
-                .await;
-                return None;
-            }
-        }
-
-        /* 5. Guardar código BDP en el cliente */
-        let _ =
-            ClienteRepository::update_bdp_sync(pool, cliente_id, Some(next_code), true, None).await;
-
-        info!(
-            "[F7.5] Cliente {} sincronizado con BDP code={}",
-            cliente_id, next_code
-        );
-        Some(next_code)
+        let msg = "Creación automática BDP deshabilitada: asigne y verifique un código explícito desde la sincronización manual";
+        let _ = ClienteRepository::update_bdp_sync(pool, cliente_id, None, false, Some(msg)).await;
+        None
     }
 
     /* ===== FASE 8: AddOrderPayment + InvoiceOrder ===== */
@@ -953,6 +1002,9 @@ impl BdpSyncService {
      * Retorna el InvoiceNumber si BDP lo devuelve (algunos pagos no facturan automáticamente).
      *
      * ⚠️ REQUIERE AUTORIZACIÓN DEL USUARIO para llamadas reales a BDP. */
+    /* [187A-1] La secuencia pago/preflight/snapshot/autorización/auditoría se
+     * mantiene lineal para impedir que una futura salida temprana omita guardas. */
+    #[allow(clippy::too_many_lines)]
     pub async fn add_order_payment(
         pool: &PgPool,
         venta: &Venta,
@@ -966,13 +1018,23 @@ impl BdpSyncService {
         }
 
         /* [F3] Gate: en modo read_only, no registrar pagos en BDP */
-        if config.bdp_sync_mode.is_empty() || config.bdp_sync_mode == "read_only" {
-            return Err("BDP en modo solo lectura. Cambia el modo en configuración para registrar pagos.".into());
+        if config.bdp_sync_mode != "unidirectional" {
+            return Err(
+                "BDP en modo solo lectura. Cambia el modo en configuración para registrar pagos."
+                    .into(),
+            );
+        }
+        if !config.bdp_auto_backup_before_write {
+            return Err("Escritura BDP bloqueada: auto-backup pre-write desactivado".into());
         }
 
         let order_id = venta
             .bdp_order_id
             .ok_or_else(|| format!("Venta {} no tiene bdp_order_id", venta.id))?;
+
+        if amount <= Decimal::ZERO || tender_id <= 0 {
+            return Err("Pago BDP bloqueado: importe o tender inválido".into());
+        }
 
         let client = BdpWeblinkClient::new(config);
         client
@@ -980,20 +1042,88 @@ impl BdpSyncService {
             .await
             .map_err(|e| format!("Error login BDP: {e}"))?;
 
-        /* [F2] Pre-write audit: snapshot del estado de la orden antes de registrar pago */
+        crate::services::BdpWriteGuard::ensure_no_unresolved(
+            pool,
+            venta.user_id,
+            "venta_id",
+            venta.id,
+            &["add_payment"],
+        )
+        .await?;
+
+        let current = client
+            .get_order(&BdpGetOrderRequest {
+                order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+            })
+            .await
+            .map_err(|e| {
+                format!("Pago bloqueado: no se pudo reconciliar la orden antes de escribir: {e}")
+            })?;
+        let order = current
+            .get("Order")
+            .ok_or_else(|| "Pago bloqueado: GetOrder no devolvió el objeto Order".to_string())?;
+        let status = order
+            .get("Status")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| "Pago bloqueado: GetOrder no devolvió Status".to_string())?;
+        if matches!(status, 2 | 3) {
+            return Err("Pago bloqueado: la orden está cancelada o facturada".into());
+        }
+        let total = order
+            .get("Total")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| "Pago bloqueado: GetOrder no devolvió Total".to_string())?;
+        let paid: f64 = order
+            .get("Payments")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "Pago bloqueado: GetOrder no devolvió Payments".to_string())?
+            .iter()
+            .map(|payment| payment.get("Amount").and_then(Value::as_f64).unwrap_or(0.0))
+            .sum();
+        let requested = Self::decimal_to_f64(&amount);
+        let pending = total - paid;
+        if (requested - pending).abs() > 0.005 {
+            return Err(format!(
+                "Pago bloqueado: esta integración admite un único pago completo; saldo BDP={pending:.2}, solicitado={requested:.2}"
+            ));
+        }
+
+        /* [187A-1] El snapshot remoto debe completarse antes de consumir el
+         * armado; authorize registra la intención y cierra el modo escritura. */
         let datos_pago = serde_json::json!({
             "venta_id": venta.id,
             "order_id": order_id,
             "amount": amount,
             "tender_id": tender_id
         });
-        if let Err(e) = crate::services::BdpBackupService::registrar_escritura(
-            pool, venta.user_id, "add_payment", &datos_pago, config, Some(order_id),
-        ).await {
-            warn!("[F2] Pre-write audit falló para pago venta {}: {e} — continuando", venta.id);
-        }
+        let snapshot_pre_id = crate::services::BdpBackupService::preparar_snapshot_escritura(
+            pool,
+            venta.user_id,
+            "add_payment",
+            config,
+            Some(order_id),
+        )
+        .await
+        .map_err(|e| format!("Pre-write audit BDP falló; pago bloqueado: {e}"))?;
 
-        let payment_id = format!("glory-{}-{}", venta.id, chrono::Utc::now().timestamp());
+        let audit_id = crate::services::BdpWriteGuard::authorize(
+            pool,
+            venta.user_id,
+            config,
+            "add_payment",
+            "venta",
+            venta.id,
+            "venta_id",
+            &datos_pago,
+            snapshot_pre_id,
+        )
+        .await?;
+
+        /* Una venta admite una única intención de pago completo desde este
+         * endpoint. La clave estable evita duplicarla si la respuesta remota
+         * se pierde; los pagos parciales permanecen bloqueados hasta disponer
+         * de un ledger local de intenciones independiente. */
+        let payment_id = format!("P{}", &venta.id.simple().to_string()[..14]);
 
         let request = BdpAddOrderPaymentRequest {
             order_identifier: BdpOrderIdentifier::by_order_id(order_id),
@@ -1008,10 +1138,29 @@ impl BdpSyncService {
             invoice_parameters: None,
         };
 
-        let response = client
-            .add_order_payment(&request)
-            .await
-            .map_err(|e| format!("Error AddOrderPayment: {e}"))?;
+        let response = match client.add_order_payment(&request).await {
+            Ok(response) => response,
+            Err(e) => {
+                let msg = format!("Error AddOrderPayment: {e}");
+                let resultado = match e {
+                    crate::services::bdp_weblink::BdpWeblinkError::Http(_)
+                    | crate::services::bdp_weblink::BdpWeblinkError::Api { .. } => "ambiguo",
+                    _ => "error",
+                };
+                crate::services::BdpBackupService::actualizar_resultado(
+                    pool,
+                    audit_id,
+                    resultado,
+                    None,
+                    Some(&msg),
+                )
+                .await
+                .map_err(|audit_error| {
+                    format!("{msg}; además falló el cierre de auditoría: {audit_error}")
+                })?;
+                return Err(msg);
+            }
+        };
 
         let invoice_number = response
             .get("InvoiceNumber")
@@ -1024,18 +1173,45 @@ impl BdpSyncService {
                 "[F8.1] Pago registrado en BDP para venta {} → InvoiceNumber={inv}",
                 venta.id
             );
-            let _ = sqlx::query(
+            if let Err(error) = sqlx::query(
                 "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
             )
             .bind(venta.id)
             .execute(pool)
-            .await;
+            .await
+            {
+                let msg = format!(
+                    "BDP confirmó pago y factura {inv}, pero no se pudo persistir localmente: {error}"
+                );
+                crate::services::BdpBackupService::actualizar_resultado(
+                    pool,
+                    audit_id,
+                    "ambiguo",
+                    Some(&response),
+                    Some(&msg),
+                )
+                .await
+                .map_err(|audit_error| {
+                    format!("{msg}; además falló el cierre de auditoría: {audit_error}")
+                })?;
+                return Err(msg);
+            }
         } else {
             info!(
                 "[F8.1] Pago registrado en BDP para venta {} (sin InvoiceNumber)",
                 venta.id
             );
         }
+
+        crate::services::BdpBackupService::actualizar_resultado(
+            pool,
+            audit_id,
+            "exito",
+            Some(&response),
+            None,
+        )
+        .await
+        .map_err(|error| format!("Pago confirmado, pero falló el cierre de auditoría: {error}"))?;
 
         Ok(invoice_number)
     }
@@ -1045,6 +1221,9 @@ impl BdpSyncService {
      * Retorna el InvoiceNumber.
      *
      * ⚠️ REQUIERE AUTORIZACIÓN DEL USUARIO para llamadas reales a BDP. */
+    /* [187A-1] La secuencia factura/preflight/snapshot/autorización/auditoría
+     * se mantiene lineal para conservar una única frontera de escritura. */
+    #[allow(clippy::too_many_lines)]
     pub async fn invoice_order(
         pool: &PgPool,
         venta: &Venta,
@@ -1056,8 +1235,13 @@ impl BdpSyncService {
         }
 
         /* [F3] Gate: en modo read_only, no facturar en BDP */
-        if config.bdp_sync_mode.is_empty() || config.bdp_sync_mode == "read_only" {
-            return Err("BDP en modo solo lectura. Cambia el modo en configuración para facturar.".into());
+        if config.bdp_sync_mode != "unidirectional" {
+            return Err(
+                "BDP en modo solo lectura. Cambia el modo en configuración para facturar.".into(),
+            );
+        }
+        if !config.bdp_auto_backup_before_write {
+            return Err("Escritura BDP bloqueada: auto-backup pre-write desactivado".into());
         }
 
         let order_id = venta
@@ -1070,16 +1254,93 @@ impl BdpSyncService {
             .await
             .map_err(|e| format!("Error login BDP: {e}"))?;
 
-        /* [F2] Pre-write audit: snapshot del estado de la orden antes de facturar */
+        crate::services::BdpWriteGuard::ensure_no_unresolved(
+            pool,
+            venta.user_id,
+            "venta_id",
+            venta.id,
+            &["invoice"],
+        )
+        .await?;
+
+        let current = client
+            .get_order(&BdpGetOrderRequest {
+                order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+            })
+            .await
+            .map_err(|e| {
+                format!("Factura bloqueada: no se pudo reconciliar la orden antes de escribir: {e}")
+            })?;
+        let order = current
+            .get("Order")
+            .ok_or_else(|| "Factura bloqueada: GetOrder no devolvió el objeto Order".to_string())?;
+        let status = order
+            .get("Status")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| "Factura bloqueada: GetOrder no devolvió Status".to_string())?;
+        if status == 2 {
+            return Err("Factura bloqueada: la orden está cancelada".into());
+        }
+        if status == 3 {
+            let invoice_number = order
+                .get("InvoiceNumber")
+                .and_then(Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+                .map(ToOwned::to_owned)
+                .ok_or_else(|| {
+                    "Orden ya facturada pero sin InvoiceNumber reconciliable".to_string()
+                })?;
+            sqlx::query(
+                "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
+            )
+            .bind(venta.id)
+            .execute(pool)
+            .await
+            .map_err(|error| format!("Factura BDP reconciliada, pero no se pudo persistir localmente: {error}"))?;
+            return Ok(invoice_number);
+        }
+        let total = order
+            .get("Total")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| "Factura bloqueada: GetOrder no devolvió Total".to_string())?;
+        let paid: f64 = order
+            .get("Payments")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "Factura bloqueada: GetOrder no devolvió Payments".to_string())?
+            .iter()
+            .map(|payment| payment.get("Amount").and_then(Value::as_f64).unwrap_or(0.0))
+            .sum();
+        if (total - paid).abs() > 0.005 {
+            return Err("Factura bloqueada: la orden conserva saldo pendiente".into());
+        }
+
+        /* [187A-1] Snapshot obligatorio + autorización de un solo uso. */
         let datos_factura = serde_json::json!({
             "venta_id": venta.id,
             "order_id": order_id
         });
-        if let Err(e) = crate::services::BdpBackupService::registrar_escritura(
-            pool, venta.user_id, "invoice", &datos_factura, config, Some(order_id),
-        ).await {
-            warn!("[F2] Pre-write audit falló para factura venta {}: {e} — continuando", venta.id);
-        }
+        let snapshot_pre_id = crate::services::BdpBackupService::preparar_snapshot_escritura(
+            pool,
+            venta.user_id,
+            "invoice",
+            config,
+            Some(order_id),
+        )
+        .await
+        .map_err(|e| format!("Pre-write audit BDP falló; facturación bloqueada: {e}"))?;
+
+        let audit_id = crate::services::BdpWriteGuard::authorize(
+            pool,
+            venta.user_id,
+            config,
+            "invoice",
+            "venta",
+            venta.id,
+            "venta_id",
+            &datos_factura,
+            snapshot_pre_id,
+        )
+        .await?;
 
         let request = BdpInvoiceOrderRequest {
             pos_id: config.bdp_pos_id,
@@ -1088,10 +1349,29 @@ impl BdpSyncService {
             invoice_parameters: None,
         };
 
-        let response = client
-            .invoice_order(&request)
-            .await
-            .map_err(|e| format!("Error InvoiceOrder: {e}"))?;
+        let response = match client.invoice_order(&request).await {
+            Ok(response) => response,
+            Err(e) => {
+                let msg = format!("Error InvoiceOrder: {e}");
+                let resultado = match e {
+                    crate::services::bdp_weblink::BdpWeblinkError::Http(_)
+                    | crate::services::bdp_weblink::BdpWeblinkError::Api { .. } => "ambiguo",
+                    _ => "error",
+                };
+                crate::services::BdpBackupService::actualizar_resultado(
+                    pool,
+                    audit_id,
+                    resultado,
+                    None,
+                    Some(&msg),
+                )
+                .await
+                .map_err(|audit_error| {
+                    format!("{msg}; además falló el cierre de auditoría: {audit_error}")
+                })?;
+                return Err(msg);
+            }
+        };
 
         let invoice_number = response
             .get("InvoiceNumber")
@@ -1099,13 +1379,61 @@ impl BdpSyncService {
             .unwrap_or("")
             .to_string();
 
+        if invoice_number.is_empty() {
+            let msg = "BDP no devolvió InvoiceNumber; no se marcará la venta como facturada";
+            crate::services::BdpBackupService::actualizar_resultado(
+                pool,
+                audit_id,
+                "ambiguo",
+                Some(&response),
+                Some(msg),
+            )
+            .await
+            .map_err(|audit_error| {
+                format!("{msg}; además falló el cierre de auditoría: {audit_error}")
+            })?;
+            return Err(msg.to_string());
+        }
+
         /* [F8.3] Marcar venta como facturada. */
-        let _ = sqlx::query(
+        let persisted = sqlx::query(
             "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
         )
         .bind(venta.id)
         .execute(pool)
         .await;
+        match persisted {
+            Ok(_) => {
+                crate::services::BdpBackupService::actualizar_resultado(
+                    pool,
+                    audit_id,
+                    "exito",
+                    Some(&response),
+                    None,
+                )
+                .await
+                .map_err(|error| {
+                    format!("Factura confirmada, pero falló el cierre de auditoría: {error}")
+                })?;
+            }
+            Err(error) => {
+                let msg = format!(
+                    "BDP confirmó InvoiceNumber={invoice_number}, pero no se pudo persistir localmente: {error}"
+                );
+                crate::services::BdpBackupService::actualizar_resultado(
+                    pool,
+                    audit_id,
+                    "ambiguo",
+                    Some(&response),
+                    Some(&msg),
+                )
+                .await
+                .map_err(|audit_error| {
+                    format!("{msg}; además falló el cierre de auditoría: {audit_error}")
+                })?;
+                return Err(msg);
+            }
+        }
 
         info!(
             "[F8.2] Orden {} facturada en BDP → InvoiceNumber={invoice_number}",
@@ -1223,7 +1551,7 @@ impl BdpSyncService {
         let mut errores: u32 = 0;
 
         for map in &maps {
-            let code: i64 = if let Ok(c) = map.articulo_glory_codigo.parse() {
+            let code: i64 = if let Ok(c) = map.articulo_bdp_codigo.parse() {
                 c
             } else {
                 sin_cambios += 1;
@@ -1235,15 +1563,14 @@ impl BdpSyncService {
                 .await
             {
                 Ok(value) => {
-                    let resp: BdpGetPricesArticlesResponse =
-                        match serde_json::from_value(value) {
-                            Ok(r) => r,
-                            Err(e) => {
-                                warn!("[157A-9] Error parseando precios BDP para {code}: {e}");
-                                errores += 1;
-                                continue;
-                            }
-                        };
+                    let resp: BdpGetPricesArticlesResponse = match serde_json::from_value(value) {
+                        Ok(r) => r,
+                        Err(e) => {
+                            warn!("[157A-9] Error parseando precios BDP para {code}: {e}");
+                            errores += 1;
+                            continue;
+                        }
+                    };
 
                     if !resp.error_message.is_empty() {
                         warn!(
@@ -1303,6 +1630,7 @@ impl BdpSyncService {
         client: &BdpWeblinkClient<'_>,
         pool: &PgPool,
         user_id: Uuid,
+        aplicar: bool,
     ) -> Result<SyncTablesResult, String> {
         let resp_value = client
             .get_rooms_tables(&BdpGetRoomsTablesRequest::default())
@@ -1325,13 +1653,20 @@ impl BdpSyncService {
                 .await
                 .map_err(|e| format!("Error listando zonas: {e}"))?;
 
-            let zona = if let Some(existing) = zonas.iter().find(|z| z.nombre == room.name) {
-                existing.clone()
+            let existing_zone = zonas.iter().find(|z| z.nombre == room.name).cloned();
+            if existing_zone.is_none() && !aplicar {
+                zonas_creadas += 1;
+                mesas_creadas += u32::try_from(room.tables.len()).unwrap_or(u32::MAX);
+                continue;
+            }
+            let zona = if let Some(existing) = existing_zone {
+                existing
             } else {
-                let created =
-                    crate::repositories::PlanoSalaRepository::crear_zona(pool, user_id, &room.name, room.id, 800, 600)
-                        .await
-                        .map_err(|e| format!("Error creando zona '{}': {e}", room.name))?;
+                let created = crate::repositories::PlanoSalaRepository::crear_zona(
+                    pool, user_id, &room.name, room.id, 800, 600,
+                )
+                .await
+                .map_err(|e| format!("Error creando zona '{}': {e}", room.name))?;
                 zonas_creadas += 1;
                 created
             };
@@ -1340,27 +1675,33 @@ impl BdpSyncService {
             for &table_num in &room.tables {
                 let existing =
                     crate::repositories::PlanoSalaRepository::buscar_mesa_por_zona_numero(
-                        pool, user_id, &zona.nombre, table_num,
+                        pool,
+                        user_id,
+                        &zona.nombre,
+                        table_num,
                     )
                     .await
                     .map_err(|e| format!("Error buscando mesa {table_num}: {e}"))?;
 
                 if existing.is_none() {
                     /* [157A-9] crear_mesa recibe CrearMesaRequest que incluye zona_id */
+                    let mesa_index = i32::try_from(mesas_creadas).unwrap_or(i32::MAX);
                     let mesa_req = crate::models::CrearMesaRequest {
                         zona_id: zona.id,
                         numero: table_num,
-                        pos_x: Some(0),
-                        pos_y: Some(0),
+                        pos_x: Some(20 + (mesa_index % 8) * 80),
+                        pos_y: Some(20 + (mesa_index / 8) * 80),
                         ancho: Some(60),
                         alto: Some(60),
                         forma: Some("cuadrada".to_string()),
                         min_personas: Some(2),
                         max_personas: Some(4),
                     };
-                    crate::repositories::PlanoSalaRepository::crear_mesa(pool, &mesa_req)
-                        .await
-                        .map_err(|e| format!("Error creando mesa {table_num}: {e}"))?;
+                    if aplicar {
+                        crate::repositories::PlanoSalaRepository::crear_mesa(pool, &mesa_req)
+                            .await
+                            .map_err(|e| format!("Error creando mesa {table_num}: {e}"))?;
+                    }
                     mesas_creadas += 1;
                 }
             }
@@ -1375,6 +1716,7 @@ impl BdpSyncService {
             salones_bdp: u32::try_from(resp.rooms.len()).unwrap_or(u32::MAX),
             zonas_creadas,
             mesas_creadas,
+            applied: aplicar,
         })
     }
 }
@@ -1385,6 +1727,7 @@ pub struct SyncTablesResult {
     pub salones_bdp: u32,
     pub zonas_creadas: u32,
     pub mesas_creadas: u32,
+    pub applied: bool,
 }
 
 /// Artículo BDP resuelto para el mapeo.
@@ -1399,13 +1742,15 @@ struct ResolvedArticle {
 
 /// Errores clasificados para decidir si reintentar.
 enum BdpSyncError {
-    /// Error de autenticación — no reintentar.
-    #[allow(dead_code)]
-    Auth(String),
-    /// Error de negocio de BDP — reintentar puede ayudar.
-    Api(String),
-    /// Error de red — reintentar.
-    Network(String),
+    /// Rechazo conocido: no se aplicó una operación válida y no se reintenta.
+    Rejected(String),
+    /// Timeout, HTTP anómalo o JSON inválido: BDP pudo haber aplicado la orden.
+    AmbiguousTransport(String),
+}
+
+enum OrderSendFailure {
+    Rejected(String),
+    Ambiguous(String),
 }
 
 #[cfg(test)]

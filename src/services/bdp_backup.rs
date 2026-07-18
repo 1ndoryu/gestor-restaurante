@@ -5,12 +5,12 @@
  * Todas las queries usan runtime sqlx (no macros compile-time) para compatibilidad SQLX_OFFLINE. */
 
 use chrono::{DateTime, Utc};
+use sha2::{Digest, Sha256};
 use sqlx::PgPool;
-use tracing::warn;
 use uuid::Uuid;
 
 use crate::models::ConfiguracionRestaurante;
-use crate::services::bdp_weblink::BdpWeblinkClient;
+use crate::services::bdp_weblink::{response_error_message, BdpWeblinkClient};
 use crate::services::bdp_weblink_catalog::{
     BdpExportArticlesRequest, BdpExportCustomersRequest, BdpExportDepartmentsRequest,
     BdpGetEmployeesRequest, BdpGetOrderRequest, BdpGetRoomsTablesRequest, BdpOrderIdentifier,
@@ -26,6 +26,8 @@ pub struct BdpSnapshot {
     pub trigger_tipo: String,
     pub datos: serde_json::Value,
     pub metadata: Option<serde_json::Value>,
+    pub target_base_url: Option<String>,
+    pub connection_fingerprint: Option<String>,
     pub created_at: DateTime<Utc>,
     pub expires_at: Option<DateTime<Utc>>,
     pub notas: Option<String>,
@@ -43,7 +45,11 @@ pub struct BdpAuditEntry {
     pub resultado: String,
     pub datos_respuesta: Option<serde_json::Value>,
     pub error_mensaje: Option<String>,
+    pub target_base_url: Option<String>,
+    pub target_entity_type: Option<String>,
+    pub target_entity_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 /// Resultado de una restauración.
@@ -59,6 +65,46 @@ pub struct RestoreResult {
 pub struct BdpBackupService;
 
 impl BdpBackupService {
+    /* [187A-1] La evidencia que habilita escritura pertenece a una conexión
+     * exacta. El hash evita persistir secretos y hace inelegible cualquier
+     * snapshot tomado con otras credenciales o parámetros operativos. */
+    pub fn canonical_target(config: &ConfiguracionRestaurante) -> Result<String, String> {
+        let raw = config.bdp_base_url.trim().trim_end_matches('/');
+        let parsed = reqwest::Url::parse(raw)
+            .map_err(|_| "La URL BDP configurada no es válida".to_string())?;
+        if !matches!(parsed.scheme(), "http" | "https")
+            || parsed.host_str().is_none()
+            || !parsed.username().is_empty()
+            || parsed.password().is_some()
+            || parsed.query().is_some()
+            || parsed.fragment().is_some()
+            || parsed.path() != "/"
+        {
+            return Err(
+                "La URL BDP debe ser un origen HTTP(S) sin credenciales, query ni fragmento"
+                    .to_string(),
+            );
+        }
+        Ok(raw.to_string())
+    }
+
+    pub fn connection_fingerprint(config: &ConfiguracionRestaurante) -> Result<String, String> {
+        let mut hasher = Sha256::new();
+        for value in [
+            Self::canonical_target(config)?,
+            config.bdp_login.trim().to_string(),
+            config.bdp_password.clone(),
+            config.bdp_integrator_code.trim().to_string(),
+            config.bdp_pos_id.to_string(),
+            config.bdp_employee_id.to_string(),
+            config.bdp_items_profile_id.to_string(),
+        ] {
+            hasher.update(value.as_bytes());
+            hasher.update([0]);
+        }
+        Ok(format!("{:x}", hasher.finalize()))
+    }
+
     // =========================================================================
     // SNAPSHOT BDP COMPLETO — lee TODOS los endpoints de lectura
     // =========================================================================
@@ -80,11 +126,11 @@ impl BdpBackupService {
             .map_err(|e| format!("Error login BDP: {e}"))?;
 
         /* Recolectar datos de cada endpoint */
-        let articulos = Self::fetch_articles(&client, config).await;
-        let clientes = Self::fetch_customers(&client).await;
-        let departamentos = Self::fetch_departments(&client).await;
-        let salones = Self::fetch_rooms(&client).await;
-        let empleados = Self::fetch_employees(&client).await;
+        let articulos = Self::fetch_articles(&client, config).await?;
+        let clientes = Self::fetch_customers(&client).await?;
+        let departamentos = Self::fetch_departments(&client).await?;
+        let salones = Self::fetch_rooms(&client).await?;
+        let empleados = Self::fetch_employees(&client).await?;
 
         let datos = serde_json::json!({
             "articulos": articulos,
@@ -99,7 +145,7 @@ impl BdpBackupService {
         });
 
         /* Calcular expiración */
-        let retention_days = Self::get_retention_days(pool, user_id).await;
+        let retention_days = Self::get_retention_days(pool, user_id).await?;
         let expires_at = if retention_days > 0 {
             Some(chrono::Utc::now() + chrono::Duration::days(i64::from(retention_days)))
         } else {
@@ -114,6 +160,8 @@ impl BdpBackupService {
             "manual",
             datos,
             Some(metadata),
+            Some(Self::canonical_target(config)?),
+            Some(Self::connection_fingerprint(config)?),
             expires_at,
             notas,
         )
@@ -133,6 +181,23 @@ impl BdpBackupService {
         tipos: &[String],
         notas: Option<String>,
     ) -> Result<BdpSnapshot, String> {
+        const VALID_TYPES: &[&str] = &[
+            "articulos",
+            "clientes",
+            "departamentos",
+            "salones",
+            "empleados",
+        ];
+        if tipos.is_empty()
+            || tipos
+                .iter()
+                .any(|tipo| !VALID_TYPES.contains(&tipo.as_str()))
+            || tipos.iter().collect::<std::collections::HashSet<_>>().len() != tipos.len()
+        {
+            return Err(
+                "Snapshot parcial bloqueado: tipos vacíos, repetidos o desconocidos".to_string(),
+            );
+        }
         let client = BdpWeblinkClient::new(config);
         let _session = client
             .login()
@@ -145,33 +210,31 @@ impl BdpBackupService {
         for tipo in tipos {
             match tipo.as_str() {
                 "articulos" => {
-                    let val = Self::fetch_articles(&client, config).await;
+                    let val = Self::fetch_articles(&client, config).await?;
                     datos["articulos"] = val;
                     endpoints_used.push("ExportArticles");
                 }
                 "clientes" => {
-                    let val = Self::fetch_customers(&client).await;
+                    let val = Self::fetch_customers(&client).await?;
                     datos["clientes"] = val;
                     endpoints_used.push("ExportCustomers");
                 }
                 "departamentos" => {
-                    let val = Self::fetch_departments(&client).await;
+                    let val = Self::fetch_departments(&client).await?;
                     datos["departamentos"] = val;
                     endpoints_used.push("ExportDepartments");
                 }
                 "salones" => {
-                    let val = Self::fetch_rooms(&client).await;
+                    let val = Self::fetch_rooms(&client).await?;
                     datos["salones"] = val;
                     endpoints_used.push("GetRoomsTables");
                 }
                 "empleados" => {
-                    let val = Self::fetch_employees(&client).await;
+                    let val = Self::fetch_employees(&client).await?;
                     datos["empleados"] = val;
                     endpoints_used.push("GetEmployees");
                 }
-                other => {
-                    warn!("Tipo de snapshot desconocido: {other}");
-                }
+                _ => unreachable!("los tipos se validaron antes de contactar BDP"),
             }
         }
 
@@ -180,7 +243,7 @@ impl BdpBackupService {
             "tipos_solicitados": tipos,
         });
 
-        let retention_days = Self::get_retention_days(pool, user_id).await;
+        let retention_days = Self::get_retention_days(pool, user_id).await?;
         let expires_at = if retention_days > 0 {
             Some(chrono::Utc::now() + chrono::Duration::days(i64::from(retention_days)))
         } else {
@@ -195,6 +258,8 @@ impl BdpBackupService {
             "manual",
             datos,
             Some(metadata),
+            Some(Self::canonical_target(config)?),
+            Some(Self::connection_fingerprint(config)?),
             expires_at,
             notas,
         )
@@ -213,13 +278,24 @@ impl BdpBackupService {
         tipos: &[String],
         notas: Option<String>,
     ) -> Result<BdpSnapshot, String> {
+        const VALID_TYPES: &[&str] = &["ventas", "clientes", "mapeos"];
+        if tipos.is_empty()
+            || tipos
+                .iter()
+                .any(|tipo| !VALID_TYPES.contains(&tipo.as_str()))
+            || tipos.iter().collect::<std::collections::HashSet<_>>().len() != tipos.len()
+        {
+            return Err(
+                "Snapshot Glory bloqueado: tipos vacíos, repetidos o desconocidos".to_string(),
+            );
+        }
         let mut datos = serde_json::json!({});
 
         for tipo in tipos {
             match tipo.as_str() {
                 "ventas" => {
                     let val: serde_json::Value = sqlx::query_scalar(
-                        r#"SELECT COALESCE(json_agg(row_to_json(v)), '[]'::json)
+                        r"SELECT COALESCE(json_agg(row_to_json(v)), '[]'::json)
                         FROM (
                             SELECT id, user_id, cliente_id, canal, total, estado,
                                    bdp_synced, bdp_order_id, bdp_order_status,
@@ -228,7 +304,7 @@ impl BdpBackupService {
                             WHERE user_id = $1
                             ORDER BY created_at DESC
                             LIMIT 5000
-                        ) v"#,
+                        ) v",
                     )
                     .bind(user_id)
                     .fetch_one(pool)
@@ -238,7 +314,7 @@ impl BdpBackupService {
                 }
                 "clientes" => {
                     let val: serde_json::Value = sqlx::query_scalar(
-                        r#"SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json)
+                        r"SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json)
                         FROM (
                             SELECT id, user_id, nombre, email, telefono,
                                    bdp_customer_code, bdp_synced, bdp_synced_at, bdp_sync_error
@@ -246,7 +322,7 @@ impl BdpBackupService {
                             WHERE user_id = $1
                             ORDER BY created_at DESC
                             LIMIT 5000
-                        ) c"#,
+                        ) c",
                     )
                     .bind(user_id)
                     .fetch_one(pool)
@@ -256,7 +332,7 @@ impl BdpBackupService {
                 }
                 "mapeos" => {
                     let val: serde_json::Value = sqlx::query_scalar(
-                        r#"SELECT COALESCE(json_agg(row_to_json(m)), '[]'::json)
+                        r"SELECT COALESCE(json_agg(row_to_json(m)), '[]'::json)
                         FROM (
                             SELECT id, user_id, articulo_glory_codigo, articulo_bdp_codigo,
                                    articulo_bdp_nombre, descripcion, precio_tarifa1, iva_pct,
@@ -265,7 +341,7 @@ impl BdpBackupService {
                             WHERE user_id = $1
                             ORDER BY articulo_bdp_nombre
                             LIMIT 10000
-                        ) m"#,
+                        ) m",
                     )
                     .bind(user_id)
                     .fetch_one(pool)
@@ -273,9 +349,7 @@ impl BdpBackupService {
                     .map_err(|e| format!("Error exportando mapeos Glory: {e}"))?;
                     datos["mapeos"] = val;
                 }
-                other => {
-                    warn!("Tipo de snapshot Glory desconocido: {other}");
-                }
+                _ => unreachable!("los tipos Glory se validaron antes de consultar la base"),
             }
         }
 
@@ -284,7 +358,7 @@ impl BdpBackupService {
             "source": "glory_local_db",
         });
 
-        let retention_days = Self::get_retention_days(pool, user_id).await;
+        let retention_days = Self::get_retention_days(pool, user_id).await?;
         let expires_at = if retention_days > 0 {
             Some(chrono::Utc::now() + chrono::Duration::days(i64::from(retention_days)))
         } else {
@@ -299,6 +373,8 @@ impl BdpBackupService {
             "manual",
             datos,
             Some(metadata),
+            None,
+            None,
             expires_at,
             notas,
         )
@@ -309,68 +385,43 @@ impl BdpBackupService {
     // PRE-WRITE AUDIT LOG — selectivo, máximo 1 llamada BDP
     // =========================================================================
 
-    /// Registra una operación de escritura en el audit log.
-    /// Para AddOrderPayment/InvoiceOrder, hace 1 GetOrder para snapshot del estado actual.
-    /// Para CreateOrder/CreateCustomer, solo registra los datos enviados (0 llamadas extra).
-    pub async fn registrar_escritura(
+    /// Prepara la evidencia previa a una escritura. Para pago y factura el
+    /// estado remoto de la comanda es obligatorio; si no se puede capturar,
+    /// la autorización permanece intacta y no se crea una intención de envío.
+    pub async fn preparar_snapshot_escritura(
         pool: &PgPool,
         user_id: Uuid,
         operacion: &str,
-        datos_enviados: &serde_json::Value,
         config: &ConfiguracionRestaurante,
         bdp_order_id: Option<i64>,
     ) -> Result<Option<Uuid>, String> {
-        let auto_backup = Self::get_auto_backup(pool, user_id).await;
+        let auto_backup = Self::get_auto_backup(pool, user_id).await?;
         if !auto_backup {
+            return Err("Escritura BDP bloqueada: auto-backup pre-write desactivado".to_string());
+        }
+
+        if !matches!(operacion, "add_payment" | "invoice") {
             return Ok(None);
         }
 
-        /* Para AddOrderPayment e InvoiceOrder: snapshot del estado actual de la comanda */
-        let snapshot_id = if operacion == "add_payment" || operacion == "invoice" {
-            if let Some(order_id) = bdp_order_id {
-                match Self::snapshot_order_state(config, order_id).await {
-                    Ok(snapshot) => {
-                        let snap = Self::insert_snapshot(
-                            pool,
-                            user_id,
-                            "pre_write_order",
-                            "bdp",
-                            "pre_write",
-                            snapshot,
-                            Some(serde_json::json!({"operacion": operacion, "order_id": order_id})),
-                            None,
-                            None,
-                        )
-                        .await?;
-                        Some(snap.id)
-                    }
-                    Err(e) => {
-                        warn!("Pre-write snapshot falló para order {order_id}: {e}. Continuando sin snapshot.");
-                        None
-                    }
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        /* Insertar entrada en audit log — runtime query para compatibilidad SQLX_OFFLINE */
-        let entry_id: Uuid = sqlx::query_scalar(
-            r#"INSERT INTO bdp_audit_log (user_id, operacion, direccion, snapshot_pre_id, datos_enviados, resultado)
-            VALUES ($1, $2, 'glory_to_bdp', $3, $4, 'pendiente')
-            RETURNING id"#,
+        let order_id = bdp_order_id
+            .ok_or_else(|| format!("Snapshot pre-write {operacion} bloqueado: falta order_id"))?;
+        let snapshot = Self::snapshot_order_state(config, order_id).await?;
+        let snap = Self::insert_snapshot(
+            pool,
+            user_id,
+            "pre_write_order",
+            "bdp",
+            "pre_write",
+            snapshot,
+            Some(serde_json::json!({"operacion": operacion, "order_id": order_id})),
+            Some(Self::canonical_target(config)?),
+            Some(Self::connection_fingerprint(config)?),
+            None,
+            None,
         )
-        .bind(user_id)
-        .bind(operacion)
-        .bind(snapshot_id)
-        .bind(datos_enviados)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| format!("Error insertando audit log: {e}"))?;
-
-        Ok(Some(entry_id))
+        .await?;
+        Ok(Some(snap.id))
     }
 
     /// Actualiza el resultado de una entrada de auditoría.
@@ -381,10 +432,10 @@ impl BdpBackupService {
         datos_respuesta: Option<&serde_json::Value>,
         error_mensaje: Option<&str>,
     ) -> Result<(), String> {
-        sqlx::query(
-            r#"UPDATE bdp_audit_log
-            SET resultado = $2, datos_respuesta = $3, error_mensaje = $4
-            WHERE id = $1"#,
+        let result = sqlx::query(
+            r"UPDATE bdp_audit_log
+            SET resultado = $2, datos_respuesta = $3, error_mensaje = $4, updated_at = NOW()
+            WHERE id = $1",
         )
         .bind(audit_id)
         .bind(resultado)
@@ -394,6 +445,11 @@ impl BdpBackupService {
         .await
         .map_err(|e| format!("Error actualizando audit log: {e}"))?;
 
+        if result.rows_affected() != 1 {
+            return Err(format!(
+                "No se actualizó la auditoría BDP {audit_id}: registro inexistente"
+            ));
+        }
         Ok(())
     }
 
@@ -408,12 +464,12 @@ impl BdpBackupService {
         limit: i64,
     ) -> Result<Vec<BdpSnapshot>, String> {
         sqlx::query_as::<_, BdpSnapshot>(
-            r#"SELECT id, user_id, tipo, direccion, trigger_tipo, datos, metadata,
-                      created_at, expires_at, notas
+            r"SELECT id, user_id, tipo, direccion, trigger_tipo, datos, metadata,
+                      target_base_url, connection_fingerprint, created_at, expires_at, notas
             FROM bdp_snapshots
             WHERE user_id = $1
             ORDER BY created_at DESC
-            LIMIT $2"#,
+            LIMIT $2",
         )
         .bind(user_id)
         .bind(limit)
@@ -428,10 +484,10 @@ impl BdpBackupService {
         snapshot_id: Uuid,
     ) -> Result<Option<BdpSnapshot>, String> {
         sqlx::query_as::<_, BdpSnapshot>(
-            r#"SELECT id, user_id, tipo, direccion, trigger_tipo, datos, metadata,
-                      created_at, expires_at, notas
+            r"SELECT id, user_id, tipo, direccion, trigger_tipo, datos, metadata,
+                      target_base_url, connection_fingerprint, created_at, expires_at, notas
             FROM bdp_snapshots
-            WHERE id = $1"#,
+            WHERE id = $1",
         )
         .bind(snapshot_id)
         .fetch_optional(pool)
@@ -445,14 +501,12 @@ impl BdpBackupService {
         snapshot_id: Uuid,
         user_id: Uuid,
     ) -> Result<bool, String> {
-        let result = sqlx::query(
-            r#"DELETE FROM bdp_snapshots WHERE id = $1 AND user_id = $2"#,
-        )
-        .bind(snapshot_id)
-        .bind(user_id)
-        .execute(pool)
-        .await
-        .map_err(|e| format!("Error eliminando snapshot: {e}"))?;
+        let result = sqlx::query(r"DELETE FROM bdp_snapshots WHERE id = $1 AND user_id = $2")
+            .bind(snapshot_id)
+            .bind(user_id)
+            .execute(pool)
+            .await
+            .map_err(|e| format!("Error eliminando snapshot: {e}"))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -464,12 +518,14 @@ impl BdpBackupService {
         limit: i64,
     ) -> Result<Vec<BdpAuditEntry>, String> {
         sqlx::query_as::<_, BdpAuditEntry>(
-            r#"SELECT id, user_id, operacion, direccion, snapshot_pre_id,
-                      datos_enviados, resultado, datos_respuesta, error_mensaje, created_at
+            r"SELECT id, user_id, operacion, direccion, snapshot_pre_id,
+                      datos_enviados, resultado, datos_respuesta, error_mensaje,
+                      target_base_url, target_entity_type, target_entity_id,
+                      created_at, updated_at
             FROM bdp_audit_log
             WHERE user_id = $1
             ORDER BY created_at DESC
-            LIMIT $2"#,
+            LIMIT $2",
         )
         .bind(user_id)
         .bind(limit)
@@ -484,6 +540,9 @@ impl BdpBackupService {
 
     /// Restaura datos de Glory desde un snapshot.
     /// NOTA: BDP no permite delete/update via API — solo podemos restaurar datos locales.
+    /* [187A-1] Restauración legacy limitada a datos locales; mantener ambos
+     * recorridos juntos facilita contar y reportar fallos parciales sin ocultarlos. */
+    #[allow(clippy::too_many_lines)]
     pub async fn restaurar_glory(
         pool: &PgPool,
         snapshot_id: Uuid,
@@ -509,7 +568,11 @@ impl BdpBackupService {
         let mut detalles = Vec::new();
 
         /* Restaurar mapeos de artículos */
-        if let Some(mapeos) = snapshot.datos.get("mapeos").and_then(serde_json::Value::as_array) {
+        if let Some(mapeos) = snapshot
+            .datos
+            .get("mapeos")
+            .and_then(serde_json::Value::as_array)
+        {
             for mapeo in mapeos {
                 let Some(id) = mapeo.get("id").and_then(serde_json::Value::as_str) else {
                     continue;
@@ -518,17 +581,19 @@ impl BdpBackupService {
                     continue;
                 };
                 let descripcion = mapeo.get("descripcion").and_then(serde_json::Value::as_str);
-                let precio = mapeo.get("precio_tarifa1").and_then(serde_json::Value::as_f64);
+                let precio = mapeo
+                    .get("precio_tarifa1")
+                    .and_then(serde_json::Value::as_f64);
                 let iva = mapeo.get("iva_pct").and_then(serde_json::Value::as_f64);
                 let activo = mapeo.get("activo").and_then(serde_json::Value::as_bool);
 
                 let result = sqlx::query(
-                    r#"UPDATE bdp_article_map
+                    r"UPDATE bdp_article_map
                     SET descripcion = COALESCE($3, descripcion),
                         precio_tarifa1 = COALESCE($4, precio_tarifa1),
                         iva_pct = COALESCE($5, iva_pct),
                         activo = COALESCE($6, activo)
-                    WHERE id = $1 AND user_id = $2"#,
+                    WHERE id = $1 AND user_id = $2",
                 )
                 .bind(id)
                 .bind(user_id)
@@ -554,7 +619,11 @@ impl BdpBackupService {
         }
 
         /* Restaurar campos BDP de clientes */
-        if let Some(clientes) = snapshot.datos.get("clientes").and_then(serde_json::Value::as_array) {
+        if let Some(clientes) = snapshot
+            .datos
+            .get("clientes")
+            .and_then(serde_json::Value::as_array)
+        {
             for cliente in clientes {
                 let Some(id) = cliente.get("id").and_then(serde_json::Value::as_str) else {
                     continue;
@@ -565,12 +634,12 @@ impl BdpBackupService {
                 let bdp_code = cliente
                     .get("bdp_customer_code")
                     .and_then(serde_json::Value::as_i64)
-                    .map(|c| c as i32);
+                    .and_then(|code| i32::try_from(code).ok());
 
                 let result = sqlx::query(
-                    r#"UPDATE clientes
+                    r"UPDATE clientes
                     SET bdp_customer_code = COALESCE($3, bdp_customer_code)
-                    WHERE id = $1 AND user_id = $2"#,
+                    WHERE id = $1 AND user_id = $2",
                 )
                 .bind(id)
                 .bind(user_id)
@@ -614,7 +683,7 @@ impl BdpBackupService {
     /// Elimina snapshots expirados.
     pub async fn limpiar_expirados(pool: &PgPool) -> Result<u64, String> {
         let result = sqlx::query(
-            r#"DELETE FROM bdp_snapshots WHERE expires_at IS NOT NULL AND expires_at < NOW()"#,
+            r"DELETE FROM bdp_snapshots WHERE expires_at IS NOT NULL AND expires_at < NOW()",
         )
         .execute(pool)
         .await
@@ -627,6 +696,9 @@ impl BdpBackupService {
     // HELPERS PRIVADOS
     // =========================================================================
 
+    /* [187A-1] Helper interno de persistencia: los argumentos reflejan uno a
+     * uno el registro inmutable de evidencia y todos los llamadores son locales. */
+    #[allow(clippy::too_many_arguments)]
     async fn insert_snapshot(
         pool: &PgPool,
         user_id: Uuid,
@@ -635,14 +707,18 @@ impl BdpBackupService {
         trigger_tipo: &str,
         datos: serde_json::Value,
         metadata: Option<serde_json::Value>,
+        target_base_url: Option<String>,
+        connection_fingerprint: Option<String>,
         expires_at: Option<DateTime<Utc>>,
         notas: Option<String>,
     ) -> Result<BdpSnapshot, String> {
         sqlx::query_as::<_, BdpSnapshot>(
-            r#"INSERT INTO bdp_snapshots (user_id, tipo, direccion, trigger_tipo, datos, metadata, expires_at, notas)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            r"INSERT INTO bdp_snapshots
+               (user_id, tipo, direccion, trigger_tipo, datos, metadata,
+                target_base_url, connection_fingerprint, expires_at, notas)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING id, user_id, tipo, direccion, trigger_tipo, datos, metadata,
-                      created_at, expires_at, notas"#,
+                      target_base_url, connection_fingerprint, created_at, expires_at, notas",
         )
         .bind(user_id)
         .bind(tipo)
@@ -650,6 +726,8 @@ impl BdpBackupService {
         .bind(trigger_tipo)
         .bind(datos)
         .bind(metadata)
+        .bind(target_base_url)
+        .bind(connection_fingerprint)
         .bind(expires_at)
         .bind(notas)
         .fetch_one(pool)
@@ -668,88 +746,129 @@ impl BdpBackupService {
             })
             .await
             .map_err(|e| format!("Error obteniendo estado de comanda {order_id}: {e}"))?;
+        if let Some(error) = response_error_message(&order_data) {
+            return Err(format!(
+                "Snapshot pre-write bloqueado: GetOrder {order_id} devolvió {error}"
+            ));
+        }
+        if !order_data
+            .get("Order")
+            .is_some_and(serde_json::Value::is_object)
+        {
+            return Err(format!(
+                "Snapshot pre-write bloqueado: GetOrder {order_id} no devolvió una orden válida"
+            ));
+        }
         Ok(order_data)
     }
 
-    async fn get_retention_days(pool: &PgPool, user_id: Uuid) -> i32 {
+    async fn get_retention_days(pool: &PgPool, user_id: Uuid) -> Result<i32, String> {
         sqlx::query_scalar::<_, i32>(
-            r#"SELECT COALESCE(bdp_backup_retention_days, 30)
-            FROM configuracion_restaurante WHERE user_id = $1"#,
+            r"SELECT COALESCE(bdp_backup_retention_days, 30)
+            FROM configuracion_restaurante WHERE user_id = $1",
         )
         .bind(user_id)
         .fetch_optional(pool)
         .await
-        .ok()
-        .flatten()
-        .unwrap_or(30)
+        .map_err(|error| format!("Error leyendo retención de snapshots BDP: {error}"))?
+        .ok_or_else(|| "No existe configuración para retención de snapshots BDP".to_string())
     }
 
-    async fn get_auto_backup(pool: &PgPool, user_id: Uuid) -> bool {
+    async fn get_auto_backup(pool: &PgPool, user_id: Uuid) -> Result<bool, String> {
         sqlx::query_scalar::<_, bool>(
-            r#"SELECT COALESCE(bdp_auto_backup_before_write, true)
-            FROM configuracion_restaurante WHERE user_id = $1"#,
+            r"SELECT COALESCE(bdp_auto_backup_before_write, true)
+            FROM configuracion_restaurante WHERE user_id = $1",
         )
         .bind(user_id)
         .fetch_optional(pool)
         .await
-        .ok()
-        .flatten()
-        .unwrap_or(true)
+        .map_err(|error| format!("Error leyendo auto-backup BDP: {error}"))?
+        .ok_or_else(|| "No existe configuración para auto-backup BDP".to_string())
     }
 
     async fn fetch_articles(
         client: &BdpWeblinkClient<'_>,
         config: &ConfiguracionRestaurante,
-    ) -> serde_json::Value {
-        client
-            .export_articles(&BdpExportArticlesRequest::all_web_articles(config.bdp_pos_id))
+    ) -> Result<serde_json::Value, String> {
+        let value = client
+            .export_articles(&BdpExportArticlesRequest::all_web_articles(
+                config.bdp_pos_id,
+            ))
             .await
-            .unwrap_or_else(|e| {
-                warn!("Snapshot articles error: {e}");
-                serde_json::json!(null)
-            })
+            .map_err(|error| format!("Snapshot BDP abortado al leer artículos: {error}"))?;
+        Self::validate_snapshot_response(
+            "artículos",
+            value,
+            &[
+                "ArticlesListData",
+                "ArticleListData",
+                "Articles",
+                "ArticleList",
+            ],
+        )
     }
 
-    async fn fetch_customers(client: &BdpWeblinkClient<'_>) -> serde_json::Value {
-        client
+    async fn fetch_customers(client: &BdpWeblinkClient<'_>) -> Result<serde_json::Value, String> {
+        let value = client
             .export_customers(&BdpExportCustomersRequest::default())
             .await
-            .unwrap_or_else(|e| {
-                warn!("Snapshot customers error: {e}");
-                serde_json::json!(null)
-            })
+            .map_err(|error| format!("Snapshot BDP abortado al leer clientes: {error}"))?;
+        Self::validate_snapshot_response("clientes", value, &["Customers", "CustomerList"])
     }
 
-    async fn fetch_departments(client: &BdpWeblinkClient<'_>) -> serde_json::Value {
-        client
+    async fn fetch_departments(client: &BdpWeblinkClient<'_>) -> Result<serde_json::Value, String> {
+        let value = client
             .export_departments(&BdpExportDepartmentsRequest::default())
             .await
-            .unwrap_or_else(|e| {
-                warn!("Snapshot departments error: {e}");
-                serde_json::json!(null)
-            })
+            .map_err(|error| format!("Snapshot BDP abortado al leer departamentos: {error}"))?;
+        Self::validate_snapshot_response(
+            "departamentos",
+            value,
+            &["Departments", "Department", "DepartmentList"],
+        )
     }
 
-    async fn fetch_rooms(client: &BdpWeblinkClient<'_>) -> serde_json::Value {
-        client
+    async fn fetch_rooms(client: &BdpWeblinkClient<'_>) -> Result<serde_json::Value, String> {
+        let value = client
             .get_rooms_tables(&BdpGetRoomsTablesRequest::default())
             .await
-            .unwrap_or_else(|e| {
-                warn!("Snapshot rooms error: {e}");
-                serde_json::json!(null)
-            })
+            .map_err(|error| format!("Snapshot BDP abortado al leer salones: {error}"))?;
+        Self::validate_snapshot_response("salones", value, &["Rooms", "RoomList"])
     }
 
-    async fn fetch_employees(client: &BdpWeblinkClient<'_>) -> serde_json::Value {
-        client
+    async fn fetch_employees(client: &BdpWeblinkClient<'_>) -> Result<serde_json::Value, String> {
+        let value = client
             .get_employees(&BdpGetEmployeesRequest {
                 ids: vec![],
                 only_salespeople: None,
             })
             .await
-            .unwrap_or_else(|e| {
-                warn!("Snapshot employees error: {e}");
-                serde_json::json!(null)
-            })
+            .map_err(|error| format!("Snapshot BDP abortado al leer empleados: {error}"))?;
+        Self::validate_snapshot_response(
+            "empleados",
+            value,
+            &["Employees", "Employee", "EmployeeList"],
+        )
+    }
+
+    fn validate_snapshot_response(
+        label: &str,
+        value: serde_json::Value,
+        expected_keys: &[&str],
+    ) -> Result<serde_json::Value, String> {
+        if let Some(error) = response_error_message(&value) {
+            return Err(format!(
+                "Snapshot BDP abortado: la lectura de {label} devolvió {error}"
+            ));
+        }
+        let has_payload = expected_keys
+            .iter()
+            .any(|key| value.get(*key).is_some_and(|payload| !payload.is_null()));
+        if !has_payload {
+            return Err(format!(
+                "Snapshot BDP abortado: la lectura de {label} no contiene una colección reconocible"
+            ));
+        }
+        Ok(value)
     }
 }

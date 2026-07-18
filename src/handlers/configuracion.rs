@@ -8,6 +8,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use uuid::Uuid;
 use validator::Validate;
 
 use crate::errors::AppError;
@@ -18,7 +19,7 @@ use crate::models::{
 };
 use crate::services::bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
 use crate::services::{
-    BdpSyncDryRunResponse, BdpSyncPreflightService, ConfiguracionService,
+    BdpBackupService, BdpSyncDryRunResponse, BdpSyncPreflightService, ConfiguracionService,
     IntegracionMarketingService,
 };
 use crate::AppState;
@@ -138,25 +139,128 @@ pub async fn actualizar_configuracion(
     auth: AuthUser,
     Json(req): Json<ActualizarConfiguracionRequest>,
 ) -> Result<Json<ConfiguracionRestaurante>, AppError> {
+    if req.bdp_sync_mode.is_some() {
+        return Err(AppError::Validation(
+            "bdp_sync_mode solo puede cambiarse mediante /configuracion/bdp/sync-mode".into(),
+        ));
+    }
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
-    let config = ConfiguracionService::actualizar(&state.pool, auth.user_id, &req).await?;
+    for (name, map, min) in [
+        ("bdp_tender_map", req.bdp_tender_map.as_ref(), 1_i64),
+        ("bdp_order_type_map", req.bdp_order_type_map.as_ref(), 0_i64),
+    ] {
+        if let Some(map) = map {
+            let object = map
+                .as_object()
+                .ok_or_else(|| AppError::Validation(format!("{name} debe ser un objeto JSON")))?;
+            for (key, value) in object {
+                let parsed = value
+                    .as_i64()
+                    .or_else(|| value.as_str()?.trim().parse::<i64>().ok());
+                if key.trim().is_empty() || parsed.is_none_or(|value| value < min) {
+                    return Err(AppError::Validation(format!(
+                        "{name} contiene una clave vacía o un ID inválido en '{key}'"
+                    )));
+                }
+            }
+        }
+    }
+    if req
+        .bdp_poll_interval_secs
+        .is_some_and(|seconds| !(10..=600).contains(&seconds))
+    {
+        return Err(AppError::Validation(
+            "bdp_poll_interval_secs debe estar entre 10 y 600".into(),
+        ));
+    }
+    if let Some(code) = req.bdp_default_article_code.as_deref() {
+        if !code.trim().is_empty() && code.trim().parse::<i64>().ok().is_none_or(|id| id <= 0) {
+            return Err(AppError::Validation(
+                "bdp_default_article_code debe ser un código numérico positivo".into(),
+            ));
+        }
+    }
+    let invalida_armado_bdp = req.bdp_base_url.is_some()
+        || req.bdp_login.is_some()
+        || req.bdp_password.is_some()
+        || req.bdp_integrator_code.is_some()
+        || req.bdp_pos_id.is_some()
+        || req.bdp_employee_id.is_some()
+        || req.bdp_items_profile_id.is_some()
+        || req.bdp_default_article_code.is_some()
+        || req.bdp_tender_map.is_some()
+        || req.bdp_order_type_map.is_some()
+        || req.bdp_default_customer_code.is_some()
+        || req.bdp_auto_sync_customers.is_some();
+
+    let mut config = ConfiguracionService::actualizar(&state.pool, auth.user_id, &req).await?;
+    if invalida_armado_bdp {
+        /* [187A-1] Cambiar cualquier dato que afecte destino o payload anula
+         * permisos preparados. Aunque el UPDATE de configuración ya ocurrió,
+         * la huella también impediría consumir un armado si esta transacción
+         * fallara, conservando el comportamiento fail-closed. */
+        let mut tx = state
+            .pool
+            .begin()
+            .await
+            .map_err(|error| AppError::Internal(format!("No se pudo desarmar BDP: {error}")))?;
+        sqlx::query(
+            "UPDATE configuracion_restaurante SET bdp_sync_mode = 'read_only', updated_at = NOW() WHERE user_id = $1",
+        )
+        .bind(auth.user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| AppError::Internal(format!("No se pudo cerrar modo BDP: {error}")))?;
+        sqlx::query("DELETE FROM bdp_write_arming WHERE user_id = $1")
+            .bind(auth.user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|error| {
+                AppError::Internal(format!("No se pudo borrar armado BDP: {error}"))
+            })?;
+        tx.commit().await.map_err(|error| {
+            AppError::Internal(format!("No se pudo confirmar desarmado BDP: {error}"))
+        })?;
+        config.bdp_sync_mode = "read_only".to_string();
+    }
     Ok(Json(config))
 }
 
 /// Request para cambiar el modo de sincronización BDP
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CambiarBdpSyncModeRequest {
-    /// Nuevo modo: "read_only", "unidirectional" o "bidirectional"
+    /// Nuevo modo: `read_only` o `unidirectional`.
     #[validate(length(min = 1, message = "modo es requerido"))]
     pub modo: String,
+    /// Confirmación explícita de que el usuario autoriza escrituras reales en BDP.
+    #[serde(default)]
+    pub confirmar_escritura: bool,
+    /// Debe coincidir literalmente con la URL BDP guardada al habilitar escritura.
+    #[serde(default)]
+    pub confirmar_destino: String,
+    #[serde(default)]
+    pub alcances: Vec<String>,
+    #[serde(default)]
+    pub duracion_minutos: i32,
+    #[serde(default)]
+    pub max_operaciones: i32,
+    #[serde(default)]
+    pub motivo: String,
+    pub target_entity_type: Option<String>,
+    pub target_entity_id: Option<Uuid>,
 }
 
-/// Cambiar el modo de sincronización BDP (read_only / unidirectional / bidirectional)
+const VALID_BDP_WRITE_SCOPES: &[&str] =
+    &["create_order", "create_customer", "add_payment", "invoice"];
+
+/// Cambiar el modo de sincronización BDP (`read_only` / `unidirectional`)
 ///
 /// En modo `read_only` ningún dato se envía a BDP (solo lectura).
 /// En modo `unidirectional` Glory → BDP (ventas, clientes).
-/// En modo `bidirectional` BDP ↔ Glory (reservas, mesas, etc).
+/// Las importaciones BDP→Glory son lecturas explícitas y no requieren un modo
+/// de escritura distinto. `bidirectional` permanece bloqueado hasta definir un
+/// contrato real para esa capacidad.
 #[utoipa::path(
     put,
     path = "/api/configuracion/bdp/sync-mode",
@@ -169,6 +273,9 @@ pub struct CambiarBdpSyncModeRequest {
     ),
     security(("bearer_auth" = []))
 )]
+/* [187A-1] Este handler conserva junta la puerta de armado: valida destino,
+ * alcance, objetivo, snapshot y huella antes de persistir una autorización. */
+#[allow(clippy::too_many_lines)]
 pub async fn cambiar_bdp_sync_mode(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -176,6 +283,142 @@ pub async fn cambiar_bdp_sync_mode(
 ) -> Result<Json<ConfiguracionRestaurante>, AppError> {
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
+
+    if !matches!(req.modo.as_str(), "read_only" | "unidirectional") {
+        return Err(AppError::Validation(
+            "Modo BDP inválido; use read_only o unidirectional. bidirectional está bloqueado hasta que exista un contrato implementado y auditado.".into(),
+        ));
+    }
+
+    if req.modo == "unidirectional" {
+        if !req.confirmar_escritura {
+            return Err(AppError::Validation(
+                "Se requiere confirmación explícita para habilitar escrituras reales en BDP."
+                    .into(),
+            ));
+        }
+
+        let actual = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+        let target = BdpBackupService::canonical_target(&actual).map_err(AppError::Validation)?;
+        if req.confirmar_destino.trim().trim_end_matches('/') != target {
+            return Err(AppError::Validation(
+                "La confirmación del destino no coincide exactamente con la URL BDP configurada."
+                    .into(),
+            ));
+        }
+        BdpWeblinkClient::new(&actual)
+            .ensure_write_target_allowed()
+            .map_err(|error| AppError::Validation(error.to_string()))?;
+        if req.alcances.len() != 1
+            || req
+                .alcances
+                .iter()
+                .any(|scope| !VALID_BDP_WRITE_SCOPES.contains(&scope.as_str()))
+            || !(1..=15).contains(&req.duracion_minutos)
+            || req.max_operaciones != 1
+            || req.motivo.trim().len() < 5
+        {
+            return Err(AppError::Validation(
+                "El armado de pruebas requiere un único alcance, duración 1-15 minutos, exactamente una operación y un motivo explícito."
+                    .into(),
+            ));
+        }
+        let target_type = req.target_entity_type.as_deref().unwrap_or("");
+        let target_id = req.target_entity_id.ok_or_else(|| {
+            AppError::Validation(
+                "El armado requiere el UUID exacto de la venta o cliente objetivo.".into(),
+            )
+        })?;
+        let customer_only = req.alcances.iter().all(|scope| scope == "create_customer");
+        let sale_only = req
+            .alcances
+            .iter()
+            .all(|scope| matches!(scope.as_str(), "create_order" | "add_payment" | "invoice"));
+        if !(customer_only && target_type == "cliente" || sale_only && target_type == "venta") {
+            return Err(AppError::Validation(
+                "El objetivo no coincide con los alcances: create_customer requiere cliente; order/payment/invoice requieren venta; no mezcle ambos tipos."
+                    .into(),
+            ));
+        }
+        if !actual.bdp_auto_backup_before_write {
+            return Err(AppError::Validation(
+                "No se puede habilitar escritura: bdp_auto_backup_before_write está desactivado."
+                    .into(),
+            ));
+        }
+
+        let fingerprint =
+            BdpBackupService::connection_fingerprint(&actual).map_err(AppError::Validation)?;
+        let snapshot_id: Option<Uuid> = sqlx::query_scalar(
+            r"SELECT id
+                FROM bdp_snapshots
+                WHERE user_id = $1
+                  AND tipo = 'completo'
+                  AND direccion = 'bdp'
+                  AND target_base_url = $2
+                  AND connection_fingerprint = $3
+                  AND (expires_at IS NULL OR expires_at > NOW())
+                  AND created_at >= NOW() - INTERVAL '24 hours'
+                  AND datos->'articulos' IS NOT NULL AND datos->'articulos' <> 'null'::jsonb
+                  AND datos->'clientes' IS NOT NULL AND datos->'clientes' <> 'null'::jsonb
+                  AND datos->'departamentos' IS NOT NULL AND datos->'departamentos' <> 'null'::jsonb
+                  AND datos->'salones' IS NOT NULL AND datos->'salones' <> 'null'::jsonb
+                  AND datos->'empleados' IS NOT NULL AND datos->'empleados' <> 'null'::jsonb
+                ORDER BY created_at DESC
+                LIMIT 1",
+        )
+        .bind(auth.user_id)
+        .bind(&target)
+        .bind(&fingerprint)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| AppError::Internal(format!("Error verificando snapshot BDP: {e}")))?;
+
+        let snapshot_id = snapshot_id.ok_or_else(|| {
+            AppError::Validation(
+                "No se puede habilitar escritura: falta un snapshot completo de esta conexión BDP exacta, vigente y sin lecturas fallidas."
+                    .into(),
+            )
+        })?;
+
+        sqlx::query(
+            r"INSERT INTO bdp_write_arming
+               (user_id, base_url, scopes, target_entity_type, target_entity_id,
+                reason, expires_at, remaining_operations, snapshot_id, connection_fingerprint)
+               VALUES ($1, $2, $3, $4, $5, $6, NOW() + ($7 * INTERVAL '1 minute'), $8, $9, $10)
+               ON CONFLICT (user_id) DO UPDATE SET
+                 base_url = EXCLUDED.base_url,
+                 scopes = EXCLUDED.scopes,
+                 target_entity_type = EXCLUDED.target_entity_type,
+                 target_entity_id = EXCLUDED.target_entity_id,
+                 reason = EXCLUDED.reason,
+                 expires_at = EXCLUDED.expires_at,
+                 remaining_operations = EXCLUDED.remaining_operations,
+                 snapshot_id = EXCLUDED.snapshot_id,
+                 connection_fingerprint = EXCLUDED.connection_fingerprint,
+                 created_at = NOW()",
+        )
+        .bind(auth.user_id)
+        .bind(&target)
+        .bind(&req.alcances)
+        .bind(target_type)
+        .bind(target_id)
+        .bind(req.motivo.trim())
+        .bind(req.duracion_minutos)
+        .bind(req.max_operaciones)
+        .bind(snapshot_id)
+        .bind(&fingerprint)
+        .execute(&state.pool)
+        .await
+        .map_err(|error| AppError::Internal(format!("No se pudo crear armado BDP: {error}")))?;
+    } else {
+        sqlx::query("DELETE FROM bdp_write_arming WHERE user_id = $1")
+            .bind(auth.user_id)
+            .execute(&state.pool)
+            .await
+            .map_err(|error| AppError::Internal(format!("No se pudo desarmar BDP: {error}")))?;
+    }
+
     let update = ActualizarConfiguracionRequest {
         bdp_sync_mode: Some(req.modo),
         ..Default::default()
@@ -199,7 +442,10 @@ pub fn routes() -> Router<AppState> {
             "/configuracion/bdp/sync-dry-run",
             get(diagnosticar_bdp_sync_dry_run),
         )
-        .route("/configuracion/bdp/sync-mode", axum::routing::put(cambiar_bdp_sync_mode))
+        .route(
+            "/configuracion/bdp/sync-mode",
+            axum::routing::put(cambiar_bdp_sync_mode),
+        )
 }
 
 /// Diagnosticar conexión BDP/WebLink sin exponer credenciales
@@ -294,7 +540,8 @@ fn bdp_configurado(config: &ConfiguracionRestaurante) -> bool {
         && !config.bdp_integrator_code.trim().is_empty()
 }
 
-/// Probar sincronización BDP sin crear datos reales
+/// Validar el contrato BDP contra el simulador local. `OnlyCheck` permanece
+/// bloqueado para destinos externos salvo allowlist extraordinaria separada.
 #[utoipa::path(
     get,
     path = "/api/configuracion/bdp/sync-dry-run",

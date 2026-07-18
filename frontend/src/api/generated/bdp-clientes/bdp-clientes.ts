@@ -16,6 +16,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  BdpCustomerImportRequest,
+  BdpCustomerSyncRequest,
   ErrorResponse
 } from '../gestionRestauranteAPI.schemas';
 
@@ -58,12 +60,14 @@ export const getImportarClientesBdpUrl = () => {
   return `/api/bdp/customers/import`
 }
 
-export const importarClientesBdp = async ( options?: RequestInit): Promise<importarClientesBdpResponse> => {
+export const importarClientesBdp = async (bdpCustomerImportRequest: BdpCustomerImportRequest, options?: RequestInit): Promise<importarClientesBdpResponse> => {
 
   return customInstance<importarClientesBdpResponse>(getImportarClientesBdpUrl(),
   {
     ...options,
-    method: 'POST'
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', ...options?.headers},
+    body: JSON.stringify(bdpCustomerImportRequest)
 
 
   }
@@ -73,8 +77,8 @@ export const importarClientesBdp = async ( options?: RequestInit): Promise<impor
 
 
 export const getImportarClientesBdpMutationOptions = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importarClientesBdp>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof importarClientesBdp>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importarClientesBdp>>, TError,{data: BdpCustomerImportRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof importarClientesBdp>>, TError,{data: BdpCustomerImportRequest}, TContext> => {
 
 const mutationKey = ['importarClientesBdp'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -86,10 +90,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importarClientesBdp>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importarClientesBdp>>, {data: BdpCustomerImportRequest}> = (props) => {
+          const {data} = props ?? {};
 
 
-          return  importarClientesBdp(requestOptions)
+          return  importarClientesBdp(data,requestOptions)
         }
 
 
@@ -104,11 +109,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ImportarClientesBdpMutationError = ErrorResponse
 
     export const useImportarClientesBdp = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importarClientesBdp>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importarClientesBdp>>, TError,{data: BdpCustomerImportRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof importarClientesBdp>>,
         TError,
-        void,
+        {data: BdpCustomerImportRequest},
         TContext
       > => {
       return useMutation(getImportarClientesBdpMutationOptions(options), queryClient);
@@ -150,12 +155,14 @@ export const getSincronizarClienteBdpUrl = (id: string,) => {
   return `/api/clientes/${id}/bdp-sync`
 }
 
-export const sincronizarClienteBdp = async (id: string, options?: RequestInit): Promise<sincronizarClienteBdpResponse> => {
+export const sincronizarClienteBdp = async (id: string, bdpCustomerSyncRequest: BdpCustomerSyncRequest, options?: RequestInit): Promise<sincronizarClienteBdpResponse> => {
 
   return customInstance<sincronizarClienteBdpResponse>(getSincronizarClienteBdpUrl(id),
   {
     ...options,
-    method: 'POST'
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', ...options?.headers},
+    body: JSON.stringify(bdpCustomerSyncRequest)
 
 
   }
@@ -165,8 +172,8 @@ export const sincronizarClienteBdp = async (id: string, options?: RequestInit): 
 
 
 export const getSincronizarClienteBdpMutationOptions = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sincronizarClienteBdp>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof sincronizarClienteBdp>>, TError,{id: string}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sincronizarClienteBdp>>, TError,{id: string; data: BdpCustomerSyncRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof sincronizarClienteBdp>>, TError,{id: string; data: BdpCustomerSyncRequest}, TContext> => {
 
 const mutationKey = ['sincronizarClienteBdp'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -178,10 +185,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sincronizarClienteBdp>>, {id: string}> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sincronizarClienteBdp>>, {id: string; data: BdpCustomerSyncRequest}> = (props) => {
+          const {id,data} = props ?? {};
 
-          return  sincronizarClienteBdp(id,requestOptions)
+          return  sincronizarClienteBdp(id,data,requestOptions)
         }
 
 
@@ -196,11 +203,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SincronizarClienteBdpMutationError = ErrorResponse
 
     export const useSincronizarClienteBdp = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sincronizarClienteBdp>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sincronizarClienteBdp>>, TError,{id: string; data: BdpCustomerSyncRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof sincronizarClienteBdp>>,
         TError,
-        {id: string},
+        {id: string; data: BdpCustomerSyncRequest},
         TContext
       > => {
       return useMutation(getSincronizarClienteBdpMutationOptions(options), queryClient);

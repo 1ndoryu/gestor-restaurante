@@ -22,14 +22,14 @@ use crate::services::bdp_weblink_catalog::{
     BdpGetMenuRequest, BdpGetOrderRequest, BdpGetPackRequest, BdpGetPosArticlesRequest,
     BdpGetPosEmployeesRequest, BdpGetPosRequest, BdpGetPosTendersRequest,
     BdpGetPricesArticlesRequest, BdpGetRoomTablesRequest, BdpGetRoomsTablesRequest,
-    BdpInvoiceOrderRequest, BDP_PATH_CANCEL_ORDER, BDP_PATH_CREATE_CUSTOMER,
-    BDP_PATH_CREATE_ORDER, BDP_PATH_EXPORT_ARTICLES, BDP_PATH_EXPORT_CUSTOMERS,
-    BDP_PATH_EXPORT_DEPARTMENTS, BDP_PATH_EXPORT_DEPARTMENTS_FROM_PROFILE, BDP_PATH_GET_ARTICLE,
-    BDP_PATH_GET_EMPLOYEE, BDP_PATH_GET_EMPLOYEES, BDP_PATH_GET_FASTFOOD, BDP_PATH_GET_MENU,
-    BDP_PATH_GET_ORDER, BDP_PATH_GET_PACK, BDP_PATH_GET_POS, BDP_PATH_GET_POSES,
-    BDP_PATH_GET_POS_ARTICLES, BDP_PATH_GET_POS_EMPLOYEES, BDP_PATH_GET_POS_TENDERS,
-    BDP_PATH_GET_PRICES_ARTICLES, BDP_PATH_GET_ROOM_TABLES, BDP_PATH_GET_ROOMS_TABLES,
-    BDP_PATH_GET_TENDERS, BDP_PATH_INVOICE_ORDER, BDP_PATH_ORDER_PAYMENT_ADD,
+    BdpInvoiceOrderRequest, BDP_PATH_CANCEL_ORDER, BDP_PATH_CREATE_CUSTOMER, BDP_PATH_CREATE_ORDER,
+    BDP_PATH_EXPORT_ARTICLES, BDP_PATH_EXPORT_CUSTOMERS, BDP_PATH_EXPORT_DEPARTMENTS,
+    BDP_PATH_EXPORT_DEPARTMENTS_FROM_PROFILE, BDP_PATH_GET_ARTICLE, BDP_PATH_GET_EMPLOYEE,
+    BDP_PATH_GET_EMPLOYEES, BDP_PATH_GET_FASTFOOD, BDP_PATH_GET_MENU, BDP_PATH_GET_ORDER,
+    BDP_PATH_GET_PACK, BDP_PATH_GET_POS, BDP_PATH_GET_POSES, BDP_PATH_GET_POS_ARTICLES,
+    BDP_PATH_GET_POS_EMPLOYEES, BDP_PATH_GET_POS_TENDERS, BDP_PATH_GET_PRICES_ARTICLES,
+    BDP_PATH_GET_ROOMS_TABLES, BDP_PATH_GET_ROOM_TABLES, BDP_PATH_GET_TENDERS,
+    BDP_PATH_INVOICE_ORDER, BDP_PATH_ORDER_PAYMENT_ADD,
 };
 
 const BDP_SESSION_MINUTES: u8 = 59;
@@ -53,6 +53,8 @@ pub enum BdpWeblinkError {
     Api { status: u16, body: String },
     #[error("BDP devolvio error: {0}")]
     Remote(String),
+    #[error("Escritura BDP bloqueada: destino no incluido en BDP_WRITE_ALLOWED_ORIGINS: {0}")]
+    WriteTargetDenied(String),
 }
 
 #[derive(Debug, Deserialize)]
@@ -176,6 +178,7 @@ impl<'a> BdpWeblinkClient<'a> {
         &self,
         request: &BdpCreateCustomerRequest,
     ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_CREATE_CUSTOMER, request)
             .await
     }
@@ -184,6 +187,7 @@ impl<'a> BdpWeblinkClient<'a> {
         &self,
         request: &BdpCreateOrderRequest,
     ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_CREATE_ORDER, request)
             .await
     }
@@ -192,6 +196,10 @@ impl<'a> BdpWeblinkClient<'a> {
         &self,
         request: &BdpCreateOrderRequest,
     ) -> Result<Value, BdpWeblinkError> {
+        /* [187A-1] OnlyCheck comparte el endpoint de creación. Hasta que la
+         * versión real demuestre que no persiste, queda denegado externamente
+         * por defecto y usa una allowlist independiente de las escrituras. */
+        self.ensure_target_allowed("BDP_CHECK_ORDER_ALLOWED_ORIGINS")?;
         let mut request = request.clone();
         request.order_operation_type = 1;
         self.post_authenticated_json(BDP_PATH_CREATE_ORDER, &request)
@@ -207,6 +215,7 @@ impl<'a> BdpWeblinkClient<'a> {
         &self,
         request: &BdpCancelOrderRequest,
     ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_CANCEL_ORDER, request)
             .await
     }
@@ -215,6 +224,7 @@ impl<'a> BdpWeblinkClient<'a> {
         &self,
         request: &BdpAddOrderPaymentRequest,
     ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_ORDER_PAYMENT_ADD, request)
             .await
     }
@@ -223,6 +233,7 @@ impl<'a> BdpWeblinkClient<'a> {
         &self,
         request: &BdpInvoiceOrderRequest,
     ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_INVOICE_ORDER, request)
             .await
     }
@@ -428,6 +439,47 @@ impl<'a> BdpWeblinkClient<'a> {
         Ok(())
     }
 
+    /// Kill switch de destino para toda escritura. Loopback se permite para el
+    /// simulador local; cualquier host externo debe estar autorizado de forma
+    /// exacta y deliberada mediante una variable del proceso.
+    pub(crate) fn ensure_write_target_allowed(&self) -> Result<(), BdpWeblinkError> {
+        self.ensure_target_allowed("BDP_WRITE_ALLOWED_ORIGINS")
+    }
+
+    fn ensure_target_allowed(&self, allowlist_env: &str) -> Result<(), BdpWeblinkError> {
+        self.ensure_base_url()?;
+        let base = self.config.bdp_base_url.trim().trim_end_matches('/');
+        let parsed = reqwest::Url::parse(base)
+            .map_err(|_| BdpWeblinkError::InvalidBaseUrl(base.to_string()))?;
+        if !matches!(parsed.scheme(), "http" | "https") {
+            return Err(BdpWeblinkError::WriteTargetDenied(base.to_string()));
+        }
+        if !parsed.username().is_empty()
+            || parsed.password().is_some()
+            || parsed.query().is_some()
+            || parsed.fragment().is_some()
+            || parsed.path() != "/"
+        {
+            return Err(BdpWeblinkError::WriteTargetDenied(base.to_string()));
+        }
+        if parsed.host_str().is_some_and(|host| {
+            host.eq_ignore_ascii_case("localhost") || host == "127.0.0.1" || host == "::1"
+        }) {
+            return Ok(());
+        }
+
+        let allowed = std::env::var(allowlist_env).unwrap_or_default();
+        if allowed
+            .split(',')
+            .map(str::trim)
+            .map(|entry| entry.trim_end_matches('/'))
+            .any(|entry| !entry.is_empty() && entry == base)
+        {
+            return Ok(());
+        }
+        Err(BdpWeblinkError::WriteTargetDenied(base.to_string()))
+    }
+
     fn build_url(&self, path: &str) -> Result<String, BdpWeblinkError> {
         let base = self.config.bdp_base_url.trim().trim_end_matches('/');
         let endpoint = path.trim_start_matches('/');
@@ -526,6 +578,7 @@ mod tests {
             bdp_order_type_map: serde_json::json!({}),
             bdp_default_customer_code: String::new(),
             bdp_poll_interval_secs: 60,
+            bdp_poll_enabled: false,
             google_review_url: String::new(),
             telefono_restaurante: String::new(),
             url_reservas: String::new(),
@@ -535,6 +588,40 @@ mod tests {
             bdp_auto_backup_before_write: true,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn external_write_and_only_check_are_denied_without_explicit_allowlist() {
+        let config = config("http://192.0.2.10:8068".to_string());
+        let client = BdpWeblinkClient::new(&config);
+
+        assert!(client
+            .ensure_target_allowed("BDP_TEST_ALLOWLIST_THAT_DOES_NOT_EXIST")
+            .is_err());
+    }
+
+    #[test]
+    fn loopback_simulator_is_allowed_without_external_allowlist() {
+        let config = config("http://127.0.0.1:18765".to_string());
+        let client = BdpWeblinkClient::new(&config);
+
+        assert!(client
+            .ensure_target_allowed("BDP_TEST_ALLOWLIST_THAT_DOES_NOT_EXIST")
+            .is_ok());
+    }
+
+    #[test]
+    fn write_target_rejects_embedded_path_or_credentials() {
+        for base_url in [
+            "http://127.0.0.1:18765/otra-ruta",
+            "http://usuario:clave@127.0.0.1:18765",
+        ] {
+            let config = config(base_url.to_string());
+            let client = BdpWeblinkClient::new(&config);
+            assert!(client
+                .ensure_target_allowed("BDP_TEST_ALLOWLIST_THAT_DOES_NOT_EXIST")
+                .is_err());
         }
     }
 
@@ -607,6 +694,23 @@ mod tests {
             .unwrap();
 
         assert_eq!(response_error_message(&response), None);
+    }
+
+    #[test]
+    fn external_write_target_is_denied_by_default() {
+        let config = config("https://bdp.example.invalid".to_string());
+        let client = BdpWeblinkClient::new(&config);
+        assert!(matches!(
+            client.ensure_write_target_allowed(),
+            Err(BdpWeblinkError::WriteTargetDenied(_))
+        ));
+    }
+
+    #[test]
+    fn loopback_write_target_is_allowed_for_simulator() {
+        let config = config("http://127.0.0.1:18765".to_string());
+        let client = BdpWeblinkClient::new(&config);
+        assert!(client.ensure_write_target_allowed().is_ok());
     }
 
     #[tokio::test]

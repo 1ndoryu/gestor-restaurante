@@ -72,17 +72,20 @@ impl ConfiguracionRepository {
                      bdp_pos_id = COALESCE($24, bdp_pos_id), \
                      bdp_employee_id = COALESCE($25, bdp_employee_id), \
                      bdp_items_profile_id = COALESCE($26, bdp_items_profile_id), \
-                     google_review_url = COALESCE($27, google_review_url), \
-                     telefono_restaurante = COALESCE($28, telefono_restaurante), \
-                     url_reservas = COALESCE($29, url_reservas), \
-                     bdp_tender_map = COALESCE($30, bdp_tender_map), \
-                     bdp_order_type_map = COALESCE($31, bdp_order_type_map), \
-                     bdp_default_customer_code = COALESCE($32, bdp_default_customer_code), \
-                     bdp_poll_interval_secs = COALESCE($33, bdp_poll_interval_secs), \
-                     bdp_auto_sync_customers = COALESCE($34, bdp_auto_sync_customers), \
-                     bdp_sync_mode = COALESCE($35, bdp_sync_mode), \
-                     bdp_backup_retention_days = COALESCE($36, bdp_backup_retention_days), \
-                     bdp_auto_backup_before_write = COALESCE($37, bdp_auto_backup_before_write), \
+                     bdp_default_article_code = COALESCE($27, bdp_default_article_code), \
+                     bdp_default_article_name = COALESCE($28, bdp_default_article_name), \
+                     google_review_url = COALESCE($29, google_review_url), \
+                     telefono_restaurante = COALESCE($30, telefono_restaurante), \
+                     url_reservas = COALESCE($31, url_reservas), \
+                     bdp_tender_map = COALESCE($32, bdp_tender_map), \
+                     bdp_order_type_map = COALESCE($33, bdp_order_type_map), \
+                     bdp_default_customer_code = COALESCE($34, bdp_default_customer_code), \
+                     bdp_poll_interval_secs = COALESCE($35, bdp_poll_interval_secs), \
+                     bdp_poll_enabled = COALESCE($36, bdp_poll_enabled), \
+                     bdp_auto_sync_customers = COALESCE($37, bdp_auto_sync_customers), \
+                     bdp_sync_mode = COALESCE($38, bdp_sync_mode), \
+                     bdp_backup_retention_days = COALESCE($39, bdp_backup_retention_days), \
+                     bdp_auto_backup_before_write = COALESCE($40, bdp_auto_backup_before_write), \
                 updated_at = NOW() \
              WHERE user_id = $1 RETURNING *",
         )
@@ -112,6 +115,8 @@ impl ConfiguracionRepository {
         .bind(req.bdp_pos_id)
         .bind(req.bdp_employee_id)
         .bind(req.bdp_items_profile_id)
+        .bind(req.bdp_default_article_code.as_deref())
+        .bind(req.bdp_default_article_name.as_deref())
         .bind(req.google_review_url.as_deref())
         .bind(req.telefono_restaurante.as_deref())
         .bind(req.url_reservas.as_deref())
@@ -119,6 +124,7 @@ impl ConfiguracionRepository {
         .bind(req.bdp_order_type_map.as_ref())
         .bind(req.bdp_default_customer_code.as_deref())
         .bind(req.bdp_poll_interval_secs)
+        .bind(req.bdp_poll_enabled)
         .bind(req.bdp_auto_sync_customers)
         .bind(req.bdp_sync_mode.as_deref())
         .bind(req.bdp_backup_retention_days)

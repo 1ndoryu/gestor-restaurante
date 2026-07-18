@@ -30,6 +30,7 @@ import type {
   BdpCatalogSyncResult,
   CrearBdpArticleMapRequest,
   ErrorResponse,
+  SyncTablesRequest,
   SyncTablesResult
 } from '../gestionRestauranteAPI.schemas';
 
@@ -1088,12 +1089,14 @@ export const getSyncTablesUrl = () => {
   return `/api/bdp/sync-tables`
 }
 
-export const syncTables = async ( options?: RequestInit): Promise<syncTablesResponse> => {
+export const syncTables = async (syncTablesRequest: SyncTablesRequest, options?: RequestInit): Promise<syncTablesResponse> => {
 
   return customInstance<syncTablesResponse>(getSyncTablesUrl(),
   {
     ...options,
-    method: 'POST'
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', ...options?.headers},
+    body: JSON.stringify(syncTablesRequest)
 
 
   }
@@ -1103,8 +1106,8 @@ export const syncTables = async ( options?: RequestInit): Promise<syncTablesResp
 
 
 export const getSyncTablesMutationOptions = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncTables>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof syncTables>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncTables>>, TError,{data: SyncTablesRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncTables>>, TError,{data: SyncTablesRequest}, TContext> => {
 
 const mutationKey = ['syncTables'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -1116,10 +1119,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncTables>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncTables>>, {data: SyncTablesRequest}> = (props) => {
+          const {data} = props ?? {};
 
 
-          return  syncTables(requestOptions)
+          return  syncTables(data,requestOptions)
         }
 
 
@@ -1134,11 +1138,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SyncTablesMutationError = ErrorResponse
 
     export const useSyncTables = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncTables>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncTables>>, TError,{data: SyncTablesRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof syncTables>>,
         TError,
-        void,
+        {data: SyncTablesRequest},
         TContext
       > => {
       return useMutation(getSyncTablesMutationOptions(options), queryClient);

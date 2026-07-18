@@ -28,7 +28,7 @@ impl ConfiguracionService {
     ) -> Result<ConfiguracionRestaurante, AppError> {
         /* [F3] Validar bdp_sync_mode si se proporciona */
         if let Some(ref mode) = req.bdp_sync_mode {
-            let valid_modes = ["read_only", "unidirectional", "bidirectional"];
+            let valid_modes = ["read_only", "unidirectional"];
             if !valid_modes.contains(&mode.as_str()) {
                 return Err(AppError::Validation(format!(
                     "bdp_sync_mode inválido: '{mode}'. Valores permitidos: {}",

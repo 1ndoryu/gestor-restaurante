@@ -49,7 +49,7 @@ async fn insert_snapshot_for_test(
         r#"INSERT INTO bdp_snapshots (user_id, tipo, direccion, trigger_tipo, datos)
         VALUES ($1, $2, $3, $4, $5)
         RETURNING id, user_id, tipo, direccion, trigger_tipo, datos, metadata,
-                  created_at, expires_at, notas"#,
+                  target_base_url, connection_fingerprint, created_at, expires_at, notas"#,
     )
     .bind(user_id)
     .bind(tipo)
@@ -59,6 +59,26 @@ async fn insert_snapshot_for_test(
     .fetch_one(pool)
     .await
     .expect("insert_snapshot_for_test failed")
+}
+
+async fn insert_audit_for_test(
+    pool: &PgPool,
+    user_id: Uuid,
+    operacion: &str,
+    datos: serde_json::Value,
+) -> Uuid {
+    sqlx::query_scalar(
+        r#"INSERT INTO bdp_audit_log
+           (user_id, operacion, direccion, datos_enviados, resultado)
+           VALUES ($1, $2, 'glory_to_bdp', $3, 'pendiente')
+           RETURNING id"#,
+    )
+    .bind(user_id)
+    .bind(operacion)
+    .bind(datos)
+    .fetch_one(pool)
+    .await
+    .expect("insert_audit_for_test failed")
 }
 
 /// Crea un artículo en bdp_article_map para tests de restauración.
@@ -128,7 +148,9 @@ async fn test_snapshot_glory_mapeos(pool: PgPool) {
     assert_eq!(snap.user_id, user_id);
     assert_eq!(snap.notas.as_deref(), Some("test mapeos"));
 
-    let mapeos = snap.datos["mapeos"].as_array().expect("mapeos should be array");
+    let mapeos = snap.datos["mapeos"]
+        .as_array()
+        .expect("mapeos should be array");
     assert_eq!(mapeos.len(), 2, "should have 2 mapeos");
 }
 
@@ -139,17 +161,14 @@ async fn test_snapshot_glory_clientes(pool: PgPool) {
     create_test_cliente(&pool, user_id, "Juan").await;
     create_test_cliente(&pool, user_id, "Maria").await;
 
-    let snap = BdpBackupService::snapshot_glory(
-        &pool,
-        user_id,
-        &["clientes".to_string()],
-        None,
-    )
-    .await
-    .expect("snapshot_glory clientes should succeed");
+    let snap = BdpBackupService::snapshot_glory(&pool, user_id, &["clientes".to_string()], None)
+        .await
+        .expect("snapshot_glory clientes should succeed");
 
     assert_eq!(snap.tipo, "glory_clientes");
-    let clientes = snap.datos["clientes"].as_array().expect("clientes should be array");
+    let clientes = snap.datos["clientes"]
+        .as_array()
+        .expect("clientes should be array");
     assert_eq!(clientes.len(), 2);
 }
 
@@ -158,16 +177,13 @@ async fn test_snapshot_glory_empty_table(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     create_test_config(&pool, user_id).await;
 
-    let snap = BdpBackupService::snapshot_glory(
-        &pool,
-        user_id,
-        &["mapeos".to_string()],
-        None,
-    )
-    .await
-    .expect("snapshot on empty table should succeed");
+    let snap = BdpBackupService::snapshot_glory(&pool, user_id, &["mapeos".to_string()], None)
+        .await
+        .expect("snapshot on empty table should succeed");
 
-    let mapeos = snap.datos["mapeos"].as_array().expect("mapeos should be array");
+    let mapeos = snap.datos["mapeos"]
+        .as_array()
+        .expect("mapeos should be array");
     assert_eq!(mapeos.len(), 0, "empty table → empty array");
 }
 
@@ -211,12 +227,22 @@ async fn test_listar_snapshots_despues_de_crear(pool: PgPool) {
     create_test_config(&pool, user_id).await;
     create_test_article_map(&pool, user_id, "CAFE001", "1001").await;
 
-    BdpBackupService::snapshot_glory(&pool, user_id, &["mapeos".to_string()], Some("primero".into()))
-        .await
-        .unwrap();
-    BdpBackupService::snapshot_glory(&pool, user_id, &["mapeos".to_string()], Some("segundo".into()))
-        .await
-        .unwrap();
+    BdpBackupService::snapshot_glory(
+        &pool,
+        user_id,
+        &["mapeos".to_string()],
+        Some("primero".into()),
+    )
+    .await
+    .unwrap();
+    BdpBackupService::snapshot_glory(
+        &pool,
+        user_id,
+        &["mapeos".to_string()],
+        Some("segundo".into()),
+    )
+    .await
+    .unwrap();
 
     let snapshots = BdpBackupService::listar_snapshots(&pool, user_id, 10)
         .await
@@ -244,8 +270,12 @@ async fn test_listar_snapshots_aisla_usuarios(pool: PgPool) {
         .await
         .unwrap();
 
-    let snap_a = BdpBackupService::listar_snapshots(&pool, user_a, 10).await.unwrap();
-    let snap_b = BdpBackupService::listar_snapshots(&pool, user_b, 10).await.unwrap();
+    let snap_a = BdpBackupService::listar_snapshots(&pool, user_a, 10)
+        .await
+        .unwrap();
+    let snap_b = BdpBackupService::listar_snapshots(&pool, user_b, 10)
+        .await
+        .unwrap();
 
     assert_eq!(snap_a.len(), 1);
     assert_eq!(snap_b.len(), 1);
@@ -258,9 +288,14 @@ async fn test_obtener_snapshot(pool: PgPool) {
     create_test_config(&pool, user_id).await;
     create_test_article_map(&pool, user_id, "CAFE001", "1001").await;
 
-    let created = BdpBackupService::snapshot_glory(&pool, user_id, &["mapeos".to_string()], Some("test".into()))
-        .await
-        .unwrap();
+    let created = BdpBackupService::snapshot_glory(
+        &pool,
+        user_id,
+        &["mapeos".to_string()],
+        Some("test".into()),
+    )
+    .await
+    .unwrap();
 
     let fetched = BdpBackupService::obtener_snapshot(&pool, created.id)
         .await
@@ -296,7 +331,9 @@ async fn test_eliminar_snapshot(pool: PgPool) {
         .expect("eliminar should succeed");
     assert!(deleted);
 
-    let fetched = BdpBackupService::obtener_snapshot(&pool, created.id).await.unwrap();
+    let fetched = BdpBackupService::obtener_snapshot(&pool, created.id)
+        .await
+        .unwrap();
     assert!(fetched.is_none(), "snapshot should be gone");
 }
 
@@ -316,7 +353,9 @@ async fn test_eliminar_snapshot_wrong_user(pool: PgPool) {
         .expect("should not error");
     assert!(!deleted, "wrong user should not delete");
 
-    let still_exists = BdpBackupService::obtener_snapshot(&pool, created.id).await.unwrap();
+    let still_exists = BdpBackupService::obtener_snapshot(&pool, created.id)
+        .await
+        .unwrap();
     assert!(still_exists.is_some(), "snapshot should still exist");
 }
 
@@ -337,17 +376,69 @@ async fn test_listar_snapshots_limit(pool: PgPool) {
         .unwrap();
     }
 
-    let all = BdpBackupService::listar_snapshots(&pool, user_id, 100).await.unwrap();
+    let all = BdpBackupService::listar_snapshots(&pool, user_id, 100)
+        .await
+        .unwrap();
     assert_eq!(all.len(), 5);
 
-    let limited = BdpBackupService::listar_snapshots(&pool, user_id, 2).await.unwrap();
+    let limited = BdpBackupService::listar_snapshots(&pool, user_id, 2)
+        .await
+        .unwrap();
     assert_eq!(limited.len(), 2);
 }
 
 /* ========== Audit Log ========== */
 
 #[sqlx::test(migrations = "./migrations")]
-async fn test_registrar_escritura_auto_backup_off(pool: PgPool) {
+async fn test_snapshot_parcial_rechaza_tipo_desconocido_sin_http(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    create_test_config(&pool, user_id).await;
+    let config = glory_backend::models::ConfiguracionRestaurante {
+        user_id,
+        bdp_base_url: "http://192.0.2.10:8068".into(),
+        ..Default::default()
+    };
+
+    let result = BdpBackupService::snapshot_bdp_parcial(
+        &pool,
+        user_id,
+        &config,
+        &["desconocido".to_string()],
+        None,
+    )
+    .await;
+
+    assert!(result.is_err());
+    assert!(BdpBackupService::listar_snapshots(&pool, user_id, 10)
+        .await
+        .unwrap()
+        .is_empty());
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_snapshot_pago_sin_order_id_falla_antes_de_http(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    create_test_config(&pool, user_id).await;
+    let config = glory_backend::models::ConfiguracionRestaurante {
+        user_id,
+        bdp_base_url: "http://192.0.2.10:8068".into(),
+        bdp_auto_backup_before_write: true,
+        ..Default::default()
+    };
+
+    let result =
+        BdpBackupService::preparar_snapshot_escritura(&pool, user_id, "add_payment", &config, None)
+            .await;
+
+    assert!(result.is_err());
+    assert!(BdpBackupService::listar_snapshots(&pool, user_id, 10)
+        .await
+        .unwrap()
+        .is_empty());
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_preparar_snapshot_rechaza_auto_backup_off(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     /* Config con auto_backup = false */
     sqlx::query(
@@ -359,29 +450,29 @@ async fn test_registrar_escritura_auto_backup_off(pool: PgPool) {
     .await
     .unwrap();
 
-    let datos = serde_json::json!({"order_id": 123});
     let config = glory_backend::models::ConfiguracionRestaurante {
         user_id,
         bdp_auto_backup_before_write: false,
         ..Default::default()
     };
 
-    let result = BdpBackupService::registrar_escritura(
+    let result = BdpBackupService::preparar_snapshot_escritura(
         &pool,
         user_id,
         "create_order",
-        &datos,
         &config,
         None,
     )
-    .await
-    .expect("should succeed");
+    .await;
 
-    assert!(result.is_none(), "auto_backup off → no audit entry");
+    assert!(
+        result.is_err(),
+        "auto_backup off debe bloquear la escritura"
+    );
 }
 
 #[sqlx::test(migrations = "./migrations")]
-async fn test_registrar_escritura_auto_backup_on(pool: PgPool) {
+async fn test_preparar_snapshot_create_no_hace_lectura_remota(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     sqlx::query(
         r#"INSERT INTO configuracion_restaurante (user_id, nombre_restaurante, bdp_auto_backup_before_write)
@@ -392,33 +483,27 @@ async fn test_registrar_escritura_auto_backup_on(pool: PgPool) {
     .await
     .unwrap();
 
-    let datos = serde_json::json!({"cliente_id": 456, "importe": 1500});
     let config = glory_backend::models::ConfiguracionRestaurante {
         user_id,
         bdp_auto_backup_before_write: true,
         ..Default::default()
     };
 
-    let result = BdpBackupService::registrar_escritura(
+    let result = BdpBackupService::preparar_snapshot_escritura(
         &pool,
         user_id,
         "create_customer",
-        &datos,
         &config,
         None,
     )
     .await
     .expect("should succeed");
 
-    assert!(result.is_some(), "auto_backup on → audit entry created");
-
-    let audit = BdpBackupService::listar_audit(&pool, user_id, 10)
+    assert!(result.is_none(), "create customer no necesita GetOrder");
+    assert!(BdpBackupService::listar_audit(&pool, user_id, 10)
         .await
-        .unwrap();
-    assert_eq!(audit.len(), 1);
-    assert_eq!(audit[0].operacion, "create_customer");
-    assert_eq!(audit[0].resultado, "pendiente");
-    assert_eq!(audit[0].direccion, "glory_to_bdp");
+        .unwrap()
+        .is_empty());
 }
 
 #[sqlx::test(migrations = "./migrations")]
@@ -433,23 +518,13 @@ async fn test_actualizar_resultado(pool: PgPool) {
     .await
     .unwrap();
 
-    let config = glory_backend::models::ConfiguracionRestaurante {
-        user_id,
-        bdp_auto_backup_before_write: true,
-        ..Default::default()
-    };
-
-    let entry_id = BdpBackupService::registrar_escritura(
+    let entry_id = insert_audit_for_test(
         &pool,
         user_id,
         "create_order",
-        &serde_json::json!({"total": 500}),
-        &config,
-        None,
+        serde_json::json!({"total": 500}),
     )
-    .await
-    .unwrap()
-    .expect("should have entry_id");
+    .await;
 
     /* Actualizar a ok */
     BdpBackupService::actualizar_resultado(
@@ -462,7 +537,9 @@ async fn test_actualizar_resultado(pool: PgPool) {
     .await
     .expect("update should succeed");
 
-    let audit = BdpBackupService::listar_audit(&pool, user_id, 10).await.unwrap();
+    let audit = BdpBackupService::listar_audit(&pool, user_id, 10)
+        .await
+        .unwrap();
     assert_eq!(audit.len(), 1);
     assert_eq!(audit[0].resultado, "ok");
     assert!(audit[0].datos_respuesta.is_some());
@@ -481,23 +558,13 @@ async fn test_actualizar_resultado_con_error(pool: PgPool) {
     .await
     .unwrap();
 
-    let config = glory_backend::models::ConfiguracionRestaurante {
-        user_id,
-        bdp_auto_backup_before_write: true,
-        ..Default::default()
-    };
-
-    let entry_id = BdpBackupService::registrar_escritura(
+    let entry_id = insert_audit_for_test(
         &pool,
         user_id,
         "add_payment",
-        &serde_json::json!({"amount": 100}),
-        &config,
-        None,
+        serde_json::json!({"amount": 100}),
     )
-    .await
-    .unwrap()
-    .expect("should have entry_id");
+    .await;
 
     BdpBackupService::actualizar_resultado(
         &pool,
@@ -509,9 +576,14 @@ async fn test_actualizar_resultado_con_error(pool: PgPool) {
     .await
     .unwrap();
 
-    let audit = BdpBackupService::listar_audit(&pool, user_id, 10).await.unwrap();
+    let audit = BdpBackupService::listar_audit(&pool, user_id, 10)
+        .await
+        .unwrap();
     assert_eq!(audit[0].resultado, "error");
-    assert_eq!(audit[0].error_mensaje.as_deref(), Some("BDP connection timeout"));
+    assert_eq!(
+        audit[0].error_mensaje.as_deref(),
+        Some("BDP connection timeout")
+    );
 }
 
 #[sqlx::test(migrations = "./migrations")]
@@ -541,29 +613,16 @@ async fn test_listar_audit_aisla_usuarios(pool: PgPool) {
         .unwrap();
     }
 
-    let config_a = glory_backend::models::ConfiguracionRestaurante {
-        user_id: user_a,
-        bdp_auto_backup_before_write: true,
-        ..Default::default()
-    };
-    let config_b = glory_backend::models::ConfiguracionRestaurante {
-        user_id: user_b,
-        bdp_auto_backup_before_write: true,
-        ..Default::default()
-    };
+    insert_audit_for_test(&pool, user_a, "create_order", serde_json::json!({})).await;
+    insert_audit_for_test(&pool, user_b, "invoice", serde_json::json!({})).await;
+    insert_audit_for_test(&pool, user_b, "create_customer", serde_json::json!({})).await;
 
-    BdpBackupService::registrar_escritura(&pool, user_a, "create_order", &serde_json::json!({}), &config_a, None)
+    let audit_a = BdpBackupService::listar_audit(&pool, user_a, 100)
         .await
         .unwrap();
-    BdpBackupService::registrar_escritura(&pool, user_b, "invoice", &serde_json::json!({}), &config_b, None)
+    let audit_b = BdpBackupService::listar_audit(&pool, user_b, 100)
         .await
         .unwrap();
-    BdpBackupService::registrar_escritura(&pool, user_b, "create_customer", &serde_json::json!({}), &config_b, None)
-        .await
-        .unwrap();
-
-    let audit_a = BdpBackupService::listar_audit(&pool, user_a, 100).await.unwrap();
-    let audit_b = BdpBackupService::listar_audit(&pool, user_b, 100).await.unwrap();
 
     assert_eq!(audit_a.len(), 1, "user_a should have 1 entry");
     assert_eq!(audit_b.len(), 2, "user_b should have 2 entries");
@@ -594,15 +653,8 @@ async fn test_restaurar_glory_mapeos(pool: PgPool) {
         "clientes": []
     });
 
-    let snap = insert_snapshot_for_test(
-        &pool,
-        user_id,
-        "glory_test",
-        "glory",
-        "manual",
-        snap_datos,
-    )
-    .await;
+    let snap =
+        insert_snapshot_for_test(&pool, user_id, "glory_test", "glory", "manual", snap_datos).await;
 
     /* Restaurar */
     let result = BdpBackupService::restaurar_glory(&pool, snap.id, user_id)
@@ -613,13 +665,12 @@ async fn test_restaurar_glory_mapeos(pool: PgPool) {
     assert_eq!(result.errores, 0);
 
     /* Verificar que el artículo fue actualizado */
-    let row: (String, rust_decimal::Decimal) = sqlx::query_as(
-        "SELECT descripcion, precio_tarifa1 FROM bdp_article_map WHERE id = $1",
-    )
-    .bind(art_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let row: (String, rust_decimal::Decimal) =
+        sqlx::query_as("SELECT descripcion, precio_tarifa1 FROM bdp_article_map WHERE id = $1")
+            .bind(art_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
     assert_eq!(row.0, "Descripción ORIGINAL");
     assert_eq!(row.1, rust_decimal::Decimal::from(500));
@@ -643,15 +694,8 @@ async fn test_restaurar_glory_clientes(pool: PgPool) {
         ]
     });
 
-    let snap = insert_snapshot_for_test(
-        &pool,
-        user_id,
-        "glory_test",
-        "glory",
-        "manual",
-        snap_datos,
-    )
-    .await;
+    let snap =
+        insert_snapshot_for_test(&pool, user_id, "glory_test", "glory", "manual", snap_datos).await;
 
     let result = BdpBackupService::restaurar_glory(&pool, snap.id, user_id)
         .await
@@ -686,14 +730,9 @@ async fn test_restaurar_glory_wrong_user(pool: PgPool) {
     create_test_config(&pool, user_a).await;
     create_test_article_map(&pool, user_a, "CAFE001", "1001").await;
 
-    let snap = BdpBackupService::snapshot_glory(
-        &pool,
-        user_a,
-        &["mapeos".to_string()],
-        None,
-    )
-    .await
-    .unwrap();
+    let snap = BdpBackupService::snapshot_glory(&pool, user_a, &["mapeos".to_string()], None)
+        .await
+        .unwrap();
 
     let result = BdpBackupService::restaurar_glory(&pool, snap.id, user_b).await;
 
@@ -720,7 +759,9 @@ async fn test_restaurar_glory_rejects_bdp_snapshot(pool: PgPool) {
     let result = BdpBackupService::restaurar_glory(&pool, snap.id, user_id).await;
 
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("Solo se pueden restaurar snapshots de Glory"));
+    assert!(result
+        .unwrap_err()
+        .contains("Solo se pueden restaurar snapshots de Glory"));
 }
 
 #[sqlx::test(migrations = "./migrations")]
@@ -743,17 +784,12 @@ async fn test_restaurar_glory_mapeo_inexistente(pool: PgPool) {
         "clientes": []
     });
 
-    let snap = insert_snapshot_for_test(
-        &pool,
-        user_id,
-        "glory_test",
-        "glory",
-        "manual",
-        snap_datos,
-    )
-    .await;
+    let snap =
+        insert_snapshot_for_test(&pool, user_id, "glory_test", "glory", "manual", snap_datos).await;
 
-    let result = BdpBackupService::restaurar_glory(&pool, snap.id, user_id).await.unwrap();
+    let result = BdpBackupService::restaurar_glory(&pool, snap.id, user_id)
+        .await
+        .unwrap();
 
     assert_eq!(result.registros_restaurados, 0);
     assert_eq!(result.errores, 1);
@@ -803,8 +839,8 @@ async fn test_limpiar_expirados(pool: PgPool) {
 
     assert_eq!(deleted, 1, "only the expired one should be deleted");
 
-    let remaining = BdpBackupService::listar_snapshots(&pool, user_id, 100).await.unwrap();
+    let remaining = BdpBackupService::listar_snapshots(&pool, user_id, 100)
+        .await
+        .unwrap();
     assert_eq!(remaining.len(), 2, "2 non-expired should remain");
 }
-
-

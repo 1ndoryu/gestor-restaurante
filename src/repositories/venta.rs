@@ -1,6 +1,6 @@
 /* 253A-5: Repositorio de ventas — queries SQL con parámetros */
 
-use sqlx::PgPool;
+use sqlx::{Executor, PgPool, Postgres};
 use uuid::Uuid;
 
 use crate::models::{Venta, VentaConCliente};
@@ -41,6 +41,16 @@ pub struct VentaRepository;
 
 impl VentaRepository {
     pub async fn create(pool: &PgPool, data: &NuevaVenta<'_>) -> Result<Venta, sqlx::Error> {
+        Self::create_with(pool, data).await
+    }
+
+    pub async fn create_with<'e, E>(
+        executor: E,
+        data: &NuevaVenta<'_>,
+    ) -> Result<Venta, sqlx::Error>
+    where
+        E: Executor<'e, Database = Postgres>,
+    {
         let id = Uuid::new_v4();
         sqlx::query_as::<_, Venta>(
             "INSERT INTO ventas (id, user_id, fecha, comensales, descripcion, iva_porcentaje, \
@@ -61,7 +71,7 @@ impl VentaRepository {
         .bind(data.importe_iva)
         .bind(data.reserva_id)
         .bind(data.cliente_id)
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
     }
 
@@ -300,6 +310,16 @@ impl VentaRepository {
         pool: &PgPool,
         data: &ActualizarVentaData<'_>,
     ) -> Result<Option<Venta>, sqlx::Error> {
+        Self::update_with(pool, data).await
+    }
+
+    pub async fn update_with<'e, E>(
+        executor: E,
+        data: &ActualizarVentaData<'_>,
+    ) -> Result<Option<Venta>, sqlx::Error>
+    where
+        E: Executor<'e, Database = Postgres>,
+    {
         sqlx::query_as::<_, Venta>(
             "UPDATE ventas SET \
              fecha = COALESCE($3, fecha), \
@@ -326,7 +346,7 @@ impl VentaRepository {
         .bind(data.metodo_pago)
         .bind(data.importe_base)
         .bind(data.importe_iva)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await
     }
 
@@ -420,7 +440,8 @@ impl VentaRepository {
             "SELECT * FROM ventas \
              WHERE user_id = $1 \
                AND bdp_synced = TRUE \
-               AND (bdp_order_status IS NULL OR bdp_order_status NOT IN ('invoiced', 'error'))",
+               AND (bdp_order_status IS NULL OR bdp_order_status NOT IN ('invoiced', 'cancelled', 'error')) \
+             ORDER BY created_at ASC LIMIT 100",
         )
         .bind(user_id)
         .fetch_all(pool)

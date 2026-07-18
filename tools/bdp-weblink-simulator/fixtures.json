@@ -1,0 +1,13 @@
+{
+  "articles": [
+    {"Code": "1000000000001", "Name": "Articulo simulado", "Department": 1, "Tax1": 10, "Price1": 12.50, "Active": true}
+  ],
+  "customers": [
+    {"Code": 100, "FiscalName": "Cliente Simulado", "CommercialName": "Cliente Fixture", "MobilePhone": "000000000", "EMail": "fixture@example.invalid"}
+  ],
+  "departments": [{"Id": 1, "Name": "Departamento simulado"}],
+  "rooms": [{"Id": 1, "Name": "Sala simulada", "Tables": [1, 2]}],
+  "employees": [{"Id": 1, "Name": "Empleado simulado", "Salesperson": true}],
+  "tenders": [{"Id": 1, "Name": "Efectivo simulado", "Type": 0}],
+  "poses": [{"Id": 1, "Name": "POS simulado"}]
+}

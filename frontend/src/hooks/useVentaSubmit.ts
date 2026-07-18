@@ -53,6 +53,7 @@ export function useVentaSubmit(
           descripcion: campos.descripcion || null, iva_porcentaje: campos.ivaPorcentaje,
           turno: campos.turnos[0], canal: campos.canal, metodo_pago: metodoPago,
           importe_base: importeBase, importe_iva: importeIva,
+          lineas: lineasHook.lineas.length > 0 ? lineasHook.lineasRequest : [],
         });
         await queryClient.invalidateQueries({ queryKey: getListarVentasQueryKey() });
         onExito ? onExito() : navigate('/ventas');

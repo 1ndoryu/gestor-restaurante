@@ -67,6 +67,7 @@ fn bdp_config_from_env() -> Option<ConfiguracionRestaurante> {
         bdp_order_type_map: json!({"comedor": "0", "barra": "0"}),
         bdp_default_customer_code: String::new(),
         bdp_poll_interval_secs: 60,
+        bdp_poll_enabled: false,
         bdp_auto_sync_customers: false,
         bdp_sync_mode: "read_only".to_string(),
         bdp_backup_retention_days: 30,

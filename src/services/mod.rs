@@ -1,13 +1,14 @@
 mod api_key;
 mod auth;
 /* [147A-F6] módulos BDP — sincronización Glory → BDP WebLink REST API */
+mod bdp_backup;
+mod bdp_explorer;
 pub(crate) mod bdp_order_poller;
 mod bdp_sync;
 mod bdp_sync_preflight;
 pub mod bdp_weblink;
 pub mod bdp_weblink_catalog;
-mod bdp_explorer;
-mod bdp_backup;
+mod bdp_write_guard;
 mod campana;
 mod canal_reserva;
 mod chatbot;
@@ -31,6 +32,8 @@ mod venta;
 
 pub use api_key::ApiKeyService;
 pub use auth::AuthService;
+pub use bdp_backup::{BdpAuditEntry, BdpBackupService, BdpSnapshot, RestoreResult};
+pub use bdp_explorer::{BdpExploracionResultado, BdpExplorerService, ExploracionCategoria};
 pub use bdp_order_poller::BdpOrderPollerService;
 pub use bdp_sync::BdpSyncService;
 pub use bdp_sync::SyncTablesResult;
@@ -38,11 +41,10 @@ pub use bdp_sync_preflight::{BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncP
 pub use bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
 pub use bdp_weblink_catalog::{
     BdpCatalogSyncResult, BdpCreateCustomerRequest, BdpExportArticlesRequest,
-    BdpExportCustomersRequest, BdpGetPricesArticlesResponse, BdpGetRoomsTablesResponse,
-    BdpGetRoomTablesResponse, BdpRoomData,
+    BdpExportCustomersRequest, BdpGetPricesArticlesResponse, BdpGetRoomTablesResponse,
+    BdpGetRoomsTablesResponse, BdpRoomData,
 };
-pub use bdp_explorer::{BdpExplorerService, BdpExploracionResultado, ExploracionCategoria};
-pub use bdp_backup::{BdpBackupService, BdpSnapshot, BdpAuditEntry, RestoreResult};
+pub use bdp_write_guard::BdpWriteGuard;
 pub use campana::CampanaService;
 pub use canal_reserva::CanalReservaService;
 pub use chatbot::ChatbotService;

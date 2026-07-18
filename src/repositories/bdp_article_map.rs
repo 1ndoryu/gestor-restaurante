@@ -142,7 +142,10 @@ impl BdpArticleMapRepository {
                 OR bdp_article_map.precio_tarifa1 IS DISTINCT FROM EXCLUDED.precio_tarifa1 \
                 OR bdp_article_map.iva_pct IS DISTINCT FROM EXCLUDED.iva_pct \
                 OR bdp_article_map.departamento IS DISTINCT FROM EXCLUDED.departamento \
-                OR bdp_article_map.activo IS DISTINCT FROM EXCLUDED.activo",
+                OR bdp_article_map.familia IS DISTINCT FROM EXCLUDED.familia \
+                OR bdp_article_map.subfamilia IS DISTINCT FROM EXCLUDED.subfamilia \
+                OR bdp_article_map.activo IS DISTINCT FROM EXCLUDED.activo \
+                OR bdp_article_map.barcode IS DISTINCT FROM EXCLUDED.barcode",
         )
         .bind(Uuid::new_v4())
         .bind(user_id)

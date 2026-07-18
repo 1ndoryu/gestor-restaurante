@@ -1,5 +1,7 @@
 # Plan: Sistema de Copias de Seguridad BDP ↔ Glory
 
+> **HISTÓRICO — NO USAR COMO PROCEDIMIENTO OPERATIVO.** Sustituido el 18 de julio de 2026. Ya no se permite continuar una escritura si falla un snapshot, no existe modo bidireccional y una copia local nunca se presenta como rollback de BDP.
+
 > **Fecha:** 2026-07-15
 > **Prioridad:** 🔴 CRÍTICA — Sin este sistema, no podemos sincronizar datos con BDP sin riesgo de pérdida
 > **Objetivo:** Garantizar que NINGUNA operación de Glory pueda causar pérdida de datos en BDP. Punto.

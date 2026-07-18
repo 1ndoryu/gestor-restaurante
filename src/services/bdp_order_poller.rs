@@ -29,6 +29,45 @@ use crate::services::bdp_weblink_catalog::{BdpGetOrderRequest, BdpOrderIdentifie
 pub struct BdpOrderPollerService;
 
 impl BdpOrderPollerService {
+    /// Ejecuta únicamente configuraciones cuyo polling fue habilitado de forma
+    /// explícita y cuya ventana está vencida. La tabla de agenda actúa como
+    /// claim atómico entre múltiples instancias.
+    pub async fn poll_due(pool: &PgPool) -> Result<usize, String> {
+        let configs = sqlx::query_as::<_, ConfiguracionRestaurante>(
+            "SELECT * FROM configuracion_restaurante \
+             WHERE bdp_poll_enabled = TRUE AND bdp_sync_enabled = TRUE \
+               AND bdp_base_url <> '' ORDER BY user_id LIMIT 100",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|e| format!("Error listando configuraciones BDP para polling: {e}"))?;
+
+        let mut total = 0;
+        for config in configs {
+            let claimed: Option<uuid::Uuid> = sqlx::query_scalar(
+                r"INSERT INTO bdp_poll_schedule (user_id, next_poll_at, updated_at)
+                   VALUES ($1, NOW() + ($2 * INTERVAL '1 second'), NOW())
+                   ON CONFLICT (user_id) DO UPDATE SET
+                     next_poll_at = NOW() + ($2 * INTERVAL '1 second'),
+                     updated_at = NOW()
+                   WHERE bdp_poll_schedule.next_poll_at <= NOW()
+                   RETURNING user_id",
+            )
+            .bind(config.user_id)
+            .bind(config.bdp_poll_interval_secs.clamp(10, 600))
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| format!("Error reclamando turno de polling BDP: {e}"))?;
+            if claimed.is_some() {
+                match Self::poll_pending(pool, config.user_id, &config).await {
+                    Ok(updated) => total += updated,
+                    Err(error) => warn!("Polling BDP usuario {}: {error}", config.user_id),
+                }
+            }
+        }
+        Ok(total)
+    }
+
     /// Consulta BDP para todas las ventas pendientes de este usuario.
     /// Retorna el número de ventas actualizadas.
     pub async fn poll_pending(
@@ -54,43 +93,46 @@ impl BdpOrderPollerService {
         let mut updated = 0;
 
         for venta in &ventas {
-            let Some(order_id) = venta.bdp_order_id else {
-                warn!(
-                    "[276A-4.2] Venta {} tiene bdp_synced=true pero sin bdp_order_id, skip",
-                    venta.id
-                );
-                continue;
-            };
-
-            match Self::check_order_status(&client, order_id).await {
-                Ok(status_str) => {
-                    if let Err(e) =
-                        VentaRepository::update_bdp_order_status(pool, venta.id, &status_str).await
-                    {
-                        warn!(
-                            "[276A-4.2] Error actualizando bdp_order_status de venta {}: {e}",
-                            venta.id
-                        );
-                    } else {
-                        info!(
-                            "[276A-4.2] Venta {} → bdp_order_status = {}",
-                            venta.id, status_str
-                        );
-                        updated += 1;
-                    }
-                }
+            match Self::poll_one(pool, venta, config, Some(&client)).await {
+                Ok(true) => updated += 1,
+                Ok(false) => {}
                 Err(e) => {
                     warn!(
-                        "[276A-4.2] Error consultando GetOrder para venta {} (order {}): {e}",
-                        venta.id, order_id
+                        "[276A-4.2] Error consultando GetOrder para venta {}: {e}",
+                        venta.id
                     );
-                    /* No marcamos como error — reintentará en el próximo ciclo.
-                     * Solo errores definitivos (orden no existe) marcarían 'error'. */
                 }
             }
         }
 
         Ok(updated)
+    }
+
+    pub async fn refresh_one(
+        pool: &PgPool,
+        venta: &crate::models::Venta,
+        config: &ConfiguracionRestaurante,
+    ) -> Result<bool, String> {
+        let client = BdpWeblinkClient::new(config);
+        Self::poll_one(pool, venta, config, Some(&client)).await
+    }
+
+    async fn poll_one(
+        pool: &PgPool,
+        venta: &crate::models::Venta,
+        _config: &ConfiguracionRestaurante,
+        client: Option<&BdpWeblinkClient<'_>>,
+    ) -> Result<bool, String> {
+        let order_id = venta
+            .bdp_order_id
+            .ok_or_else(|| format!("Venta {} no tiene bdp_order_id", venta.id))?;
+        let client = client.ok_or_else(|| "Cliente BDP no disponible".to_string())?;
+        let status = Self::check_order_status(client, order_id).await?;
+        VentaRepository::update_bdp_order_status(pool, venta.id, &status)
+            .await
+            .map_err(|e| format!("Error actualizando estado local BDP: {e}"))?;
+        info!("Venta {} → bdp_order_status = {status}", venta.id);
+        Ok(true)
     }
 
     /// Consulta `GetOrder` para un `order_id` específico y devuelve el status como string.
@@ -110,26 +152,20 @@ impl BdpOrderPollerService {
         /* La respuesta de GetOrder tiene:
          *   { "Order": { ... }, "Status": <int>, "ErrorMessage": "" }
          * Status values: 0=pending, 1=accepted, 2=cancelled, 3=invoiced */
-        let status_code = resp
-            .get("Status")
-            .and_then(serde_json::Value::as_i64)
-            .ok_or_else(|| "Respuesta BDP sin campo Status".to_string())?;
-
-        let error_msg = resp
-            .get("ErrorMessage")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-
-        if !error_msg.is_empty() {
-            /* Error remoto de BDP — puede indicar que la orden ya no existe
-             * o subscripción expirada. No marcamos como error definitivo aún. */
-            warn!(
-                "[276A-4.2] GetOrder(order {}) devolvió ErrorMessage: {}",
-                order_id, error_msg
-            );
-        }
+        let status_code = Self::parse_status(&resp)?;
 
         Ok(Self::map_status(status_code))
+    }
+
+    fn parse_status(resp: &serde_json::Value) -> Result<i64, String> {
+        let status_value = resp
+            .get("Status")
+            .or_else(|| resp.get("Order").and_then(|order| order.get("Status")))
+            .ok_or_else(|| "Respuesta BDP sin campo Status".to_string())?;
+        status_value
+            .as_i64()
+            .or_else(|| status_value.as_str()?.trim().parse::<i64>().ok())
+            .ok_or_else(|| "Respuesta BDP contiene Status inválido".to_string())
     }
 
     /// Mapea el integer de status BDP → string legible almacenado en `bdp_order_status`.
@@ -155,5 +191,12 @@ mod tests {
         assert_eq!(BdpOrderPollerService::map_status(2), "cancelled");
         assert_eq!(BdpOrderPollerService::map_status(3), "invoiced");
         assert_eq!(BdpOrderPollerService::map_status(99), "unknown_99");
+    }
+
+    #[test]
+    fn status_accepts_numeric_string_shape() {
+        let value = serde_json::json!({"Order": {"Status": "3"}});
+        assert_eq!(BdpOrderPollerService::parse_status(&value), Ok(3));
+        assert!(BdpOrderPollerService::parse_status(&serde_json::json!({"Status": "x"})).is_err());
     }
 }

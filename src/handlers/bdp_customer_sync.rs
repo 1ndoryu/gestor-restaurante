@@ -12,7 +12,7 @@
  * Gotchas:
  *   - ExportCustomers puede devolver muchos registros (~43k) → import batch con progreso.
  *   - Matching Glory↔BDP: por teléfono (primario) o email (secundario).
- *   - CreateCustomer requiere `code` (entero) → se asigna automático o se reutiliza bdp_customer_code. */
+ *   - CreateCustomer requiere `code` (entero) → siempre lo proporciona explícitamente el usuario. */
 
 use axum::extract::{Path, State};
 use axum::routing::post;
@@ -35,6 +35,35 @@ pub fn routes() -> Router<AppState> {
         .route("/clientes/:id/bdp-sync", post(sincronizar_cliente_bdp))
 }
 
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct BdpCustomerSyncRequest {
+    /// Código reservado explícitamente para este cliente. Nunca se calcula.
+    pub bdp_customer_code: i32,
+    /// Debe identificar exactamente el cliente y código que se crearán.
+    pub confirmacion: String,
+}
+
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct BdpCustomerImportRequest {
+    /// `false` solo calcula el impacto; `true` aplica cambios locales en Glory.
+    #[serde(default)]
+    pub aplicar: bool,
+    /// Al aplicar debe ser exactamente `IMPORTAR CLIENTES BDP`.
+    pub confirmacion: Option<String>,
+}
+
+fn customer_code(value: &serde_json::Value) -> Option<i32> {
+    value
+        .get("Customer")
+        .or_else(|| value.get("Code"))
+        .and_then(|code| {
+            code.as_i64()
+                .or_else(|| code.as_str()?.trim().parse::<i64>().ok())
+        })
+        .and_then(|code| i32::try_from(code).ok())
+        .filter(|code| *code > 0)
+}
+
 /* [Fase 7.1] Importar clientes desde BDP a Glory.
  * Llama a ExportCustomers, matchea por teléfono/email con clientes existentes,
  * y crea nuevos clientes en Glory si no existen. */
@@ -42,6 +71,7 @@ pub fn routes() -> Router<AppState> {
     post,
     path = "/api/bdp/customers/import",
     tag = "BDP Clientes",
+    request_body = BdpCustomerImportRequest,
     responses(
         (status = 200, description = "Importación completada", body = serde_json::Value),
         (status = 400, description = "BDP no configurado", body = ErrorResponse),
@@ -53,7 +83,14 @@ pub fn routes() -> Router<AppState> {
 pub async fn importar_clientes_bdp(
     State(state): State<AppState>,
     auth: AuthUser,
+    Json(req): Json<BdpCustomerImportRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if req.aplicar && req.confirmacion.as_deref() != Some("IMPORTAR CLIENTES BDP") {
+        return Err(AppError::Validation(
+            "Aplicación bloqueada: escriba exactamente IMPORTAR CLIENTES BDP. No se modificó Glory ni BDP."
+                .into(),
+        ));
+    }
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
@@ -95,13 +132,13 @@ pub async fn importar_clientes_bdp(
     let mut actualizados: u32 = 0;
     let mut sin_cambios: u32 = 0;
     let mut errores: u32 = 0;
+    let mut conflictos: u32 = 0;
+    let mut codigos_vistos = std::collections::HashSet::new();
+    let mut muestra_conflictos = Vec::new();
 
     for cust in customers {
         #[allow(clippy::cast_possible_truncation)]
-        let bdp_code = cust
-            .get("Customer")
-            .and_then(serde_json::Value::as_i64)
-            .unwrap_or(0) as i32;
+        let bdp_code = customer_code(cust).unwrap_or(0);
         let fiscal_name = cust
             .get("FiscalName")
             .and_then(|v| v.as_str())
@@ -117,7 +154,11 @@ pub async fn importar_clientes_bdp(
         let email = cust.get("EMail").and_then(|v| v.as_str()).unwrap_or("");
         let address = cust.get("Address").and_then(|v| v.as_str()).unwrap_or("");
 
-        if bdp_code == 0 || fiscal_name.is_empty() {
+        if bdp_code == 0
+            || fiscal_name.trim().is_empty()
+            || (mobile_phone.trim().is_empty() && email.trim().is_empty())
+            || !codigos_vistos.insert(bdp_code)
+        {
             errores += 1;
             continue;
         }
@@ -133,20 +174,33 @@ pub async fn importar_clientes_bdp(
         .map_err(|e| AppError::Internal(format!("Error buscando cliente: {e}")))?;
 
         if let Some(cliente) = existing {
-            /* Cliente ya existe → actualizar bdp_customer_code si no lo tiene */
+            /* Nunca reemplazar un vínculo BDP diferente basándonos solo en una
+             * coincidencia heurística de teléfono/email. */
             if cliente.bdp_customer_code.is_none() {
-                ClienteRepository::update_bdp_sync(
-                    &state.pool,
-                    cliente.id,
-                    Some(bdp_code),
-                    true,
-                    None,
-                )
-                .await
-                .map_err(|e| AppError::Internal(format!("Error actualizando sync BDP: {e}")))?;
+                if req.aplicar {
+                    ClienteRepository::update_bdp_sync(
+                        &state.pool,
+                        cliente.id,
+                        Some(bdp_code),
+                        true,
+                        None,
+                    )
+                    .await
+                    .map_err(|e| AppError::Internal(format!("Error actualizando sync BDP: {e}")))?;
+                }
                 actualizados += 1;
-            } else {
+            } else if cliente.bdp_customer_code == Some(bdp_code) {
                 sin_cambios += 1;
+            } else {
+                conflictos += 1;
+                if muestra_conflictos.len() < 20 {
+                    muestra_conflictos.push(serde_json::json!({
+                        "cliente_id": cliente.id,
+                        "codigo_local": cliente.bdp_customer_code,
+                        "codigo_bdp": bdp_code,
+                        "motivo": "identidad coincide pero ya está vinculada a otro código"
+                    }));
+                }
             }
         } else {
             /* Cliente no existe en Glory → crearlo */
@@ -170,23 +224,17 @@ pub async fn importar_clientes_bdp(
                 preferencias_ubicacion: None,
             };
 
-            /* Crear cliente vía servicio (usa ClienteService::create que hace find/create) */
-            match ClienteService::create(&state.pool, auth.user_id, nuevo).await {
-                Ok(cliente) => {
-                    /* Actualizar bdp_customer_code */
-                    let _ = ClienteRepository::update_bdp_sync(
-                        &state.pool,
-                        cliente.id,
-                        Some(bdp_code),
-                        true,
-                        None,
-                    )
-                    .await;
-                    importados += 1;
+            if req.aplicar {
+                /* Crear localmente y vincular. El índice único por usuario y
+                 * código BDP evita que una carrera duplique la identidad remota. */
+                match ClienteService::create_bdp_import(&state.pool, auth.user_id, nuevo, bdp_code)
+                    .await
+                {
+                    Ok(_) => importados += 1,
+                    Err(_) => errores += 1,
                 }
-                Err(_) => {
-                    errores += 1;
-                }
+            } else {
+                importados += 1;
             }
         }
     }
@@ -196,18 +244,22 @@ pub async fn importar_clientes_bdp(
         "updated": actualizados,
         "unchanged": sin_cambios,
         "errors": errores,
+        "conflicts": conflictos,
+        "conflict_sample": muestra_conflictos,
         "total": customers.len(),
+        "applied": req.aplicar,
+        "writes_to_bdp": false,
     })))
 }
 
-/* [Fase 7.2] Push de un cliente Glory a BDP (CreateCustomer).
- * Si el cliente ya tiene bdp_customer_code, usa Overwrite=true para actualizar.
- * Si no, asigna un código BDP basado en el teléfono o uno aleatorio alto. */
+/* [Fase 7.2] Push controlado de un cliente Glory a BDP (CreateCustomer).
+ * Exige código explícito, verifica colisión y siempre usa Overwrite=false. */
 #[utoipa::path(
     post,
     path = "/api/clientes/{id}/bdp-sync",
     tag = "BDP Clientes",
     params(("id" = Uuid, Path, description = "ID del cliente")),
+    request_body = BdpCustomerSyncRequest,
     responses(
         (status = 200, description = "Cliente sincronizado con BDP", body = serde_json::Value),
         (status = 400, description = "BDP no configurado", body = ErrorResponse),
@@ -216,11 +268,22 @@ pub async fn importar_clientes_bdp(
     ),
     security(("bearer_auth" = []))
 )]
+/* [187A-1] La secuencia de seguridad se mantiene lineal para que confirmación,
+ * preflight, autorización, llamada única y cierre de auditoría sean auditables
+ * en un solo flujo y no pueda omitirse accidentalmente una guarda. */
+#[allow(clippy::too_many_lines)]
 pub async fn sincronizar_cliente_bdp(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
+    Json(sync_req): Json<BdpCustomerSyncRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    let expected_confirmation = format!("CREAR CLIENTE {id} {}", sync_req.bdp_customer_code);
+    if sync_req.confirmacion.trim() != expected_confirmation {
+        return Err(AppError::Validation(format!(
+            "Confirmación inválida. Escriba exactamente: {expected_confirmation}"
+        )));
+    }
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
@@ -229,22 +292,87 @@ pub async fn sincronizar_cliente_bdp(
         ));
     }
 
+    if config.bdp_sync_mode != "unidirectional" {
+        return Err(AppError::Validation(
+            "BDP está en modo solo lectura; no se ejecutó ninguna escritura.".into(),
+        ));
+    }
+    if !config.bdp_auto_backup_before_write {
+        return Err(AppError::Validation(
+            "Escritura BDP bloqueada: auto-backup pre-write desactivado.".into(),
+        ));
+    }
+
     let cliente = ClienteRepository::find_by_id(&state.pool, id, auth.user_id)
         .await
         .map_err(|e| AppError::Internal(format!("Error buscando cliente: {e}")))?
         .ok_or_else(|| AppError::NotFound("Cliente no encontrado".into()))?;
 
-    /* Determinar código BDP: reutilizar existente o generar uno nuevo */
-    let bdp_code = cliente.bdp_customer_code.unwrap_or_else(|| {
-        /* Generar código BDP alto (900000+) para evitar colisiones con clientes existentes */
-        900_000 + (cliente.id.as_u128() % 99_999) as i32
-    });
+    if sync_req.bdp_customer_code <= 0 {
+        return Err(AppError::Validation(
+            "Debe indicar un bdp_customer_code explícito mayor que cero.".into(),
+        ));
+    }
+
+    /* Nunca sobrescribir ni generar códigos. */
+    if cliente.bdp_customer_code.is_some() {
+        return Err(AppError::Validation(
+            "Cliente BDP existente: Overwrite está bloqueado y requiere una autorización específica no implementada."
+                .into(),
+        ));
+    }
+    let bdp_code = sync_req.bdp_customer_code;
 
     let client = BdpWeblinkClient::new(&config);
     let _session = client
         .login()
         .await
         .map_err(|e| AppError::Internal(format!("Error login BDP: {e}")))?;
+
+    /* Preflight obligatorio de identidad/código. Overwrite=false protege la
+     * carrera final, pero primero evitamos intentar una colisión conocida. */
+    let exported = client
+        .export_customers(&BdpExportCustomersRequest::default())
+        .await
+        .map_err(|e| AppError::Internal(format!("No se pudo verificar el código BDP: {e}")))?;
+    let remote = exported
+        .get("Customers")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|customers| {
+            customers
+                .iter()
+                .find(|customer| customer_code(customer) == Some(bdp_code))
+        });
+    if let Some(remote) = remote {
+        let remote_phone = remote
+            .get("MobilePhone")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("")
+            .trim();
+        let remote_email = remote
+            .get("EMail")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("")
+            .trim();
+        let same_identity = (!cliente.telefono.trim().is_empty()
+            && cliente.telefono.trim() == remote_phone)
+            || (!cliente.email.trim().is_empty()
+                && cliente.email.trim().eq_ignore_ascii_case(remote_email));
+        if same_identity {
+            ClienteRepository::update_bdp_sync(&state.pool, cliente.id, Some(bdp_code), true, None)
+                .await
+                .map_err(|e| AppError::Internal(format!("Error vinculando cliente BDP: {e}")))?;
+            return Ok(Json(serde_json::json!({
+                "cliente_id": cliente.id,
+                "bdp_customer_code": bdp_code,
+                "bdp_synced": true,
+                "linked_existing": true
+            })));
+        }
+        return Err(AppError::Conflict(format!(
+            "El código BDP {bdp_code} ya pertenece a otro cliente; no se escribió nada."
+        )));
+    }
 
     /* Construir nombre completo: apellidos + nombre */
     let fiscal_name = if cliente.apellidos.is_empty() {
@@ -259,13 +387,80 @@ pub async fn sincronizar_cliente_bdp(
         commercial_name: cliente.nombre.clone(),
         mobile_phone: cliente.telefono.clone(),
         email: cliente.email.clone(),
-        overwrite: cliente.bdp_customer_code.is_some(), /* Si ya existe en BDP, sobrescribir */
+        overwrite: false,
     };
 
-    let resp = client
-        .create_customer(&req)
-        .await
-        .map_err(|e| AppError::Internal(format!("Error creando cliente en BDP: {e}")))?;
+    let datos_cliente = serde_json::json!({
+        "cliente_id": cliente.id,
+        "bdp_customer_code": bdp_code,
+        "overwrite": false
+    });
+    crate::services::BdpWriteGuard::ensure_no_unresolved(
+        &state.pool,
+        auth.user_id,
+        "cliente_id",
+        cliente.id,
+        &["create_customer"],
+    )
+    .await
+    .map_err(AppError::Validation)?;
+    let snapshot_pre_id = crate::services::BdpBackupService::preparar_snapshot_escritura(
+        &state.pool,
+        auth.user_id,
+        "create_customer",
+        &config,
+        None,
+    )
+    .await
+    .map_err(|e| {
+        AppError::Validation(format!(
+            "Pre-write audit BDP falló; creación de cliente bloqueada: {e}"
+        ))
+    })?;
+
+    let audit_id = crate::services::BdpWriteGuard::authorize(
+        &state.pool,
+        auth.user_id,
+        &config,
+        "create_customer",
+        "cliente",
+        cliente.id,
+        "cliente_id",
+        &datos_cliente,
+        snapshot_pre_id,
+    )
+    .await
+    .map_err(AppError::Validation)?;
+
+    let resp = match client.create_customer(&req).await {
+        Ok(resp) => resp,
+        Err(e) => {
+            let msg = format!("Error creando cliente en BDP: {e}");
+            let resultado = if matches!(
+                e,
+                crate::services::bdp_weblink::BdpWeblinkError::Http(_)
+                    | crate::services::bdp_weblink::BdpWeblinkError::Api { .. }
+            ) {
+                "ambiguo"
+            } else {
+                "error"
+            };
+            crate::services::BdpBackupService::actualizar_resultado(
+                &state.pool,
+                audit_id,
+                resultado,
+                None,
+                Some(&msg),
+            )
+            .await
+            .map_err(|audit_error| {
+                AppError::Internal(format!(
+                    "{msg}; además falló el cierre de auditoría: {audit_error}"
+                ))
+            })?;
+            return Err(AppError::Internal(msg));
+        }
+    };
 
     /* Verificar ErrorMessage de BDP */
     let error_msg = resp
@@ -274,6 +469,19 @@ pub async fn sincronizar_cliente_bdp(
         .unwrap_or("");
 
     if !error_msg.is_empty() {
+        crate::services::BdpBackupService::actualizar_resultado(
+            &state.pool,
+            audit_id,
+            "error",
+            Some(&resp),
+            Some(error_msg),
+        )
+        .await
+        .map_err(|audit_error| {
+            AppError::Internal(format!(
+                "BDP rechazó el cliente y falló el cierre de auditoría: {audit_error}"
+            ))
+        })?;
         /* Guardar error en el cliente */
         let _ = ClienteRepository::update_bdp_sync(
             &state.pool,
@@ -289,9 +497,42 @@ pub async fn sincronizar_cliente_bdp(
     }
 
     /* Actualizar bdp_customer_code y bdp_synced */
-    ClienteRepository::update_bdp_sync(&state.pool, cliente.id, Some(bdp_code), true, None)
+    if let Err(error) =
+        ClienteRepository::update_bdp_sync(&state.pool, cliente.id, Some(bdp_code), true, None)
+            .await
+    {
+        let msg = format!(
+            "BDP confirmó el cliente {bdp_code}, pero no se pudo persistir el vínculo local: {error}"
+        );
+        crate::services::BdpBackupService::actualizar_resultado(
+            &state.pool,
+            audit_id,
+            "ambiguo",
+            Some(&resp),
+            Some(&msg),
+        )
         .await
-        .map_err(|e| AppError::Internal(format!("Error actualizando sync BDP: {e}")))?;
+        .map_err(|audit_error| {
+            AppError::Internal(format!(
+                "{msg}; además falló el cierre de auditoría: {audit_error}"
+            ))
+        })?;
+        return Err(AppError::Internal(msg));
+    }
+
+    crate::services::BdpBackupService::actualizar_resultado(
+        &state.pool,
+        audit_id,
+        "exito",
+        Some(&resp),
+        None,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!(
+            "Cliente confirmado, pero falló el cierre de auditoría: {error}"
+        ))
+    })?;
 
     Ok(Json(serde_json::json!({
         "cliente_id": cliente.id,
@@ -317,5 +558,31 @@ fn split_name(full_name: &str) -> (&str, &str) {
             let apellidos_start = full_name.find(parts[1]).unwrap_or(0);
             (nombre, &full_name[apellidos_start..])
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn customer_code_accepts_number_or_string_and_rejects_invalid() {
+        assert_eq!(
+            customer_code(&serde_json::json!({"Customer": 42})),
+            Some(42)
+        );
+        assert_eq!(customer_code(&serde_json::json!({"Code": "43"})), Some(43));
+        assert_eq!(customer_code(&serde_json::json!({"Customer": 0})), None);
+        assert_eq!(
+            customer_code(&serde_json::json!({"Customer": "otro"})),
+            None
+        );
+    }
+
+    #[test]
+    fn split_name_never_panics_on_empty_or_single_name() {
+        assert_eq!(split_name(""), ("Sin nombre", ""));
+        assert_eq!(split_name("Ana"), ("Ana", ""));
+        assert_eq!(split_name("Ana Pérez"), ("Ana", "Pérez"));
     }
 }

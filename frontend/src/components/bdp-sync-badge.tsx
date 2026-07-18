@@ -19,8 +19,8 @@ interface Props {
 }
 
 function getDisplayStatus(synced: boolean, orderStatus?: string | null, syncError?: string | null): BdpStatus {
-  if (!synced) return 'none';
   if (syncError) return 'error';
+  if (!synced) return 'none';
   if (!orderStatus) return 'pending';
   switch (orderStatus) {
     case 'pending': return 'pending';

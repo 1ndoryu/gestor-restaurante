@@ -2,7 +2,7 @@
  * Permite listar, crear y eliminar mapeos. Importa catálogo desde BDP (F5.7). */
 
 import { useState } from 'react';
-import { Plus, Trash2, Download, Loader2, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListarArticleMaps } from '../api/generated/bdp-mapeos/bdp-mapeos';
 import { useCrearArticleMap, useEliminarArticleMap } from '../api/generated/bdp-mapeos/bdp-mapeos';
-import { useImportarCatalogo, useSyncCatalog, useSyncPrices } from '../api/generated/bdp-mapeos/bdp-mapeos';
+import { useSyncCatalog, useSyncPrices } from '../api/generated/bdp-mapeos/bdp-mapeos';
 
 interface NuevoMapeo {
   articulo_glory_codigo: string;
@@ -49,21 +49,8 @@ function BdpArticleMapTable() {
   });
 
   const [nuevo, setNuevo] = useState<NuevoMapeo>(mapeoVacio);
-  const [importando, setImportando] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
   const [actualizandoPrecios, setActualizandoPrecios] = useState(false);
-  const importarMutation = useImportarCatalogo({
-    mutation: {
-      onSuccess: (resp) => {
-        const data = resp as unknown as { imported?: number; errors?: number; total?: number };
-        toast.success(`Catálogo importado: ${data.imported ?? 0} artículos`);
-        queryClient.invalidateQueries({ queryKey: ['/api/bdp/article-maps'] });
-      },
-      onError: () => toast.error('Error al importar catálogo BDP'),
-      onSettled: () => setImportando(false),
-    },
-  });
-
   const syncCatalogMutation = useSyncCatalog({
     mutation: {
       onSuccess: (resp) => {
@@ -100,20 +87,11 @@ function BdpArticleMapTable() {
     });
   }
 
-  function importarCatalogo() {
-    setImportando(true);
-    importarMutation.mutate();
-  }
-
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">Mapeo artículos Glory → BDP</span>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={importarCatalogo} disabled={importando}>
-            {importando ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-            Importar catálogo
-          </Button>
           <Button variant="default" size="sm" onClick={() => { setSincronizando(true); syncCatalogMutation.mutate(); }} disabled={sincronizando}>
             {sincronizando ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Sync catálogo
@@ -161,7 +139,7 @@ function BdpArticleMapTable() {
           </Table>
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">Sin mapeos. Añade manualmente o importa el catálogo BDP.</p>
+        <p className="text-xs text-muted-foreground">Sin mapeos. Añade uno manualmente o usa la sincronización enriquecida del catálogo BDP.</p>
       )}
 
       {/* Formulario inline para nuevo mapeo */}

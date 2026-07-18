@@ -70,6 +70,8 @@ pub struct ConfiguracionRestaurante {
     pub bdp_default_customer_code: String,
     /* [F4.5] Intervalo de polling para consultar estado de comandas BDP (segundos) */
     pub bdp_poll_interval_secs: i32,
+    /// Opt-in explícito. `false` impide cualquier polling automático externo.
+    pub bdp_poll_enabled: bool,
     /* [F7.5] Auto-sync de clientes Glory→BDP al crear venta. Requiere autorización explícita del usuario. */
     pub bdp_auto_sync_customers: bool,
     /* [BKP-002] Configuración de backup BDP.
@@ -135,6 +137,10 @@ pub struct ActualizarConfiguracionRequest {
     pub bdp_employee_id: Option<i32>,
     #[validate(range(min = 1, max = 999_999))]
     pub bdp_items_profile_id: Option<i32>,
+    #[validate(length(max = 100))]
+    pub bdp_default_article_code: Option<String>,
+    #[validate(length(max = 255))]
+    pub bdp_default_article_name: Option<String>,
     /* [094A-4] URL de Google Business para reseñas positivas */
     #[validate(length(max = 500))]
     pub google_review_url: Option<String>,
@@ -151,6 +157,7 @@ pub struct ActualizarConfiguracionRequest {
     pub bdp_default_customer_code: Option<String>,
     /* [F4.5] Intervalo de polling BDP */
     pub bdp_poll_interval_secs: Option<i32>,
+    pub bdp_poll_enabled: Option<bool>,
     /* [F7.5] Auto-sync de clientes Glory→BDP al crear venta */
     pub bdp_auto_sync_customers: Option<bool>,
     /* [BKP-002] Configuración de backup BDP */

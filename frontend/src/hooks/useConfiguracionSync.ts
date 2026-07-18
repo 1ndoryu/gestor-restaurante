@@ -42,6 +42,8 @@ export function useConfiguracionSync(datos: ConfigServerData | undefined) {
       bdp_pos_id: Number(d.bdp_pos_id ?? 1),
       bdp_employee_id: Number(d.bdp_employee_id ?? 1),
       bdp_items_profile_id: Number(d.bdp_items_profile_id ?? 1),
+      bdp_default_article_code: String(d.bdp_default_article_code ?? ''),
+      bdp_default_article_name: String(d.bdp_default_article_name ?? ''),
       bdp_tender_map: typeof d.bdp_tender_map === 'object' && d.bdp_tender_map !== null
         ? JSON.stringify(d.bdp_tender_map, null, 2)
         : String(d.bdp_tender_map ?? '{}'),
@@ -50,6 +52,8 @@ export function useConfiguracionSync(datos: ConfigServerData | undefined) {
         : String(d.bdp_order_type_map ?? '{}'),
       bdp_default_customer_code: String(d.bdp_default_customer_code ?? ''),
       bdp_poll_interval_secs: Number(d.bdp_poll_interval_secs ?? 60),
+      bdp_poll_enabled: Boolean(d.bdp_poll_enabled ?? false),
+      bdp_auto_sync_customers: Boolean(d.bdp_auto_sync_customers ?? false),
       bdp_sync_mode: String(d.bdp_sync_mode ?? 'read_only'),
       bdp_backup_retention_days: Number(d.bdp_backup_retention_days ?? 30),
       bdp_auto_backup_before_write: Boolean(d.bdp_auto_backup_before_write ?? false),
