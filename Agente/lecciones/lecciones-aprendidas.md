@@ -405,3 +405,7 @@
 - `OnlyCheck`, “dry-run” o nombres similares no prueban inocuidad cuando comparten un endpoint de escritura. Deben quedar limitados al simulador hasta que el contrato de la instalación real esté demostrado.
 - Una respuesta perdida se trata como ambigua: bloquear reintentos y reconciliar. Nunca convertir incertidumbre de red en un segundo cliente, pedido, pago o factura.
 - Sin una instalación de pruebas ofrecida por el proveedor se puede alcanzar confianza local alta con simulador, BD desechable y tests de contrato; la compatibilidad exacta del BDP del restaurante solo puede validarla el propio cliente y debe rotularse como pendiente, no como garantizada.
+
+## Guías de aceptación para integraciones externas
+
+- Una guía para clientes debe separar claramente tres cosas: lo que ya fue validado localmente, lo que solo puede confirmar la instalación real y lo que puede requerir corrección manual. En sistemas externos, un snapshot de lectura nunca debe presentarse como rollback si la API no ofrece restauración o anulación.

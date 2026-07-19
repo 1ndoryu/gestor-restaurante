@@ -1,8 +1,81 @@
 # Guía del cliente — Revisión de la integración con BDP
 
 > **Fecha:** 19 de julio de 2026
-> **Objetivo:** comprobar únicamente las funciones que nuestro equipo no puede verificar sin crear o modificar información real en BDP.
+> **Objetivo:** resumir la integración realizada y comprobar únicamente las funciones que nuestro equipo no puede verificar sin crear o modificar información real en BDP.
 > **Responsable:** personal autorizado del restaurante.
+
+## Resumen de lo realizado
+
+La integración permite que Glory y BDP compartan la información necesaria para la operación del restaurante, manteniendo separadas las acciones de consulta y las que modifican BDP.
+
+### Información de BDP disponible en Glory
+
+- catálogo de artículos, precios, impuestos, familias y códigos de barras;
+- relación entre los artículos de Glory y los artículos de BDP;
+- clientes, con una revisión previa antes de copiarlos o vincularlos en Glory;
+- salones y mesas, con vista previa antes de agregarlos al plano local;
+- estado de comandas ya enviadas, con consultas manuales o automáticas opcionales;
+- información consultiva de menús, packs y modalidades de venta.
+
+Estas consultas no crean ni modifican registros dentro de BDP. Nuestro equipo ya revisó localmente su funcionamiento, por lo que no forman parte de las pruebas solicitadas al cliente.
+
+### Información que Glory puede enviar a BDP
+
+- clientes nuevos, usando un código elegido expresamente y sin reemplazar clientes existentes;
+- comandas con varios artículos, cantidades, descuentos, impuestos, cliente, canal y forma de pago;
+- el pago completo pendiente de una comanda;
+- la factura de una comanda pagada.
+
+Pago y factura son acciones separadas. Los pagos parciales no están incluidos. Una venta que ya fue enviada queda protegida contra ediciones que pudieran crear diferencias o duplicados.
+
+### Funciones que no forman parte de esta integración
+
+No se incluyeron la administración de stock, compras, transferencias, tallas, colores ni fidelización. Los menús y packs pueden consultarse, pero no administrarse completamente desde Glory. Tampoco se habilitó una sincronización general en ambas direcciones ni pagos parciales.
+
+### Protecciones incorporadas
+
+- el estado normal es **Solo lectura**;
+- cada escritura requiere una autorización temporal para una sola operación y un solo registro;
+- la autorización comprueba el destino y la configuración exactos;
+- antes de enviar se registra la intención y el sistema vuelve automáticamente a **Solo lectura**;
+- una respuesta dudosa bloquea nuevos intentos hasta comprobar qué ocurrió;
+- los errores deben mostrarse como errores, nunca como éxitos aparentes;
+- existe un historial para relacionar lo enviado con el resultado recibido.
+
+Estas protecciones fueron comprobadas con pruebas locales y un simulador. No sustituyen la comprobación final contra la versión concreta de BDP instalada en el restaurante.
+
+## Qué cubren los respaldos
+
+Glory conserva snapshots e historial para proteger y revisar sus propios datos:
+
+- puede guardar y restaurar información local de Glory, como clientes y mapeos;
+- puede conservar una copia del estado leído de BDP antes de una operación importante;
+- permite comparar el antes y el después y ayuda a investigar una respuesta dudosa.
+
+La creación y restauración de estos respaldos locales fue comprobada en un entorno de pruebas. No se ha realizado una restauración sobre los datos reales del restaurante.
+
+### Límite importante
+
+Un snapshot de BDP **no es una copia restaurable de BDP**. La integración no puede usarlo para:
+
+- eliminar un cliente creado en BDP;
+- borrar o anular una comanda;
+- devolver un pago;
+- anular una factura o recuperar su numeración.
+
+Esos cambios requieren el procedimiento manual que utilice el restaurante dentro de BDP. Por eso no debe probarse ninguna operación real sin saber previamente cómo corregirla o anularla.
+
+## Antes de considerar estas pruebas disponibles
+
+La existencia de esta guía no significa que las pruebas ya estén autorizadas. Antes de comenzar se debe confirmar que:
+
+- la versión revisada de la aplicación y sus actualizaciones de base de datos están instaladas en el entorno del restaurante;
+- Glory inicia en **Solo lectura** y no existe una autorización temporal activa;
+- hay un respaldo reciente y comprobado de los datos de Glory;
+- el destino configurado corresponde exactamente al BDP del restaurante;
+- el responsable conoce cómo corregir manualmente cada efecto en BDP.
+
+Si no se ha confirmado el despliegue de la versión revisada, no se debe ejecutar ninguna de las cuatro pruebas reales siguientes.
 
 ## Qué queda por comprobar
 
