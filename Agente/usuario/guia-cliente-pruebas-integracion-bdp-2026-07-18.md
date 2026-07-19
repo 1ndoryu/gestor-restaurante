@@ -8,12 +8,12 @@
 
 Solo quedan pendientes cuatro operaciones porque producen cambios reales en BDP:
 
-| Prueba | Cambio que producirá en BDP |
-| --- | --- |
-| Crear cliente | Dará de alta un cliente con un código nuevo |
-| Crear comanda | Creará una comanda que puede aparecer en TPV, cocina e informes |
+| Prueba         | Cambio que producirá en BDP                                              |
+| -------------- | ------------------------------------------------------------------------ |
+| Crear cliente  | Dará de alta un cliente con un código nuevo                              |
+| Crear comanda  | Creará una comanda que puede aparecer en TPV, cocina e informes          |
 | Registrar pago | Marcará el saldo completo de la comanda como pagado y puede afectar caja |
-| Facturar | Emitirá una factura y puede afectar numeración e información fiscal |
+| Facturar       | Emitirá una factura y puede afectar numeración e información fiscal      |
 
 Estas funciones permanecen **no verificadas en la instalación real del restaurante** hasta que el cliente decida probarlas.
 
