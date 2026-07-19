@@ -35,6 +35,7 @@ export interface BdpAuditEntry {
   target_base_url: string | null;
   target_entity_type: string | null;
   target_entity_id: string | null;
+  authorization_reason: string | null;
   created_at: string;
   updated_at: string;
 }

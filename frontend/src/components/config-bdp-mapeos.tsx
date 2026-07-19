@@ -32,14 +32,14 @@ function ConfigBdpMapeos({ config, cambiarCampo }: ConfigBdpMapeosProps) {
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2 pt-2">
         <Settings className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Mapeos BDP</span>
+        <span className="text-sm font-medium">Correspondencias propias de este BDP</span>
       </div>
       {mapeoError && (
         <p className="text-xs text-destructive">{mapeoError}</p>
       )}
       <div className="grid gap-4 md:grid-cols-2">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="bdp-tender-map">Mapeo formas de pago → Tender BDP (JSON)</Label>
+          <Label htmlFor="bdp-tender-map">Formas de pago de Glory → códigos BDP</Label>
           <Textarea
             id="bdp-tender-map"
             className="font-mono text-xs"
@@ -48,10 +48,10 @@ function ConfigBdpMapeos({ config, cambiarCampo }: ConfigBdpMapeosProps) {
             onChange={(e) => handleJsonChange('bdp_tender_map', e.target.value)}
             placeholder='{"efectivo": 1, "tarjeta": 2}'
           />
-          <p className="text-xs text-muted-foreground">Formato: {"{\"metodo_pago_glory\": \"CODIGO_TENDER_BDP\"}"}</p>
+          <p className="text-xs text-muted-foreground">Configuración técnica: relaciona cada nombre usado en Glory con el identificador numérico de la forma de pago en BDP.</p>
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="bdp-order-type-map">Mapeo canales → OrderType BDP (JSON)</Label>
+          <Label htmlFor="bdp-order-type-map">Canales de Glory → tipos de pedido BDP</Label>
           <Textarea
             id="bdp-order-type-map"
             className="font-mono text-xs"
@@ -60,12 +60,12 @@ function ConfigBdpMapeos({ config, cambiarCampo }: ConfigBdpMapeosProps) {
             onChange={(e) => handleJsonChange('bdp_order_type_map', e.target.value)}
             placeholder='{"comedor": 1, "barra": 0, "delivery": 2}'
           />
-          <p className="text-xs text-muted-foreground">Formato: {"{\"canal_glory\": orderTypeInt}"} (0=Barra, 1=Mesa, 2=Domicilio)</p>
+          <p className="text-xs text-muted-foreground">Configuración técnica: 0=Barra, 1=Mesa y 2=Domicilio. Debe coincidir con la operación real del restaurante.</p>
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="bdp-default-article-code">Código artículo BDP fallback</Label>
+          <Label htmlFor="bdp-default-article-code">Artículo BDP usado si no hay equivalencia</Label>
           <Input
             id="bdp-default-article-code"
             inputMode="numeric"
@@ -76,7 +76,7 @@ function ConfigBdpMapeos({ config, cambiarCampo }: ConfigBdpMapeosProps) {
           <p className="text-xs text-muted-foreground">Debe ser un código numérico existente en el perfil BDP.</p>
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="bdp-default-article-name">Nombre artículo fallback</Label>
+          <Label htmlFor="bdp-default-article-name">Nombre visible de ese artículo</Label>
           <Input
             id="bdp-default-article-name"
             value={config.bdp_default_article_name}
@@ -88,14 +88,15 @@ function ConfigBdpMapeos({ config, cambiarCampo }: ConfigBdpMapeosProps) {
           <Label htmlFor="bdp-default-customer">Código cliente BDP por defecto</Label>
           <Input
             id="bdp-default-customer"
+            inputMode="numeric"
             value={config.bdp_default_customer_code}
             onChange={(e) => cambiarCampo('bdp_default_customer_code', e.target.value)}
-            placeholder="Consumidor final"
+            placeholder="Código numérico, por ejemplo 1"
           />
-          <p className="text-xs text-muted-foreground">Se usa cuando la venta no tiene cliente asociado</p>
+          <p className="text-xs text-muted-foreground">Código real del cliente genérico en BDP; no es el nombre “Consumidor final”.</p>
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="bdp-poll-interval">Intervalo de polling BDP (segundos)</Label>
+          <Label htmlFor="bdp-poll-interval">Frecuencia para actualizar estados (segundos)</Label>
           <Input
             id="bdp-poll-interval"
             type="number"
@@ -108,8 +109,8 @@ function ConfigBdpMapeos({ config, cambiarCampo }: ConfigBdpMapeosProps) {
         </div>
         <div className="flex items-center justify-between gap-4 rounded-md border p-3">
           <div>
-            <Label htmlFor="bdp-poll-enabled">Polling automático BDP</Label>
-            <p className="text-xs text-muted-foreground">Opt-in: realiza lecturas GetOrder según el intervalo configurado.</p>
+            <Label htmlFor="bdp-poll-enabled">Actualizar estados automáticamente</Label>
+            <p className="text-xs text-muted-foreground">Solo consulta el estado de comandas; no crea ni modifica registros en BDP.</p>
           </div>
           <Switch
             id="bdp-poll-enabled"

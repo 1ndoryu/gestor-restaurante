@@ -423,6 +423,7 @@ async fn test_snapshot_pago_sin_order_id_falla_antes_de_http(pool: PgPool) {
         user_id,
         bdp_base_url: "http://192.0.2.10:8068".into(),
         bdp_auto_backup_before_write: true,
+        bdp_env_bootstrap_applied_at: None,
         ..Default::default()
     };
 
@@ -453,6 +454,7 @@ async fn test_preparar_snapshot_rechaza_auto_backup_off(pool: PgPool) {
     let config = glory_backend::models::ConfiguracionRestaurante {
         user_id,
         bdp_auto_backup_before_write: false,
+        bdp_env_bootstrap_applied_at: None,
         ..Default::default()
     };
 
@@ -486,6 +488,7 @@ async fn test_preparar_snapshot_create_no_hace_lectura_remota(pool: PgPool) {
     let config = glory_backend::models::ConfiguracionRestaurante {
         user_id,
         bdp_auto_backup_before_write: true,
+        bdp_env_bootstrap_applied_at: None,
         ..Default::default()
     };
 

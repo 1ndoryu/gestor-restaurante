@@ -2,7 +2,7 @@
  * Mantiene credenciales fuera de respuestas publicas y ofrece diagnostico
  * Health + Login + GetVersion para la sesion remota con el PC del restaurante.
  * [147A-F5.6] Secciones de mapeo: tender, order_type, customer_code, poll_interval.
- * [167A-1] Simplificado: mapeos colapsados por defecto, defaults desde env. */
+ * [197A-3] Distingue integración, lecturas y permiso puntual de escritura. */
 
 import { useState } from 'react';
 import { Activity, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Loader2, XCircle } from 'lucide-react';
@@ -104,7 +104,7 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
     <Card>
       <CardHeader>
         <CardTitle>Conexión BDP</CardTitle>
-        <CardDescription>Configura la conexión al TPV/BDP del restaurante. Los valores por defecto se cargan desde el servidor.</CardDescription>
+        <CardDescription>Conexión al TPV/BDP del restaurante. La puesta en marcha debe dejar estos datos preparados; el cliente no debe inventar códigos ni identificadores.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
@@ -180,8 +180,11 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
             />
           </div>
         </div>
-        <div className="flex items-center justify-between">
-          <Label htmlFor="bdp-sync-enabled">Sincronización BDP activa</Label>
+        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+          <div>
+            <Label htmlFor="bdp-sync-enabled">Integración BDP activa</Label>
+            <p className="text-xs text-muted-foreground">Interruptor general. Activarlo no concede permiso para crear clientes, comandas, pagos ni facturas.</p>
+          </div>
           <Switch
             id="bdp-sync-enabled"
             checked={config.bdp_sync_enabled}
@@ -189,7 +192,23 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
           />
         </div>
 
-        {/* [167A-1] Mapeos colapsados por defecto — defaults desde env del servidor */}
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-md border p-3">
+            <p className="text-sm font-medium">BDP → Glory</p>
+            <p className="mt-1 text-xs text-muted-foreground">Catálogo, clientes, mesas y estados se consultan o importan sin modificar BDP.</p>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-sm font-medium">Glory → BDP</p>
+            <p className="mt-1 text-xs text-muted-foreground">Solo una operación concreta con permiso temporal. Después vuelve a Solo lectura.</p>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-sm font-medium">Dos vías automáticas</p>
+            <p className="mt-1 text-xs text-muted-foreground">No están habilitadas. Se separan las lecturas seguras de cada escritura autorizada.</p>
+          </div>
+        </div>
+
+        {/* [197A-3] Los identificadores dependen de cada instalación BDP y
+         * permanecen separados del uso diario del cliente. */}
         <div className="border-t pt-4">
           <button
             type="button"
@@ -197,16 +216,18 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
             onClick={() => setMostrarMapeos(!mostrarMapeos)}
           >
             {mostrarMapeos ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-            Configuración avanzada (mapeos)
+            Configuración técnica (solo soporte)
           </button>
           {!mostrarMapeos && (
             <p className="mt-1 text-xs text-muted-foreground">
-              Los mapeos de formas de pago, canales y artículos se cargan automáticamente desde la configuración del servidor.
-              Solo modifica si necesitas personalizar la sincronización.
+              Relaciona los códigos propios de este BDP con Glory. No debe modificarse sin verificar los valores directamente con el restaurante.
             </p>
           )}
           {mostrarMapeos && (
             <div className="mt-4">
+              <p className="mb-4 rounded-md border p-3 text-xs text-muted-foreground">
+                Estos valores no son universales: terminal, empleado, artículos, clientes, formas de pago y canales pueden ser distintos en cada BDP.
+              </p>
               <ConfigBdpMapeos config={config} cambiarCampo={cambiarCampo} />
             </div>
           )}

@@ -48,6 +48,7 @@ pub struct BdpAuditEntry {
     pub target_base_url: Option<String>,
     pub target_entity_type: Option<String>,
     pub target_entity_id: Option<Uuid>,
+    pub authorization_reason: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -521,7 +522,7 @@ impl BdpBackupService {
             r"SELECT id, user_id, operacion, direccion, snapshot_pre_id,
                       datos_enviados, resultado, datos_respuesta, error_mensaje,
                       target_base_url, target_entity_type, target_entity_id,
-                      created_at, updated_at
+                      authorization_reason, created_at, updated_at
             FROM bdp_audit_log
             WHERE user_id = $1
             ORDER BY created_at DESC

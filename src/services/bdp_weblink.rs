@@ -586,6 +586,7 @@ mod tests {
             bdp_sync_mode: "read_only".to_string(),
             bdp_backup_retention_days: 30,
             bdp_auto_backup_before_write: true,
+            bdp_env_bootstrap_applied_at: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

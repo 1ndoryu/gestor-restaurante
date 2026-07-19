@@ -15,7 +15,7 @@
     "codegen": "npm --prefix frontend run codegen",
     "test": "node scripts/run-cargo.mjs test",
     "seed": "node scripts/run-with-db.mjs run --bin seed",
-    "self-check": "powershell -ExecutionPolicy Bypass -File scripts/self-check.ps1",
+    "self-check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/self-check.ps1",
     "roadmap": "node scripts/check-roadmap.mjs",
     "roadmap:watch": "node scripts/check-roadmap.mjs --watch"
   },

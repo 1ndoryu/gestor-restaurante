@@ -409,3 +409,11 @@
 ## Guías de aceptación para integraciones externas
 
 - Una guía para clientes debe separar claramente tres cosas: lo que ya fue validado localmente, lo que solo puede confirmar la instalación real y lo que puede requerir corrección manual. En sistemas externos, un snapshot de lectura nunca debe presentarse como rollback si la API no ofrece restauración o anulación.
+
+## Aprovisionamiento de integraciones por variables de entorno
+
+- Declarar variables `BDP_*` no significa que una configuración multiusuario las consuma. El runtime debe aplicar un bootstrap explícito a una cuenta exacta; si falta esa identidad, debe detener el aprovisionamiento sin elegir usuarios por suposición.
+- El bootstrap seguro es idempotente, conserva valores ya confirmados, no registra secretos, cierra permisos temporales y deja las escrituras en solo lectura. La allowlist de destinos reales debe seguir siendo una decisión independiente y vacía por defecto.
+- En la interfaz deben distinguirse tres conceptos: integración activa, lecturas BDP → Glory y autorización puntual Glory → BDP. Presentarlos como un único “modo de sincronización” induce a pensar que existe una doble vía automática que el contrato no implementa.
+- Los validadores automatizados no deben cargar perfiles personales ni compilar macros SQLx contra una base local arbitraria. `-NoProfile` evita salida accidental de secretos y `SQLX_OFFLINE` hace que el contrato versionado sea la fuente reproducible.
+- Un self-check que imprime errores pero termina con código 0 es un fallo silencioso: el resultado agregado debe propagarse con un exit code distinto de cero para que CI y agentes no lo interpreten como éxito.

@@ -17,8 +17,8 @@ import type {EstadoConfiguracion} from '@/hooks/useConfiguracion';
 /* ========== Constantes ========== */
 
 const SYNC_MODES: {value: SyncMode; label: string; desc: string}[] = [
-    {value: 'read_only', label: 'Solo lectura', desc: 'Glory lee datos de BDP pero no envía nada.'},
-    {value: 'unidirectional', label: 'Escritura temporal', desc: 'Glory → BDP, limitada por alcance, tiempo y cupo.'}
+    {value: 'read_only', label: 'Solo lectura (BDP → Glory)', desc: 'Permite consultas e importaciones; Glory no crea ni modifica datos en BDP.'},
+    {value: 'unidirectional', label: 'Autorizar una operación (Glory → BDP)', desc: 'Permiso excepcional para un cliente o venta exactos. Se cierra después de una operación.'}
 ];
 
 const SNAPSHOT_TIPOS_BDP = ['articulos', 'clientes', 'departamentos', 'salones', 'empleados'];
@@ -55,15 +55,35 @@ function datosResumen(datos: Record<string, unknown>): string {
 }
 
 function resultadoBadge(resultado: string) {
-    if (resultado === 'ok')
+    if (resultado === 'exito')
         return (
             <Badge variant="default" className="bg-green-600">
-                OK
+                Completada
             </Badge>
         );
-    if (resultado === 'error') return <Badge variant="destructive">Error</Badge>;
-    if (resultado === 'skipped') return <Badge variant="outline">Omitido</Badge>;
-    return <Badge variant="secondary">{resultado}</Badge>;
+    if (resultado === 'error') return <Badge variant="destructive">Falló</Badge>;
+    if (resultado === 'ambiguo') return <Badge variant="destructive">Requiere revisión</Badge>;
+    if (resultado === 'pendiente') return <Badge variant="secondary">En proceso</Badge>;
+    if (resultado === 'parcial') return <Badge variant="outline">Parcial</Badge>;
+    return <Badge variant="outline">{resultado}</Badge>;
+}
+
+function operacionLabel(operacion: string): string {
+    const labels: Record<string, string> = {
+        create_order: 'Crear comanda',
+        create_customer: 'Crear cliente',
+        add_payment: 'Registrar pago',
+        invoice: 'Facturar',
+        config_bootstrap: 'Preparar configuración inicial'
+    };
+    return labels[operacion] ?? operacion;
+}
+
+function direccionLabel(direccion: string): string {
+    if (direccion === 'glory_to_bdp') return 'Glory → BDP';
+    if (direccion === 'bdp_to_glory') return 'BDP → Glory';
+    if (direccion === 'internal') return 'Configuración de Glory';
+    return direccion;
 }
 
 /* ========== Sub-componentes ========== */
@@ -76,6 +96,7 @@ interface SyncModeSelectorProps {
 function SyncModeSelector({currentMode, bdpBaseUrl}: SyncModeSelectorProps) {
     const setMode = useSetSyncMode();
     const effective = currentMode || 'read_only';
+    const selectedMode = SYNC_MODES.find(mode => mode.value === effective) ?? SYNC_MODES[0];
 
     function handleChange(value: string) {
         let alcances: string[] = [];
@@ -98,11 +119,18 @@ function SyncModeSelector({currentMode, bdpBaseUrl}: SyncModeSelectorProps) {
                 toast.error('Destino no confirmado', {description: 'La URL escrita no coincide exactamente.'});
                 return;
             }
-            const scopeText = window.prompt(
-                'Un único alcance: create_order, create_customer, add_payment o invoice',
+            const operationChoice = window.prompt(
+                'Elige una sola operación: 1=Crear comanda, 2=Crear cliente, 3=Registrar pago, 4=Facturar',
                 ''
             );
-            alcances = (scopeText ?? '').split(',').map(s => s.trim()).filter(Boolean);
+            const scopeByChoice: Record<string, string> = {
+                '1': 'create_order',
+                '2': 'create_customer',
+                '3': 'add_payment',
+                '4': 'invoice'
+            };
+            const selectedScope = scopeByChoice[operationChoice?.trim() ?? ''];
+            alcances = selectedScope ? [selectedScope] : [];
             const customerOnly = alcances.length > 0 && alcances.every(scope => scope === 'create_customer');
             const saleOnly = alcances.length > 0 && alcances.every(scope => ['create_order', 'add_payment', 'invoice'].includes(scope));
             if (!customerOnly && !saleOnly) {
@@ -110,8 +138,8 @@ function SyncModeSelector({currentMode, bdpBaseUrl}: SyncModeSelectorProps) {
                 return;
             }
             targetEntityType = customerOnly ? 'cliente' : 'venta';
-            targetEntityId = window.prompt(`UUID exacto del ${targetEntityType} autorizado:`, '')?.trim() ?? '';
-            motivo = window.prompt('Motivo de esta autorización temporal:', '')?.trim() ?? '';
+            targetEntityId = window.prompt(`Pega el identificador interno exacto del ${targetEntityType} que se probará:`, '')?.trim() ?? '';
+            motivo = window.prompt('Describe brevemente quién autorizó la prueba y para qué se realizará:', '')?.trim() ?? '';
             maxOperaciones = 1;
             duracionMinutos = Number(window.prompt('Duración del armado en minutos (1-15):', '5'));
             if (!alcances.length || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetEntityId) || motivo.length < 5 || !Number.isInteger(maxOperaciones) || !Number.isInteger(duracionMinutos)) {
@@ -138,9 +166,10 @@ function SyncModeSelector({currentMode, bdpBaseUrl}: SyncModeSelectorProps) {
     }
 
     return (
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-3">
             <Select value={effective} onValueChange={handleChange} disabled={setMode.isPending}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-full sm:w-[320px]">
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -152,6 +181,8 @@ function SyncModeSelector({currentMode, bdpBaseUrl}: SyncModeSelectorProps) {
                 </SelectContent>
             </Select>
             {setMode.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            </div>
+            <p className="max-w-xl text-xs text-muted-foreground">{selectedMode.desc}</p>
         </div>
     );
 }
@@ -363,7 +394,8 @@ function AuditTable({entries}: {entries: BdpAuditEntry[]}) {
                     <TableHead>Operación</TableHead>
                     <TableHead>Dirección</TableHead>
                     <TableHead>Resultado</TableHead>
-                    <TableHead>Snapshot pre</TableHead>
+                    <TableHead>Registro</TableHead>
+                    <TableHead>Motivo</TableHead>
                     <TableHead>Error</TableHead>
                 </TableRow>
             </TableHeader>
@@ -372,13 +404,16 @@ function AuditTable({entries}: {entries: BdpAuditEntry[]}) {
                     <TableRow key={e.id}>
                         <TableCell className="text-sm">{formatDate(e.created_at)}</TableCell>
                         <TableCell>
-                            <Badge variant="outline">{e.operacion}</Badge>
+                            <Badge variant="outline">{operacionLabel(e.operacion)}</Badge>
                         </TableCell>
                         <TableCell>
-                            <Badge variant="outline">{e.direccion}</Badge>
+                            <Badge variant="outline">{direccionLabel(e.direccion)}</Badge>
                         </TableCell>
                         <TableCell>{resultadoBadge(e.resultado)}</TableCell>
-                        <TableCell className="text-xs font-mono">{e.snapshot_pre_id ? e.snapshot_pre_id.slice(0, 8) + '…' : '—'}</TableCell>
+                        <TableCell className="text-xs">
+                            {e.target_entity_type ? `${e.target_entity_type}: ${e.target_entity_id?.slice(0, 8) ?? '—'}…` : '—'}
+                        </TableCell>
+                        <TableCell className="max-w-[220px] truncate text-xs">{e.authorization_reason ?? '—'}</TableCell>
                         <TableCell className="text-xs text-destructive max-w-[200px] truncate">{e.error_mensaje ?? '—'}</TableCell>
                     </TableRow>
                 ))}
@@ -400,16 +435,16 @@ export default function PanelBdpBackup({config}: PanelBdpBackupProps) {
     return (
         <Card>
             <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <CardTitle className="flex items-center gap-2">
                             <Shield className="h-5 w-5" />
-                            Backup & Seguridad BDP
+                            Seguridad, respaldos e historial BDP
                         </CardTitle>
-                        <CardDescription>Snapshots, restauración y auditoría de la sincronización con BDP.</CardDescription>
+                        <CardDescription>Consulta evidencias, respaldos locales y el resultado de cada escritura real autorizada.</CardDescription>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">Modo:</span>
+                    <div className="flex flex-col gap-1">
+                        <span className="text-sm font-medium">Permiso de operación</span>
                         <SyncModeSelector currentMode={config.bdp_sync_mode} bdpBaseUrl={config.bdp_base_url} />
                     </div>
                 </div>

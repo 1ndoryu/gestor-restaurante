@@ -75,12 +75,13 @@ pub struct ConfiguracionRestaurante {
     /* [F7.5] Auto-sync de clientes Glory→BDP al crear venta. Requiere autorización explícita del usuario. */
     pub bdp_auto_sync_customers: bool,
     /* [BKP-002] Configuración de backup BDP.
-     * bdp_sync_mode: 'read_only' | 'write' — modo de operación de la integración.
+     * bdp_sync_mode: 'read_only' | 'unidirectional' — permiso operativo.
      * bdp_backup_retention_days: días que se retienen snapshots (0 = indefinido).
      * bdp_auto_backup_before_write: si true, genera snapshot pre-escritura selectivo. */
     pub bdp_sync_mode: String,
     pub bdp_backup_retention_days: i32,
     pub bdp_auto_backup_before_write: bool,
+    pub bdp_env_bootstrap_applied_at: Option<DateTime<Utc>>,
     /* [094A-4] URL de Google Business para redirigir reseñas positivas */
     pub google_review_url: String,
     /* [094A-6] Datos para botones CTA en mensajes WhatsApp */

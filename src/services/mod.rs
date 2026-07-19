@@ -2,6 +2,7 @@ mod api_key;
 mod auth;
 /* [147A-F6] módulos BDP — sincronización Glory → BDP WebLink REST API */
 mod bdp_backup;
+mod bdp_config_bootstrap;
 mod bdp_explorer;
 pub(crate) mod bdp_order_poller;
 mod bdp_sync;
@@ -33,6 +34,9 @@ mod venta;
 pub use api_key::ApiKeyService;
 pub use auth::AuthService;
 pub use bdp_backup::{BdpAuditEntry, BdpBackupService, BdpSnapshot, RestoreResult};
+pub use bdp_config_bootstrap::{
+    BdpBootstrapOutcome, BdpBootstrapSettings, BdpConfigBootstrapService,
+};
 pub use bdp_explorer::{BdpExploracionResultado, BdpExplorerService, ExploracionCategoria};
 pub use bdp_order_poller::BdpOrderPollerService;
 pub use bdp_sync::BdpSyncService;

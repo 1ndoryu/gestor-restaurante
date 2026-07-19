@@ -1,6 +1,8 @@
 use glory_backend::config::AppConfig;
 use glory_backend::handlers;
-use glory_backend::services::{BdpOrderPollerService, RecordatorioService};
+use glory_backend::services::{
+    BdpBootstrapOutcome, BdpConfigBootstrapService, BdpOrderPollerService, RecordatorioService,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,6 +29,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
      * códigos de cliente históricos duplicados), se reconcilia antes de servir. */
     sqlx::migrate!().run(&pool).await?;
     tracing::info!("Migraciones aplicadas correctamente");
+
+    match BdpConfigBootstrapService::apply_from_env(&pool).await? {
+        BdpBootstrapOutcome::Disabled => {
+            tracing::info!("Bootstrap BDP dirigido no configurado");
+        }
+        BdpBootstrapOutcome::AlreadyApplied { user_id } => {
+            tracing::info!(%user_id, "Bootstrap BDP ya estaba aplicado");
+        }
+        BdpBootstrapOutcome::Applied { user_id } => {
+            tracing::info!(%user_id, "Bootstrap BDP aplicado en solo lectura");
+        }
+    }
 
     let addr = format!("{}:{}", config.host, config.port);
     tracing::info!("Servidor iniciando en {addr}");

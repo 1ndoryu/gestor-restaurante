@@ -181,6 +181,13 @@ pub async fn actualizar_configuracion(
             ));
         }
     }
+    if let Some(code) = req.bdp_default_customer_code.as_deref() {
+        if !code.trim().is_empty() && code.trim().parse::<i64>().ok().is_none_or(|id| id <= 0) {
+            return Err(AppError::Validation(
+                "bdp_default_customer_code debe ser un código numérico positivo".into(),
+            ));
+        }
+    }
     let invalida_armado_bdp = req.bdp_base_url.is_some()
         || req.bdp_login.is_some()
         || req.bdp_password.is_some()

@@ -44,6 +44,51 @@ No se incluyeron la administración de stock, compras, transferencias, tallas, c
 
 Estas protecciones fueron comprobadas con pruebas locales y un simulador. No sustituyen la comprobación final contra la versión concreta de BDP instalada en el restaurante.
 
+## Cómo entender la pantalla BDP
+
+### Integración BDP activa
+
+Es el interruptor general. Si está apagado, Glory no procesa la integración. Si está encendido, permite utilizar las consultas e importaciones configuradas, pero **no concede por sí solo permiso para escribir en BDP**.
+
+### Configuración técnica
+
+Esta sección relaciona los códigos de Glory con los códigos propios del BDP del restaurante:
+
+- **formas de pago:** indica qué código BDP corresponde a efectivo, tarjeta u otros métodos;
+- **canales:** relaciona comedor, barra o domicilio con el tipo de pedido BDP;
+- **artículo sin equivalencia:** artículo BDP utilizado cuando una línea de Glory todavía no tiene una relación específica;
+- **cliente por defecto:** código numérico real del cliente genérico de BDP, no su nombre;
+- **actualización de estados:** frecuencia con la que Glory consulta si una comanda fue aceptada, cancelada o facturada;
+- **exigir cliente confirmado:** bloquea una venta si su cliente todavía no tiene un código BDP conocido.
+
+Estos valores dependen de cada instalación y no deben ser inventados ni modificados por el cliente. Deben quedar preparados y comprobados por el responsable técnico durante la puesta en marcha.
+
+### Dirección de la sincronización
+
+No existe un modo automático de “dos vías”. La integración separa las direcciones para reducir el riesgo:
+
+| Dirección   | Funcionamiento                                                                      |
+| ----------- | ----------------------------------------------------------------------------------- |
+| BDP → Glory | Consultas e importaciones de catálogo, clientes, mesas y estados. No modifican BDP. |
+| Glory → BDP | Permiso temporal para una sola creación de cliente, comanda, pago o factura.        |
+
+El permiso se encuentra en la misma sección **BDP**, dentro de **Seguridad, respaldos e historial BDP**. El estado normal debe ser **Solo lectura (BDP → Glory)**. La opción Glory → BDP es una autorización puntual, no una dirección permanente, y vuelve automáticamente a solo lectura después de utilizarse.
+
+## Qué se guarda en el historial
+
+Cada escritura real que llega a ser autorizada conserva:
+
+- fecha y hora;
+- operación realizada;
+- cliente o venta afectados;
+- dirección Glory → BDP;
+- motivo de la autorización;
+- evidencia previa relacionada;
+- resultado final, respuesta o error;
+- indicación especial si el resultado requiere revisión antes de intentar otra acción.
+
+Las importaciones y consultas de solo lectura no generan una fila por cada llamada automática, para no llenar el historial con ruido. Los snapshots tienen su propio listado. Por tanto, el historial permite revisar las operaciones que podían modificar datos, pero no pretende ser un registro de cada consulta de estado.
+
 ## Qué cubren los respaldos
 
 Glory conserva snapshots e historial para proteger y revisar sus propios datos:
@@ -74,6 +119,24 @@ La existencia de esta guía no significa que las pruebas ya estén autorizadas. 
 - hay un respaldo reciente y comprobado de los datos de Glory;
 - el destino configurado corresponde exactamente al BDP del restaurante;
 - el responsable conoce cómo corregir manualmente cada efecto en BDP.
+
+### Configuración durante el despliegue
+
+Las actualizaciones de estructura de la aplicación se aplican automáticamente al desplegar. La configuración BDP que ya esté guardada permanece en la base de datos de Glory y no debe volver a escribirse en cada despliegue.
+
+La versión revisada incluye un aprovisionamiento automático dirigido. El equipo técnico debe indicar en el servidor el correo exacto de la cuenta del restaurante mediante `BDP_BOOTSTRAP_USER_EMAIL`. Si ese dato no existe, Glory no copia la configuración a ninguna cuenta; así se evita configurar accidentalmente al usuario equivocado.
+
+Al primer arranque de esa versión, el aprovisionamiento:
+
+- identifica la cuenta exacta que recibirá la configuración;
+- carga conexión, terminal, empleado y perfil sin mostrar secretos al cliente;
+- carga las correspondencias de pagos, canales, artículo y cliente que hayan sido confirmadas;
+- no sobrescribe valores que ya estaban configurados;
+- deja la integración y las consultas automáticas apagadas, las escrituras en **Solo lectura** y elimina cualquier permiso temporal anterior;
+- registra en el historial que la preparación se realizó, sin guardar contraseñas;
+- se marca como aplicado para no repetirse en los siguientes despliegues.
+
+La autorización del destino para escrituras se configura por separado y permanece vacía por defecto. Esto impide que el simple despliegue habilite escrituras reales. El cliente no debe rellenar manualmente JSON, credenciales ni identificadores internos.
 
 Si no se ha confirmado el despliegue de la versión revisada, no se debe ejecutar ninguna de las cuatro pruebas reales siguientes.
 

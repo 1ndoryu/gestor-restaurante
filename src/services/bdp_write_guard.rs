@@ -104,7 +104,7 @@ impl BdpWriteGuard {
             ));
         }
 
-        let consumed: Option<Uuid> = sqlx::query_scalar(
+        let consumed: Option<(Option<Uuid>, String)> = sqlx::query_as(
             r"UPDATE bdp_write_arming
                SET remaining_operations = remaining_operations - 1
                WHERE user_id = $1
@@ -128,7 +128,7 @@ impl BdpWriteGuard {
                      AND c.bdp_items_profile_id = $12
                      AND c.bdp_sync_mode = 'unidirectional'
                  )
-               RETURNING snapshot_id",
+               RETURNING snapshot_id, reason",
         )
         .bind(user_id)
         .bind(&base)
@@ -146,26 +146,30 @@ impl BdpWriteGuard {
         .await
         .map_err(|error| format!("No se pudo verificar el armado BDP: {error}"))?;
 
-        consumed.ok_or_else(|| {
+        let (arming_snapshot_id, authorization_reason) = consumed.ok_or_else(|| {
             format!(
                 "Escritura BDP bloqueada: no existe armado vigente para alcance {scope}, objetivo {target_entity_type}={target_entity_id}, destino exacto y cupo disponible"
             )
         })?;
 
+        let audit_snapshot_id = snapshot_pre_id.or(arming_snapshot_id);
+
         let audit_id: Uuid = sqlx::query_scalar(
             r"INSERT INTO bdp_audit_log
                (user_id, operacion, direccion, snapshot_pre_id, datos_enviados,
-                resultado, target_base_url, target_entity_type, target_entity_id)
-               VALUES ($1, $2, 'glory_to_bdp', $3, $4, 'pendiente', $5, $6, $7)
+                resultado, target_base_url, target_entity_type, target_entity_id,
+                authorization_reason)
+               VALUES ($1, $2, 'glory_to_bdp', $3, $4, 'pendiente', $5, $6, $7, $8)
                RETURNING id",
         )
         .bind(user_id)
         .bind(scope)
-        .bind(snapshot_pre_id)
+        .bind(audit_snapshot_id)
         .bind(datos_enviados)
         .bind(&base)
         .bind(target_entity_type)
         .bind(target_entity_id)
+        .bind(authorization_reason)
         .fetch_one(&mut *tx)
         .await
         .map_err(|error| format!("No se pudo registrar intención BDP: {error}"))?;

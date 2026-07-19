@@ -79,6 +79,13 @@ Write-Host ""
 $verifyExitCode = 0
 $cargoRunner = "scripts/run-cargo.mjs"
 
+# [197A-3] La caché SQLx versionada es el contrato reproducible para check,
+# clippy y tests. Evita que una BD local atrasada invalide el self-check o que
+# la compilación dependa accidentalmente de un entorno externo.
+if (Test-Path ".sqlx") {
+    $env:SQLX_OFFLINE = "true"
+}
+
 # Detectar stack del proyecto: si existe Cargo.toml, ejecutar cargo checks
 if (Test-Path "Cargo.toml") {
     Write-Host "  [Rust] cargo check..." -ForegroundColor Cyan
@@ -142,3 +149,7 @@ Write-Host "  [CONDICIONAL] se omite si la tarea no" -ForegroundColor Yellow
 Write-Host "  toco ese dominio (backend/frontend/css)." -ForegroundColor Yellow
 Write-Host $sep -ForegroundColor Cyan
 Write-Host ""
+
+# [197A-3] Propaga el resultado automatizado al proceso llamador. Sin este
+# exit, CI y agentes recibían código 0 incluso cuando el reporte decía FALLO.
+exit $verifyExitCode

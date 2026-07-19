@@ -42,13 +42,12 @@ function Configuracion() {
   if (cargando) return <p className="text-sm text-muted-foreground">Cargando configuración...</p>;
 
   return (
-    <Tabs defaultValue="general" className="max-w-2xl">
+    <Tabs defaultValue="general" className="max-w-5xl">
       <TabsList>
         <TabsTrigger value="general">General</TabsTrigger>
         <TabsTrigger value="integraciones">Integraciones</TabsTrigger>
         <TabsTrigger value="chatbot">Chatbot</TabsTrigger>
-        <TabsTrigger value="bdp-conexion">BDP Conexión</TabsTrigger>
-        <TabsTrigger value="bdp-backup">BDP Backup</TabsTrigger>
+        <TabsTrigger value="bdp">BDP</TabsTrigger>
       </TabsList>
 
       <TabsContent value="general" className="flex flex-col gap-6 mt-4">
@@ -392,11 +391,8 @@ function Configuracion() {
         <ConfigChatbot />
       </TabsContent>
 
-      <TabsContent value="bdp-conexion" className="mt-4">
+      <TabsContent value="bdp" className="mt-4 flex flex-col gap-6">
         <ConfigBdp config={config} cambiarCampo={cambiarCampo} guardar={guardar} guardando={guardando} mensaje={mensaje} />
-      </TabsContent>
-
-      <TabsContent value="bdp-backup" className="mt-4">
         <PanelBdpBackup config={config} />
       </TabsContent>
     </Tabs>

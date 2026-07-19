@@ -103,6 +103,15 @@ async fn armado_solo_se_consume_por_entidad_exacta(pool: PgPool) {
             .await
             .expect("leer auditoría");
     assert_eq!(audit_result, "pendiente");
+    let (audit_reason, audit_snapshot_id): (Option<String>, Option<Uuid>) = sqlx::query_as(
+        "SELECT authorization_reason, snapshot_pre_id FROM bdp_audit_log WHERE id = $1",
+    )
+    .bind(audit_id)
+    .fetch_one(&pool)
+    .await
+    .expect("leer motivo y evidencia de auditoría");
+    assert_eq!(audit_reason.as_deref(), Some("prueba local"));
+    assert_eq!(audit_snapshot_id, Some(snapshot_id));
     let mode: String = sqlx::query_scalar(
         "SELECT bdp_sync_mode FROM configuracion_restaurante WHERE user_id = $1",
     )
