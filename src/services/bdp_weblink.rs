@@ -37,6 +37,10 @@ const BDP_SESSION_MINUTES: u8 = 59;
 static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
     Client::builder()
         .timeout(Duration::from_secs(20))
+        /* [207A-1] S6-H1: Deshabilitar redirects automáticos para que
+         * ensure_target_allowed() realmente controle el destino. Sin esto,
+         * un 302 a un host arbitrario bypassa la allowlist. */
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .expect("BDP HTTP client must be buildable")
 });

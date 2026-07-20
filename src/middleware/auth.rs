@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::models::UserRole;
+use crate::repositories::UserRepository;
 use crate::services::AuthService;
 use crate::AppState;
 
@@ -54,6 +55,18 @@ impl FromRequestParts<AppState> for AuthUser {
             .ok_or(AppError::Unauthorized)?;
 
         let claims = AuthService::verify_token(token, &state.jwt_secret)?;
+
+        /* [2026-07-20] Verificar que el usuario del JWT existe en la DB.
+         * Sin esto, un JWT válido de un usuario eliminado o de otro entorno
+         * generaría errores FK en obtener_o_crear u otros endpoints. */
+        let exists = UserRepository::find_by_id(&state.pool, claims.sub)
+            .await
+            .map_err(|e| AppError::Internal(format!("Error verificando usuario: {e}")))?
+            .is_some();
+
+        if !exists {
+            return Err(AppError::Unauthorized);
+        }
 
         Ok(Self {
             user_id: claims.sub,

@@ -568,6 +568,14 @@ impl BdpBackupService {
         let mut errores: u32 = 0;
         let mut detalles = Vec::new();
 
+        /* [207A-3] S14-H1: Envolver toda la restauración en una transacción
+         * atómica. Si falla cualquier UPDATE intermedio, se revierte todo
+         * para evitar estado parcial (mapeos restaurados pero clientes no). */
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|e| format!("Error iniciando tx de restauración: {e}"))?;
+
         /* Restaurar mapeos de artículos */
         if let Some(mapeos) = snapshot
             .datos
@@ -588,7 +596,7 @@ impl BdpBackupService {
                 let iva = mapeo.get("iva_pct").and_then(serde_json::Value::as_f64);
                 let activo = mapeo.get("activo").and_then(serde_json::Value::as_bool);
 
-                let result = sqlx::query(
+                let r = sqlx::query(
                     r"UPDATE bdp_article_map
                     SET descripcion = COALESCE($3, descripcion),
                         precio_tarifa1 = COALESCE($4, precio_tarifa1),
@@ -602,19 +610,15 @@ impl BdpBackupService {
                 .bind(precio.and_then(|p| rust_decimal::Decimal::try_from(p).ok()))
                 .bind(iva.and_then(|i| rust_decimal::Decimal::try_from(i).ok()))
                 .bind(activo)
-                .execute(pool)
-                .await;
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| format!("Error restaurando mapeo {id}: {e}"))?;
 
-                match result {
-                    Ok(r) if r.rows_affected() > 0 => registros_restaurados += 1,
-                    Ok(_) => {
-                        detalles.push(format!("Mapeo {id} no encontrado"));
-                        errores += 1;
-                    }
-                    Err(e) => {
-                        detalles.push(format!("Mapeo {id}: {e}"));
-                        errores += 1;
-                    }
+                if r.rows_affected() > 0 {
+                    registros_restaurados += 1;
+                } else {
+                    detalles.push(format!("Mapeo {id} no encontrado"));
+                    errores += 1;
                 }
             }
         }
@@ -637,7 +641,7 @@ impl BdpBackupService {
                     .and_then(serde_json::Value::as_i64)
                     .and_then(|code| i32::try_from(code).ok());
 
-                let result = sqlx::query(
+                let r = sqlx::query(
                     r"UPDATE clientes
                     SET bdp_customer_code = COALESCE($3, bdp_customer_code)
                     WHERE id = $1 AND user_id = $2",
@@ -645,19 +649,22 @@ impl BdpBackupService {
                 .bind(id)
                 .bind(user_id)
                 .bind(bdp_code)
-                .execute(pool)
-                .await;
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| format!("Error restaurando cliente {id}: {e}"))?;
 
-                match result {
-                    Ok(r) if r.rows_affected() > 0 => registros_restaurados += 1,
-                    Ok(_) => errores += 1,
-                    Err(e) => {
-                        detalles.push(format!("Cliente {id}: {e}"));
-                        errores += 1;
-                    }
+                if r.rows_affected() > 0 {
+                    registros_restaurados += 1;
+                } else {
+                    detalles.push(format!("Cliente {id} no encontrado"));
+                    errores += 1;
                 }
             }
         }
+
+        tx.commit()
+            .await
+            .map_err(|e| format!("Error confirmando restauración: {e}"))?;
 
         let detalles_str = if detalles.is_empty() {
             format!("Restaurados {registros_restaurados} registros sin errores")

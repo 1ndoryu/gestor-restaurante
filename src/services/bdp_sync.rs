@@ -1167,51 +1167,65 @@ impl BdpSyncService {
             .and_then(|v| v.as_str())
             .map(String::from);
 
-        if let Some(ref inv) = invoice_number {
-            /* [F8.3] Si BDP devolvió InvoiceNumber, marcar venta como facturada. */
-            info!(
-                "[F8.1] Pago registrado en BDP para venta {} → InvoiceNumber={inv}",
-                venta.id
-            );
-            if let Err(error) = sqlx::query(
-                "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
-            )
-            .bind(venta.id)
-            .execute(pool)
-            .await
-            {
-                let msg = format!(
-                    "BDP confirmó pago y factura {inv}, pero no se pudo persistir localmente: {error}"
-                );
-                crate::services::BdpBackupService::actualizar_resultado(
-                    pool,
-                    audit_id,
-                    "ambiguo",
-                    Some(&response),
-                    Some(&msg),
-                )
+        /* [207A-2] S7-H2: Envolver marca local + auditoría en transacción
+         * para que, si el proceso muere después del HTTP, no quede
+         * bdp_invoiced=true sin auditoría cerrada (o viceversa). */
+        let commit_result = async {
+            let mut tx = pool
+                .begin()
                 .await
-                .map_err(|audit_error| {
-                    format!("{msg}; además falló el cierre de auditoría: {audit_error}")
-                })?;
-                return Err(msg);
-            }
-        } else {
-            info!(
-                "[F8.1] Pago registrado en BDP para venta {} (sin InvoiceNumber)",
-                venta.id
-            );
-        }
+                .map_err(|e| format!("Error iniciando tx post-pago: {e}"))?;
 
-        crate::services::BdpBackupService::actualizar_resultado(
-            pool,
-            audit_id,
-            "exito",
-            Some(&response),
-            None,
-        )
-        .await
-        .map_err(|error| format!("Pago confirmado, pero falló el cierre de auditoría: {error}"))?;
+            if let Some(ref inv) = invoice_number {
+                /* [F8.3] Si BDP devolvió InvoiceNumber, marcar venta como facturada. */
+                info!(
+                    "[F8.1] Pago registrado en BDP para venta {} → InvoiceNumber={inv}",
+                    venta.id
+                );
+                sqlx::query(
+                    "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
+                )
+                .bind(venta.id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| format!("BDP confirmó pago y factura {inv}, pero no se pudo persistir localmente: {e}"))?;
+            } else {
+                info!(
+                    "[F8.1] Pago registrado en BDP para venta {} (sin InvoiceNumber)",
+                    venta.id
+                );
+            }
+
+            /* Cerrar auditoría dentro de la misma transacción. */
+            sqlx::query(
+                r"UPDATE bdp_audit_log
+                SET resultado = 'exito', datos_respuesta = $2, error_mensaje = NULL, updated_at = NOW()
+                WHERE id = $1",
+            )
+            .bind(audit_id)
+            .bind(Some(&response))
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| format!("Pago confirmado, pero falló el cierre de auditoría: {e}"))?;
+
+            tx.commit()
+                .await
+                .map_err(|e| format!("Error confirmando tx post-pago: {e}"))
+        }
+        .await;
+
+        if let Err(e) = commit_result {
+            /* La tx falló pero BDP ya procesó el pago → auditoría ambigua. */
+            let _ = crate::services::BdpBackupService::actualizar_resultado(
+                pool,
+                audit_id,
+                "ambiguo",
+                Some(&response),
+                Some(&e),
+            )
+            .await;
+            return Err(e);
+        }
 
         Ok(invoice_number)
     }
@@ -1395,44 +1409,55 @@ impl BdpSyncService {
             return Err(msg.to_string());
         }
 
-        /* [F8.3] Marcar venta como facturada. */
-        let persisted = sqlx::query(
-            "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
-        )
-        .bind(venta.id)
-        .execute(pool)
+        /* [207A-2] S7-H2: Envolver marca local + auditoría en transacción
+         * para que, si el proceso muere después del HTTP, no quede
+         * bdp_invoiced=true sin auditoría cerrada (o viceversa). */
+        let commit_result = async {
+            let mut tx = pool
+                .begin()
+                .await
+                .map_err(|e| format!("Error iniciando tx post-factura: {e}"))?;
+
+            /* [F8.3] Marcar venta como facturada. */
+            sqlx::query(
+                "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
+            )
+            .bind(venta.id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                format!("BDP confirmó InvoiceNumber={invoice_number}, pero no se pudo persistir localmente: {e}")
+            })?;
+
+            /* Cerrar auditoría dentro de la misma transacción. */
+            sqlx::query(
+                r"UPDATE bdp_audit_log
+                SET resultado = 'exito', datos_respuesta = $2, error_mensaje = NULL, updated_at = NOW()
+                WHERE id = $1",
+            )
+            .bind(audit_id)
+            .bind(Some(&response))
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| format!("Factura confirmada, pero falló el cierre de auditoría: {e}"))?;
+
+            tx.commit()
+                .await
+                .map_err(|e| format!("Error confirmando tx post-factura: {e}"))
+        }
         .await;
-        match persisted {
-            Ok(_) => {
-                crate::services::BdpBackupService::actualizar_resultado(
-                    pool,
-                    audit_id,
-                    "exito",
-                    Some(&response),
-                    None,
-                )
-                .await
-                .map_err(|error| {
-                    format!("Factura confirmada, pero falló el cierre de auditoría: {error}")
-                })?;
-            }
-            Err(error) => {
-                let msg = format!(
-                    "BDP confirmó InvoiceNumber={invoice_number}, pero no se pudo persistir localmente: {error}"
-                );
-                crate::services::BdpBackupService::actualizar_resultado(
-                    pool,
-                    audit_id,
-                    "ambiguo",
-                    Some(&response),
-                    Some(&msg),
-                )
-                .await
-                .map_err(|audit_error| {
-                    format!("{msg}; además falló el cierre de auditoría: {audit_error}")
-                })?;
-                return Err(msg);
-            }
+
+        if let Err(e) = commit_result {
+            /* La tx falló pero BDP ya procesó la factura → auditoría ambigua. */
+            let _ = crate::services::BdpBackupService::actualizar_resultado(
+                pool,
+                audit_id,
+                "ambiguo",
+                Some(&response),
+                Some(&e),
+            )
+            .await;
+            return Err(e);
         }
 
         info!(
