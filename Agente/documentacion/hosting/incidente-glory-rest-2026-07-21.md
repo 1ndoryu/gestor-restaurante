@@ -166,8 +166,21 @@ fn rewrite_rust_service_compose(...) -> Result<String, CoolifyError> {
 
 ## 7. Acciones de seguimiento
 
-- [ ] Implementar fix del label `traefik.docker.network=coolify` en `rewrite_rust_service_compose()`
-- [ ] Verificar que nakomi.studio y otros sitios Rust legacy tengan el label
-- [ ] Deploy de glory-rest con el fix del label
-- [ ] Commit + push de todas las mejoras del tool (rollback + SSH keepalive + label fix)
+- [x] Implementar fix del label `traefik.docker.network=coolify` en `rewrite_rust_service_compose()`
+- [x] Verificar que nakomi.studio y otros sitios Rust legacy tengan el label (inyectado en rewrite)
+- [x] Deploy de glory-rest con el fix del label
+- [x] Commit + push de todas las mejoras del tool (rollback + SSH keepalive + label fix)
+- [x] **Causa raíz #2 CONFIRMADA:** Coolify regenera compose on-disk durante build y borra fixes sed. Fix: re-aplicación post-build de TODOS los fixes antes del swap.
 - [ ] Documentar en `Agente/lecciones/lecciones-aprendidas.md`
+
+## 8. Confirmación post-deploy (21 julio 2026)
+
+El deploy de glory-rest con el nuevo tool confirmó la causa raíz #2:
+
+```
+traefik.docker.network=coolify no encontrado en compose on-disk, inyectando...
+Label traefik.docker.network=coolify inyectado via sed.
+Deploy exitoso! https://restaurante.wandori.us/api/health respondiendo (status=Some(200)).
+```
+
+Después de los ~8.5 minutos del build Docker, Coolify había regenerado el `docker-compose.yml` on-disk desde el API state, eliminando el label que había sido inyectado en el paso 1. El bloque de re-aplicación post-build lo detectó y lo volvió a inyectar, resultando en un deploy exitoso con status 200.
