@@ -1,7 +1,7 @@
 # Plan de despliegue BDP a producción — glory-rest (Wandori)
 
-> **Fecha:** 2026-07-20
-> **Estado:** Planificado (sin ejecutar)
+> **Fecha:** 2026-07-20 (actualizado 2026-07-21)
+> **Estado:** Bloqueado — nodo BDP offline en Tailscale
 > **Destino:** `https://restaurante.wandori.us` — VPS 66.94.100.241, stack `b8s0cks444o0sogo8kg8wcgw`
 
 ---
@@ -10,17 +10,40 @@
 
 El contenedor de producción **no tiene ninguna variable BDP**. La integración existe en el código y las migraciones ya se aplicaron, pero el bootstrap BDP nunca corrió porque falta `BDP_BOOTSTRAP_USER_EMAIL`.
 
+### 1.1 Bloqueo: nodo BDP offline en Tailscale
+
+**Diagnóstico (2026-07-21):**
+
+Se verificó primero desde el contenedor Docker (timeout) y luego desde el host VPS vía `host-exec` de coolify-manager-rs. El resultado es el mismo: **el nodo BDP está offline**.
+
+```
+tailscale status:
+100.91.173.54  coolify-vps1     andoryyu@  linux    -
+100.83.196.35  restaurante-bdp  andoryyu@  windows  active; relay "mad"; offline, last seen 1d ago
+```
+
+- El VPS host (`100.91.173.54`) está conectado a Tailscale ✅
+- El nodo `restaurante-bdp` (`100.83.196.35`) está **offline desde hace ~1 día** ❌
+- `curl http://100.83.196.35:8068/api/ServiceHealth` → timeout (exit 28) tanto desde contenedor como desde host
+- **No es un problema de Docker networking** — es la máquina BDP la que no está conectada a Tailscale
+
+**Causa:** La máquina Windows donde corre BDP (`restaurante-bdp`) está apagada, sin Tailscale ejecutándose, o sin conexión a internet.
+
+**Acción requerida:** Encender/reiniciar la máquina `restaurante-bdp` y verificar que Tailscale muestra "active". Una vez online, la conectividad desde el contenedor Docker debería funcionar (el VPS ya puede llegar al BDP cuando está activo).
+
+**Posible segundo problema:** Si al volver BDP online el contenedor sigue sin poder llegar, el problema será de Docker networking (bridge vs host). Se diagnosticará entonces.
+
 **ENVs actuales del contenedor** (verificadas con `exec`):
 
-| Variable | Valor en producción |
-|---|---|
-| `DATABASE_URL` | `postgres://rust_app:***@postgres-b8s0cks444o0sogo8kg8wcgw:5432/rust_db` |
-| `JWT_SECRET` | Presente (generado por Coolify) |
-| `RUST_LOG` | `info` |
-| `STATIC_DIR` | `/app/dist` |
-| `HOST` | `0.0.0.0` |
-| `SERVICE_FQDN_APP` | `restaurante.wandori.us` |
-| **Cualquier `BDP_*`** | **No existe** |
+| Variable              | Valor en producción                                                      |
+| --------------------- | ------------------------------------------------------------------------ |
+| `DATABASE_URL`        | `postgres://rust_app:***@postgres-b8s0cks444o0sogo8kg8wcgw:5432/rust_db` |
+| `JWT_SECRET`          | Presente (generado por Coolify)                                          |
+| `RUST_LOG`            | `info`                                                                   |
+| `STATIC_DIR`          | `/app/dist`                                                              |
+| `HOST`                | `0.0.0.0`                                                                |
+| `SERVICE_FQDN_APP`    | `restaurante.wandori.us`                                                 |
+| **Cualquier `BDP_*`** | **No existe**                                                            |
 
 ---
 
@@ -28,17 +51,17 @@ El contenedor de producción **no tiene ninguna variable BDP**. La integración 
 
 Los valores del `.env` local son los **mismos** que se usarán en producción. No hay un BDP separado para Wandori — es la misma instancia BDP, el mismo POS 31, las mismas credenciales.
 
-| Variable | Valor confirmado |
-|---|---|
-| `BDP_BASE_URL` | Ver `.env` (Tailscale, accesible desde el VPS) |
-| `BDP_POS_ID` | `31` — CENTRAL 2026 (Series `00031TI`, IVA incluido) |
-| `BDP_LOGIN` | Ver `.env` |
-| `BDP_PASSWORD` | Ver `.env` |
-| `BDP_INTEGRATOR_CODE` | Ver `.env` |
-| `BDP_EMPLOYEE_ID` | `1` |
-| `BDP_ITEMS_PROFILE_ID` | `1` |
-| `BDP_DEFAULT_ARTICLE_CODE` | `1001` |
-| `BDP_DEFAULT_ARTICLE_NAME` | `CAFE BOMBON` |
+| Variable                   | Valor confirmado                                     |
+| -------------------------- | ---------------------------------------------------- |
+| `BDP_BASE_URL`             | Ver `.env` (Tailscale, accesible desde el VPS)       |
+| `BDP_POS_ID`               | `31` — CENTRAL 2026 (Series `00031TI`, IVA incluido) |
+| `BDP_LOGIN`                | Ver `.env`                                           |
+| `BDP_PASSWORD`             | Ver `.env`                                           |
+| `BDP_INTEGRATOR_CODE`      | Ver `.env`                                           |
+| `BDP_EMPLOYEE_ID`          | `1`                                                  |
+| `BDP_ITEMS_PROFILE_ID`     | `1`                                                  |
+| `BDP_DEFAULT_ARTICLE_CODE` | `1001`                                               |
+| `BDP_DEFAULT_ARTICLE_NAME` | `CAFE BOMBON`                                        |
 
 Estos valores ya están validados localmente contra el BDP real (111+ tests, preflight, Category C).
 
@@ -50,11 +73,11 @@ Todo está confirmado. El email del usuario en la app es `$BDP_BOOTSTRAP_USER_EM
 
 ### 3.1 Mapeos (opcionales, configurables después desde la app)
 
-| Variable ENV | Qué es | Valor por defecto |
-|---|---|---|
-| `BDP_TENDER_MAP_JSON` | Métodos de pago de la app → códigos BDP (ej: `{"efectivo":"1","tarjeta":"2"}`) | `{}` = usa default BDP |
-| `BDP_ORDER_TYPE_MAP_JSON` | Canales de venta → tipos de pedido BDP (ej: `{"comedor":"0","barra":"0"}`) | `{}` = tipo 0 por defecto |
-| `BDP_DEFAULT_CUSTOMER_CODE` | Cliente genérico BDP para ventas sin cliente asociado | Vacío (opcional) |
+| Variable ENV                | Qué es                                                                         | Valor por defecto         |
+| --------------------------- | ------------------------------------------------------------------------------ | ------------------------- |
+| `BDP_TENDER_MAP_JSON`       | Métodos de pago de la app → códigos BDP (ej: `{"efectivo":"1","tarjeta":"2"}`) | `{}` = usa default BDP    |
+| `BDP_ORDER_TYPE_MAP_JSON`   | Canales de venta → tipos de pedido BDP (ej: `{"comedor":"0","barra":"0"}`)     | `{}` = tipo 0 por defecto |
+| `BDP_DEFAULT_CUSTOMER_CODE` | Cliente genérico BDP para ventas sin cliente asociado                          | Vacío (opcional)          |
 
 Se pueden configurar después desde la interfaz o como ENV. No bloquean el deploy.
 
@@ -68,11 +91,11 @@ El `BdpConfigBootstrapService` corre **una sola vez** al iniciar el contenedor, 
 2. Carga los valores BDP en `configuracion_restaurante` para ese usuario.
 3. **No sobreescribe** valores que ya existían (es idempotente).
 4. Deja todo en modo seguro:
-   - `bdp_sync_enabled = FALSE`
-   - `bdp_poll_enabled = FALSE`
-   - `bdp_auto_sync_customers = FALSE`
-   - `bdp_sync_mode = 'read_only'`
-   - Elimina cualquier `bdp_write_arming` previo.
+    - `bdp_sync_enabled = FALSE`
+    - `bdp_poll_enabled = FALSE`
+    - `bdp_auto_sync_customers = FALSE`
+    - `bdp_sync_mode = 'read_only'`
+    - Elimina cualquier `bdp_write_arming` previo.
 5. Registra en `bdp_audit_log` que se aplicó el bootstrap.
 6. Se marca como aplicado para no repetirse.
 
@@ -89,6 +112,7 @@ Usar `sync-env` o la API de Coolify para añadir las variables al servicio. Las 
 Los valores se leen del `.env` del proyecto. Ver sección 2 para la lista de variables necesarias.
 
 **NO configurar todavía:**
+
 - `BDP_WRITE_ALLOWED_ORIGINS` (vacío = solo lectura, protege contra escrituras accidentales)
 - `BDP_CHECK_ORDER_ALLOWED_ORIGINS` (vacío = no permite ni consultar órdenes)
 
@@ -131,6 +155,7 @@ BDP_CHECK_ORDER_ALLOWED_ORIGINS=<ip:puerto-del-bdp>
 ```
 
 Y habilitar desde la interfaz:
+
 - `bdp_sync_enabled = TRUE`
 - `bdp_poll_enabled = TRUE` (si se quiere polling automático)
 
@@ -138,14 +163,15 @@ Y habilitar desde la interfaz:
 
 ## 6. Riesgos y mitigaciones
 
-| Riesgo | Probabilidad | Mitigación |
-|---|---|---|
-| BDP no accesible desde VPS | Baja (ya confirmado) | Verificar con `exec --command "curl -s http://IP:8068/api/ServiceHealth"` antes del deploy |
-| Email de usuario incorrecto | Media | El bootstrap falla sin daño si el email no existe en `users`. Corregir ENV y redeploy. |
-| POS ID incorrecto | Media | El preflight detecta si el POS no existe. Corregir env y redeploy. |
-| Migraciones fallan | Baja | El contenedor no arranca (fail-fast). Revisar logs, corregir, redeploy. |
-| Bootstrap sobreescribe config existente | Ninguna | El bootstrap no sobreescribe valores ya confirmados. |
-| Escritura accidental en BDP | Ninguna | `BDP_WRITE_ALLOWED_ORIGINS` vacío = todas las escrituras bloqueadas. |
+| Riesgo                                  | Probabilidad         | Mitigación                                                                                 |
+| --------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------ |
+| BDP no accesible desde VPS              | **Alta (confirmado)** | Nodo `restaurante-bdp` offline en Tailscale (~1d). Acción: encender la máquina Windows. |
+| BDP accesible pero contenedor no llega  | Media                | Si el host llega pero el contenedor no → Docker bridge. Fix: `network_mode: host` o red Tailscale. |
+| Email de usuario incorrecto             | Media                | El bootstrap falla sin daño si el email no existe en `users`. Corregir ENV y redeploy.     |
+| POS ID incorrecto                       | Media                | El preflight detecta si el POS no existe. Corregir env y redeploy.                         |
+| Migraciones fallan                      | Baja                 | El contenedor no arranca (fail-fast). Revisar logs, corregir, redeploy.                    |
+| Bootstrap sobreescribe config existente | Ninguna              | El bootstrap no sobreescribe valores ya confirmados.                                       |
+| Escritura accidental en BDP             | Ninguna              | `BDP_WRITE_ALLOWED_ORIGINS` vacío = todas las escrituras bloqueadas.                       |
 
 ---
 
@@ -157,7 +183,9 @@ Y habilitar desde la interfaz:
 - [x] Empleado ID: 1 — Perfil artículos: 1
 - [x] Artículo por defecto: 1001 (CAFE BOMBON)
 - [x] Email del usuario confirmado: `$BDP_BOOTSTRAP_USER_EMAIL`
-- [ ] Verificar conectividad VPS → BDP (curl desde el contenedor)
+- [ ] **BLOCKED** — Verificar que nodo `restaurante-bdp` está online en Tailscale (máquina Windows apagada desde ~2026-07-20)
+- [ ] Verificar conectividad host VPS → BDP (`host-exec` curl al health endpoint)
+- [ ] Verificar conectividad contenedor → BDP (si host llega, el contenedor debería también)
 - [ ] Añadir envs BDP al contenedor
 - [ ] Deploy + health check
 - [ ] Verificar bootstrap en logs
