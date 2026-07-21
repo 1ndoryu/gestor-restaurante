@@ -1,7 +1,7 @@
 # Plan de despliegue BDP a producción — glory-rest (Wandori)
 
 > **Fecha:** 2026-07-20 (actualizado 2026-07-21)
-> **Estado:** Bloqueado — nodo BDP offline en Tailscale
+> **Estado:** Listo para deploy — BDP offline no es bloqueante (ver auditoría seguridad)
 > **Destino:** `https://restaurante.wandori.us` — VPS 66.94.100.241, stack `b8s0cks444o0sogo8kg8wcgw`
 
 ---
@@ -183,9 +183,8 @@ Y habilitar desde la interfaz:
 - [x] Empleado ID: 1 — Perfil artículos: 1
 - [x] Artículo por defecto: 1001 (CAFE BOMBON)
 - [x] Email del usuario confirmado: `$BDP_BOOTSTRAP_USER_EMAIL`
-- [ ] **BLOCKED** — Verificar que nodo `restaurante-bdp` está online en Tailscale (máquina Windows apagada desde ~2026-07-20)
-- [ ] Verificar conectividad host VPS → BDP (`host-exec` curl al health endpoint)
-- [ ] Verificar conectividad contenedor → BDP (si host llega, el contenedor debería también)
+- [x] Auditoría seguridad BDP: deploy seguro, nada escribe al BDP automáticamente (ver `Agente/documentacion/bdp-seguridad-produccion-2026-07-21.md`)
+- [ ] Verificar conectividad cuando BDP esté online (no bloqueante — restaurante aún no abre)
 - [ ] Añadir envs BDP al contenedor
 - [ ] Deploy + health check
 - [ ] Verificar bootstrap en logs
