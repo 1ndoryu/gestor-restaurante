@@ -6,6 +6,7 @@
  * Lógica en usePlanoSala, mesa arrastrable en MesaDraggable, config en PanelConfigMesa. */
 
 import { useRef, useMemo, useState } from 'react';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -146,22 +147,22 @@ function PlanoSala() {
       <div className="flex items-center gap-2 flex-wrap">
         {zonaActiva && (
           <>
-            <Button size="sm" variant="ghost" onClick={handleEditarZona}><Pencil className="size-4 mr-1" />Renombrar</Button>
-            <Button size="sm" variant="destructive" onClick={handleEliminarZona}><Trash2 className="size-4 mr-1" />Zona</Button>
+            <TooltipButton size="sm" variant="ghost" onClick={handleEditarZona} tooltip="Cambiar el nombre de la zona activa"><Pencil className="size-4 mr-1" />Renombrar</TooltipButton>
+            <TooltipButton size="sm" variant="destructive" onClick={handleEliminarZona} tooltip="Eliminar la zona activa y todas sus mesas. No se puede deshacer."><Trash2 className="size-4 mr-1" />Zona</TooltipButton>
           </>
         )}
         <div className="ml-auto flex gap-2">
-          <Button size="sm" variant="ghost" onClick={handleExportar}><Download className="size-4 mr-1" />Exportar</Button>
-          <Button size="sm" variant="ghost" onClick={handleImportar}><Upload className="size-4 mr-1" />Importar</Button>
-          <Button size="sm" variant="outline" onClick={() => { setDialogoSyncBdp(true); setPreviewSyncBdp(null); setConfirmacionSyncBdp(''); }} disabled={sincronizandoMesas}>
+          <TooltipButton size="sm" variant="ghost" onClick={handleExportar} tooltip="Exportar el plano de sala a un archivo JSON"><Download className="size-4 mr-1" />Exportar</TooltipButton>
+          <TooltipButton size="sm" variant="ghost" onClick={handleImportar} tooltip="Importar un plano de sala desde un archivo JSON"><Upload className="size-4 mr-1" />Importar</TooltipButton>
+          <TooltipButton size="sm" variant="outline" onClick={() => { setDialogoSyncBdp(true); setPreviewSyncBdp(null); setConfirmacionSyncBdp(''); }} disabled={sincronizandoMesas} tooltip="Importar salones y mesas desde BDP. Crea solo lo que falte, no modifica lo existente.">
             {sincronizandoMesas ? <RefreshCw className="size-4 mr-1 animate-spin" /> : <RefreshCw className="size-4 mr-1" />}
             Sync BDP
-          </Button>
+          </TooltipButton>
         </div>
         <div className="flex items-center gap-1">
-          <Button size="sm" variant="outline" onClick={() => setZoom(z => Math.max(0.5, +(z - 0.1).toFixed(2)))}><ZoomOut className="size-4" /></Button>
+          <TooltipButton size="sm" variant="outline" onClick={() => setZoom(z => Math.max(0.5, +(z - 0.1).toFixed(2)))} tooltip="Alejar (zoom −10%)"><ZoomOut className="size-4" /></TooltipButton>
           <span className="text-xs w-12 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
-          <Button size="sm" variant="outline" onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(2)))}><ZoomIn className="size-4" /></Button>
+          <TooltipButton size="sm" variant="outline" onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(2)))} tooltip="Acercar (zoom +10%)"><ZoomIn className="size-4" /></TooltipButton>
         </div>
       </div>
 

@@ -1,7 +1,9 @@
 /* [064A-10] Acciones por fila de venta — extraídas de ListaVentas (300 line limit).
  * Botones: ver reserva, retry Haddock, editar, eliminar.
- * [147A-F5.4] Añadido botón retry BDP. */
+ * [147A-F5.4] Añadido botón retry BDP.
+ * [223A-1] Tooltips con TooltipButton en vez de title HTML nativo. */
 
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Button } from '@/components/ui/button';
 import { Trash2, Pencil, Eye, RefreshCw, CreditCard, ReceiptText } from 'lucide-react';
 import { useState } from 'react';
@@ -91,56 +93,59 @@ function VentaRowActions({
     <>
     <div className="flex gap-1">
       {v.reserva_id && (
-        <Button variant="ghost" size="icon" onClick={() => onVerReserva(v.reserva_id!)} title="Ver reserva">
+        <TooltipButton variant="ghost" size="icon" onClick={() => onVerReserva(v.reserva_id!)} tooltip="Ver reserva" tooltipSide="left">
           <Eye className="size-4" />
-        </Button>
+        </TooltipButton>
       )}
       {haddockSyncEnabled && !v.haddock_synced && v.haddock_sync_error && (
-        <Button
+        <TooltipButton
           variant="ghost"
           size="icon"
           onClick={() => onRetrySync(v.id)}
           disabled={retryPending}
-          title="Reintentar sincronización Haddock"
+          tooltip="Reintentar sincronización Haddock"
+          tooltipSide="left"
         >
           <RefreshCw className={`size-4 text-amber-600 ${retryPending ? 'animate-spin' : ''}`} />
-        </Button>
+        </TooltipButton>
       )}
       {/* Un fallo de CreateOrder deja bdp_synced=false; el error es la señal de retry. */}
       {bdpSyncEnabled && !(v as unknown as VentaConClienteBdp).bdp_synced && (v as unknown as VentaConClienteBdp).bdp_sync_error && onRetryBdp && (
-        <Button
+        <TooltipButton
           variant="ghost"
           size="icon"
           onClick={() => onRetryBdp(v.id)}
           disabled={retryBdpPending}
-          title="Reintentar sincronización BDP"
+          tooltip="Reintentar sincronización BDP"
+          tooltipSide="left"
         >
           <RefreshCw className={`size-4 text-blue-600 ${retryBdpPending ? 'animate-spin' : ''}`} />
-        </Button>
+        </TooltipButton>
       )}
       {puedeLiquidar && (
-        <Button variant="ghost" size="icon" onClick={() => { setAccion('pago'); setImporte(total); setConfirmacion(''); }} title="Registrar pago completo en BDP">
+        <TooltipButton variant="ghost" size="icon" onClick={() => { setAccion('pago'); setImporte(total); setConfirmacion(''); }} tooltip="Registrar pago completo en BDP" tooltipSide="left">
           <CreditCard className="size-4 text-emerald-700" />
-        </Button>
+        </TooltipButton>
       )}
       {puedeLiquidar && (
-        <Button variant="ghost" size="icon" onClick={() => { setAccion('factura'); setConfirmacion(''); }} title="Facturar orden pagada en BDP">
+        <TooltipButton variant="ghost" size="icon" onClick={() => { setAccion('factura'); setConfirmacion(''); }} tooltip="Facturar orden pagada en BDP" tooltipSide="left">
           <ReceiptText className="size-4 text-violet-700" />
-        </Button>
+        </TooltipButton>
       )}
-      <Button variant="ghost" size="icon" onClick={() => onEditar(v)} title="Editar">
+      <TooltipButton variant="ghost" size="icon" onClick={() => onEditar(v)} tooltip="Editar" tooltipSide="left">
         <Pencil className="size-4" />
-      </Button>
+      </TooltipButton>
       {!haddockSyncEnabled && (
-        <Button
+        <TooltipButton
           variant="ghost"
           size="icon"
           onClick={() => onEliminar(v.id)}
           disabled={eliminarPending}
-          title="Eliminar"
+          tooltip="Eliminar venta"
+          tooltipSide="left"
         >
           <Trash2 className="size-4 text-destructive" />
-        </Button>
+        </TooltipButton>
       )}
     </div>
     <Dialog open={accion === 'pago'} onOpenChange={(open) => { if (!open) cerrar(); }}>

@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import useListaClientes from '../hooks/useListaClientes';
 import { Button } from '@/components/ui/button';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -128,7 +129,7 @@ function ListaClientes() {
           )}
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => { setImportarBdpAbierto(true); setPreviewImportar(null); setConfirmacionImportar(''); }}><Download className="size-4 mr-1" />Importar BDP</Button>
+          <TooltipButton variant="outline" tooltip="Importar clientes desde BDP" onClick={() => { setImportarBdpAbierto(true); setPreviewImportar(null); setConfirmacionImportar(''); }}><Download className="size-4 mr-1" />Importar BDP</TooltipButton>
           <Button onClick={() => setModalCrear(true)}>+ Nuevo Cliente</Button>
         </div>
       </div>
@@ -211,22 +212,23 @@ function ListaClientes() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => setClienteEditar(c)}>
+                        <TooltipButton variant="ghost" size="icon" onClick={() => setClienteEditar(c)} tooltip="Editar cliente">
                           <Pencil className="size-4" />
-                        </Button>
+                        </TooltipButton>
                         {!c.bdp_synced && (
-                          <Button variant="outline" size="sm" onClick={() => { setClienteBdp(c); setCodigoBdp(''); setConfirmacionBdp(''); }}>
+                          <TooltipButton variant="outline" size="sm" onClick={() => { setClienteBdp(c); setCodigoBdp(''); setConfirmacionBdp(''); }} tooltip="Vincular este cliente con un código BDP">
                             BDP
-                          </Button>
+                          </TooltipButton>
                         )}
-                        <Button
+                        <TooltipButton
                           variant="ghost"
                           size="icon"
                           onClick={() => eliminarMut.mutate({ id: c.id })}
                           disabled={eliminarMut.isPending}
+                          tooltip="Eliminar cliente"
                         >
                           <Trash2 className="size-4 text-destructive" />
-                        </Button>
+                        </TooltipButton>
                       </div>
                     </TableCell>
                   </TableRow>

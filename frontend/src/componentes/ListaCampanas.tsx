@@ -3,8 +3,7 @@
  * Botón "Nueva Campaña" navega al formulario de creación. */
 
 import {useCampanas} from '../hooks/useCampanas';
-import {Button} from '@/components/ui/button';
-import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';import { TooltipButton } from '@/components/ui/tooltip-button';import {Badge} from '@/components/ui/badge';
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
@@ -115,13 +114,13 @@ export default function ListaCampanas() {
                                         <TableCell>
                                             <div className="flex gap-1">
                                                 {c.estado === 'borrador' && (
-                                                    <Button variant="ghost" size="icon" title="Enviar campaña" onClick={() => handleEnviar(c)}>
+                                                    <TooltipButton variant="ghost" size="icon" tooltip="Enviar campaña" onClick={() => handleEnviar(c)}>
                                                         <Send className="size-4" />
-                                                    </Button>
+                                                    </TooltipButton>
                                                 )}
-                                                <Button variant="ghost" size="icon" title="Eliminar" onClick={() => handleEliminar(c.id)}>
+                                                <TooltipButton variant="ghost" size="icon" tooltip="Eliminar campaña" onClick={() => handleEliminar(c.id)}>
                                                     <Trash2 className="size-4" />
-                                                </Button>
+                                                </TooltipButton>
                                             </div>
                                         </TableCell>
                                     </TableRow>

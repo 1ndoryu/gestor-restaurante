@@ -281,9 +281,10 @@ pub async fn eliminar_snapshot(
     path = "/api/bdp/backup/restaurar/{id}",
     tag = "BDP Backup",
     params(("id" = Uuid, Path, description = "ID del snapshot a restaurar")),
+    request_body = RestoreGloryRequest,
     responses(
         (status = 200, description = "Restauración completada", body = RestoreResult),
-        (status = 400, description = "Snapshot no es de tipo Glory"),
+        (status = 400, description = "Confirmación inválida o snapshot no es de tipo Glory"),
         (status = 404, description = "Snapshot no encontrado"),
         (status = 500, description = "Error interno"),
     ),
@@ -293,7 +294,15 @@ pub async fn restaurar_glory(
     State(state): State<crate::handlers::AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
+    Json(req): Json<RestoreGloryRequest>,
 ) -> Result<Json<RestoreResult>, AppError> {
+    /* [AUDIT-11.3] Confirmación textual explícita antes de restaurar. */
+    let expected = format!("RESTAURAR {id}");
+    if req.confirmacion.trim() != expected {
+        return Err(AppError::Validation(format!(
+            "Confirmación inválida. Escriba exactamente: {expected}"
+        )));
+    }
     let result = BdpBackupService::restaurar_glory(&state.pool, id, auth.user_id)
         .await
         .map_err(|e| {
@@ -305,6 +314,12 @@ pub async fn restaurar_glory(
         })?;
 
     Ok(Json(result))
+}
+
+#[derive(Deserialize)]
+pub(crate) struct RestoreGloryRequest {
+    /// Debe ser exactamente "RESTAURAR {uuid}".
+    pub confirmacion: String,
 }
 
 /// Lista entradas del audit log.

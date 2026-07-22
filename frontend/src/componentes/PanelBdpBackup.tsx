@@ -4,6 +4,7 @@
 import {useState} from 'react';
 import {Database, Download, Loader2, RefreshCw, Shield, Trash2, Upload} from 'lucide-react';
 import {Button} from '@/components/ui/button';
+import {TooltipButton} from '@/components/ui/tooltip-button';
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
 import {Badge} from '@/components/ui/badge';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
@@ -294,6 +295,7 @@ function SnapshotTable({snapshots}: {snapshots: BdpSnapshot[]}) {
     const eliminar = useDeleteSnapshot();
     const restaurar = useRestoreSnapshot();
     const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
+    const [restoreInput, setRestoreInput] = useState('');
 
     if (snapshots.length === 0) {
         return <p className="text-sm text-muted-foreground py-4 text-center">No hay snapshots todavía. Crea uno para empezar.</p>;
@@ -320,31 +322,41 @@ function SnapshotTable({snapshots}: {snapshots: BdpSnapshot[]}) {
                         <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                                 {confirmRestore === s.id ? (
-                                    <>
-                                        <Button
-                                            size="sm"
-                                            variant="destructive"
-                                            onClick={() => {
-                                                restaurar.mutate(s.id, {
-                                                    onSuccess: r => {
-                                                        toast.success('Restauración completada', {
-                                                            description: `${r.registros_restaurados} registros restaurados. ${r.detalles}`
-                                                        });
-                                                        setConfirmRestore(null);
-                                                    },
-                                                    onError: (e: unknown) => toast.error('Error', {description: String(e)})
-                                                });
-                                            }}
-                                            disabled={restaurar.isPending}>
-                                            {restaurar.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Confirmar'}
-                                        </Button>
-                                        <Button size="sm" variant="outline" onClick={() => setConfirmRestore(null)}>
-                                            Cancelar
-                                        </Button>
-                                    </>
+                                    <div className="flex flex-col gap-1 items-end">
+                                        <p className="text-xs text-destructive">Escribe exactamente: <code className="break-all">RESTAURAR {s.id}</code></p>
+                                        <input
+                                            className="text-xs border rounded px-1 py-0.5 w-72 font-mono"
+                                            placeholder={`RESTAURAR ${s.id}`}
+                                            value={restoreInput}
+                                            onChange={e => setRestoreInput(e.target.value)}
+                                        />
+                                        <div className="flex gap-1">
+                                            <Button
+                                                size="sm"
+                                                variant="destructive"
+                                                onClick={() => {
+                                                    restaurar.mutate({ id: s.id, confirmacion: restoreInput }, {
+                                                        onSuccess: r => {
+                                                            toast.success('Restauración completada', {
+                                                                description: `${r.registros_restaurados} registros restaurados. ${r.detalles}`
+                                                            });
+                                                            setConfirmRestore(null);
+                                                            setRestoreInput('');
+                                                        },
+                                                        onError: (e: unknown) => toast.error('Error', {description: String(e)})
+                                                    });
+                                                }}
+                                                disabled={restaurar.isPending || restoreInput.trim() !== `RESTAURAR ${s.id}`}>
+                                                {restaurar.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Confirmar'}
+                                            </Button>
+                                            <Button size="sm" variant="outline" onClick={() => { setConfirmRestore(null); setRestoreInput(''); }}>
+                                                Cancelar
+                                            </Button>
+                                        </div>
+                                    </div>
                                 ) : (
                                     <>
-                                        <Button
+                                        <TooltipButton
                                             size="sm"
                                             variant="outline"
                                             onClick={() => {
@@ -353,10 +365,10 @@ function SnapshotTable({snapshots}: {snapshots: BdpSnapshot[]}) {
                                                 });
                                                 setConfirmRestore(s.id);
                                             }}
-                                            title="Restaurar Glory desde este snapshot">
+                                            tooltip="Restaurar Glory desde este snapshot">
                                             <Upload className="h-3 w-3" />
-                                        </Button>
-                                        <Button
+                                        </TooltipButton>
+                                        <TooltipButton
                                             size="sm"
                                             variant="ghost"
                                             onClick={() => {
@@ -367,9 +379,9 @@ function SnapshotTable({snapshots}: {snapshots: BdpSnapshot[]}) {
                                                     });
                                                 }
                                             }}
-                                            title="Eliminar snapshot">
+                                            tooltip="Eliminar snapshot">
                                             <Trash2 className="h-3 w-3 text-destructive" />
-                                        </Button>
+                                        </TooltipButton>
                                     </>
                                 )}
                             </div>

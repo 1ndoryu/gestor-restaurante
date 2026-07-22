@@ -102,9 +102,10 @@ async function deleteSnapshot(id: string): Promise<void> {
   });
 }
 
-async function restoreSnapshot(id: string): Promise<RestoreResult> {
+async function restoreSnapshot(id: string, confirmacion: string): Promise<RestoreResult> {
   const res = await customInstance<{ data: RestoreResult }>(`/api/bdp/backup/restaurar/${id}`, {
     method: 'POST',
+    body: JSON.stringify({ confirmacion }),
   });
   return res.data;
 }
@@ -199,7 +200,7 @@ export function useDeleteSnapshot() {
 export function useRestoreSnapshot() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => restoreSnapshot(id),
+    mutationFn: ({ id, confirmacion }: { id: string; confirmacion: string }) => restoreSnapshot(id, confirmacion),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bdp-snapshots'] });
       queryClient.invalidateQueries({ queryKey: ['bdp-audit'] });

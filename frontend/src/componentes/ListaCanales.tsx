@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { useListarCanales, useCrearCanal, useEliminarCanal, getListarCanalesQueryKey } from '../api/generated';
 import { Button } from '@/components/ui/button';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -90,14 +91,15 @@ function ListaCanales() {
                   <TableCell className="font-medium">{c.nombre}</TableCell>
                   <TableCell>{new Date(c.created_at).toLocaleDateString('es-ES')}</TableCell>
                   <TableCell>
-                    <Button
+                    <TooltipButton
                       variant="ghost"
                       size="icon"
                       onClick={() => eliminarMut.mutate({ id: c.id })}
                       disabled={eliminarMut.isPending}
+                      tooltip="Eliminar canal"
                     >
                       <Trash2 className="size-4 text-destructive" />
-                    </Button>
+                    </TooltipButton>
                   </TableCell>
                 </TableRow>
               ))}

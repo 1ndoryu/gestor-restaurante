@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useResenas } from '../hooks/useResenas';
 import { useConfiguracion } from '../hooks/useConfiguracion';
 import { Button } from '@/components/ui/button';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
@@ -99,9 +100,9 @@ export default function ListaResenas() {
                 <p className="text-sm font-medium">Enlace generado:</p>
                 <div className="flex gap-2">
                   <Input value={ultimaUrlGenerada} readOnly className="text-xs" />
-                  <Button variant="outline" size="icon" onClick={copiarEnlace} title="Copiar">
+                  <TooltipButton variant="outline" size="icon" onClick={copiarEnlace} tooltip="Copiar enlace">
                     <Copy className="size-4" />
-                  </Button>
+                  </TooltipButton>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Comparte este enlace con el cliente por WhatsApp, email o SMS.
@@ -166,13 +167,13 @@ export default function ListaResenas() {
           </div>
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" size="icon" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+              <TooltipButton variant="outline" size="icon" disabled={page <= 1} onClick={() => setPage(page - 1)} tooltip="Página anterior">
                 <ChevronLeft className="size-4" />
-              </Button>
+              </TooltipButton>
               <span className="text-sm">{page} / {totalPages}</span>
-              <Button variant="outline" size="icon" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+              <TooltipButton variant="outline" size="icon" disabled={page >= totalPages} onClick={() => setPage(page + 1)} tooltip="Página siguiente">
                 <ChevronRight className="size-4" />
-              </Button>
+              </TooltipButton>
             </div>
           )}
         </>

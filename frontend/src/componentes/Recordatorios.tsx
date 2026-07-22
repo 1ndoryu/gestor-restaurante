@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useRecordatorios } from '../hooks/useRecordatorios';
 import TablaHistorial from './TablaHistorial';
 import { Button } from '@/components/ui/button';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -265,14 +266,14 @@ function TablaReglas() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Button
+                      <TooltipButton
                         variant="ghost"
                         size="icon"
-                        title="Eliminar"
+                        tooltip="Eliminar recordatorio"
                         onClick={() => handleEliminar(r.id)}
                       >
                         <Trash2 className="size-4" />
-                      </Button>
+                      </TooltipButton>
                     </TableCell>
                   </TableRow>
                 ))}

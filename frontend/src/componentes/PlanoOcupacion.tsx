@@ -8,6 +8,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut } from 'lucide-react';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { useObtenerOcupacion, MesaOcupacion, ZonaOcupacion, ParedSala } from '../api/generated';
 import { useZoomStore } from '../stores/zoomStore';
 import { useCanvasResize } from '../hooks/useCanvasResize';
@@ -116,9 +117,9 @@ function PlanoOcupacion({ fecha, turno }: Props) {
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-sm">Plano de sala</h3>
         <div className="flex items-center gap-1">
-          <Button size="sm" variant="outline" onClick={zoomOut}><ZoomOut className="size-4" /></Button>
+          <TooltipButton size="sm" variant="outline" onClick={zoomOut} tooltip="Alejar (zoom −10%)"><ZoomOut className="size-4" /></TooltipButton>
           <span className="text-xs w-12 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
-          <Button size="sm" variant="outline" onClick={zoomIn}><ZoomIn className="size-4" /></Button>
+          <TooltipButton size="sm" variant="outline" onClick={zoomIn} tooltip="Acercar (zoom +10%)"><ZoomIn className="size-4" /></TooltipButton>
         </div>
       </div>
 

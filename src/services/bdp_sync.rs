@@ -291,44 +291,55 @@ impl BdpSyncService {
                     "[065A-5] Venta {} sincronizada con BDP → OrderId={order_id}",
                     venta.id
                 );
-                match VentaRepository::update_bdp_status(pool, venta.id, true, None, Some(order_id))
+                /* [AUDIT-2.11] Envolver marca local + auditoría en transacción
+                 * atómica para que, si el proceso muere después del HTTP, no
+                 * quede bdp_synced=true sin auditoría cerrada ni viceversa. */
+                let respuesta = serde_json::json!({"order_id": order_id});
+                let commit_result = async {
+                    let mut tx = pool
+                        .begin()
+                        .await
+                        .map_err(|e| format!("Error iniciando tx post-create_order: {e}"))?;
+
+                    sqlx::query(
+                        "UPDATE ventas SET bdp_synced = true, bdp_synced_at = NOW(), bdp_order_id = $2, bdp_sync_error = NULL WHERE id = $1",
+                    )
+                    .bind(venta.id)
+                    .bind(order_id)
+                    .execute(&mut *tx)
                     .await
-                {
-                    Ok(()) => {
-                        let respuesta = serde_json::json!({"order_id": order_id});
-                        if let Err(error) = crate::services::BdpBackupService::actualizar_resultado(
-                            pool,
-                            audit_id,
-                            "exito",
-                            Some(&respuesta),
-                            None,
-                        )
+                    .map_err(|e| format!(
+                        "BDP confirmó OrderId={order_id}, pero no se pudo persistir localmente: {e}"
+                    ))?;
+
+                    sqlx::query(
+                        r"UPDATE bdp_audit_log
+                        SET resultado = 'exito', datos_respuesta = $2, error_mensaje = NULL, updated_at = NOW()
+                        WHERE id = $1",
+                    )
+                    .bind(audit_id)
+                    .bind(Some(&respuesta))
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|e| format!("Venta confirmada, pero falló el cierre de auditoría: {e}"))?;
+
+                    tx.commit()
                         .await
-                        {
-                            warn!(
-                                "[BDP-SAFE] No se pudo cerrar auditoría de venta {}: {error}",
-                                venta.id
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        let msg = format!(
-                            "BDP confirmó OrderId={order_id}, pero no se pudo persistir localmente: {e}"
-                        );
-                        warn!("[BDP-SAFE] {msg} (venta {})", venta.id);
-                        let respuesta = serde_json::json!({"order_id": order_id});
-                        if let Err(error) = crate::services::BdpBackupService::actualizar_resultado(
-                            pool,
-                            audit_id,
-                            "ambiguo",
-                            Some(&respuesta),
-                            Some(&msg),
-                        )
-                        .await
-                        {
-                            warn!("[BDP-SAFE] No se pudo marcar auditoría ambigua de venta {}: {error}", venta.id);
-                        }
-                    }
+                        .map_err(|e| format!("Error confirmando tx post-create_order: {e}"))
+                }
+                .await;
+
+                if let Err(e) = commit_result {
+                    /* La tx falló pero BDP ya creó la comanda → auditoría ambigua. */
+                    warn!("[BDP-SAFE] {e} (venta {})", venta.id);
+                    let _ = crate::services::BdpBackupService::actualizar_resultado(
+                        pool,
+                        audit_id,
+                        "ambiguo",
+                        Some(&respuesta),
+                        Some(&e),
+                    )
+                    .await;
                 }
             }
             Err(failure) => {
@@ -516,6 +527,13 @@ impl BdpSyncService {
                     let precio = Self::decimal_to_f64(&linea.precio_unitario);
                     let cantidad = Self::decimal_to_f64(&linea.cantidad);
                     let descuento = Self::decimal_to_f64(&linea.descuento);
+                    /* [AUDIT-2.3] Validar que precio y cantidad sean positivos. */
+                    if precio < 0.0 || cantidad <= 0.0 {
+                        warn!(
+                            "[BDP-SAFE] Línea '{}' tiene precio={} o cantidad={} inválidos; se envía a BDP tal cual",
+                            linea.descripcion, precio, cantidad
+                        );
+                    }
                     let linea_total = (precio * cantidad) - descuento;
                     /* [F2.8] Usar artículo BDP mapeado por línea, o fallback al default */
                     let line_article_id = line_article_ids
@@ -1607,6 +1625,16 @@ impl BdpSyncService {
                     }
 
                     let new_price = resp.prices.first().copied().unwrap_or(Decimal::ZERO);
+                    /* [AUDIT-9.1] No aplicar precios negativos. Precio 0 se permite
+                     * (puede ser un artículo de cortesía o servicio gratuito). */
+                    if new_price < Decimal::ZERO {
+                        warn!(
+                            "[157A-9] BDP devolvió precio negativo {} para artículo {code}; ignorando",
+                            new_price
+                        );
+                        errores += 1;
+                        continue;
+                    }
                     if (new_price - map.precio_tarifa1).abs() > Decimal::new(1, 4) {
                         /* Precio cambió — actualizar directamente via SQL */
                         match sqlx::query(

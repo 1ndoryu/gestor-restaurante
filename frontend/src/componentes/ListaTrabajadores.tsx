@@ -5,6 +5,7 @@
 import { useState, type FormEvent } from 'react';
 import { useTrabajadores } from '../hooks/useTrabajadores';
 import { Button } from '@/components/ui/button';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -256,16 +257,17 @@ export default function ListaTrabajadores() {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => setTrabajadorEditar(t)}>
+                      <TooltipButton variant="ghost" size="icon" onClick={() => setTrabajadorEditar(t)} tooltip="Editar trabajador">
                         <Pencil className="size-4" />
-                      </Button>
-                      <Button
+                      </TooltipButton>
+                      <TooltipButton
                         variant="ghost"
                         size="icon"
                         onClick={() => eliminarTrabajador(t.id)}
+                        tooltip="Eliminar trabajador"
                       >
                         <Trash2 className="size-4" />
-                      </Button>
+                      </TooltipButton>
                     </div>
                   </TableCell>
                 </TableRow>

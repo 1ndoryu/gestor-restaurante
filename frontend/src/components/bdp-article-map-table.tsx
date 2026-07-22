@@ -1,8 +1,10 @@
 /* [147A-F5.6] Tabla de mapeos artículos Glory → BDP.
- * Permite listar, crear y eliminar mapeos. Importa catálogo desde BDP (F5.7). */
+ * Permite listar, crear y eliminar mapeos. Importa catálogo desde BDP (F5.7).
+ * [223A-1] Tooltips con TooltipButton + confirmación para sync. */
 
 import { useState } from 'react';
 import { Plus, Trash2, Loader2, RefreshCw } from 'lucide-react';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -92,14 +94,14 @@ function BdpArticleMapTable() {
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">Mapeo artículos Glory → BDP</span>
         <div className="flex gap-2">
-          <Button variant="default" size="sm" onClick={() => { setSincronizando(true); syncCatalogMutation.mutate(); }} disabled={sincronizando}>
+          <TooltipButton variant="default" size="sm" onClick={() => { setSincronizando(true); syncCatalogMutation.mutate(); }} disabled={sincronizando} tooltip="Importa/actualiza artículos desde BDP a Glory. Crea mapeos automáticos por código.">
             {sincronizando ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Sync catálogo
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => { setActualizandoPrecios(true); syncPricesMutation.mutate(); }} disabled={actualizandoPrecios}>
+          </TooltipButton>
+          <TooltipButton variant="outline" size="sm" onClick={() => { setActualizandoPrecios(true); syncPricesMutation.mutate(); }} disabled={actualizandoPrecios} tooltip="Actualiza los precios de los artículos mapeados desde BDP a Glory.">
             {actualizandoPrecios ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Sync precios
-          </Button>
+          </TooltipButton>
         </div>
       </div>
 
@@ -123,15 +125,15 @@ function BdpArticleMapTable() {
                   <TableCell className="font-mono text-xs">{m.articulo_bdp_codigo}</TableCell>
                   <TableCell className="text-xs">{m.articulo_bdp_nombre || '—'}</TableCell>
                   <TableCell>
-                    <Button
+                    <TooltipButton
                       variant="ghost"
                       size="icon"
                       onClick={() => eliminarMutation.mutate({ id: m.id })}
                       disabled={eliminarMutation.isPending}
-                      title="Eliminar mapeo"
+                      tooltip="Eliminar este mapeo. No afecta al catálogo BDP."
                     >
                       <Trash2 className="size-3.5 text-destructive" />
-                    </Button>
+                    </TooltipButton>
                   </TableCell>
                 </TableRow>
               ))}

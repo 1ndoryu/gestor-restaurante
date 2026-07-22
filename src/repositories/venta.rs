@@ -447,4 +447,30 @@ impl VentaRepository {
         .fetch_all(pool)
         .await
     }
+
+    /* [AUDIT-2.11b] Ventas huérfanas: la comanda puede existir en BDP pero
+     * Glory no recibió confirmación (proceso murió entre HTTP y UPDATE local).
+     * Estas ventas tienen bdp_synced=false + bdp_order_id no nulo + auditoría
+     * 'pendiente' o 'ambiguo' para la operación 'create_order'.
+     * El polling normal NO las detecta porque filtra bdp_synced=TRUE. */
+    pub async fn list_bdp_orphaned(pool: &PgPool, user_id: Uuid) -> Result<Vec<Venta>, sqlx::Error> {
+        sqlx::query_as::<_, Venta>(
+            "SELECT v.* FROM ventas v \
+             WHERE v.user_id = $1 \
+               AND v.bdp_synced = FALSE \
+               AND v.bdp_order_id IS NOT NULL \
+               AND EXISTS ( \
+                 SELECT 1 FROM bdp_audit_log a \
+                 WHERE a.user_id = $1 \
+                   AND a.target_entity_type = 'venta' \
+                   AND a.target_entity_id = v.id \
+                   AND a.operacion = 'create_order' \
+                   AND a.resultado IN ('pendiente', 'ambiguo') \
+               ) \
+             ORDER BY v.created_at ASC LIMIT 50",
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+    }
 }

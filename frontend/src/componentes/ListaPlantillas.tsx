@@ -4,6 +4,7 @@
 
 import { usePlantillas } from '../hooks/usePlantillas';
 import { Button } from '@/components/ui/button';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -161,23 +162,23 @@ export default function ListaPlantillas() {
                     <TableCell>
                       <div className="flex gap-1">
                         {p.estado === 'borrador' && (
-                          <Button
+                          <TooltipButton
                             variant="ghost"
                             size="icon"
-                            title="Enviar a Meta"
+                            tooltip="Enviar plantilla a Meta"
                             onClick={() => handleEnviar(p)}
                           >
                             <Send className="size-4" />
-                          </Button>
+                          </TooltipButton>
                         )}
-                        <Button
+                        <TooltipButton
                           variant="ghost"
                           size="icon"
-                          title="Eliminar"
+                          tooltip="Eliminar plantilla"
                           onClick={() => handleEliminar(p.id)}
                         >
                           <Trash2 className="size-4" />
-                        </Button>
+                        </TooltipButton>
                       </div>
                     </TableCell>
                   </TableRow>

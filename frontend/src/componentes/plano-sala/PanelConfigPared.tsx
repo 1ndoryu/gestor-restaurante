@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Copy } from 'lucide-react';
@@ -53,9 +54,9 @@ export default function PanelConfigPared({ pared, onGuardar, onEliminar, onDupli
         </div>
         <div className="flex gap-2 pt-2">
           <Button type="submit" size="sm">Guardar</Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => onDuplicar(pared)} title="Duplicar pared">
+          <TooltipButton type="button" size="sm" variant="outline" onClick={() => onDuplicar(pared)} tooltip="Duplicar esta pared">
             <Copy className="size-4" />
-          </Button>
+          </TooltipButton>
           <Button type="button" size="sm" variant="destructive" onClick={() => onEliminar(pared.id)}>Eliminar</Button>
           <Button type="button" size="sm" variant="ghost" onClick={onCerrar}>Cerrar</Button>
         </div>

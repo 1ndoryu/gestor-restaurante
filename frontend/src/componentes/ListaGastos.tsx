@@ -6,6 +6,7 @@
  * [064A-3] Filtros por columna en Tipo doc y Método con ColumnFilterHeader. */
 
 import { Button } from '@/components/ui/button';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -140,23 +141,23 @@ function ListaGastos() {
                     <TableCell className="text-right font-medium">{formatearMoneda((parseFloat(g.importe_base) + parseFloat(g.importe_iva)).toFixed(2))}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button
+                        <TooltipButton
                           variant="ghost"
                           size="icon"
                           onClick={() => setGastoEditando(g)}
-                          title="Editar"
+                          tooltip="Editar gasto"
                         >
                           <Pencil className="size-4" />
-                        </Button>
-                        <Button
+                        </TooltipButton>
+                        <TooltipButton
                           variant="ghost"
                           size="icon"
                           onClick={() => eliminarMutation.mutate({ id: g.id })}
                           disabled={eliminarMutation.isPending}
-                          title="Eliminar"
+                          tooltip="Eliminar gasto"
                         >
                           <Trash2 className="size-4 text-destructive" />
-                        </Button>
+                        </TooltipButton>
                       </div>
                     </TableCell>
                   </TableRow>

@@ -6,6 +6,7 @@
  * [064A-3] Filtro por columna en Estado con ColumnFilterHeader. */
 
 import { Button } from '@/components/ui/button';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -231,23 +232,23 @@ function ListaReservas() {
                     <TableCell>
                       <div className="flex items-center gap-1">
                         {/* [024A-5] Botón para editar todos los campos de la reserva */}
-                        <Button
+                        <TooltipButton
                           variant="ghost"
                           size="icon"
                           onClick={() => abrirEdicion(r)}
-                          title="Editar reserva"
+                          tooltip="Editar reserva"
                         >
                           <Pencil className="size-4" />
-                        </Button>
-                        <Button
+                        </TooltipButton>
+                        <TooltipButton
                           variant="ghost"
                           size="icon"
                           onClick={() => eliminarMutation.mutate({ id: r.id })}
                           disabled={eliminarMutation.isPending}
-                          title="Eliminar reserva"
+                          tooltip="Eliminar reserva"
                         >
                           <Trash2 className="size-4 text-destructive" />
-                        </Button>
+                        </TooltipButton>
                       </div>
                     </TableCell>
                   </TableRow>

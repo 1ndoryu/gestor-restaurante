@@ -4,9 +4,9 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useResumenMensual } from '../api/generated';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 
 const NOMBRES_MES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -92,13 +92,13 @@ function CalendarioReservas() {
 
       {/* [283A-11] Botones mejorados con iconos Lucide + outline (tarea 37.2) */}
       <div className="flex items-center justify-between">
-        <Button variant="outline" size="icon" onClick={mesAnterior}>
+        <TooltipButton variant="outline" size="icon" onClick={mesAnterior} tooltip="Mes anterior">
           <ChevronLeft className="h-4 w-4" />
-        </Button>
+        </TooltipButton>
         <span className="font-medium text-lg">{NOMBRES_MES[mes - 1]} {anio}</span>
-        <Button variant="outline" size="icon" onClick={mesSiguiente} disabled={esMesFuturo}>
+        <TooltipButton variant="outline" size="icon" onClick={mesSiguiente} disabled={esMesFuturo} tooltip="Mes siguiente">
           <ChevronRight className="h-4 w-4" />
-        </Button>
+        </TooltipButton>
       </div>
 
       {isLoading ? (

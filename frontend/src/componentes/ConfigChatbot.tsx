@@ -1,13 +1,16 @@
 /* [283A-27] Sección de API Keys del chatbot dentro de Configuración.
  * CRUD de claves API: crear (mostrando key una sola vez), listar con
- * prefijo y fecha, revocar con confirmación. Incluye enlace a Swagger UI. */
+ * prefijo y fecha, revocar con confirmación. Incluye enlace a Swagger UI.
+ * [223A-1] Revocar con diálogo de confirmación + TooltipButton. */
 
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Copy, Trash2, Plus, ExternalLink } from 'lucide-react';
 import {
@@ -24,6 +27,7 @@ function ConfigChatbot() {
 
   const [nombre, setNombre] = useState('');
   const [keyCreada, setKeyCreada] = useState<string | null>(null);
+  const [confirmarRevocar, setConfirmarRevocar] = useState<string | null>(null);
 
   const crearKey = async () => {
     if (!nombre.trim()) return;
@@ -45,6 +49,7 @@ function ConfigChatbot() {
       await revocarMut.mutateAsync({ id });
       refetch();
       toast.success('API key revocada');
+      setConfirmarRevocar(null);
     } catch {
       toast.error('Error al revocar');
     }
@@ -134,9 +139,9 @@ function ConfigChatbot() {
                     {k.activa ? 'Activa' : 'Revocada'}
                   </Badge>
                   {k.activa && (
-                    <Button size="sm" variant="destructive" onClick={() => revocar(k.id)}>
+                    <TooltipButton size="sm" variant="destructive" onClick={() => setConfirmarRevocar(k.id)} tooltip="Revocar esta API key. Las integraciones que la usen dejarán de funcionar.">
                       <Trash2 className="size-4" />
-                    </Button>
+                    </TooltipButton>
                   )}
                 </div>
               </div>
@@ -144,6 +149,25 @@ function ConfigChatbot() {
           </CardContent>
         </Card>
       )}
+
+      {/* [223A-1] Confirmación antes de revocar */}
+      <Dialog open={confirmarRevocar !== null} onOpenChange={(open) => { if (!open) setConfirmarRevocar(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>¿Revocar API key?</DialogTitle>
+            <DialogDescription>
+              Esta acción es irreversible. Las integraciones que usen esta clave dejarán de funcionar inmediatamente.
+              {confirmarRevocar && <span className="block mt-2 font-mono text-xs text-muted-foreground">ID: {confirmarRevocar}</span>}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmarRevocar(null)}>Cancelar</Button>
+            <Button variant="destructive" disabled={revocarMut.isPending} onClick={() => revocar(confirmarRevocar!)}>
+              {revocarMut.isPending ? 'Revocando…' : 'Sí, revocar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

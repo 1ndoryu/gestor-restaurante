@@ -5,6 +5,7 @@
 import { useState, type FormEvent } from 'react';
 import { useInactividad } from '../hooks/useInactividad';
 import { Button } from '@/components/ui/button';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -216,22 +217,22 @@ export default function Inactividad() {
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-1">
-                  <Button
+                  <TooltipButton
                     variant="ghost"
                     size="icon"
                     onClick={() => setReglaEditar(r)}
-                    title="Editar"
+                    tooltip="Editar regla de inactividad"
                   >
                     <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
+                  </TooltipButton>
+                  <TooltipButton
                     variant="ghost"
                     size="icon"
                     onClick={() => setConfirmarEliminar(r.id)}
-                    title="Eliminar"
+                    tooltip="Eliminar regla de inactividad"
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  </TooltipButton>
                 </div>
               </TableCell>
             </TableRow>

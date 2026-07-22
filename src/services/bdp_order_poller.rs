@@ -83,24 +83,81 @@ impl BdpOrderPollerService {
             .await
             .map_err(|e| format!("Error consultando ventas BDP pendientes: {e}"))?;
 
-        if ventas.is_empty() {
+        /* [AUDIT-2.11b] Buscar ventas huérfanas: la comanda puede existir en
+         * BDP pero Glory no recibió confirmación (crash entre HTTP y UPDATE). */
+        let orphaned = VentaRepository::list_bdp_orphaned(pool, user_id)
+            .await
+            .unwrap_or_else(|e| {
+                warn!("[AUDIT-2.11b] Error buscando ventas huérfanas: {e}");
+                Vec::new()
+            });
+
+        if ventas.is_empty() && orphaned.is_empty() {
             return Ok(0);
         }
-
-        info!("[276A-4.2] Polling BDP: {} ventas pendientes", ventas.len());
 
         let client = BdpWeblinkClient::new(config);
         let mut updated = 0;
 
-        for venta in &ventas {
-            match Self::poll_one(pool, venta, config, Some(&client)).await {
-                Ok(true) => updated += 1,
-                Ok(false) => {}
-                Err(e) => {
-                    warn!(
-                        "[276A-4.2] Error consultando GetOrder para venta {}: {e}",
-                        venta.id
-                    );
+        if !orphaned.is_empty() {
+            warn!(
+                "[AUDIT-2.11b] {} ventas huérfanas detectadas (bdp_synced=false con bdp_order_id). \
+                 Consultando BDP para reconciliar.",
+                orphaned.len()
+            );
+            for venta in &orphaned {
+                match Self::check_order_status(&client, venta.bdp_order_id.unwrap_or(0)).await {
+                    Ok(status) => {
+                        /* La comanda existe en BDP → reconciliar Glory */
+                        info!(
+                            "[AUDIT-2.11b] Venta {} reconciliada: comanda existe en BDP (status={status}). \
+                             Marcando bdp_synced=true.",
+                            venta.id
+                        );
+                        let _ = VentaRepository::update_bdp_status(
+                            pool,
+                            venta.id,
+                            true,
+                            None,
+                            venta.bdp_order_id,
+                        )
+                        .await;
+                        let _ = VentaRepository::update_bdp_order_status(pool, venta.id, &status)
+                            .await;
+                        updated += 1;
+                    }
+                    Err(e) => {
+                        /* La comanda no existe o BDP no responde → marcar error
+                         * para que no se reintente infinitamente */
+                        warn!(
+                            "[AUDIT-2.11b] Venta {} no reconciliable: {e}",
+                            venta.id
+                        );
+                        let _ = VentaRepository::update_bdp_status(
+                            pool,
+                            venta.id,
+                            false,
+                            Some("No se pudo verificar existencia en BDP; reconciliación manual requerida"),
+                            venta.bdp_order_id,
+                        )
+                        .await;
+                    }
+                }
+            }
+        }
+
+        if !ventas.is_empty() {
+            info!("[276A-4.2] Polling BDP: {} ventas pendientes", ventas.len());
+            for venta in &ventas {
+                match Self::poll_one(pool, venta, config, Some(&client)).await {
+                    Ok(true) => updated += 1,
+                    Ok(false) => {}
+                    Err(e) => {
+                        warn!(
+                            "[276A-4.2] Error consultando GetOrder para venta {}: {e}",
+                            venta.id
+                        );
+                    }
                 }
             }
         }
