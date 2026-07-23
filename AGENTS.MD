@@ -2,58 +2,21 @@
 applyTo: '**'
 ---
 
-# Protocolo de Desarrollo v6.0 — Modo Bloque (1 mayo 2026)
-
-<role>
-Agente de desarrollo autonomo. Tu canal con el usuario es `roadmap.md` (raiz del proyecto): el usuario escribe tareas, tu las ejecutas en ciclo continuo. Eres responsable del orden, calidad, validacion, deploy y memoria del proyecto. Si un proyecto no encaja con esta version, adaptarlo progresivamente.
-</role>
-
-<startup_announcement>
-Antes de iniciar cualquier tarea, tu PRIMERA respuesta SIEMPRE debe ser este anuncio (sin excepcion):
-
-> **Flujo que voy a seguir:**
-> 1. Leer roadmap completo.
-> 2. Por bloque coherente: ejecutar todas las tareas abordables → validar/testear una sola vez al cierre → archivar en `Agente/completados/` → actualizar roadmap → commit y push (+ deploy si aplica).
-> 3. Repetir hasta vaciar pendientes.
->
-> **Tareas identificadas:** [lista de IDs y titulos]
-
-Sin este anuncio no inicias nada. Existe para evitar que optimices el flujo a tu conveniencia.
-</startup_announcement>
-
+# Protocolo de Desarrollo v7.0 — Modo Bloque (1 mayo 2026)
 ---
 
 ## I. REGLAS ABSOLUTAS (por prioridad)
 
-<rule id="-2" name="deploy-via-coolify-manager">
+<rule id="1" name="deploy-via-coolify-manager">
 **NO HACER DEPLOY DIRECTO CON SSH.** Toda operacion en produccion (deploy, restart, logs, backup, restore, exec, health) pasa por `coolify-manager-rs` (ver seccion VII). Comandos directos (ssh, docker, scp, curl al servidor) eluden bind mounts, health checks y el flujo seguro. Excepcion: diagnostico puntual de emergencia, documentado luego como mejora a la herramienta.
 </rule>
 
-<rule id="-1" name="hardest-first">
-Aborda primero la tarea mas compleja del bloque, no la mas facil.
+<rule id="2" name="">
+Si tienes dudas, por favor, detente a consultar primero con el usuario, si tienes dudas de una tarea pide aclaración antes de empezar con la petición.
 </rule>
 
-<rule id="0" name="flow-is-mandatory">
-El flujo de 10 pasos (seccion II) es innegociable. Prohibido:
-- Cerrar bloque sin archivar tareas en `Agente/completados/`.
-- Hacer commit sin actualizar roadmap.
-- Cambiar de frente o cerrar sesion con bloque incompleto (falta validacion, commit, archivado o roadmap actualizado).
-- Mezclar dominios no relacionados en un mismo bloque.
-- Pedir confirmacion para tareas triviales o pasos del flujo.
-
-Se permite agrupar tareas relacionadas o endpoints del mismo barrido.
-</rule>
-
-<rule id="1" name="full-autonomy">
-Trabaja continua y prolongadamente. Maxima eficiencia por interaccion. Sin pausas innecesarias.
-</rule>
-
-<rule id="1.1" name="multi-agent-coexistence">
-Otros agentes pueden trabajar en el mismo repo. Si encuentras cambios, archivos, commits o ramas que no son tuyos, **no los borres ni los reviertas** — son trabajo ajeno. Si un conflicto te bloquea, salta esa tarea y continua con la siguiente; vuelve cuando se resuelva. Tu responsabilidad es tu ciclo, no el ajeno.
-</rule>
-
-<rule id="2" name="zero-patches">
-Toda solucion debe escalar 10x sin reescritura. Antes de implementar pregunta: "Es la mejor opcion arquitectonica o el camino facil?" Si es lo segundo, redisena. Prohibido justificar con "es temporal" o "lo refactorizamos despues".
+<rule id="3" name="zero-patches">
+Antes de implementar pregunta: "Es la mejor opcion arquitectonica o el camino facil?" Si es lo segundo, rediseña. Prohibido justificar con "es temporal" o "lo refactorizamos despues".
 </rule>
 
 <rule id="2.1" name="expansive-thinking">
@@ -61,7 +24,7 @@ Aunque la tarea parezca pequena, evalua primero si revela un problema mas profun
 </rule>
 
 <rule id="3" name="controlled-edits">
-Edita por modulo o archivo, no parchees 10 archivos en un solo cambio masivo. Acumula cambios coherentes y valida al cierre del bloque (no entre archivos). Solo haz `get_errors` puntuales si el editor muestra diagnosticos visibles, el cambio es de alto riesgo, o necesitas desbloquear.
+Edita por modulo o archivo, no parchees 10 archivos en un solo cambio masivo. Acumula cambios coherentes y valida al cierre del bloque (no entre archivos). 
 
 **Edicion: solo herramientas integradas** (`replace_string_in_file`, `multi_replace_string_in_file`, `create_file`). Prohibido modificar codigo fuente con scripts PowerShell, heredocs (`cat > file << EOF`) o comandos de terminal — eso es solo para diagnostico, nunca para mutar codigo.
 </rule>
@@ -202,6 +165,49 @@ Reglas operativas obligatorias:
 - Un comando no puede bloquear el ciclo solo porque "sigue corriendo"; o produce una senal verificable, o se trata como ambiguedad a resolver con una comprobacion mas barata.
 </rule>
 
+<rule id="21.1" name="anti-stall-remote-commands">
+**Comandos remotos largos no se ejecutan como espera ciega.** Deploys, builds Docker/Rust, migraciones remotas, `ssh`, `coolify-manager-rs deploy-service`, `docker compose build`, restores y cualquier operacion que pueda tardar mas de 5 minutos deben cumplir una de estas condiciones antes de lanzarse:
+
+- Tener heartbeat/log streaming real (`--progress=plain`, logs con timestamps, salida periodica o wrapper que imprima progreso) y timeout explicito.
+- Ejecutarse en modo async/background con una senal de readiness concreta (health HTTP, contenedor healthy + probe real, puerto, archivo generado, exit code registrado).
+- Dividirse en fases cortas verificables: preflight, build, image-exists, swap, health, logs finales.
+
+Reglas anti-atasco:
+- Nunca encadenes un build remoto largo y un health final en un unico comando opaco si no hay salida intermedia fiable.
+- Si pasan 5-10 minutos sin nueva informacion util, no sigas esperando por inercia: comprueba proceso remoto, imagen creada, contenedor, logs recientes o health y decide.
+- Para recoveries `--skip-build` o `--no-build`, primero verifica que la imagen local existe; si no existe, aborta antes de recrear contenedores.
+- Si se ejecuta un binario release por path fijo (`target/release/*.exe`), verifica que el build actualizo ese mismo path. `CARGO_TARGET_DIR` puede redirigir la salida a otro directorio; usa `cargo build --release --target-dir target` o ejecuta el binario del target real, y confirma `LastWriteTime`/version/salida esperada antes de probar produccion.
+- Si una herramienta queda colgada o oculta stdout/stderr critico, arregla la herramienta en el mismo bloque o documenta la mejora pendiente; no normalices el cuelgue como parte del flujo.
+</rule>
+
+<rule id="21.2" name="no-terminal-probing-credit-guard">
+**Prohibido usar terminal como prueba exploratoria cuando pueda fallar por ruta, cwd, config, puerto, dependencia o modo interactivo.** Cada comando fallido consume tiempo y credito; antes de ejecutarlo debe existir una hipotesis concreta y una alta confianza de exito.
+
+Reglas obligatorias:
+- Si existe una herramienta integrada para leer, buscar, diagnosticar, editar o consultar estado, usala antes que terminal.
+- Antes de ejecutar un comando, verifica por lectura o estado local: directorio correcto, archivo/config existente, binario esperado, puerto libre si aplica, y si el comando es acotado o larga vida.
+- No ejecutes `cargo run`, servidores, watchers, deploys, builds release o CLIs con config dudosa como "smoke test". Usa binario ya construido, tests unitarios, `get_errors`, lectura de logs, o comprobaciones estaticas primero.
+- Si no puedes garantizar el preflight, no ejecutes el comando: documenta el bloqueo, ajusta el plan, o usa una comprobacion mas barata.
+- Tras un `exit code != 0`, queda prohibido reintentar variantes a ciegas. Primero identifica la causa exacta por salida, archivo, config o codigo; luego ejecuta solo una correccion justificada.
+</rule>
+
+<rule id="22" name="subagent-for-efficiency">
+**Delegar tareas a subagentes siempre que sea posible, usando DeepSeek V4 Flash para ahorrar tokens.** El modelo Pro (cadena completa) se reserva para el agente principal; toda subtarea, investigacion, busqueda de codigo, lectura de archivos, ejecucion de comandos acotados y diagn ostico debe delegarse a un subagente, que automaticamente usara Flash (primero intenta opdecode-zen gratis, luego opencode-go pago).
+
+**Costo/beneficio:** Flash cuesta ~1/10 de Pro por token. Delegar una busqueda o lectura a subagente es practicamente gratis comparado con procesarlo en el agente principal. El unico costo es un round-trip de contexto — que es menor que procesar la misma operacion con el modelo caro.
+
+**Reglas operativas:**
+1. **Investigacion y busqueda de codigo:** usar `runSubagent` con `Explore` agent o busqueda directa. No hagas 5 `grep_search`/`read_file` en el agente principal si un subagente puede hacerlo en un solo llamado.
+2. **Lectura de archivos grandes:** si necesitas leer multiples secciones de un archivo, usa subagente. El costo de procesar miles de tokens con Pro se elimina.
+3. **Validaciones y comprobaciones:** `get_errors`, `testFailure`, estados de compilacion, verificaciones de sintaxis — delega a subagente.
+4. **Tareas paralelizables:** si hay 3 archivos para leer o 3 comandos para ejecutar, lanza subagentes en paralelo. El flujo del bloque se acelera y el costo se reduce.
+5. **Excepcion (NO delegar):** logica de edicion, diseno arquitectonico, decisiones de implementacion, validacion final del bloque. El agente principal retiene el control de las decisiones.
+
+**Mecanismo tecnico:** La extension `vizards.deepseek-v4-for-copilot` clasifica cada request como `main-agent` o subagente segun el system prompt que VS Code le envia. Cuando un subagente ejecuta con el modelo Pro seleccionado, la extension intercepta y cambia el modelo a Flash antes de enviarlo a FreeLLMAPI. FreeLLMAPI entonces usa la cadena restringida Flash (opencode-zen gratis → opencode-go pago). El agente principal nunca se ve afectado.
+
+**Compatibilidad con modelos:** Si el usuario selecciona "DeepSeek V4 Flash" en el picker, todo (principal y subagentes) usa Flash — no hay routing diferencial. La optimizacion solo opera cuando el picker esta en "DeepSeek V4 Pro".
+</rule>
+
 ---
 
 ## II. FLUJO DE TRABAJO (ciclo continuo, por bloque coherente)
@@ -228,6 +234,7 @@ Toma el bloque de tareas abordables (relacionadas, mismo dominio o barrido). Reg
 - **2.4** No cierres el bloque sin: archivado, roadmap actualizado, commit y push.
 - **2.5** Edita por modulo, sin validaciones pesadas entre archivos.
 - **2.6** Si la tarea es compleja (multi-sesion, multi-fase) o un problema repetido, crea plan en `Agente/planes/plan-tema-YYYY-MM-DD.md` con fases, estado y proximos pasos.
+- **2.7** **Delegar a subagentes (regla 22):** tareas de investigacion, busqueda, lectura, diagnostico y comandos acotados se delegan a `runSubagent`. El agente principal se reserva para decisiones, edicion y validacion final. Esto minimiza el consumo de tokens del modelo Pro.
 </step>
 
 <step n="3" name="validar-y-corregir">
@@ -416,15 +423,34 @@ Las tres herramientas viven como workspaces hermanos en el repositorio del tema 
 ### coolify-manager-rs
 - **Workspace folder:** `c:\Users\Owner\OneDrive\Documentos\WP\app\public\wp-content\themes\glorytemplate\.agent\coolify-manager-rs`
 - **Path relativo (cuando el proyecto vive dentro de `themes/glorytemplate/`):** `.agent/coolify-manager-rs`
-- **Binario release:** `.agent/coolify-manager-rs/target/release/coolify-manager.exe`
+- **Binario release (path absoluto, siempre valido desde cualquier proyecto):**
+  `C:\Users\Owner\OneDrive\Documentos\WP\app\public\wp-content\themes\glorytemplate\.agent\coolify-manager-rs\target\release\coolify-manager.exe`
 - **Repo:** github.com/1ndoryu/coolify-manager-rs (rama `main`)
-- **Para modificarlo o recompilar:** abrir ese workspace folder, editar `src/`, ejecutar `cargo build --release`. El binario quedara en `target/release/`.
+- **Para modificarlo o recompilar:** abrir ese workspace folder, editar `src/`, ejecutar `cargo build --release --target-dir target`. El binario quedara en `target/release/`.
+
+**Como encontrarlo desde cualquier proyecto:**
+```powershell
+# Path absoluto universal (usar siempre si el proyecto NO esta bajo themes/glorytemplate/)
+$cm = "C:\Users\Owner\OneDrive\Documentos\WP\app\public\wp-content\themes\glorytemplate\.agent\coolify-manager-rs\target\release\coolify-manager.exe"
+& $cm deploy --name <sitio> --update
+
+# Alternativa: cd al workspace y usar ruta relativa
+cd "C:\Users\Owner\OneDrive\Documentos\WP\app\public\wp-content\themes\glorytemplate\.agent\coolify-manager-rs"
+.\target\release\coolify-manager.exe health --name <sitio>
+```
+**Antes de invocar:** verificar que `target\release\coolify-manager.exe` existe. Si no existe o esta desactualizado, compilar primero:
+```powershell
+cd "C:\Users\Owner\OneDrive\Documentos\WP\app\public\wp-content\themes\glorytemplate\.agent\coolify-manager-rs"
+cargo build --release --target-dir target
+```
 
 #### Comandos principales
 | Comando | Uso |
 |---|---|
-| `deploy --name <sitio> --update` | Despliega/actualiza el tema en el sitio (WordPress) |
-| `redeploy --name <sitio>` | Fuerza redeploy via Coolify API (sin cambios de codigo). Requerido para servicios Rust |
+| `deploy --name <sitio> --update` | **Para todos los proyectos** (WordPress Y Rust). Clona/rebuild vía Coolify API. |
+| `deploy --name <sitio> --update --skip-backup` | Deploy sin backup (cambios de bajo riesgo). |
+| `deploy-service --name <sitio>` | **NO USAR para Rust** — falla en build Docker paso 3/6. Solo para gestión interna del manager. |
+| `redeploy --name <sitio>` | Fuerza redeploy via Coolify API (sin cambios de codigo). Alternativa si deploy falla. |
 | `health --name <sitio>` | Health check remoto + HTTP. Usar siempre post-deploy |
 | `logs --name <sitio>` | Logs del contenedor |
 | `restart --name <sitio>` | Reinicia servicios del sitio |
@@ -436,77 +462,42 @@ Las tres herramientas viven como workspaces hermanos en el repositorio del tema 
 
 **Flujo deploy obligatorio:** `deploy` → `health` → si falla → `redeploy`.
 
-**Importante:** `deploy --update` solo sirve para WordPress (hace git pull dentro del contenedor). Para servicios Rust o Docker custom usar `redeploy`. Si el build tarda y devuelve 503, es normal — esperar.
+**`--skip-backup`:** En cambios de bajo riesgo (solo PHP/JS/CSS sin migraciones de BD ni cambios en uploads), agregar `--skip-backup` para evitar la transferencia del backup (~2-3 min extra). Usar siempre en cambios de código puros. Omitir solo cuando hay riesgo real de regresión de datos.
+
+**Importante:** `deploy --update` funciona para WordPress Y Rust (clona/rebuild vía Coolify API). Para servicios Rust, el build toma 8-12 minutos — si devuelve 503, es normal — esperar. `deploy-service` NO funcionar para Rust (falla en build Docker paso 3/6).
 
 ### code-sentinel (Glory Sentinel)
 - **Workspace folder:** `c:\Users\Owner\OneDrive\Documentos\WP\app\public\wp-content\themes\glorytemplate\.agent\code-sentinel`
 - **Path relativo:** `.agent/code-sentinel`
 - **Repo:** github.com/1ndoryu/glory-sentinel (rama `main`)
-- **Tipo:** extension VS Code (analiza Rust, React, PHP, glory-specific)
+- **Tipo:** extension VS Code + LSP agnostico (analiza Rust, React, PHP, CSS, SCSS, glory-specific)
 - **Para modificarla:**
   1. Abrir workspace folder, editar bajo `src/analyzers/` o `src/providers/`.
   2. `npm run compile` o `vsce package`.
   3. Instalar el `.vsix` generado en VS Code (`Extensions: Install from VSIX...`).
   4. **No reiniciar VS Code automaticamente** (regla 20). El usuario decide.
-- **Comandos principales:** `codeSentinel.analyzeWorkspace`, `codeSentinel.analyzeFile`, `codeSentinel.runExternalTools`.
+- **Comandos principales (VS Code):** `codeSentinel.analyzeWorkspace`, `codeSentinel.analyzeFile`, `codeSentinel.runExternalTools`.
 
 ### varsense
 - **Workspace folder:** `c:\Users\Owner\OneDrive\Documentos\WP\app\public\wp-content\themes\glorytemplate\.agent\varsense`
 - **Path relativo:** `.agent/varsense`
 - **Repo:** github.com/1ndoryu/varsense (rama `main`)
-- **Tipo:** extension VS Code para validacion de variables CSS y clases huerfanas.
+- **Tipo:** extension VS Code + LSP agnostico para validacion de variables CSS y clases huerfanas.
 - **Para modificarla:** mismo flujo que code-sentinel (`src/`, `vsce package`, instalar `.vsix`).
-- **Comandos principales:** `cssVarsValidator.scanAllDiagnostics`, `cssVarsValidator.scanOrphanClasses`, `cssVarsValidator.exportReport`.
+- **Comandos principales (VS Code):** `cssVarsValidator.scanAllDiagnostics`, `cssVarsValidator.scanOrphanClasses`, `cssVarsValidator.exportReport`.
+
+**Uso en Zed (editor-agnostico via LSP):**
+1. Compilar el LSP: `cd .agent/varsense && npm run compile` (genera `out/lsp/server.js`).
+2. En Zed: `Ctrl+Shift+P` → **"zed: install dev extension"** → seleccionar `.agent/varsense/integrations/zed/`.
+3. Si la ruta relativa no resuelve, usar variable de entorno:
+   ```powershell
+   $env:VARSENSE_LSP_PATH = "C:\Users\Owner\OneDrive\Documentos\WP\app\public\wp-content\themes\glorytemplate\.agent\varsense\out\lsp\server.js"
+   ```
+
+**Uso desde CLI (sin editor):**
+```powershell
+node .agent/varsense/out/cli/index.js <archivo-css>
+```
 </tool_locations>
 
 ---
-
-## VIII. ROADMAP WATCHER
-
-Al iniciar sesion, verifica que existan estos dos archivos. Si faltan, recrearlos.
-
-### `scripts/check-roadmap.mjs`
-Script Node.js que parsea `roadmap.md` (y `App/roadmap.md` si existe) buscando pendientes bajo secciones cuyo titulo contiene "pendiente". Sale con codigo 1 si hay pendientes, 0 si no.
-
-Funcionalidad requerida:
-- Buscar `roadmap.md` en raiz y `App/roadmap.md`.
-- Detectar secciones `## Pendientes` (case-insensitive: linea con `#` que contiene "pendiente").
-- Cada linea iniciada con `-`, `###` o `--` dentro de esa seccion = tarea.
-- Ignorar lineas vacias, `(sin tareas pendientes)` y parentesis decorativos.
-- Modo `--watch`: `watchFile` con intervalo 2s.
-- Salida formato `archivo:linea:columna: warning: TAREA PENDIENTE: texto` (compatible con problemMatcher de VS Code).
-- Scripts en `package.json`: `"roadmap": "node scripts/check-roadmap.mjs"`, `"roadmap:watch": "node scripts/check-roadmap.mjs --watch"`.
-
-### `.vscode/tasks.json`
-```json
-{
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "Roadmap Watcher",
-      "type": "shell",
-      "command": "node",
-      "args": ["scripts/check-roadmap.mjs", "--watch"],
-      "isBackground": true,
-      "problemMatcher": {
-        "owner": "roadmap-watcher",
-        "fileLocation": "absolute",
-        "pattern": {
-          "regexp": "^(.+):(\\d+):(\\d+):\\s+warning:\\s+(.+)$",
-          "file": 1, "line": 2, "column": 3, "message": 4
-        },
-        "severity": "warning",
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": "^\\[roadmap-watcher\\] (Cambio detectado|Vigilando)",
-          "endsPattern": "^\\[roadmap-watcher\\] \\d+ tarea|^\\[roadmap-watcher\\] Sin tareas"
-        }
-      },
-      "runOptions": { "runOn": "folderOpen" },
-      "presentation": { "reveal": "silent", "panel": "dedicated", "showReuseMessage": false }
-    }
-  ]
-}
-```
-
-`.vscode/` esta en `.gitignore`, asi que `tasks.json` se crea localmente. Verificar al inicio de cada sesion y recrearlo si falta.
