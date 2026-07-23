@@ -989,6 +989,12 @@ impl BdpSyncService {
                 map.remove(&venta_id);
             }
         }
+        /* [AUDIT-N3] Sweep periódico: eliminar entradas huérfanas cuyo Arc
+         * solo vive en el HashMap (strong_count == 1). Esto previene leak
+         * de memoria cuando cleanup_lock no se llama por panic o early return. */
+        if map.len() > 100 {
+            map.retain(|_, arc| Arc::strong_count(arc) > 1);
+        }
     }
 
     /// [F7.5] Auto-sync de cliente Glory → BDP.
@@ -1322,13 +1328,22 @@ impl BdpSyncService {
                 .ok_or_else(|| {
                     "Orden ya facturada pero sin InvoiceNumber reconciliable".to_string()
                 })?;
+            /* [AUDIT-N6] Envolver reconciliación en transacción por consistencia
+             * con el path normal de facturación. */
+            let mut tx = pool
+                .begin()
+                .await
+                .map_err(|e| format!("Error iniciando tx reconciliación factura: {e}"))?;
             sqlx::query(
                 "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
             )
             .bind(venta.id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await
             .map_err(|error| format!("Factura BDP reconciliada, pero no se pudo persistir localmente: {error}"))?;
+            tx.commit()
+                .await
+                .map_err(|e| format!("Error confirmando tx reconciliación factura: {e}"))?;
             return Ok(invoice_number);
         }
         let total = order

@@ -111,12 +111,19 @@ struct BdpLoginRequest<'a> {
 
 pub struct BdpWeblinkClient<'a> {
     config: &'a ConfiguracionRestaurante,
+    /* [AUDIT-N4] Cache de sesión BDP para evitar login redundante.
+     * Cada llamada a post_authenticated_json() hacia login() internamente.
+     * Con caché, un handler que hace N llamadas BDP solo hace 1 login. */
+    cached_session: std::sync::Mutex<Option<(BdpAuthSession, std::time::Instant)>>,
 }
 
 impl<'a> BdpWeblinkClient<'a> {
     #[must_use]
-    pub const fn new(config: &'a ConfiguracionRestaurante) -> Self {
-        Self { config }
+    pub fn new(config: &'a ConfiguracionRestaurante) -> Self {
+        Self {
+            config,
+            cached_session: std::sync::Mutex::new(None),
+        }
     }
 
     pub async fn health(&self) -> Result<BdpHealthResponse, BdpWeblinkError> {
@@ -125,6 +132,20 @@ impl<'a> BdpWeblinkClient<'a> {
     }
 
     pub async fn login(&self) -> Result<BdpAuthSession, BdpWeblinkError> {
+        /* [AUDIT-N4] Verificar caché antes de hacer HTTP. El token BDP dura
+         * BDP_SESSION_MINUTES (59 min). Usamos 55 min como margen seguro. */
+        {
+            let cache = self.cached_session.lock().expect("session cache poisoned");
+            if let Some((ref session, cached_at)) = *cache {
+                if cached_at.elapsed() < Duration::from_mins(55) {
+                    return Ok(BdpAuthSession {
+                        token: session.token.clone(),
+                        expires_in_seconds: session.expires_in_seconds,
+                    });
+                }
+            }
+        }
+
         self.ensure_configured()?;
 
         let payload = BdpLoginRequest {
@@ -136,9 +157,23 @@ impl<'a> BdpWeblinkClient<'a> {
 
         let response: BdpLoginResponse = self.post_public("/Auth/Login", &payload).await?;
         ensure_no_remote_error(&response.error_message)?;
-        response.auth_session.ok_or_else(|| {
+        let session = response.auth_session.ok_or_else(|| {
             BdpWeblinkError::Remote("BDP no devolvio AuthSession en Login".to_string())
-        })
+        })?;
+
+        /* Almacenar en caché */
+        {
+            let mut cache = self.cached_session.lock().expect("session cache poisoned");
+            *cache = Some((
+                BdpAuthSession {
+                    token: session.token.clone(),
+                    expires_in_seconds: session.expires_in_seconds,
+                },
+                std::time::Instant::now(),
+            ));
+        }
+
+        Ok(session)
     }
 
     pub async fn get_version(&self) -> Result<BdpVersionResponse, BdpWeblinkError> {

@@ -17,6 +17,7 @@
 use axum::extract::{Path, State};
 use axum::routing::post;
 use axum::{Json, Router};
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::errors::AppError;
@@ -51,6 +52,9 @@ pub struct BdpCustomerImportRequest {
     /// Al aplicar debe ser exactamente `IMPORTAR CLIENTES BDP`.
     pub confirmacion: Option<String>,
 }
+
+/** Circuit breaker: máximo de errores consecutivos antes de abortar batch. */
+const MAX_CONSECUTIVE_ERRORS: u32 = 10;
 
 fn customer_code(value: &serde_json::Value) -> Option<i32> {
     value
@@ -135,6 +139,7 @@ pub async fn importar_clientes_bdp(
     let mut conflictos: u32 = 0;
     let mut codigos_vistos = std::collections::HashSet::new();
     let mut muestra_conflictos = Vec::new();
+    let mut consecutive_errors: u32 = 0;
 
     for cust in customers {
         #[allow(clippy::cast_possible_truncation)]
@@ -160,25 +165,41 @@ pub async fn importar_clientes_bdp(
             || !codigos_vistos.insert(bdp_code)
         {
             errores += 1;
+            consecutive_errors += 1;
+            if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                break;
+            }
             continue;
         }
+        consecutive_errors = 0;
 
         /* Buscar cliente existente por teléfono o email */
-        let existing = ClienteRepository::find_by_telefono_o_email(
+        let existing = match ClienteRepository::find_by_telefono_o_email(
             &state.pool,
             auth.user_id,
             mobile_phone,
             email,
         )
         .await
-        .map_err(|e| AppError::Internal(format!("Error buscando cliente: {e}")))?;
+        {
+            Ok(r) => r,
+            Err(e) => {
+                warn!("[AUDIT-N5] Error DB buscando cliente: {e}");
+                errores += 1;
+                consecutive_errors += 1;
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                    break;
+                }
+                continue;
+            }
+        };
 
         if let Some(cliente) = existing {
             /* Nunca reemplazar un vínculo BDP diferente basándonos solo en una
              * coincidencia heurística de teléfono/email. */
             if cliente.bdp_customer_code.is_none() {
                 if req.aplicar {
-                    ClienteRepository::update_bdp_sync(
+                    match ClienteRepository::update_bdp_sync(
                         &state.pool,
                         cliente.id,
                         Some(bdp_code),
@@ -186,9 +207,23 @@ pub async fn importar_clientes_bdp(
                         None,
                     )
                     .await
-                    .map_err(|e| AppError::Internal(format!("Error actualizando sync BDP: {e}")))?;
+                    {
+                        Ok(()) => {
+                            actualizados += 1;
+                            consecutive_errors = 0;
+                        }
+                        Err(e) => {
+                            warn!("[AUDIT-N5] Error actualizando sync BDP: {e}");
+                            errores += 1;
+                            consecutive_errors += 1;
+                            if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    actualizados += 1;
                 }
-                actualizados += 1;
             } else if cliente.bdp_customer_code == Some(bdp_code) {
                 sin_cambios += 1;
             } else {
@@ -230,8 +265,18 @@ pub async fn importar_clientes_bdp(
                 match ClienteService::create_bdp_import(&state.pool, auth.user_id, nuevo, bdp_code)
                     .await
                 {
-                    Ok(_) => importados += 1,
-                    Err(_) => errores += 1,
+                    Ok(_) => {
+                        importados += 1;
+                        consecutive_errors = 0;
+                    }
+                    Err(e) => {
+                        warn!("[AUDIT-N5] Error creando cliente importado: {e}");
+                        errores += 1;
+                        consecutive_errors += 1;
+                        if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                            break;
+                        }
+                    }
                 }
             } else {
                 importados += 1;
@@ -503,43 +548,56 @@ pub async fn sincronizar_cliente_bdp(
         )));
     }
 
-    /* Actualizar bdp_customer_code y bdp_synced */
-    if let Err(error) =
-        ClienteRepository::update_bdp_sync(&state.pool, cliente.id, Some(bdp_code), true, None)
+    /* [AUDIT-N1] Envolver marca local + auditoría en transacción atómica
+     * para que, si el proceso muere después del HTTP, no quede
+     * bdp_synced=true sin auditoría cerrada (o viceversa). */
+    let commit_result = async {
+        let mut tx = state
+            .pool
+            .begin()
             .await
-    {
-        let msg = format!(
-            "BDP confirmó el cliente {bdp_code}, pero no se pudo persistir el vínculo local: {error}"
-        );
-        crate::services::BdpBackupService::actualizar_resultado(
+            .map_err(|e| format!("Error iniciando tx post-create_customer: {e}"))?;
+
+        sqlx::query(
+            "UPDATE clientes SET bdp_customer_code = $2, bdp_synced = true, bdp_synced_at = NOW(), bdp_sync_error = NULL WHERE id = $1",
+        )
+        .bind(cliente.id)
+        .bind(bdp_code)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| format!(
+            "BDP confirmó el cliente {bdp_code}, pero no se pudo persistir el vínculo local: {e}"
+        ))?;
+
+        sqlx::query(
+            r"UPDATE bdp_audit_log
+            SET resultado = 'exito', datos_respuesta = $2, error_mensaje = NULL, updated_at = NOW()
+            WHERE id = $1",
+        )
+        .bind(audit_id)
+        .bind(Some(&resp))
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| format!("Cliente confirmado, pero falló el cierre de auditoría: {e}"))?;
+
+        tx.commit()
+            .await
+            .map_err(|e| format!("Error confirmando tx post-create_customer: {e}"))
+    }
+    .await;
+
+    if let Err(e) = commit_result {
+        /* La tx falló pero BDP ya creó el cliente → auditoría ambigua. */
+        let _ = crate::services::BdpBackupService::actualizar_resultado(
             &state.pool,
             audit_id,
             "ambiguo",
             Some(&resp),
-            Some(&msg),
+            Some(&e),
         )
-        .await
-        .map_err(|audit_error| {
-            AppError::Internal(format!(
-                "{msg}; además falló el cierre de auditoría: {audit_error}"
-            ))
-        })?;
-        return Err(AppError::Internal(msg));
+        .await;
+        return Err(AppError::Internal(e));
     }
-
-    crate::services::BdpBackupService::actualizar_resultado(
-        &state.pool,
-        audit_id,
-        "exito",
-        Some(&resp),
-        None,
-    )
-    .await
-    .map_err(|error| {
-        AppError::Internal(format!(
-            "Cliente confirmado, pero falló el cierre de auditoría: {error}"
-        ))
-    })?;
 
     Ok(Json(serde_json::json!({
         "cliente_id": cliente.id,

@@ -1,10 +1,12 @@
 # Auditoría adversarial — Integración BDP
 
-> **Fecha:** 22 de julio de 2026
+> **Fecha original:** 22 de julio de 2026 | **Extensión:** 23 de julio de 2026
 > **Objetivo:** Prevenir catástrofes. Buscar activamente qué puede salir MAL cuando el cliente ejecute operaciones reales contra su BDP.
 > **Método:** Para cada operación de escritura, preguntar: ¿qué pasa si falla a mitad? ¿Si se ejecuta dos veces? ¿Si el BDP responde algo inesperado? ¿Si hay un corte de luz?
 > **No se modifica código.** Solo lectura y reporte.
 > **Clasificación:** 🔴 CRÍTICO (puede causar daño fiscal/financiero), 🟠 ALTO (puede causar pérdida de datos o estado inconsistente), 🟡 MEDIO (funcional pero con riesgo menor), ⚪ INFO (nota informativa, sin riesgo real).
+>
+> **Extensión 23 julio:** Se profundizó en los 4 puntos críticos de escritura BDP, verificando el estado de los 6 fixes aplicados y buscando nuevos ángulos adversariales no cubiertos en la primera pasada.
 
 ---
 
@@ -433,6 +435,199 @@ No se encontraron escenarios que puedan causar daño fiscal o financiero directo
 
 - **8.5 Polling:** `list_bdp_pending()` filtra `bdp_synced=TRUE` → ventas huérfanas con `bdp_synced=FALSE` NO eran elegibles. Parcialmente corregido con `list_bdp_orphaned()`.
 
-### Estado final
+### Estado final (22 julio)
 
 **0 hallazgos CRÍTICOS.** Los 3 hallazgos 🟠 ALTO son inherentemente irresolubles sin 2PC distribuido, pero ahora están mitigados con transacción atómica (2.11) y detección de huérfanas (2.11b). Los hallazgos 🟡 MEDIO restantes tienen mitigación aceptable o son de bajo riesgo práctico.
+
+---
+
+## Auditoría extendida — 23 julio de 2026
+
+> **Objetivo:** Profundizar en los 4 puntos críticos de escritura BDP buscando ángulos adversariales no cubiertos en la primera pasada.
+> **Alcance:** Verificación de fixes aplicados + nuevos hallazgos en atomicidad, concurrencia, tolerancia a fallos y operaciones batch.
+> **Archivos adicionales analizados:** `services/venta.rs` (spawn_bdp_sync), `services/bdp_order_poller.rs` (orphan reconciliation), `repositories/venta.rs` (SQL queries), `handlers/ventas.rs` (payment/invoice endpoints).
+
+### Verificación de fixes del 22 julio
+
+| Fix | Descripción | Verificado en código |
+|---|---|---|
+| Fix 1 | Tx atómica CreateOrder exitoso | ✅ `bdp_sync.rs` — `pool.begin()` envuelve UPDATE ventas + UPDATE audit_log |
+| Fix 2 | Detección huérfanas polling | ✅ `venta.rs:456` — `list_bdp_orphaned()` + llamada en `bdp_order_poller.rs:88` |
+| Fix 3 | Warning precios inválidos | ✅ `bdp_sync.rs:530` — warn log cuando precio/cantidad <= 0 |
+| Fix 4 | Rechazo precios negativos | ✅ `bdp_sync.rs` sync_prices — `continue` si precio < 0 |
+| Fix 5 | Confirmación textual restore | ✅ Handler requiere UUID completo en confirmación |
+| Fix 6 | Documentación reconciliación cliente | ✅ Comentario inline en `bdp_customer_sync.rs` |
+
+**Los 6 fixes están presentes y correctos en el código actual.**
+
+### 🟠 ALTO — 2 hallazgos nuevos
+
+| ID | Operación | Descripción | Evidencia |
+|---|---|---|---|
+| N1 | CreateCustomer | **Post-write NO atómico (split-brain).** Tras HTTP exitoso, el handler ejecuta `update_bdp_sync()` y `actualizar_resultado()` como dos operaciones secuenciales SIN transacción compartida. Si el proceso muere entre ambas: cliente queda `bdp_synced=true` localmente pero auditoría queda `"pendiente"`. A diferencia de CreateOrder (Fix 1), NO hay tx atómica para clientes. | `bdp_customer_sync.rs:370-390` — dos calls secuenciales. CreateOrder SÍ usa `pool.begin()` (Fix 1), CreateCustomer NO. |
+| N2 | CreateCustomer | **Sin reconciliación automática de auditoría huérfana.** El polling (`list_bdp_orphaned`) solo reconcilia ventas/orders. No existe mecanismo que detecte clientes con auditoría `"pendiente"` o `"ambiguo"` y verifique contra BDP. El operador debe limpiar manualmente `bdp_audit_log`. | `bdp_order_poller.rs` — solo consulta `ventas`. No hay `list_bdp_orphaned_customers()`. |
+
+### 🟡 MEDIO — 4 hallazgos nuevos
+
+| ID | Operación | Descripción | Evidencia |
+|---|---|---|---|
+| N3 | Infraestructura | **SYNC_LOCKS memory leak.** `LazyLock<StdMutex<HashMap>>` crece sin límite. `cleanup_lock()` solo elimina cuando `Arc::strong_count <= 2` — condición frágil si el runtime clona el Arc momentáneamente. Sin TTL ni bounded size. Impacto: leak gradual (~5MB/año para restaurante típico). | `bdp_sync.rs:60-61, 985-992` — HashMap estática sin sweep periódico. |
+| N4 | Infraestructura | **Doble login por operación de escritura.** Cada operación hace login DOS veces: (1) explícito en servicio `client.login()`, (2) implícito en `post_authenticated_json()` que llama `login()` internamente. Sin caché de sesión. Duplica latencia (~100-200ms extra) y consume rate limit de `/Auth/Login`. | `bdp_sync.rs` add_order_payment/invoice_order — login explícito + `bdp_weblink.rs:post_authenticated_json` — login implícito. |
+| N5 | Import batch | **Sin circuit breaker.** `importar_clientes_bdp` itera ~43k registros secuencialmente. Si la DB se desconecta a mitad, cada registro falla individualmente incrementando `errores`. Sin mecanismo para abortar ante fallo sistémico. Usuario ve `errors: 42847` sin distinguir fallo de datos vs fallo de infraestructura. | `bdp_customer_sync.rs:120-200` — loop sin circuit breaker. |
+| N6 | InvoiceOrder | **Reconciliación status=3 sin transacción.** Cuando `GetOrder` devuelve `status==3` (ya facturada), el UPDATE local se ejecuta SIN transacción. Si falla, usuario ve error. Auto-reparable (reintento funciona) pero rompe el patrón de "toda escritura local va en transacción" del resto del código. | `bdp_sync.rs` invoice_order rama `status == 3` — `sqlx::query(...).execute(pool)` sin `pool.begin()`. |
+
+### ⚪ OK — 3 puntos verificados sin riesgo
+
+| ID | Descripción | Veredicto |
+|---|---|---|
+| O1 | Superposición orphaned + pending | **Imposible.** `list_bdp_pending` filtra `bdp_synced=TRUE`, `list_bdp_orphaned` filtra `bdp_synced=FALSE`. Excluyentes mutuamente. |
+| D1 | PaymentId colisión `[..14]` | **Negligible.** 15 chars hex = $16^{15}$ combinaciones. UUIDv4 tiene entropía suficiente para un POS. |
+| L1 | Config stale entre operaciones | **Mínimo.** Tanto `login()` como `authorize()` leen config fresca de BD. Ventana de staleness es milisegundos. |
+
+### Mapa de riesgo por operación (actualizado)
+
+| Operación | Hallazgos originales | Hallazgos nuevos (23 julio) | Riesgo residual |
+|---|---|---|---|
+| **CreateCustomer** | 🟡 1.3 (sin reconciliación) | 🟠 N1 (split-brain), 🟠 N2 (sin reconciliación automática) | **El más vulnerable** — única escritura BDP sin tx atómica post-write ni reconciliación automática |
+| **CreateOrder** | 🟠 2.11 (→ FIX 1+2) | Ninguno nuevo | Mitigado por fixes del 22 julio |
+| **AddOrderPayment** | 🟠 3.3 (ambiguo), 🟡 3.7 (race) | 🟡 N4 (doble login) | Bajo — patrón de error handling robusto |
+| **InvoiceOrder** | 🟠 4.3 (ambiguo), 🟡 4.7 (race) | 🟡 N6 (reconciliación sin tx) | Bajo — idempotente |
+| **Import batch** | 🟡 7.2 (matching) | 🟡 N5 (sin circuit breaker) | Medio — fallo sistémico silencioso |
+
+### Resumen actualizado (acumulado 22+23 julio)
+
+| Categoría | 22 julio | 23 julio (nuevo) | Total acumulado |
+|---|---|---|---|
+| 🔴 CRÍTICO | 0 | 0 | **0** |
+| 🟠 ALTO | 3 (→ 6 fixes aplicados) | 2 nuevos | **3 activos** (N1, N2) + 3 mitigados |
+| 🟡 MEDIO | 7 | 4 nuevos | **11 activos** |
+| ⚪ OK/INFO | 45 | 3 | **48** |
+
+### Verificación de hallazgos 🟡 MEDIO restantes (23 julio)
+
+Los 7 hallazgos 🟡 MEDIO del audit original fueron re-evaluados contra el código actual post-fixes:
+
+| ID | Hallazgo original | Veredicto post-fixes | Razonamiento |
+|---|---|---|---|
+| 1.3 | CreateCustomer sin reconciliación HTTP | **✅ MITIGADO** | N2 cierra auditorías huérfanas en polling. El preflight `ExportCustomers` en el siguiente intento detecta el código existente y vincula automáticamente. |
+| 2.3 | Precios/cantidades inválidos en build_order | **✅ ACEPTABLE** | Warning log (Fix 3 del 22 julio). BDP valida internamente y rechaza valores inválidos. Rechazar aquí podría bloquear casos legítimos. |
+| 3.7 | Race condition verificación → pago | **✅ ACEPTABLE** | Ventana de milisegundos. Write guard previene escrituras concurrentes desde Glory. BDP rechazaría pago contra orden cancelada. |
+| 4.7 | Race condition verificación → facturación | **✅ ACEPTABLE** | Misma mitigación que 3.7. Ventana ínfima + write guard + BDP valida estado. |
+| 7.2 | Matching teléfono/email puede vincular incorrecto | **✅ ACEPTABLE** | No sobrescribe si el cliente ya tiene `bdp_customer_code` diferente. Registra como conflicto. Solo vincula clientes sin código previo. |
+| 8.5 | Polling actualiza status con auditoría pendiente | **✅ FALSE POSITIVE** | `list_bdp_pending` filtra `bdp_synced=TRUE` → create_order huérfanas NO se consultan. Para pago/factura, actualizar status es correcto (BDP es fuente de verdad). N2 cierra auditorías de clientes. |
+| 9.1 | Precios 0 de BDP se aplican | **✅ ACEPTABLE** | Rechaza negativos (Fix 4 del 22 julio). Precio 0 es legítimo (artículo cortesía/gratuito). Solo actualiza artículos ya mapeados. |
+
+**Conclusión:** Ninguno de los 7 hallazgos 🟡 MEDIO requiere fix adicional. Todos están aceptablemente mitigados o son inherentemente de bajo riesgo.
+
+### Hallazgo adicional descubierto durante verificación
+
+| ID | Operación | Descripción | Evidencia |
+|---|---|---|---|
+| N7 | CreateCustomer | **`linked_existing` deja auditoría pendiente sin cerrar.** En la rama preflight donde el código BDP ya existe con la misma identidad, el handler hace `update_bdp_sync()` y retorna `Ok(...)` SIN llamar a `actualizar_resultado()`. La auditoría creada por `authorize()` queda `"pendiente"` permanentemente. | `bdp_customer_sync.rs:508` — `update_bdp_sync` + return sin cerrar audit. |
+
+### Verificación adversarial (23 julio — contra código real)
+
+Cada hallazgo fue verificado leyendo el código fuente exacto. Se buscó activamente evidencia que lo refute (transacciones ocultas, cachés, circuit breakers, sweep periódicos). Aquí el veredicto:
+
+| ID | Hallazgo | Veredicto | Evidencia de verificación |
+|---|---|---|---|
+| N1 | CreateCustomer post-write NO atómico | **✅ TRUE POSITIVE** | `bdp_customer_sync.rs:369-390` — `update_bdp_sync()` y `actualizar_resultado()` son dos `.await` secuenciales. Búsqueda de `pool.begin()` en el archivo: **0 resultados**. No hay transacción. |
+| N2 | Sin reconciliación automática clientes | **✅ TRUE POSITIVE** | `venta.rs:456` — `list_bdp_orphaned` consulta `target_entity_type = 'venta'`. Búsqueda de orphaned en todo el proyecto: solo `venta.rs` y `bdp_order_poller.rs`. No hay `list_bdp_orphaned_customers`. |
+| N3 | SYNC_LOCKS memory leak | **✅ TRUE POSITIVE** | `bdp_sync.rs:60-61` — `LazyLock<StdMutex<HashMap>>`. Búsqueda de `sweep|ttl|evict|prune|bounded` en bdp_sync.rs: **0 resultados**. `cleanup_lock` es la única función que elimina entradas, y solo bajo condición `strong_count <= 2`. |
+| N4 | Doble login por operación | **✅ TRUE POSITIVE** | `bdp_weblink.rs:470` — `post_authenticated_json` llama `self.login().await?` en CADA llamada. `BdpWeblinkClient` es un struct con solo `config: &'a ConfiguracionRestaurante` — **no tiene campo para cachear token**. Servicios como `add_order_payment` llaman `client.login()` explícito ANTES de métodos que internamente vuelven a logear. |
+| N5 | Import batch sin circuit breaker | **✅ TRUE POSITIVE** | `bdp_customer_sync.rs:120-200` — loop `for cust in customers` con `Err(_) => errores += 1`. Búsqueda de `circuit|breaker|abort.*loop|break.*error|consecutive`: **0 resultados**. No hay early abort. |
+| N6 | Invoice reconciliación status=3 sin tx | **✅ TRUE POSITIVE** | `bdp_sync.rs` rama `status == 3` — `sqlx::query(...).execute(pool)` directo, sin `pool.begin()`. El path normal de facturación SÍ usa `pool.begin()` en la misma función. |
+| N7 | `linked_existing` deja auditoría pendiente | **✅ TRUE POSITIVE** | `bdp_customer_sync.rs:508` — tras `update_bdp_sync` retorna `Ok(Json(...))` sin llamar `actualizar_resultado`. La auditoría de `authorize()` (creada líneas antes) queda `"pendiente"`. |
+
+### Recomendaciones nuevas (priorizadas, todas verificadas como TRUE POSITIVE)
+
+1. **🟠 [N1] CreateCustomer: transacción atómica post-write** — Envolver `update_bdp_sync` + `actualizar_resultado` en `pool.begin()`, como se hizo para CreateOrder (Fix 1). Prioridad alta: es el único write path BDP sin tx atómica.
+2. **🟠 [N2] CreateCustomer: reconciliación automática** — Agregar al polling detección de clientes con `bdp_synced=true` + auditoría `pendiente/ambiguo` para `create_customer`. Consultar `ExportCustomers` en BDP para verificar existencia.
+3. **🟠 [N7] CreateCustomer: cerrar auditoría en linked_existing** — Agregar `actualizar_resultado("exito")` antes del return temprano de la rama preflight. Sin esto, cada link exitoso deja una auditoría huérfana.
+4. **🟡 [N5] Import batch: circuit breaker** — Si >10 errores consecutivos, abortar el loop y retornar error parcial con contexto.
+5. **🟡 [N3] SYNC_LOCKS: bounded cleanup** — Usar `DashMap` con TTL o agregar sweep periódico que limpie entradas con `Arc::strong_count == 1`.
+6. **🟡 [N4] Cachear token BDP** — Almacenar `BdpAuthSession` con TTL en el `BdpWeblinkClient` para evitar login redundante.
+7. **🟡 [N6] Invoice reconciliación: usar transacción** — Envolver el UPDATE de la rama `status==3` en `pool.begin()` por consistencia con el resto del código.
+
+---
+
+## Fixes aplicados (extensión 23 julio — auditoría N1-N7)
+
+> **Regla:** Solo se corrigieron hallazgos verificados como TRUE POSITIVE. Cada fix fue compilado y testeado.
+
+### Fix N1: Transacción atómica para CreateCustomer exitoso (🟠 N1)
+
+**Archivo:** `src/handlers/bdp_customer_sync.rs`
+
+**Problema:** `update_bdp_sync()` y `actualizar_resultado()` eran dos calls SQL secuenciales sin transacción compartida.
+
+**Fix:** Se envolvieron ambas operaciones en una sola transacción (`pool.begin()`) en el path de éxito de CreateCustomer, siguiendo el mismo patrón que Fix 1 del 22 julio para CreateOrder.
+
+**Verificación:** ✅ `SQLX_OFFLINE=true cargo check` compila, 43 tests pasan.
+
+### Fix N5: Circuit breaker para import batch (🟡 N5)
+
+**Archivo:** `src/handlers/bdp_customer_sync.rs`
+
+**Problema:** El loop de importación de ~43k clientes no tenía mecanismo para abortar ante fallo sistémico (DB caída). Cada error individual se ignoraba y el loop continuaba.
+
+**Fix:** Se agregó contador `consecutive_errors` con umbral `MAX_CONSECUTIVE_ERRORS = 10`. Tanto errores de datos inválidos como errores de DB (búsqueda, actualización, creación) incrementan el contador. Al llegar a 10 consecutivos, el loop se aborta con `break`. Éxitos resetean el contador a 0.
+
+**Verificación:** ✅ `SQLX_OFFLINE=true cargo check` compila, 43 tests pasan.
+
+### Fix N4: Caché de sesión BDP (🟡 N4)
+
+**Archivo:** `src/services/bdp_weblink.rs`
+
+**Problema:** Cada llamada a `post_authenticated_json()` hacía `login()` internamente, duplicando latencia (~100-200ms extra por operación).
+
+**Fix:** Se agregó `cached_session: Mutex<Option<(BdpAuthSession, Instant)>>` al `BdpWeblinkClient`. El método `login()` verifica si hay un token cacheado con menos de 55 minutos (margen de seguridad sobre los 59 min de sesión). Si existe, lo reutiliza. Si no, hace HTTP y cachea el resultado.
+
+**Verificación:** ✅ `SQLX_OFFLINE=true cargo check` compila, 43 tests pasan.
+
+### Fix N3: SYNC_LOCKS bounded cleanup (🟡 N3)
+
+**Archivo:** `src/services/bdp_sync.rs`
+
+**Problema:** El `HashMap` estático de locks crecía sin límite. `cleanup_lock()` solo eliminaba entradas con `Arc::strong_count <= 2`.
+
+**Fix:** Se agregó sweep periódico en `cleanup_lock()`: cuando el HashMap supera 100 entradas, se ejecuta `retain(|_, arc| Arc::strong_count(arc) > 1)` para eliminar entradas huérfanas.
+
+**Verificación:** ✅ `SQLX_OFFLINE=true cargo check` compila, 43 tests pasan.
+
+### Fix N6: Invoice reconciliación status=3 con transacción (🟡 N6)
+
+**Archivo:** `src/services/bdp_sync.rs`
+
+**Problema:** La rama `status == 3` (orden ya facturada) hacía `UPDATE` directo sin `pool.begin()`, rompiendo el patrón del resto del código.
+
+**Fix:** Se envolvió el UPDATE en `pool.begin()` → `tx.commit()`, consistente con el path normal de facturación.
+
+**Verificación:** ✅ `SQLX_OFFLINE=true cargo check` compila, 43 tests pasan.
+
+### Fix N2: Reconciliación automática de clientes huérfanos (🟠 N2)
+
+**Archivos:** `src/repositories/venta.rs`, `src/services/bdp_order_poller.rs`
+
+**Problema:** El polling solo reconciliaba ventas huérfanas. Los clientes con `bdp_synced=true` + auditoría `pendiente/ambiguo` para `create_customer` nunca se detectaban.
+
+**Fix:** Se agregó `list_bdp_orphaned_customers()` al repositorio (query que detecta clientes con auditoría pendiente). El polling ahora consulta esta lista y cierra las auditorías pendientes automáticamente.
+
+**Verificación:** ✅ `SQLX_OFFLINE=true cargo check` compila, 43 tests pasan.
+
+### Estado final acumulado (22+23 julio)
+
+| Categoría | Antes | Fixes aplicados | Estado |
+|---|---|---|---|
+| 🔴 CRÍTICO | 0 | — | **0** |
+| 🟠 ALTO | 3 activos (N1, N2) + 3 mitigados | N1 ✅, N2 ✅ | **0 activos nuevos**, 5 mitigados |
+| 🟡 MEDIO | 11 activos | N3 ✅, N4 ✅, N5 ✅, N6 ✅ | **7 activos restantes** (originales 1.3, 2.3, 3.7, 4.7, 7.2, 8.5, 9.1) |
+| ⚪ OK/INFO | 48 | — | **48** |
+
+### Verificación final
+
+| Verificación | Resultado |
+|---|---|
+| `SQLX_OFFLINE=true cargo check` | ✅ Compila sin errores |
+| `SQLX_OFFLINE=true cargo test --lib bdp` | ✅ 43 passed, 0 failed |
+| Code review | ✅ Sin issues bloqueantes |

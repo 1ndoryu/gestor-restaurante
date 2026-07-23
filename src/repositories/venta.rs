@@ -473,4 +473,32 @@ impl VentaRepository {
         .fetch_all(pool)
         .await
     }
+
+    /* [AUDIT-N2] Clientes BDP huérfanos: tienen bdp_synced=true pero auditoría
+     * pendiente/ambiguo para 'create_customer'. El proceso murió entre
+     * update_bdp_sync y actualizar_resultado (antes del fix N1).
+     * El polling cierra la auditoría consultando ExportCustomers en BDP. */
+    pub async fn list_bdp_orphaned_customers(
+        pool: &PgPool,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::models::Cliente>, sqlx::Error> {
+        sqlx::query_as::<_, crate::models::Cliente>(
+            "SELECT c.* FROM clientes c \
+             WHERE c.user_id = $1 \
+               AND c.bdp_synced = TRUE \
+               AND c.bdp_customer_code IS NOT NULL \
+               AND EXISTS ( \
+                 SELECT 1 FROM bdp_audit_log a \
+                 WHERE a.user_id = $1 \
+                   AND a.target_entity_type = 'cliente' \
+                   AND a.target_entity_id = c.id \
+                   AND a.operacion = 'create_customer' \
+                   AND a.resultado IN ('pendiente', 'ambiguo') \
+               ) \
+             ORDER BY c.created_at ASC LIMIT 50",
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+    }
 }

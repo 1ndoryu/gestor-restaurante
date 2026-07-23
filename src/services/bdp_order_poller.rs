@@ -70,6 +70,7 @@ impl BdpOrderPollerService {
 
     /// Consulta BDP para todas las ventas pendientes de este usuario.
     /// Retorna el número de ventas actualizadas.
+    #[allow(clippy::too_many_lines)]
     pub async fn poll_pending(
         pool: &PgPool,
         user_id: uuid::Uuid,
@@ -92,7 +93,16 @@ impl BdpOrderPollerService {
                 Vec::new()
             });
 
-        if ventas.is_empty() && orphaned.is_empty() {
+        /* [AUDIT-N2] Buscar clientes huérfanos: bdp_synced=true pero auditoría
+         * pendiente/ambiguo para create_customer. */
+        let orphaned_customers = crate::repositories::VentaRepository::list_bdp_orphaned_customers(pool, user_id)
+            .await
+            .unwrap_or_else(|e| {
+                warn!("[AUDIT-N2] Error buscando clientes huérfanos: {e}");
+                Vec::new()
+            });
+
+        if ventas.is_empty() && orphaned.is_empty() && orphaned_customers.is_empty() {
             return Ok(0);
         }
 
@@ -142,6 +152,40 @@ impl BdpOrderPollerService {
                         )
                         .await;
                     }
+                }
+            }
+        }
+
+        /* [AUDIT-N2] Reconciliar clientes huérfanos: cerrar auditoría pendiente
+         * ya que el cliente fue creado exitosamente en BDP (bdp_synced=true). */
+        if !orphaned_customers.is_empty() {
+            info!(
+                "[AUDIT-N2] {} clientes huérfanos detectados (bdp_synced=true con auditoría pendiente). \
+                 Cerrando auditoría.",
+                orphaned_customers.len()
+            );
+            for cliente in &orphaned_customers {
+                if let Some(bdp_code) = cliente.bdp_customer_code {
+                    /* El cliente ya tiene bdp_synced=true → la operación fue exitosa.
+                     * Cerrar todas las auditorías pendientes para este cliente. */
+                    let _ = sqlx::query(
+                        r"UPDATE bdp_audit_log
+                        SET resultado = 'exito', error_mensaje = 'reconciliado por polling N2', updated_at = NOW()
+                        WHERE user_id = $1
+                          AND target_entity_type = 'cliente'
+                          AND target_entity_id = $2
+                          AND operacion = 'create_customer'
+                          AND resultado IN ('pendiente', 'ambiguo')",
+                    )
+                    .bind(user_id)
+                    .bind(cliente.id)
+                    .execute(pool)
+                    .await;
+                    updated += 1;
+                    info!(
+                        "[AUDIT-N2] Cliente {} (code={bdp_code}) reconciliado: auditoría cerrada.",
+                        cliente.id
+                    );
                 }
             }
         }
