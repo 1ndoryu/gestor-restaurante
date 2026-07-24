@@ -72,35 +72,36 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 ## Estado interno reciente
 
 - `237A-1`: auditoría adversarial extendida BDP. 7 hallazgos nuevos verificados como true positives. 6 fixes aplicados: N1 (tx atómica CreateCustomer), N2 (reconciliación clientes huérfanos en polling), N3 (SYNC_LOCKS bounded cleanup), N4 (token cache BDP para evitar doble login), N5 (circuit breaker import batch), N6 (invoice reconciliación con tx). Tests: 128/128 pasando, clippy 0 warnings.
+- `237A-2`: fixes post-247A-1 — tests compilables + MDs actualizados. Añade campos `ff_bdp_*` faltantes en constructores de test y `stock_actual` en `tests/bdp_article_map.rs`.
+- `247A-3`: fix `ON CONFLICT` en `bdp_audit_log` para índice parcial `WHERE idempotency_key IS NOT NULL`.
+- `247A-4`: evaluación de riesgos BDP en producción. Documento `Agente/documentacion/bdp/riesgos-produccion-bdp-2026-07-24.md` con 12 riesgos priorizados y mitigaciones. Tests backend/frontend pasan.
 
 ---
 
 ## Tareas pendientes
 
-### 🟦 BDP — Fase 9: Catálogo, Plano de Sala y Menús
+### 🟦 BDP — Estado actual
 
+**Documentación reciente:**
+- `Agente/documentacion/bdp/riesgos-produccion-bdp-2026-07-24.md` — evaluación de riesgos priorizados antes de producción.
+- `Agente/planes/plan-pendientes-bdp-2026-07-23.md` — plan detallado de funcionalidades pendientes de decisión del cliente (C1, C2, D1-D5, XT1, XT2).
+- `Agente/usuario/mapeo-visual-integracion-bdp-2026-07-23.md` — mapeo visual de cada funcionalidad BDP en el frontend.
+
+### ✅ Completado recientemente
+
+#### BDP — Fase 9: Catálogo, Plano de Sala y Menús
 - **Fase 9.1 — ExportArticles: Sync de catálogo BDP → Glory.** ✅ 157A-7+157A-9
-  - Lee catálogo completo de BDP (`ExportArticles`), sincroniza con `bdp_article_map`.
-  - Campos nuevos en mapa: `descripcion`, `precio_tarifa1`, `iva_pct`, `departamento`, `familia`, `ultima_sync_at`.
-  - Endpoint: `POST /api/bdp/article-maps/sync-catalog`.
-  - Tests: 17 tests (12 existentes + 5 nuevos `upsert_from_bdp`).
-
 - **Fase 9.2 — GetArticle: Consulta individual de artículo.** ✅ 157A-9
-  - `resolve_article()` enriquece nombre, precio e IVA vía GetArticle. Fallback a config si falla.
-  - Client method: `get_article(&BdpGetArticleRequest)`.
-
 - **Fase 9.3 — GetPricesArticles: Refresh de precios.** ✅ 157A-9
-  - `BdpSyncService::sync_prices()` actualiza `precio_tarifa1` de artículos mapeados.
-  - Endpoint: `POST /api/bdp/article-maps/sync-prices`.
-
 - **Fase 9.4 — GetRoomTables: Sync de mesas BDP → Glory.** ✅ 157A-9
-  - `BdpSyncService::sync_tables()` → `PlanoSalaRepository` para crear zonas/mesas.
-  - Mapeo: `RoomName`→`ZonaSala.nombre`, `Table`→`Mesa.numero`.
-  - Endpoint: `POST /api/bdp/sync-tables`.
-
 - **Fase 9.5 — GetMenuDefinition: Lectura informativa de menús.** ✅ 157A-9
-  - Expone definiciones de menús/packs/fast-food de BDP como JSON raw.
-  - Endpoints: `GET /api/bdp/menus/:id`, `GET /api/bdp/fastfoods/:id`, `GET /api/bdp/packs/:id`.
+
+#### Mejoras de UX y seguridad
+- **C1 — Auto-arming** ✅ Implementado en 247A-1.
+- **C2 — Toggle rápido de modo escritura en navbar** ✅ Implementado en 247A-1.
+- **XT1 — Throttling/semáforo BDP** ✅ Implementado en 247A-1.
+- **XT2 — Feature flags por restaurante** ✅ Implementado en 247A-1.
+- **D1 — Verificación de stock (parser defensivo)** ✅ Implementado en 237A-4.
 
 ### ✅ Resuelto
 

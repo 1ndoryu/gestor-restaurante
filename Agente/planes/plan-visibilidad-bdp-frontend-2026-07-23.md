@@ -3,7 +3,7 @@
 > **Fecha:** 2026-07-23 (actualizado 2026-07-24 tras 247A-1)
 > **Origen:** `mapeo-visual-integracion-bdp-2026-07-23.md` — análisis de gaps entre backend implementado y UI visible
 > **Objetivo:** Que cada funcionalidad BDP implementada en el backend tenga su interfaz correspondiente en el frontend, accesible de forma intuitiva
-> **Changelog:** 2026-07-24 — marcado C1, C2, XT1 y XT2 como implementados en 247A-1.
+> **Changelog:** 2026-07-24 — marcado C1, C2, XT1 y XT2 como implementados en 247A-1. 2026-07-24 (247A-4) — añadida referencia a evaluación de riesgos BDP en producción (`Agente/documentacion/bdp/riesgos-produccion-bdp-2026-07-24.md`).
 
 ---
 

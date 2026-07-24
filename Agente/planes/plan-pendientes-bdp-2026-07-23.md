@@ -1,8 +1,9 @@
 # Plan detallado: Pendientes integración BDP
 
-> **Fecha:** 2026-07-23
+> **Fecha:** 2026-07-23 (actualizado 2026-07-24)
 > **Alcance:** Solo planificación. Sin código, sin comandos al BDP real.
-> **Contexto:** Tras completar las mejoras de visibilidad (237A-3) e implementación de stock (237A-4), quedan pendientes decisiones y funcionalidades que requieren análisis profundo antes de implementar.
+> **Contexto:** Tras completar las mejoras de visibilidad (237A-3), implementación de stock (237A-4), mejoras de UX/auto-arming (247A-1) y fix del índice parcial (247A-3), quedan pendientes decisiones y funcionalidades que requieren análisis profundo antes de implementar. Ver `Agente/documentacion/bdp/riesgos-produccion-bdp-2026-07-24.md` para los riesgos de producción identificados.
+
 
 ---
 
@@ -824,3 +825,4 @@ Cuando se implementen `C1`, `D4`, `D5` o cualquier feature D2, actualizar tambi�
 | `Agente/planes/plan-visibilidad-bdp-frontend-2026-07-23.md` | Plan original de visibilidad |
 | `Agente/documentacion/api/bdp-integration-status-2026-06-07.md` | Estado de integración completo |
 | `Agente/usuario/auditoria-adversarial-bdp-2026-07-22.md` | Auditoría de seguridad |
+| `Agente/documentacion/bdp/riesgos-produccion-bdp-2026-07-24.md` | Evaluación de riesgos en producción tras fix ON CONFLICT |
