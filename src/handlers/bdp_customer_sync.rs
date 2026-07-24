@@ -295,17 +295,17 @@ pub async fn importar_clientes_bdp(
         "applied": req.aplicar,
         "writes_to_bdp": false,
     })))
-}    /* [Fase 7.2] Push controlado de un cliente Glory a BDP (CreateCustomer).
- * Exige código explícito, verifica colisión y siempre usa Overwrite=false.
- *
- * [AUDIT-1.3] Reconciliación: si BDP crea el cliente pero Glory no recibe
- * respuesta (timeout/crash), la auditoría queda "ambiguo". La próxima
- * tentativa será bloqueada por ensure_no_unresolved(). El operador debe:
- *   1. Consultar BDP directamente para verificar si el cliente fue creado.
- *   2. Si fue creado, usar la importación (POST /bdp/customers/import)
- *      para vincular el cliente Glory al código BDP existente.
- *   3. Si no fue creado, limpiar la auditoría ambigua manualmente.
- * No hay MarketplaceOrderId para clientes (solo para comandas). */
+} /* [Fase 7.2] Push controlado de un cliente Glory a BDP (CreateCustomer).
+   * Exige código explícito, verifica colisión y siempre usa Overwrite=false.
+   *
+   * [AUDIT-1.3] Reconciliación: si BDP crea el cliente pero Glory no recibe
+   * respuesta (timeout/crash), la auditoría queda "ambiguo". La próxima
+   * tentativa será bloqueada por ensure_no_unresolved(). El operador debe:
+   *   1. Consultar BDP directamente para verificar si el cliente fue creado.
+   *   2. Si fue creado, usar la importación (POST /bdp/customers/import)
+   *      para vincular el cliente Glory al código BDP existente.
+   *   3. Si no fue creado, limpiar la auditoría ambigua manualmente.
+   * No hay MarketplaceOrderId para clientes (solo para comandas). */
 #[utoipa::path(
     post,
     path = "/api/clientes/{id}/bdp-sync",

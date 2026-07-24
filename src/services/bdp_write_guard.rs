@@ -7,12 +7,8 @@ use crate::services::{BdpBackupService, BdpWeblinkClient};
 pub struct BdpWriteGuard;
 
 /* [C1-2] Scopes de escritura BDP válidos. */
-const VALID_BDP_WRITE_SCOPES: &[&str] = &[
-    "create_order",
-    "add_payment",
-    "invoice",
-    "create_customer",
-];
+const VALID_BDP_WRITE_SCOPES: &[&str] =
+    &["create_order", "add_payment", "invoice", "create_customer"];
 
 impl BdpWriteGuard {
     /// Un registro pendiente o ambiguo puede representar una operación remota
@@ -72,9 +68,7 @@ impl BdpWriteGuard {
 
         let target = BdpBackupService::canonical_target(config)?;
         if confirmation_text.trim().trim_end_matches('/') != target {
-            return Err(
-                "La confirmación no coincide con el destino BDP configurado".into(),
-            );
+            return Err("La confirmación no coincide con el destino BDP configurado".into());
         }
 
         BdpWeblinkClient::new(config)
@@ -120,7 +114,8 @@ impl BdpWriteGuard {
                   AND (expires_at IS NULL OR expires_at > NOW())
                   AND created_at >= NOW() - INTERVAL '24 hours'
                 ORDER BY created_at DESC
-                LIMIT 1",        )
+                LIMIT 1",
+        )
         .bind(user_id)
         .bind(&target)
         .bind(&fingerprint)
@@ -128,7 +123,7 @@ impl BdpWriteGuard {
         .await
         .map_err(|error| format!("Error verificando snapshot BDP: {error}"))?;
 
-    let snapshot_id = snapshot_id.ok_or_else(|| {
+        let snapshot_id = snapshot_id.ok_or_else(|| {
             "No se puede auto-armar BDP: falta un snapshot completo de esta conexión vigente."
                 .to_string()
         })?;
@@ -155,7 +150,9 @@ impl BdpWriteGuard {
         .bind(vec![scope])
         .bind(target_entity_type)
         .bind(target_entity_id)
-        .bind(format!("auto_arm:{scope}:{target_entity_type}:{target_entity_id}"))
+        .bind(format!(
+            "auto_arm:{scope}:{target_entity_type}:{target_entity_id}"
+        ))
         .bind(snapshot_id)
         .bind(&fingerprint)
         .execute(&mut *tx)

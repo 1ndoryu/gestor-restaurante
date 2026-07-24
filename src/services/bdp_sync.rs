@@ -95,7 +95,9 @@ impl BdpSyncService {
         }
 
         let lock = {
-            let mut map = SYNC_LOCKS.lock().expect("SYNC_LOCKS poisoned");
+            let mut map = SYNC_LOCKS
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             map.entry(venta.id)
                 .or_insert_with(|| Arc::new(TokioMutex::new(())))
                 .clone()
@@ -161,6 +163,22 @@ impl BdpSyncService {
             return;
         }
 
+        /* [R2] Liberar la conexión de Postgres inmediatamente: el lock
+         * transaccional ya cumplió su función de evitar que otra instancia
+         * adquiera el mismo advisory lock en este instante. Mantener la tx
+         * abierta durante las llamadas HTTP a BDP retendría una conexión del
+         * pool innecesariamente y podría agotarlo bajo carga. La exclusión
+         * dentro de este proceso sigue garantizada por SYNC_LOCKS; el lock
+         * distribuido solo actúa como cortina de humo inicial. */
+        if let Err(error) = distributed_lock.commit().await {
+            warn!(
+                "[BDP-SAFE] No se pudo liberar el lock distribuido para venta {}: {error}",
+                venta.id
+            );
+            Self::cleanup_lock(venta.id);
+            return;
+        }
+
         if let Err(error) = crate::services::BdpWriteGuard::ensure_no_unresolved(
             pool,
             venta.user_id,
@@ -188,7 +206,11 @@ impl BdpSyncService {
                 {
                     info!("[F7.5] Cliente {} auto-sincronizado con BDP (code={bdp_code}) para venta {}", cliente_id, venta.id);
                 } else {
-                    let msg = "Cliente sin código BDP confirmado: la comanda se bloqueó para evitar crear un cliente con código automático o asociarla al cliente equivocado";
+                    let msg = if config.bdp_default_customer_code.is_empty() {
+                        "Cliente sin código BDP confirmado. Asigne un código BDP al cliente o configure un cliente por defecto en Configuración → BDP."
+                    } else {
+                        "Cliente sin código BDP confirmado. Se usará el cliente por defecto configurado."
+                    };
                     warn!(
                         "[BDP-SAFE] {msg} (cliente {cliente_id}, venta {})",
                         venta.id
@@ -196,7 +218,6 @@ impl BdpSyncService {
                     let _ =
                         VentaRepository::update_bdp_status(pool, venta.id, false, Some(msg), None)
                             .await;
-                    let _ = distributed_lock.commit().await;
                     Self::cleanup_lock(venta.id);
                     return;
                 }
@@ -380,7 +401,6 @@ impl BdpSyncService {
                 }
             }
         }
-        let _ = distributed_lock.commit().await;
         Self::cleanup_lock(venta.id);
     }
 
@@ -470,7 +490,11 @@ impl BdpSyncService {
                     BdpSyncError::AmbiguousTransport(format!("BDP respondió HTTP {status}: {body}"))
                 }
                 crate::services::bdp_weblink::BdpWeblinkError::Throttled(message) => {
-                    BdpSyncError::Rejected(format!("BDP throttled: {message}"))
+                    /* [R3] Throttling es un rechazo temporal del TPV local; si lo
+                     * tratamos como permanente perdemos comandas. Lo marcamos
+                     * ambiguo para que el operador/operación de reconciliación
+                     * lo vuelva a intentar. */
+                    BdpSyncError::AmbiguousTransport(format!("BDP throttled: {message}"))
                 }
             })?;
 
@@ -989,7 +1013,9 @@ impl BdpSyncService {
     }
 
     fn cleanup_lock(venta_id: uuid::Uuid) {
-        let mut map = SYNC_LOCKS.lock().expect("SYNC_LOCKS poisoned");
+        let mut map = SYNC_LOCKS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(entry) = map.get(&venta_id) {
             if Arc::strong_count(entry) <= 2 {
                 map.remove(&venta_id);
@@ -1176,7 +1202,8 @@ impl BdpSyncService {
                 let msg = format!("Error AddOrderPayment: {e}");
                 let resultado = match e {
                     crate::services::bdp_weblink::BdpWeblinkError::Http(_)
-                    | crate::services::bdp_weblink::BdpWeblinkError::Api { .. } => "ambiguo",
+                    | crate::services::bdp_weblink::BdpWeblinkError::Api { .. }
+                    | crate::services::bdp_weblink::BdpWeblinkError::Throttled(_) => "ambiguo",
                     _ => "error",
                 };
                 crate::services::BdpBackupService::actualizar_resultado(
@@ -1412,7 +1439,8 @@ impl BdpSyncService {
                 let msg = format!("Error InvoiceOrder: {e}");
                 let resultado = match e {
                     crate::services::bdp_weblink::BdpWeblinkError::Http(_)
-                    | crate::services::bdp_weblink::BdpWeblinkError::Api { .. } => "ambiguo",
+                    | crate::services::bdp_weblink::BdpWeblinkError::Api { .. }
+                    | crate::services::bdp_weblink::BdpWeblinkError::Throttled(_) => "ambiguo",
                     _ => "error",
                 };
                 crate::services::BdpBackupService::actualizar_resultado(

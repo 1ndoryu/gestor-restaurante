@@ -137,7 +137,14 @@ impl<'a> BdpWeblinkClient<'a> {
         /* [AUDIT-N4] Verificar caché antes de hacer HTTP. El token BDP dura
          * BDP_SESSION_MINUTES (59 min). Usamos 55 min como margen seguro. */
         {
-            let cache = self.cached_session.lock().expect("session cache poisoned");
+            let cache = self.cached_session.lock();
+            let cache = match cache {
+                Ok(c) => c,
+                Err(poisoned) => {
+                    warn!("[R8] cached_session mutex poisoned; recuperando lock.");
+                    poisoned.into_inner()
+                }
+            };
             if let Some((ref session, cached_at)) = *cache {
                 if cached_at.elapsed() < Duration::from_mins(55) {
                     return Ok(BdpAuthSession {
@@ -165,7 +172,14 @@ impl<'a> BdpWeblinkClient<'a> {
 
         /* Almacenar en caché */
         {
-            let mut cache = self.cached_session.lock().expect("session cache poisoned");
+            let cache = self.cached_session.lock();
+            let mut cache = match cache {
+                Ok(c) => c,
+                Err(poisoned) => {
+                    warn!("[R8] cached_session mutex poisoned; recuperando lock.");
+                    poisoned.into_inner()
+                }
+            };
             *cache = Some((
                 BdpAuthSession {
                     token: session.token.clone(),

@@ -95,12 +95,13 @@ impl BdpOrderPollerService {
 
         /* [AUDIT-N2] Buscar clientes huérfanos: bdp_synced=true pero auditoría
          * pendiente/ambiguo para create_customer. */
-        let orphaned_customers = crate::repositories::VentaRepository::list_bdp_orphaned_customers(pool, user_id)
-            .await
-            .unwrap_or_else(|e| {
-                warn!("[AUDIT-N2] Error buscando clientes huérfanos: {e}");
-                Vec::new()
-            });
+        let orphaned_customers =
+            crate::repositories::VentaRepository::list_bdp_orphaned_customers(pool, user_id)
+                .await
+                .unwrap_or_else(|e| {
+                    warn!("[AUDIT-N2] Error buscando clientes huérfanos: {e}");
+                    Vec::new()
+                });
 
         if ventas.is_empty() && orphaned.is_empty() && orphaned_customers.is_empty() {
             return Ok(0);
@@ -132,17 +133,14 @@ impl BdpOrderPollerService {
                             venta.bdp_order_id,
                         )
                         .await;
-                        let _ = VentaRepository::update_bdp_order_status(pool, venta.id, &status)
-                            .await;
+                        let _ =
+                            VentaRepository::update_bdp_order_status(pool, venta.id, &status).await;
                         updated += 1;
                     }
                     Err(e) => {
                         /* La comanda no existe o BDP no responde → marcar error
                          * para que no se reintente infinitamente */
-                        warn!(
-                            "[AUDIT-2.11b] Venta {} no reconciliable: {e}",
-                            venta.id
-                        );
+                        warn!("[AUDIT-2.11b] Venta {} no reconciliable: {e}", venta.id);
                         let _ = VentaRepository::update_bdp_status(
                             pool,
                             venta.id,
@@ -276,7 +274,10 @@ impl BdpOrderPollerService {
             1 => "accepted".to_string(),
             2 => "cancelled".to_string(),
             3 => "invoiced".to_string(),
-            other => format!("unknown_{other}"),
+            other => {
+                warn!("[R7] BDP devolvió status desconocido: {other}. Se almacena como unknown_{other}.");
+                format!("unknown_{other}")
+            }
         }
     }
 }

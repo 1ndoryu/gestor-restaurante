@@ -87,6 +87,20 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 - `Agente/planes/plan-pendientes-bdp-2026-07-23.md` — plan detallado de funcionalidades pendientes de decisión del cliente (C1, C2, D1-D5, XT1, XT2).
 - `Agente/usuario/mapeo-visual-integracion-bdp-2026-07-23.md` — mapeo visual de cada funcionalidad BDP en el frontend.
 
+#### Mitigaciones críticas BDP en curso
+
+| ID | Riesgo | Estado | Siguiente paso |
+| --- | --- | --- | --- |
+| R2 | Transacción abierta durante llamadas HTTP a BDP |  Parcialmente mitigado (commit temprano, pérdida de lock cross-instance) | Decidir: lock de sesión `pg_advisory_lock` o columna `bdp_sync_status` |
+| R3 | Throttling tratado como error permanente | ✅ Mitigado (`Throttled → AmbiguousTransport`) | Añadir retry/reconciliación automática |
+| R1 | Reconciliación de comandas ambiguas (`AmbiguousTransport`) | ⏳ Pendiente | Implementar `reconcile_ambiguous_orders` en `bdp_order_poller` |
+| R5 | Timeout global en `sync_venta` |  Pendiente | Envolver fase HTTP en `tokio::time::timeout` |
+| R4 | Cliente sin mapeo bloquea comanda sin feedback claro | 🟡 Backend mejorado (mensaje descriptivo) | Mejorar UI/UX de ventas (badge + toast) |
+| R11/R12 | IVA/precio por defecto hardcodeados y aritmética `f64` | ⏳ Pendiente evaluación | Revisar si BDP valida totales y pasar cálculo a `Decimal` |
+| R13 | `SYNC_LOCKS` mutex poisoning | ✅ Mitigado (`unwrap_or_else(|e| e.into_inner())`) | Considerar migración a `parking_lot`/`DashMap` |
+| R14 | Limpieza manual de `SYNC_LOCKS` | ⏳ Pendiente | Refactorizar a guard RAII |
+| R15 | `Throttled` en pagos/facturas no se trata como ambiguo | ⏳ Pendiente | Aplicar mismo mapeo en `add_order_payment` e `invoice_order` |
+
 ### ✅ Completado recientemente
 
 #### BDP — Fase 9: Catálogo, Plano de Sala y Menús

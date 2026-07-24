@@ -318,3 +318,64 @@ Con las mitigaciones propuestas, el riesgo de fallos graves en producción se re
 - `src/services/bdp_weblink.rs` — cliente HTTP y caché de sesión.
 - `src/services/bdp_order_poller.rs` — polling de estados y reconciliación.
 - `src/services/bdp_throttle.rs` — semáforo de concurrencia.
+
+## 7. Mitigaciones aplicadas en esta sesión
+
+| ID | Mitigación | Estado | Commit |
+| --- | --- | --- | --- |
+| R2 | Cerrar `distributed_lock` inmediatamente tras adquirir `pg_try_advisory_xact_lock`, liberando la conexión de Postgres antes de las llamadas HTTP. | ✅ Aplicado | En curso |
+| R3 | `BdpWeblinkError::Throttled` se mapea a `AmbiguousTransport` en `send_order`, evitando rechazo permanente por throttling. | ✅ Aplicado | En curso |
+| R6/R13 | Recuperación ante mutex poisoning en `SYNC_LOCKS` mediante `unwrap_or_else(|e| e.into_inner())`. | ✅ Aplicado | En curso |
+| R8 | `cached_session` ya no hace `expect` al tomar el lock; se recupera del poisoning. | ✅ Aplicado | Sesión anterior |
+| R7 | `bdp_order_poller` loguea `warn` cuando recibe un status desconocido de BDP. | ✅ Aplicado | Sesión anterior |
+
+## 8. Nuevos riesgos identificados en esta sesión
+
+### R13 — Mutex poisoning en `SYNC_LOCKS`
+
+**Ubicación:** `src/services/bdp_sync.rs:95` y `:1012`
+
+```rust
+let mut map = SYNC_LOCKS.lock().expect("SYNC_LOCKS poisoned");
+```
+
+**Escenario:**
+- Un hilo paniquea mientras sostiene el `Mutex` global `SYNC_LOCKS`.
+- `expect` tumba todo el proceso en adelante.
+
+**Mitigación aplicada:** reemplazar por `unwrap_or_else(|e| e.into_inner())`, que recupera el lock y permite continuar. A largo plazo, migrar a `parking_lot::Mutex` o `tokio::sync::Mutex` para evitar el poisoning.
+
+### R14 — Limpieza manual de `SYNC_LOCKS`
+
+**Ubicación:** múltiples `Self::cleanup_lock(venta.id)` en `src/services/bdp_sync.rs`
+
+**Escenario:**
+- Si se añade un nuevo `return` en `sync_venta` y se olvida llamar a `cleanup_lock`, la entrada permanece en memoria hasta el sweep.
+- Un `panic` intermedio salta todas las llamadas manuales.
+
+**Mitigación recomendada:** crear un guard RAII (`SyncLockGuard`) que implemente `Drop` y llame a `cleanup_lock`, eliminando las llamadas manuales.
+
+### R15 — `Throttled` no se trata como ambiguo en pagos y facturas
+
+**Ubicación:** `src/services/bdp_sync.rs:1130-1195` (`add_order_payment`) y `:1300-1400` (`invoice_order`)
+
+**Escenario:**
+- `add_order_payment` e `invoice_order` propagan `BdpWeblinkError::Throttled` como un mensaje de error de tipo `String`.
+- El caller puede interpretar el throttling como un error permanente y no reintentar.
+- Si el pago o factura sí se aplicó en BDP, queda inconsistente.
+
+**Mitigación:** 🟡 Aplicado — `Throttled` se mapea a `resultado = 'ambiguo'` en ambos endpoints, alineado con `send_order`. Aún falta un worker de reconciliación periódica para pagos/facturas ambiguas.
+
+### R16 — Aritmética en `f64` para totales y descuentos
+
+**Ubicación:** `src/services/bdp_sync.rs:378` y `build_order`
+
+```rust
+let linea_total = (precio * cantidad) - descuento;
+```
+
+**Escenario:**
+- `f64` acumula errores de precisión (ej. `0.1 + 0.2`).
+- Si BDP valida que el `Total` de la comanda coincide con la suma de líneas, un descuadre de centimos puede rechazar el `CreateOrder`.
+
+**Mitigación recomendada:** realizar todos los cálculos con `rust_decimal::Decimal`, redondear a 2 decimales y convertir a `f64` solo al serializar el JSON.

@@ -453,7 +453,10 @@ impl VentaRepository {
      * Estas ventas tienen bdp_synced=false + bdp_order_id no nulo + auditoría
      * 'pendiente' o 'ambiguo' para la operación 'create_order'.
      * El polling normal NO las detecta porque filtra bdp_synced=TRUE. */
-    pub async fn list_bdp_orphaned(pool: &PgPool, user_id: Uuid) -> Result<Vec<Venta>, sqlx::Error> {
+    pub async fn list_bdp_orphaned(
+        pool: &PgPool,
+        user_id: Uuid,
+    ) -> Result<Vec<Venta>, sqlx::Error> {
         sqlx::query_as::<_, Venta>(
             "SELECT v.* FROM ventas v \
              WHERE v.user_id = $1 \
