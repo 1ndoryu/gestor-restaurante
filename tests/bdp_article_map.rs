@@ -344,6 +344,7 @@ async fn test_upsert_from_bdp_crea_nuevo(pool: PgPool) {
         subfamilia: 1,
         activo: true,
         barcode: "8412345678901",
+        stock_actual: rust_decimal::Decimal::new(100, 2),
     };
 
     let changed = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data)
@@ -374,6 +375,7 @@ async fn test_upsert_from_bdp_actualiza_existente(pool: PgPool) {
         subfamilia: 1,
         activo: true,
         barcode: "",
+        stock_actual: rust_decimal::Decimal::new(50, 2),
     };
 
     BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data1)
@@ -391,6 +393,7 @@ async fn test_upsert_from_bdp_actualiza_existente(pool: PgPool) {
         subfamilia: 1,
         activo: true,
         barcode: "",
+        stock_actual: rust_decimal::Decimal::new(50, 2),
     };
 
     let changed = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data2)
@@ -419,6 +422,7 @@ async fn test_upsert_from_bdp_sin_cambios(pool: PgPool) {
         subfamilia: 1,
         activo: true,
         barcode: "",
+        stock_actual: rust_decimal::Decimal::new(100, 2),
     };
 
     BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data)
@@ -449,6 +453,7 @@ async fn test_upsert_from_bdp_desactiva_articulo(pool: PgPool) {
         subfamilia: 1,
         activo: true,
         barcode: "123456789",
+        stock_actual: rust_decimal::Decimal::new(20, 2),
     };
 
     BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data_active)
@@ -488,6 +493,7 @@ async fn test_upsert_from_bdp_aisla_usuarios(pool: PgPool) {
         subfamilia: 1,
         activo: true,
         barcode: "",
+        stock_actual: rust_decimal::Decimal::new(30, 2),
     };
 
     BdpArticleMapRepository::upsert_from_bdp(&pool, user_a, &data_a)

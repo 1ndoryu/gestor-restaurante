@@ -10,15 +10,15 @@
 
 | # | Item | Tipo | Estado actual | ¿Listo para implementar? | Esfuerzo estimado |
 |---|------|------|---------------|--------------------------|-------------------|
-| C1 | Auto-arming (escritura automática con confirmación dinámica + idempotency) | Mejora de flujo | Pendiente decisión usuario | **Sí** — diseño revisado con mitigaciones robustas | ~12-14h |
-| C2 | Toggle rápido en navbar | Mejora UX (admin) | Pendiente decisión usuario | **Sí** — ortogonal a C1, uso admin distinto | ~3h |
+| C1 | Auto-arming (escritura automática con confirmación dinámica + idempotency) | Mejora de flujo | ✅ Implementado (247A-1) | **Sí** — backend `BdpWriteGuard::try_auto_arm` + handlers | ~12-14h |
+| C2 | Toggle rápido en navbar | Mejora UX (admin) | ✅ Implementado (247A-1) | **Sí** — badge interactivo en `site-header.tsx` | ~3h |
 | D1 | Verificación stock + parser defensivo | Verificación | Implementado básico (237A-4) | **Sí** — parser defensivo proactivo ya | ~2h parser + opcional 8h pantalla dedicada |
 | D2 | Compras | Funcionalidad nueva | No implementado | **No** — requiere diseño completo en 3 fases | ~30-34h (8 + 10 + 12 + 4 tests) |
 | D3 | Sincronización bidireccional automática | Funcionalidad nueva | Bloqueado explícitamente en código | **Rechazado firme** — riesgo crítico sin mitigación viable | N/A — no implementar |
 | D4 | Pagos parciales | Funcionalidad nueva | Bloqueado explícitamente en código | **Sí**, con lock distribuido obligatorio | ~18-22h |
 | D5 | CancelOrder | Funcionalidad nueva | Bloqueado por BDP ("Subscripción no activada") | **Pendiente activación BDP**, estimación realista | ~12-16h (si BDP activa módulo) |
-| **XT1** | Throttling/semáforo BDP | Cross-cutting | No implementado | **Sí** — prerequisito para C1 + D4 + D5 | ~3-4h |
-| **XT2** | Feature flags por restaurante | Cross-cutting | No implementado | **Sí** — recomendado para todos los items nuevos | ~4-5h |
+| **XT1** | Throttling/semáforo BDP | Cross-cutting | ✅ Implementado (247A-1) | **Sí** — `BdpThrottleManager` en `src/services/bdp_throttle.rs` | ~3-4h |
+| **XT2** | Feature flags por restaurante | Cross-cutting | ✅ Implementado (247A-1) | **Sí** — columnas en `configuracion_restaurante` | ~4-5h |
 
 ---
 

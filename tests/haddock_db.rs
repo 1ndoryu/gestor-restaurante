@@ -289,6 +289,13 @@ async fn test_configuracion_actualizar_haddock_fields(pool: PgPool) {
         bdp_sync_mode: None,
         bdp_backup_retention_days: None,
         bdp_auto_backup_before_write: None,
+        /* [XT2-1] Feature flags BDP */
+        ff_bdp_auto_arm: None,
+        ff_bdp_partial_payments: None,
+        ff_bdp_cancel_order: None,
+        ff_bdp_purchase_notes_read: None,
+        ff_bdp_purchase_notes_draft: None,
+        ff_bdp_purchase_notes_receive: None,
     };
 
     let updated = ConfiguracionRepository::actualizar(&pool, user_id, &req)

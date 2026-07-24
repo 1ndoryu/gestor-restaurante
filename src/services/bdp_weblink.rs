@@ -636,6 +636,13 @@ mod tests {
             bdp_backup_retention_days: 30,
             bdp_auto_backup_before_write: true,
             bdp_env_bootstrap_applied_at: None,
+            /* [XT2-1] Feature flags BDP desactivados por defecto en tests */
+            ff_bdp_auto_arm: false,
+            ff_bdp_partial_payments: false,
+            ff_bdp_cancel_order: false,
+            ff_bdp_purchase_notes_read: false,
+            ff_bdp_purchase_notes_draft: false,
+            ff_bdp_purchase_notes_receive: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

@@ -1,8 +1,9 @@
 # Plan de implementación — Completar visibilidad BDP en frontend
 
-> **Fecha:** 2026-07-23
+> **Fecha:** 2026-07-23 (actualizado 2026-07-24 tras 247A-1)
 > **Origen:** `mapeo-visual-integracion-bdp-2026-07-23.md` — análisis de gaps entre backend implementado y UI visible
 > **Objetivo:** Que cada funcionalidad BDP implementada en el backend tenga su interfaz correspondiente en el frontend, accesible de forma intuitiva
+> **Changelog:** 2026-07-24 — marcado C1, C2, XT1 y XT2 como implementados en 247A-1.
 
 ---
 
@@ -127,7 +128,7 @@
 **Esfuerzo:** ~10-12h (backend: 6-8h, frontend: 4h)
 **Riesgo:** ALTO — modifica modelo de seguridad
 
-**Estado:** ⏳ **PENDIENTE DE DECISIÓN DEL USUARIO** — requiere evaluar si el trade-off seguridad/usabilidad es aceptable
+**Estado:** ✅ **Implementado (247A-1)** — `BdpWriteGuard::try_auto_arm()` crea arming efímero bajo advisory lock, con idempotencia por `idempotency_key` y devolución del resultado cacheado en reintentos. Los handlers de sync/pago/factura aceptan `auto_arm` + `confirmation_destino`.
 
 ---
 
@@ -142,7 +143,7 @@
 **Esfuerzo:** ~3h
 **Riesgo:** BAJO
 
-**Estado:** ⏳ **PENDIENTE DE DECISIÓN DEL USUARIO** — se implementa si C1 se rechaza
+**Estado:** ✅ **Implementado (247A-1)** — `BdpStatusIndicator` en `site-header.tsx` muestra el modo actual y permite cambiar a "Solo lectura" / "Escritura temporal" mediante `setSyncMode`, navegando a Configuración → BDP.
 
 ---
 
@@ -200,7 +201,7 @@
 |--------|--------|----------|--------|--------|
 | **A** — Visibilidad inmediata | A1+A2+A3+A4 | ~6h | BAJO | ✅ Implementado 23 julio 2026 |
 | **B** — UI nueva | B1+B2 | ~6h | BAJO | ✅ Implementado 23 julio 2026 |
-| **C** — Mejoras de flujo | Info cards + pointer a PanelBdpBackup | ~1h | BAJO | ✅ Implementado 23 julio 2026 (C1 auto-arming pendiente de decisión) |
+| **C** — Mejoras de flujo | C1 auto-arming + C2 toggle navbar + XT1 throttling + XT2 feature flags | ~16-20h | MEDIO | ✅ Implementado 247A-1 |
 | **D** — Funcionalidad nueva | D1 stock implementado | ~2h | BAJO | ✅ Implementado 23 julio 2026 (237A-4) |
 | **D** — Excluidos | D2+D3+D4+D5 | N/A | N/A | ❌ Pendiente revisión usuario |
 
@@ -221,6 +222,6 @@ Fase 3 (Bloque C): C1 o C2 según decisión del usuario (~3-12h)
 Fase 4 (Bloque D): D1 si se aprueba (~2-8h según opción)
 ```
 
-✅ Fases 1, 2, 3 y 4 (stock) implementadas el 23 de julio de 2026.
-C1 (auto-arming) pendiente de decisión del usuario — modifica modelo de seguridad.
+✅ Fases 1, 2, 3 (C1 + C2 + XT1 + XT2) y 4 (stock) implementadas en 237A-3, 237A-4 y 247A-1.
+C1 (auto-arming), C2 (toggle navbar), XT1 (throttling) y XT2 (feature flags) ya están en el código.
 Pendientes de decisión del usuario: compras (D2), bidireccional (D4), pagos parciales (D5), CancelOrder (pendiente activación módulo BDP).

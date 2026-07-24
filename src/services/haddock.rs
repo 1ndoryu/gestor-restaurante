@@ -468,6 +468,13 @@ mod tests {
             bdp_backup_retention_days: 30,
             bdp_auto_backup_before_write: true,
             bdp_env_bootstrap_applied_at: None,
+            /* [XT2-1] Feature flags BDP desactivados por defecto en tests */
+            ff_bdp_auto_arm: false,
+            ff_bdp_partial_payments: false,
+            ff_bdp_cancel_order: false,
+            ff_bdp_purchase_notes_read: false,
+            ff_bdp_purchase_notes_draft: false,
+            ff_bdp_purchase_notes_receive: false,
             google_review_url: String::new(),
             telefono_restaurante: String::new(),
             url_reservas: String::new(),
@@ -1227,6 +1234,13 @@ mod tests {
             bdp_sync_mode: None,
             bdp_backup_retention_days: None,
             bdp_auto_backup_before_write: None,
+            /* [XT2-1] Feature flags BDP */
+            ff_bdp_auto_arm: None,
+            ff_bdp_partial_payments: None,
+            ff_bdp_cancel_order: None,
+            ff_bdp_purchase_notes_read: None,
+            ff_bdp_purchase_notes_draft: None,
+            ff_bdp_purchase_notes_receive: None,
         };
         ConfiguracionRepository::actualizar(pool, user_id, &req)
             .await

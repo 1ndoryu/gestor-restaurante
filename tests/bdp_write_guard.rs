@@ -79,6 +79,7 @@ async fn armado_solo_se_consume_por_entidad_exacta(pool: PgPool) {
         "venta_id",
         &serde_json::json!({"venta_id": otra_venta}),
         None,
+        None,
     )
     .await;
     assert!(denied.is_err());
@@ -92,6 +93,7 @@ async fn armado_solo_se_consume_por_entidad_exacta(pool: PgPool) {
         venta_autorizada,
         "venta_id",
         &serde_json::json!({"venta_id": venta_autorizada}),
+        None,
         None,
     )
     .await
@@ -154,6 +156,7 @@ async fn armado_solo_se_consume_por_entidad_exacta(pool: PgPool) {
         "venta_id",
         &serde_json::json!({"venta_id": venta_autorizada}),
         None,
+        None,
     )
     .await;
     assert!(
@@ -170,6 +173,7 @@ async fn armado_solo_se_consume_por_entidad_exacta(pool: PgPool) {
         venta_autorizada,
         "venta_id",
         &serde_json::json!({"venta_id": venta_autorizada}),
+        None,
         None,
     )
     .await;
@@ -253,6 +257,7 @@ async fn cambio_de_conexion_invalida_armado_sin_consumirlo(pool: PgPool) {
         venta_id,
         "venta_id",
         &serde_json::json!({"venta_id": venta_id}),
+        None,
         None,
     )
     .await;

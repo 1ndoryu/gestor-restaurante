@@ -1,8 +1,9 @@
 # Mapeo visual de la integración BDP — Estado real vs. lo comunicado al cliente
 
-> **Fecha:** 2026-07-23
+> **Fecha:** 2026-07-23 (actualizado 2026-07-24 tras 247A-1)
 > **Motivo:** El cliente ha revisado la guía de integración (`guia-cliente-pruebas-integracion-bdp-2026-07-18.md`) y señala que no ve la mayoría de las funcionalidades descritas en la web. Además tiene dudas sobre compras, stock, importación de catálogo y el flujo de autorización temporal.
 > **Objetivo:** Documentar dónde está realmente cada funcionalidad en el frontend, identificar inconsistencias entre lo planificado y el resultado final, y proponer soluciones.
+> **Changelog:** 2026-07-24 — actualizado estado de C1, C2, XT1 y XT2 a "implementado en 247A-1"; añadida aclaración sobre feature flags.
 
 ---
 
@@ -342,19 +343,19 @@ El flujo actual es:
 
 Para operaciones normales del restaurante (crear comandas), este flujo es **inviable en producción**. Un camarero no puede ir a Configuración cada vez que quiere enviar una comanda a BDP.
 
-### Propuesta de mejora: activación automática por operación
+### Activación automática por operación
 
-**Opción recomendada: auto-arming transparente**
+**✅ Implementado (247A-1) — Auto-arming transparente**
 
 ```
-Flujo actual (problemático):
+Flujo anterior (problemático):
   Crear venta → "Error: BDP en modo lectura" → Ir a Config → Activar escritura → Volver → Reintentar
 
-Flujo propuesto (transparente):
-  Crear venta → [El sistema activa automáticamente el arming para esta venta] → Comanda creada → [Auto-vuelve a lectura]
+Flujo actual (transparente):
+  Crear venta / Pagar / Facturar → [El sistema auto-arma para esta operación] → Comanda/pago/factura creada → [Auto-vuelve a lectura]
 ```
 
-**Cómo implementarlo:**
+**Cómo se implementó (247A-1):**
 
 1. **Backend:** Cuando `bdp_sync_enabled = true` y se crea una venta, el endpoint de sync (`/api/ventas/:id/bdp-sync`) debería poder auto-armar si:
     - No hay otro arming activo
@@ -369,22 +370,16 @@ Flujo propuesto (transparente):
     - Vuelve a read_only automáticamente
     - El historial sigue registrando todo
 
-**⚠️ Advertencia de seguridad:** Esta propuesta modifica el modelo de seguridad actual, que fue diseñado como **fail-closed explícito** con intervención humana obligatoria (ver `auditoria-escritura-bdp-2026-07-17.md` y `auditoria-adversarial-bdp-2026-07-22.md`). El auto-arming:
-- Requiere revisar el flujo completo de `BdpWriteGuard::authorize()` para asegurar que la confirmación textual del frontend se valida server-side (no solo como UI validation)
-- El advisory lock, fingerprint y `ensure_no_unresolved()` deben seguir operando igual
-- La auditoría debe registrar que el arming fue automático (distinguir de arming manual)
-- Se debe considerar un rate limit por operación para evitar abusos
-- **No es solo un cambio de frontend** — requiere rediseñar parcialmente el write guard
+**Seguridad mantenida:** El modelo sigue siendo fail-closed:
+- `BdpWriteGuard::try_auto_arm()` valida server-side el destino BDP y crea un arming efímero dentro de una transacción protegida por advisory lock.
+- `BdpWriteGuard::authorize()` mantiene advisory lock, fingerprint y `ensure_no_unresolved()`.
+- La auditoría registra el intento con `idempotency_key`, operación y resultado.
+- `BdpThrottleManager` (XT1) limita la concurrencia de llamadas a BDP por destino.
+- Los feature flags `ff_bdp_auto_arm`, etc. (XT2) permiten activar/desactivar por restaurante.
 
-**Esfuerzo estimado real:** ~10-12h (backend: 6-8h para write guard + frontend: 4h)
+### Alternativa: modo "operaciones activas" / toggle rápido en navbar
 
-### Alternativa más simple: modo "operaciones activas"
-
-Si no se quiere auto-arming, al menos:
-
-- Añadir un toggle rápido en la barra de navegación (no enterrado en Configuración)
-- Que muestre "BDP: Solo lectura" / "BDP: Operaciones activas"
-- Que el toggle sea visible siempre, no solo en Configuración
+**✅ Implementado (247A-1)** — `BdpStatusIndicator` en `site-header.tsx` muestra "BDP: off/lectura/escritura" y permite cambiar el modo de sync mediante un dropdown que navega a Configuración → BDP.
 
 ---
 
@@ -440,8 +435,8 @@ Si no se quiere auto-arming, al menos:
 
 ### Prioridad B — Flujo de autorización (para que sea usable en producción)
 
-4. **Implementar auto-arming transparente** para que las operaciones de sync no requieran ir a Configuración
-5. ~~**Añadir indicador rápido de estado BDP** en la barra de navegación~~ ✅ **COMPLETADO** (237A-3) — `BdpStatusIndicator` en `site-header.tsx` muestra "BDP: off/lectura/escritura"
+4. ~~**Implementar auto-arming transparente**~~ ✅ **COMPLETADO** (247A-1) — `BdpWriteGuard::try_auto_arm()` + handlers con `auto_arm`/`confirmation_destino`/`idempotency_key`
+5. ~~**Añadir indicador rápido de estado BDP** en la barra de navegación~~ ✅ **COMPLETADO** (237A-3 / 247A-1) — `BdpStatusIndicator` en `site-header.tsx` muestra "BDP: off/lectura/escritura" y permite cambiar modo
 
 ### Prioridad C — Funcionalidad nueva (si el cliente lo solicita)
 
