@@ -558,6 +558,8 @@ export interface BdpArticleMap {
   ultima_sync_at?: string | null;
   updated_at: string;
   user_id: string;
+  /** Stock actual del artículo en BDP (solo lectura) */
+  stock_actual: string;
 }
 
 /**

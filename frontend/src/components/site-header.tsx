@@ -1,11 +1,14 @@
 /* [263A-16] Header del sitio — SidebarTrigger + título dinámico por ruta
- * [283A-20] Añadida campana de notificaciones en tiempo real */
+ * [283A-20] Añadida campana de notificaciones en tiempo real.
+ * [237A-3] Indicador rápido de estado BDP en la barra superior. */
 
 import { useLocation } from "react-router-dom"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { NotificationBell } from "@/componentes/NotificationBell"
 import { useNotificaciones } from "@/hooks/useNotificaciones"
+import { useObtenerConfiguracion } from "@/api/generated/configuracion/configuracion"
+import { Badge } from "@/components/ui/badge"
 
 const titulos: Record<string, string> = {
   "/": "Dashboard",
@@ -25,6 +28,37 @@ const titulos: Record<string, string> = {
   "/marketing/recordatorios": "Recordatorios",
 }
 
+function BdpStatusIndicator() {
+  const { data: config } = useObtenerConfiguracion()
+  const cfg = config?.status === 200 ? (config.data as unknown as Record<string, unknown>) : null
+  if (!cfg) return null
+
+  const syncEnabled = Boolean(cfg.bdp_sync_enabled)
+  const syncMode = String(cfg.bdp_sync_mode ?? 'read_only')
+
+  if (!syncEnabled) {
+    return (
+      <Badge variant="outline" className="text-xs gap-1">
+        BDP: off
+      </Badge>
+    )
+  }
+
+  if (syncMode === 'unidirectional') {
+    return (
+      <Badge variant="default" className="text-xs gap-1 bg-amber-600">
+        BDP: escritura
+      </Badge>
+    )
+  }
+
+  return (
+    <Badge variant="secondary" className="text-xs gap-1">
+      BDP: lectura
+    </Badge>
+  )
+}
+
 export function SiteHeader() {
   const location = useLocation()
   const titulo = titulos[location.pathname] || "Restaurante"
@@ -41,7 +75,8 @@ export function SiteHeader() {
           className="mx-2 data-[orientation=vertical]:h-4"
         />
         <h1 className="text-base font-medium">{titulo}</h1>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <BdpStatusIndicator />
           <NotificationBell />
         </div>
       </div>

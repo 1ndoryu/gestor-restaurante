@@ -1,12 +1,14 @@
 /* [064A-10] Acciones por fila de venta — extraídas de ListaVentas (300 line limit).
  * Botones: ver reserva, retry Haddock, editar, eliminar.
  * [147A-F5.4] Añadido botón retry BDP.
- * [223A-1] Tooltips con TooltipButton en vez de title HTML nativo. */
+ * [223A-1] Tooltips con TooltipButton en vez de title HTML nativo.
+ * [237A-3] Añadido botón "Consultar estado BDP" por venta individual. */
 
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Button } from '@/components/ui/button';
-import { Trash2, Pencil, Eye, RefreshCw, CreditCard, ReceiptText } from 'lucide-react';
+import { Trash2, Pencil, Eye, RefreshCw, CreditCard, ReceiptText, Search } from 'lucide-react';
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +16,7 @@ import { customInstance } from '@/api/axios-instance';
 import { toast } from 'sonner';
 import type { VentaConCliente } from '../api/generated';
 import type { VentaConClienteBdp } from '../api/bdp';
+import { fetchBdpStatus } from '../api/bdp';
 
 interface VentaRowActionsProps {
   venta: VentaConCliente;
@@ -44,11 +47,13 @@ function VentaRowActions({
 }: VentaRowActionsProps) {
   const bdp = v as unknown as VentaConClienteBdp;
   const total = (Number(v.importe_base) + Number(v.importe_iva)).toFixed(2);
+  const queryClient = useQueryClient();
   const [accion, setAccion] = useState<'pago' | 'factura' | null>(null);
   const [tenderId, setTenderId] = useState('');
   const [importe, setImporte] = useState(total);
   const [confirmacion, setConfirmacion] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [consultandoEstado, setConsultandoEstado] = useState(false);
   const puedeLiquidar = Boolean(bdpSyncEnabled && bdp.bdp_synced && bdp.bdp_order_id && !bdp.bdp_invoiced && bdp.bdp_order_status !== 'cancelled' && bdp.bdp_order_status !== 'invoiced');
 
   const cerrar = () => {
@@ -109,6 +114,32 @@ function VentaRowActions({
           <RefreshCw className={`size-4 text-amber-600 ${retryPending ? 'animate-spin' : ''}`} />
         </TooltipButton>
       )}
+      {/* [237A-3] Botón consultar estado BDP individual */}
+      {bdpSyncEnabled && bdp.bdp_synced && bdp.bdp_order_id && (
+        <TooltipButton
+          variant="ghost"
+          size="icon"
+          onClick={async () => {
+            setConsultandoEstado(true);
+            try {
+              const status = await fetchBdpStatus(v.id);
+              toast.info(`Estado BDP: ${status.bdp_order_status ?? 'desconocido'}`, {
+                description: `Orden: ${status.bdp_order_id ?? '—'} · Sync: ${status.bdp_synced ? 'sí' : 'no'}${status.bdp_sync_error ? ` · Error: ${status.bdp_sync_error}` : ''}`,
+              });
+              queryClient.invalidateQueries({ queryKey: ['listarVentas'] });
+            } catch {
+              toast.error('No se pudo consultar el estado BDP');
+            } finally {
+              setConsultandoEstado(false);
+            }
+          }}
+          disabled={consultandoEstado}
+          tooltip="Consultar estado actual de esta comanda en BDP"
+          tooltipSide="left"
+        >
+          <Search className={`size-4 text-blue-600 ${consultandoEstado ? 'animate-pulse' : ''}`} />
+        </TooltipButton>
+      )}
       {/* Un fallo de CreateOrder deja bdp_synced=false; el error es la señal de retry. */}
       {bdpSyncEnabled && !(v as unknown as VentaConClienteBdp).bdp_synced && (v as unknown as VentaConClienteBdp).bdp_sync_error && onRetryBdp && (
         <TooltipButton
@@ -148,7 +179,7 @@ function VentaRowActions({
         </TooltipButton>
       )}
     </div>
-    <Dialog open={accion === 'pago'} onOpenChange={(open) => { if (!open) cerrar(); }}>
+    <Dialog open={accion === 'pago'} onOpenChange={(open: boolean) => { if (!open) cerrar(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Registrar pago completo en BDP</DialogTitle>
@@ -162,7 +193,7 @@ function VentaRowActions({
         <DialogFooter><Button variant="outline" onClick={cerrar}>Cancelar</Button><Button disabled={enviando || !tenderId || Number(importe) <= 0 || confirmacion !== `PAGAR ${v.id} ${Number(importe || 0).toFixed(2)}`} onClick={ejecutarBdp}>{enviando ? 'Verificando…' : 'Verificar y pagar'}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
-    <Dialog open={accion === 'factura'} onOpenChange={(open) => { if (!open) cerrar(); }}>
+    <Dialog open={accion === 'factura'} onOpenChange={(open: boolean) => { if (!open) cerrar(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>Facturar orden en BDP</DialogTitle><DialogDescription>Solo se facturará si BDP confirma que la orden no está cancelada y que no queda saldo pendiente.</DialogDescription></DialogHeader>
         <div><Label htmlFor={`confirmar-factura-${v.id}`}>Escribe FACTURAR {v.id}</Label><Input id={`confirmar-factura-${v.id}`} value={confirmacion} onChange={(e) => setConfirmacion(e.target.value)} /></div>

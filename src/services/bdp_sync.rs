@@ -1557,6 +1557,10 @@ impl BdpSyncService {
                 subfamilia: subfam,
                 activo: art.active,
                 barcode,
+                /* [237A-4] Stock actual del artículo — viene de PricesTableDataType
+                 * en la respuesta de ExportArticles. Si el módulo de almacén no
+                 * está activo, current_stock será None y queda en 0. */
+                stock_actual: art.current_stock.unwrap_or(Decimal::ZERO),
             };
 
             match BdpArticleMapRepository::upsert_from_bdp(pool, user_id, &upsert_data).await {
@@ -1577,8 +1581,20 @@ impl BdpSyncService {
             }
         }
 
+        /* [237A-4] Info si ningún artículo trajo stock — probablemente el módulo
+         * de almacén de BDP no está activo. Se usa info! en vez de warn! para
+         * evitar spam: es un estado esperado si el módulo no está contratado. */
+        let stock_populado = articles.iter().any(|a| a.current_stock.is_some());
+        if !stock_populado && total_bdp > 0 {
+            info!(
+                "[237A-4] Ningún artículo de ExportArticles trajo CurrentStock. \
+                 Si el módulo de almacén de BDP no está activo, la columna Stock \
+                 mostrará 0 para todos los artículos."
+            );
+        }
+
         info!(
-            "[157A-7] sync_catalog completado: {} artículos BDP → {actualizados} cambios, {sin_cambios} sin cambios, {errores} errores",
+            "[157A-7] sync_catalog completado: {} artículos BDP → {actualizados} cambios, {sin_cambios} sin cambios, {errores} errores, stock_disponible={stock_populado}",
             total_bdp
         );
 

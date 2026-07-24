@@ -1,9 +1,10 @@
 /* [147A-F5.6] Tabla de mapeos artículos Glory → BDP.
  * Permite listar, crear y eliminar mapeos. Importa catálogo desde BDP (F5.7).
- * [223A-1] Tooltips con TooltipButton + confirmación para sync. */
+ * [223A-1] Tooltips con TooltipButton + confirmación para sync.
+ * [237A-4] Añadida columna Stock (solo lectura, viene de sync-catalog). */
 
 import { useState } from 'react';
-import { Plus, Trash2, Loader2, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Loader2, RefreshCw, Package } from 'lucide-react';
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -98,7 +99,7 @@ function BdpArticleMapTable() {
             {sincronizando ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Sync catálogo
           </TooltipButton>
-          <TooltipButton variant="outline" size="sm" onClick={() => { setActualizandoPrecios(true); syncPricesMutation.mutate(); }} disabled={actualizandoPrecios} tooltip="Actualiza los precios de los artículos mapeados desde BDP a Glory.">
+          <TooltipButton variant="outline" size="sm" onClick={() => { setActualizandoPrecios(true); syncPricesMutation.mutate(); }} disabled={actualizandoPrecios} tooltip="Actualiza los precios de los artículos mapeados desde BDP. El stock solo se actualiza con 'Sync catálogo'.">
             {actualizandoPrecios ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Sync precios
           </TooltipButton>
@@ -115,6 +116,8 @@ function BdpArticleMapTable() {
                 <TableHead>Código Glory</TableHead>
                 <TableHead>Código BDP</TableHead>
                 <TableHead>Nombre BDP</TableHead>
+                <TableHead>Precio</TableHead>
+                <TableHead>Stock</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
@@ -124,6 +127,17 @@ function BdpArticleMapTable() {
                   <TableCell className="font-mono text-xs">{m.articulo_glory_codigo}</TableCell>
                   <TableCell className="font-mono text-xs">{m.articulo_bdp_codigo}</TableCell>
                   <TableCell className="text-xs">{m.articulo_bdp_nombre || '—'}</TableCell>
+                  <TableCell className="text-xs tabular-nums">{m.precio_tarifa1 && m.precio_tarifa1 !== '0' ? `${Number(m.precio_tarifa1).toFixed(2)} €` : '—'}</TableCell>
+                  <TableCell>
+                    {m.stock_actual && m.stock_actual !== '0' ? (
+                      <span className="inline-flex items-center gap-1 text-xs tabular-nums">
+                        <Package className="size-3 text-muted-foreground" />
+                        {m.stock_actual}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <TooltipButton
                       variant="ghost"

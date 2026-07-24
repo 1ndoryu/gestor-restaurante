@@ -123,8 +123,8 @@ impl BdpArticleMapRepository {
             "INSERT INTO bdp_article_map \
                 (id, user_id, articulo_glory_codigo, articulo_bdp_codigo, articulo_bdp_nombre, \
                  descripcion, precio_tarifa1, iva_pct, departamento, familia, subfamilia, \
-                 activo, barcode, ultima_sync_at, created_at, updated_at) \
-             VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW(), NOW()) \
+                 activo, barcode, stock_actual, ultima_sync_at, created_at, updated_at) \
+             VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW(), NOW()) \
              ON CONFLICT (user_id, articulo_glory_codigo) DO UPDATE SET \
                 articulo_bdp_nombre = EXCLUDED.articulo_bdp_nombre, \
                 descripcion = EXCLUDED.descripcion, \
@@ -135,6 +135,7 @@ impl BdpArticleMapRepository {
                 subfamilia = EXCLUDED.subfamilia, \
                 activo = EXCLUDED.activo, \
                 barcode = EXCLUDED.barcode, \
+                stock_actual = EXCLUDED.stock_actual, \
                 ultima_sync_at = NOW(), \
                 updated_at = NOW() \
              WHERE \
@@ -145,7 +146,8 @@ impl BdpArticleMapRepository {
                 OR bdp_article_map.familia IS DISTINCT FROM EXCLUDED.familia \
                 OR bdp_article_map.subfamilia IS DISTINCT FROM EXCLUDED.subfamilia \
                 OR bdp_article_map.activo IS DISTINCT FROM EXCLUDED.activo \
-                OR bdp_article_map.barcode IS DISTINCT FROM EXCLUDED.barcode",
+                OR bdp_article_map.barcode IS DISTINCT FROM EXCLUDED.barcode \
+                OR bdp_article_map.stock_actual IS DISTINCT FROM EXCLUDED.stock_actual",
         )
         .bind(Uuid::new_v4())
         .bind(user_id)
@@ -158,6 +160,7 @@ impl BdpArticleMapRepository {
         .bind(data.subfamilia)
         .bind(data.activo)
         .bind(data.barcode)
+        .bind(data.stock_actual)
         .execute(pool)
         .await?;
 
@@ -165,7 +168,8 @@ impl BdpArticleMapRepository {
     }
 }
 
-/* [157A-7] F9.1: Datos para upsert de artículo BDP enriquecido. */
+/* [157A-7] F9.1: Datos para upsert de artículo BDP enriquecido.
+ * [237A-4] Añadido stock_actual. */
 pub struct BdpArticleUpsertData<'a> {
     pub bdp_code: &'a str,
     pub descripcion: &'a str,
@@ -176,4 +180,6 @@ pub struct BdpArticleUpsertData<'a> {
     pub subfamilia: i32,
     pub activo: bool,
     pub barcode: &'a str,
+    /* [237A-4] Stock actual del artículo en BDP */
+    pub stock_actual: Decimal,
 }

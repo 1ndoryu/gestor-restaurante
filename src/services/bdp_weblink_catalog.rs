@@ -325,6 +325,14 @@ pub struct BdpExportArticleItem {
     /// Artículo activo
     #[serde(default = "default_true")]
     pub active: bool,
+    /* [237A-4] Stock actual del artículo. BDP puede devolverlo como CurrentStock
+     * o Stock en la respuesta de ExportArticles (PricesTableDataType).
+     * Si no viene (módulo de almacén no activo o perfil sin stock), será None
+     * y el campo quedará en 0 al hacer sync-catalog.
+     * ⚠️ Si el stock siempre aparece como 0 en la tabla, verificar que el
+     * perfil de exportación de BDP incluya el campo CurrentStock. */
+    #[serde(default, alias = "CurrentStock", alias = "Stock")]
+    pub current_stock: Option<Decimal>,
 }
 
 fn default_true() -> bool {

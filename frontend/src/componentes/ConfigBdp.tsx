@@ -2,10 +2,13 @@
  * Mantiene credenciales fuera de respuestas publicas y ofrece diagnostico
  * Health + Login + GetVersion para la sesion remota con el PC del restaurante.
  * [147A-F5.6] Secciones de mapeo: tender, order_type, customer_code, poll_interval.
- * [197A-3] Distingue integración, lecturas y permiso puntual de escritura. */
+ * [197A-3] Distingue integración, lecturas y permiso puntual de escritura.
+ * [237A-3] Desenterrado: catálogo, mapeos técnicos y polling ahora son visibles
+ *          directamente. Selector de modo autorización integrado. */
 
 import { useState } from 'react';
-import { Activity, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Loader2, XCircle } from 'lucide-react';
+import { Activity, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Loader2, XCircle, BookOpen, Settings, Radio, Shield } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import axios from '@/api/axios-instance';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +19,7 @@ import { toast } from 'sonner';
 import type { EstadoConfiguracion } from '../hooks/useConfiguracion';
 import type { BdpDiagnosticoResponse } from '../api/generated/gestionRestauranteAPI.schemas';
 import ConfigBdpMapeos from '@/components/config-bdp-mapeos';
+import BdpMenuExplorer from '@/components/bdp-menu-explorer';
 
 interface BdpSyncDryRunCheck {
   nombre: string;
@@ -207,8 +211,52 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
           </div>
         </div>
 
-        {/* [197A-3] Los identificadores dependen de cada instalación BDP y
-         * permanecen separados del uso diario del cliente. */}
+        {/* [237A-3] Catálogo BDP — sección visible de primer nivel */}
+        <div className="border-t pt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <BookOpen className="size-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Catálogo de artículos BDP</span>
+          </div>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Sincroniza el catálogo de artículos desde BDP a Glory. Crea mapeos automáticos por código y actualiza precios.
+          </p>
+          <ConfigBdpMapeos config={config} cambiarCampo={cambiarCampo} soloArticulos />
+        </div>
+
+        {/* [237A-3] Polling automático — visible en vista principal */}
+        <div className="border-t pt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Radio className="size-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Actualización de estados</span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+              <div>
+                <Label htmlFor="bdp-poll-enabled-main">Actualizar estados automáticamente</Label>
+                <p className="text-xs text-muted-foreground">Consulta periódicamente el estado de comandas BDP. No crea ni modifica registros.</p>
+              </div>
+              <Switch
+                id="bdp-poll-enabled-main"
+                checked={config.bdp_poll_enabled}
+                onCheckedChange={(checked: boolean) => cambiarCampo('bdp_poll_enabled', checked)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="bdp-poll-interval-main">Frecuencia de actualización (segundos)</Label>
+              <Input
+                id="bdp-poll-interval-main"
+                type="number"
+                min={10}
+                max={600}
+                value={config.bdp_poll_interval_secs}
+                onChange={(e) => cambiarCampo('bdp_poll_interval_secs', Number(e.target.value))}
+              />
+              <p className="text-xs text-muted-foreground">Cada cuántos segundos Glory consulta el estado de comandas (10-600).</p>
+            </div>
+          </div>
+        </div>
+
+        {/* [237A-3] Configuración técnica — colapsable, contenido restante */}
         <div className="border-t pt-4">
           <button
             type="button"
@@ -216,19 +264,20 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
             onClick={() => setMostrarMapeos(!mostrarMapeos)}
           >
             {mostrarMapeos ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-            Configuración técnica (solo soporte)
+            <Settings className="size-4" />
+            Correspondencias Glory ↔ BDP (solo soporte)
           </button>
           {!mostrarMapeos && (
             <p className="mt-1 text-xs text-muted-foreground">
-              Relaciona los códigos propios de este BDP con Glory. No debe modificarse sin verificar los valores directamente con el restaurante.
+              Formas de pago, canales, artículo por defecto, cliente por defecto y exigir cliente confirmado. No debe modificarse sin verificar los valores con el restaurante.
             </p>
           )}
           {mostrarMapeos && (
             <div className="mt-4">
               <p className="mb-4 rounded-md border p-3 text-xs text-muted-foreground">
-                Estos valores no son universales: terminal, empleado, artículos, clientes, formas de pago y canales pueden ser distintos en cada BDP.
+                Estos valores no son universales: formas de pago y canales pueden ser distintos en cada BDP.
               </p>
-              <ConfigBdpMapeos config={config} cambiarCampo={cambiarCampo} />
+              <ConfigBdpMapeos config={config} cambiarCampo={cambiarCampo} soloMapeosTecnicos />
             </div>
           )}
         </div>
@@ -296,6 +345,51 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
         )}
       </CardContent>
     </Card>
+
+    {/* [237A-3] Información sobre modo de autorización — el selector real vive en PanelBdpBackup */}
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Shield className="size-4" />
+          Modo de operaciones BDP
+        </CardTitle>
+        <CardDescription>
+          Controla cómo Glory interactúa con BDP para operaciones de escritura (crear comandas, pagar, facturar, crear clientes).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className={`rounded-md border p-3 transition-colors ${(config.bdp_sync_mode || 'read_only') === 'read_only' ? 'border-primary bg-primary/5' : ''}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Badge variant={(config.bdp_sync_mode || 'read_only') === 'read_only' ? 'default' : 'outline'}>Actual</Badge>
+              <p className="text-sm font-medium">Solo lectura (BDP → Glory)</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Permite consultas e importaciones. No se puede crear ni modificar nada en BDP. Es el modo seguro por defecto.
+            </p>
+          </div>
+          <div className={`rounded-md border p-3 transition-colors ${config.bdp_sync_mode === 'unidirectional' ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20' : ''}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Badge variant={config.bdp_sync_mode === 'unidirectional' ? 'default' : 'outline'} className={config.bdp_sync_mode === 'unidirectional' ? 'bg-amber-600' : ''}>Actual</Badge>
+              <p className="text-sm font-medium">Autorización manual (Glory → BDP)</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Para cada operación de escritura se requiere confirmación textual y un arming temporal. Después vuelve automáticamente a Solo lectura.
+            </p>
+          </div>
+        </div>
+        <div className="rounded-md border border-dashed p-3">
+          <p className="text-sm text-muted-foreground">
+            Para cambiar el modo de autorización, usa el selector <strong>"Permiso de operación"</strong> en el panel de <strong>Seguridad, respaldos e historial BDP</strong> más abajo en esta misma pestaña. Ese flujo incluye la confirmación de destino, alcance, motivo y duración requeridos para cada escritura.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+
+    {/* [237A-3] Explorador de menús/packs/fastfoods — solo lectura */}
+    <div className="mt-4">
+      <BdpMenuExplorer />
+    </div>
 
     {/* [167A-1] Botón guardar propio de la pestaña BDP */}
     {guardar && (

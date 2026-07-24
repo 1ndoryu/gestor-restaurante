@@ -14,6 +14,7 @@ use validator::Validate;
 /// Registro de mapeo artículo Glory → BDP.
 /// Los campos `descripcion`, `precio_tarifa1`, `iva_pct`, `departamento`, `familia`,
 /// `subfamilia`, `activo`, `barcode` y `ultima_sync_at` se rellenan por F9.1 sync-catalog.
+/// `stock_actual` se rellena si ExportArticles devuelve CurrentStock en la respuesta.
 #[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
 pub struct BdpArticleMap {
     pub id: Uuid,
@@ -33,6 +34,8 @@ pub struct BdpArticleMap {
     pub activo: bool,
     pub barcode: String,
     pub ultima_sync_at: Option<DateTime<Utc>>,
+    /* [237A-4] Stock actual del artículo en BDP (solo lectura) */
+    pub stock_actual: Decimal,
 }
 
 /// Request para crear un mapeo de artículo
