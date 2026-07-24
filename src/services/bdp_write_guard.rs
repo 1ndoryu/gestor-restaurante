@@ -338,7 +338,7 @@ impl BdpWriteGuard {
                 resultado, target_base_url, target_entity_type, target_entity_id,
                 authorization_reason, idempotency_key)
                VALUES ($1, $2, 'glory_to_bdp', $3, $4, 'pendiente', $5, $6, $7, $8, $9)
-               ON CONFLICT (user_id, idempotency_key) DO NOTHING
+               ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
                RETURNING id",
         )
         .bind(user_id)
