@@ -273,13 +273,19 @@ impl VentaService {
                     return;
                 }
             };
-            BdpSyncService::sync_venta(&pool, &venta, &config, is_update).await;
+            BdpSyncService::sync_venta(&pool, &venta, &config, is_update, None).await;
         });
     }
 
     /* [065A-5] Retry manual de sincronización BDP.
-     * Ejecuta sincrónicamente y retorna la venta actualizada. */
-    pub async fn retry_bdp_sync(pool: &PgPool, id: Uuid, user_id: Uuid) -> Result<Venta, AppError> {
+     * Ejecuta sincrónicamente y retorna la venta actualizada.
+     * [C1-3] `idempotency_key` se propaga al audit log si se proporciona. */
+    pub async fn retry_bdp_sync(
+        pool: &PgPool,
+        id: Uuid,
+        user_id: Uuid,
+        idempotency_key: Option<&str>,
+    ) -> Result<Venta, AppError> {
         let venta = VentaRepository::find_by_id(pool, id, user_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
@@ -301,7 +307,7 @@ impl VentaService {
             ));
         }
 
-        BdpSyncService::sync_venta(pool, &venta, &config, false).await;
+        BdpSyncService::sync_venta(pool, &venta, &config, false, idempotency_key).await;
 
         VentaRepository::find_by_id(pool, id, user_id)
             .await?

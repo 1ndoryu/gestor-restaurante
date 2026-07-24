@@ -6,17 +6,19 @@
 
 ---
 
-## Resumen ejecutivo
+## Resumen ejecutivo (revisado)
 
 | # | Item | Tipo | Estado actual | ¿Listo para implementar? | Esfuerzo estimado |
 |---|------|------|---------------|--------------------------|-------------------|
-| C1 | Auto-arming (escritura automática) | Mejora de flujo | Pendiente decisión usuario | **Sí** — diseñado, seguro | ~10-12h |
-| C2 | Toggle rápido en navbar | Mejora UX | Pendiente decisión usuario | **Sí** — trivial, pero C1 lo hace innecesario | ~3h |
-| D1 | Verificación stock real | Verificación | Implementado básico (237A-4) | **Parcial** — falta verificar con BDP real | ~2h verificación + ~8h pantalla dedicada |
-| D2 | Compras | Funcionalidad nueva | No implementado | **No** — requiere diseño completo | ~20-30h |
-| D3 | Sincronización bidireccional automática | Funcionalidad nueva | Bloqueado explícitamente en código | **No recomendado** — riesgo crítico | ~40h+ |
-| D4 | Pagos parciales | Funcionalidad nueva | Bloqueado explícitamente en código | **No** — requiere ledger independiente | ~15-20h |
-| D5 | CancelOrder | Funcionalidad nueva | Bloqueado por BDP ("Subscripción no activada") | **No** — depende de BDP | ~4h (si BDP activa módulo) |
+| C1 | Auto-arming (escritura automática con confirmación dinámica + idempotency) | Mejora de flujo | Pendiente decisión usuario | **Sí** — diseño revisado con mitigaciones robustas | ~12-14h |
+| C2 | Toggle rápido en navbar | Mejora UX (admin) | Pendiente decisión usuario | **Sí** — ortogonal a C1, uso admin distinto | ~3h |
+| D1 | Verificación stock + parser defensivo | Verificación | Implementado básico (237A-4) | **Sí** — parser defensivo proactivo ya | ~2h parser + opcional 8h pantalla dedicada |
+| D2 | Compras | Funcionalidad nueva | No implementado | **No** — requiere diseño completo en 3 fases | ~30-34h (8 + 10 + 12 + 4 tests) |
+| D3 | Sincronización bidireccional automática | Funcionalidad nueva | Bloqueado explícitamente en código | **Rechazado firme** — riesgo crítico sin mitigación viable | N/A — no implementar |
+| D4 | Pagos parciales | Funcionalidad nueva | Bloqueado explícitamente en código | **Sí**, con lock distribuido obligatorio | ~18-22h |
+| D5 | CancelOrder | Funcionalidad nueva | Bloqueado por BDP ("Subscripción no activada") | **Pendiente activación BDP**, estimación realista | ~12-16h (si BDP activa módulo) |
+| **XT1** | Throttling/semáforo BDP | Cross-cutting | No implementado | **Sí** — prerequisito para C1 + D4 + D5 | ~3-4h |
+| **XT2** | Feature flags por restaurante | Cross-cutting | No implementado | **Sí** — recomendado para todos los items nuevos | ~4-5h |
 
 ---
 
@@ -35,35 +37,60 @@ Hoy, para enviar una venta a BDP, registrar un pago o facturar, el usuario debe:
 
 **Esto es 5 pasos para una operación que debería ser 1.** En un restaurante con ritmo, esto es inaceptable.
 
-### Diseño propuesto
+### Diseño propuesto (revisado)
+
+**Hallazgos críticos del diseño original:**
+
+- `CONFIRMAR` literal es vulnerable a **memoria muscular**: un usuario con prisa lo escribe sin leer y dispara operaciones en BDP por error.
+- Si el usuario abre 2 pestañas/modales en paralelo y hace doble-clic, ambos requests pasan el TTL de 60s y BDP recibe la operación dos veces.
+- Si el usuario ya activó el modo escritura global manual, el prompt de auto-arming es ruido y produce fricción innecesaria.
 
 **Flujo nuevo (1 paso):**
 
 1. El usuario pulsa "Enviar a BDP" / "Pagar en BDP" / "Facturar en BDP" directamente desde la fila de la venta
-2. Se abre un modal de confirmación con:
-   - Descripción de la operación ("Registrar pago completo de €45.00 en BDP")
-   - Campo de confirmación textual: el usuario debe escribir exactamente "CONFIRMAR" (o la palabra elegida)
+2. Se abre un modal de confirmación con **dos defensas combinadas**:
+   - **Checkbox explícito** "Entiendo que esta operación modifica datos en BDP" — debe estar marcado para habilitar el botón.
+   - **Confirmación dinámica** según el tipo de operación:
+     - Pago: el usuario escribe el **monto exacto** con 2 decimales (ej: `45.00`).
+     - Factura: el usuario escribe el **número de venta** (ej: `V-2026-00123`).
+     - Comanda/Sync: el usuario escribe el **total de líneas** (ej: `5 lineas`).
    - Botón "Cancelar" / "Confirmar y ejecutar"
-3. Al confirmar:
-   - El backend crea un arming efímero (`bdp_write_arming` con TTL de 60 segundos)
-   - Ejecuta la operación
-   - Desarma automáticamente
-   - Registra en auditoría como `AUTO_ARMING` (distinguir del arming manual)
+3. El frontend genera un **idempotency_key** (UUID v4) por intento de operación y lo envía al backend.
+4. Al confirmar:
+   - El backend crea un arming efímero (`bdp_write_arming` con TTL de 60 segundos) solo si no existe ya un arming manual activo.
+   - **Si existe arming manual global activo:** auto-arming lo respeta y omite el prompt (ya está autorizado).
+   - **Si no:** crea arming efímero, ejecuta la operación, desarma automáticamente.
+   - El backend deduplica por `idempotency_key`: si llega el mismo UUID dos veces, la segunda llamada devuelve el resultado cacheado sin re-disparar BDP.
+   - Registra en auditoría como `AUTO_ARMING` (distinguir del arming manual).
 
-### Arquitectura backend
+### Arquitectura backend (revisada)
 
 ```
-Handler (venta-row-actions)
-  → POST /api/ventas/:id/bdp-sync (ya existe)
-    → Nuevo parámetro: { auto_arm: true, confirmation_text: "CONFIRMAR" }
+Frontend
+  → Genera idempotency_key = UUID v4()
+  → POST /api/ventas/:id/bdp-sync
+    Body: { auto_arm: true, confirmation_text: "45.00", idempotency_key: "uuid" }
 
 BdpSyncService::sync_venta()
-  → Si auto_arm && confirmation_text == "CONFIRMAR":
-    → BdpWriteGuard::authorize_inline(user_id, "auto_arm", ttl=60s)
-    → Ejecutar operación
-    → BdpWriteGuard::disarm(user_id)
-    → Audit log: tipo="auto_arm", operacion="create_order"
+  → 1. Validar idempotency_key (si existe en cache, devolver resultado cacheado)
+  → 2. Validar confirmation_text según tipo de operación
+     (monto exacto para pago, número venta para factura, líneas para comanda)
+  → 3. Si existe BdpWriteGuard::is_armed(user_id) → usar arming manual existente
+     Si no → BdpWriteGuard::authorize_inline(user_id, "auto_arm", ttl=60s)
+  → 4. Ejecutar operación con timeout y retry controlado
+  → 5. Si éxito → BdpWriteGuard::disarm(user_id) + cachear resultado por idempotency_key
+  → 6. Si falla → NO desarmar (dejar que el siguiente intento del mismo UUID falle rápido)
+  → 7. Audit log: tipo="auto_arm", operacion="create_order", idempotency_key, IP
 ```
+
+**Errores dedicados (fail-closed):**
+
+| HTTP Code | Cuándo | Mensaje |
+|-----------|--------|---------|
+| 409 Conflict | confirmation_text no coincide con monto/número esperado | `confirmation_mismatch` |
+| 428 Precondition Required | bdp_auto_arm desactivado en config | `auto_arm_disabled` |
+| 429 Too Many Requests | rate limit excedido (>10 auto-armings/minuto) | `auto_arm_rate_limit` |
+| 409 Conflict | idempotency_key repetido con resultado diferente | `idempotency_replay_mismatch` |
 
 **Cambios necesarios:**
 
@@ -150,9 +177,16 @@ Convertir el badge `BdpStatusIndicator` en un componente interactivo:
 
 ### Esfuerzo: ~3h
 
-### Recomendación: **IMPLEMENTAR SOLO SI C1 NO SE HACE**
+### Recomendación: **IMPLEMENTAR (ortogonal a C1)**
 
-Si C1 (auto-arming) se implementa, el toggle rápido pierde utilidad porque el usuario nunca necesita cambiar manualmente el modo. Si C1 se rechaza, C2 es la alternativa mínima.
+C2 **no se vuelve obsoleto con C1**. Cubre un caso distinto y legítimo para administradores:
+
+- **Inspección sin acción.** El admin necesita ver rápidamente el modo actual de BDP (solo lectura / escritura temporal) sin tener que abrir Configuración.
+- **Armado explícito para reconciliación masiva.** Un admin que necesita sincronizar 20 ventas pendientes antiguas puede querer activar el modo escritura manual global, recorrer la lista y procesarlas todas sin escribir "el monto exacto" 20 veces (cada modal de C1 lo pediría). Con C2 + arming manual existente, el admin hace UNA activación y procesa N operaciones.
+- **Bloqueo de emergencia.** Si BDP está reportando fallos intermitentes, el admin quiere poder poner Glory en solo lectura en un click desde la navbar sin abrir Configuración.
+- **Visibilidad del estado.** El dropdown expone también "Ver historial BDP" y "Configuración BDP" — enlaces rápidos para diagnóstico.
+
+C2 no compite con C1: C2 es para **administradores** (uso infrecuente, consciente, en bloque), C1 es para **operadores** (cada venta, flujo rápido).
 
 ---
 
@@ -177,20 +211,54 @@ Implementado en 237A-4:
    - Si no está activo, `CurrentStock` vendrá como `None` siempre
    - El info log diagnosticará esto automáticamente
 
-### Plan de verificación
+### Plan de verificación (revisado: defensivo proactivo)
 
-**Paso 1 — Verificar sin BDP real (ahora):**
-- Revisar la estructura exacta de la respuesta `ExportArticles` en el manual WebLink
-- Confirmar si `CurrentStock` es campo top-level del artículo o está dentro de `Prices`
+**No esperar al BDP real para hacer el parser resiliente.** Implementar **Opción A desde ya** para que el código sea robusto a ambas estructuras del JSON.
+
+**Paso 1 — Parser defensivo (ahora, ~2h):**
+
+En `bdp_weblink_catalog.rs` ajustar el parsing de `BdpExportArticleItem`:
+
+```rust
+#[derive(Debug, Clone, Deserialize)]
+pub struct BdpArticlePriceEntry {
+    #[serde(default, alias = "CurrentStock", alias = "Stock")]
+    pub current_stock: Option<Decimal>,
+    #[serde(flatten)]
+    pub other: serde_json::Value, // campos restantes del manual
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct BdpExportArticleItem {
+    /* ... campos existentes ... */
+    #[serde(default, alias = "CurrentStock", alias = "Stock")]
+    pub current_stock: Option<Decimal>,
+
+    /// Variantes donde BDP anida stock dentro de Prices[]
+    /// Algunos campos de Prices[] ya están extraídos al root por flatten;
+    /// este campo se mantiene para futura deduplicación.
+    #[serde(default)]
+    pub prices: Vec<BdpArticlePriceEntry>,
+}
+```
+
+Lógica de selección del stock final:
+```rust
+let stock_final = current_stock.or_else(|| {
+    prices.iter()
+        .find_map(|p| p.current_stock)
+});
+```
+
+Resultado: si BDP devuelve stock en root → lo usa. Si lo anida en `Prices[]` → lo busca ahí. Si ninguno → None → "—" en UI.
 
 **Paso 2 — Verificar con BDP real (cuando el cliente haga pruebas):**
 - Ejecutar "Sync catálogo" desde la app
-- Revisar logs del servidor: buscar `[237A-4] Ningún artículo de ExportArticles trajo CurrentStock`
-- Si aparece → el módulo de almacén no está activo o el campo está anidado
+- Revisar logs: el info log indica cuántos artículos trajeron stock y cuántos no
+- Si todos traen None → el módulo de almacén no está activo (esperado, no es bug)
 
-**Paso 3 — Si stock no aparece, decidir camino:**
-- **Opción A** (rápida, ~2h): Ajustar el parser para extraer `CurrentStock` del sub-array `Prices` si está anidado
-- **Opción B** (completa, ~8h): Implementar endpoints dedicados `GetStock`/`GetListStock` + pantalla de stock dedicada
+**Paso 3 — Si el cliente necesita pantalla dedicada (consultar antes):**
+- **Opción B**: Implementar `GET /api/bdp/stock` que agrega datos de mapeo + `CurrentStock` en una vista unificada
 
 ### Endpoints BDP disponibles para stock
 
@@ -272,7 +340,7 @@ BDP tiene un módulo completo de gestión de compras que incluye:
 2. **Tiempo:** La integración original priorizó el flujo core del restaurante (crear comandas, pagar, facturar). Compras es un flujo secundario.
 3. **Riesgo:** Integrar compras mal podría crear descorrelaciones contables entre Glory y BDP.
 
-### Diseño propuesto (si se aprueba)
+### Diseño propuesto (revisado: 3 fases, no 2)
 
 **Fase 1 — Solo lectura (~8h):**
 
@@ -284,13 +352,24 @@ BDP tiene un módulo completo de gestión de compras que incluye:
 | Frontend | `bdp-purchases-panel.tsx` | Tabla de albaranes con filtros por fecha/proveedor |
 | Migration | `bdp_purchase_notes` | Tabla local para cachear albaranes importados |
 
-**Fase 2 — Escritura (~20h adicionales):**
+**Fase 2 — Crear borradores en BDP, sin afectar inventario (~10h):**
+
+Justificación: las compras reales rara vez coinciden 1-a-1 con el albarán (mercancía dañada, entregas parciales). Escribir directamente al inventario de BDP sin paso de reconciliación es arriesgado.
 
 | Capa | Archivo nuevo | Descripción |
 |------|---------------|-------------|
-| Backend | `src/services/bdp_sync.rs` | `create_purchase_note()` — crear albarán en BDP |
-| Frontend | `FormularioCompraBdp.tsx` | Formulario para crear albarán con proveedor, artículos, cantidades |
+| Backend | `src/services/bdp_sync.rs` | `create_purchase_note_draft()` — crea albarán en estado "pendiente" en BDP |
+| Frontend | `FormularioCompraBdp.tsx` | Formulario para crear borrador con proveedor, artículos, cantidades |
 | Migration | `bdp_suppliers` | Tabla local de proveedores importados de BDP |
+| Audit | `bdp_audit` | Log obligatorio de cada borrador creado |
+
+**Fase 3 — Recepción y reconciliación (~12h):**
+
+| Capa | Archivo nuevo | Descripción |
+|------|---------------|-------------|
+| Backend | `src/services/bdp_sync.rs` | `receive_purchase_note()` — confirma recepción física y actualiza inventario en BDP |
+| Backend | `src/services/compra_reconciliacion.rs` | Servicio que compara borrador vs lo recibido, marca diferencias |
+| Frontend | `FormularioRecepcionCompra.tsx` | Formulario para confirmar/ajustar cantidades recibidas por línea |
 
 ### Flujo de datos (Fase 1 — lectura)
 
@@ -311,12 +390,13 @@ BDP WebLink API
 | Descuadrages contables | Medio | Solo lectura elimina este riesgo; escritura requiere conciliación |
 | Endpoints no documentados completamente | Medio | El manual tiene la estructura de respuesta pero no todos los campos están documentados |
 
-### Esfuerzo total: ~20-30h
+### Esfuerzo total (revisado): ~34h
 
 | Fase | Tiempo |
 |------|--------|
 | Fase 1 (solo lectura) | ~8h |
-| Fase 2 (escritura) | ~20h |
+| Fase 2 (borradores sin inventario) | ~10h |
+| Fase 3 (recepción + reconciliación) | ~12h |
 | Tests + integración | ~4h |
 
 ### Recomendación: **PENDIENTE DE CONSULTA AL CLIENTE**
@@ -326,8 +406,9 @@ Preguntar:
 2. ¿Necesitan ver albaranes de compra desde Glory?
 3. ¿Necesitan crear albaranes desde Glory o solo consultar?
 
-Si solo necesitan consultar → Fase 1 (8h).
-Si necesitan crear → Fase 1 + Fase 2 (28h total).
+Si solo necesitan consultar → **Fase 1 (8h)**.
+Si necesitan crear → **Fases 1 + 2 (18h)** sin tocar inventario.
+Si necesitan ciclo completo → **Fases 1 + 2 + 3 (30h)**.
 
 ---
 
@@ -370,7 +451,7 @@ bidirectional está bloqueado hasta que exista un contrato implementado y audita
 | Rollback automático | Snapshot antes de cada sync + restore si falla | Alta |
 | Monitoreo | Dashboard de sync status, errores, conflictos | Media |
 
-### Esfuerzo: ~40h+
+### Esfuerzo: ~40-60h incluso para versiones limitadas
 
 | Componente | Tiempo |
 |------------|--------|
@@ -379,33 +460,59 @@ bidirectional está bloqueado hasta que exista un contrato implementado y audita
 | Resolución de conflictos | 10h |
 | Tests de estrés (bucles, colisiones) | 6h |
 | Monitoreo y alertas | 4h |
+| Auditoría cruzada y rollback | 6h |
 
-### Recomendación: **RECHAZAR**
+### Riesgos que persisten incluso con versiones limitadas
 
-La bidireccionalidad automática es frágil, compleja y el riesgo de pérdida de datos es alto. La sincronización manual con auto-arming (C1) es suficiente para el caso de uso real del restaurante.
+1. **BDP no soporta webhooks** -> requiere polling agresivo para cualquier implementación.
+2. **Polling cada 5 min + resolución "BDP gana":** el retraso de 5 min destruye la propuesta de valor de la escritura local.
+3. **Colisiones de inventario:** si Glory y BDP modifican el mismo artículo antes del siguiente poll, el cliente ve cambios "fantasma" sin origen.
+4. **Bucles endémicos:** toda solución "limitada" acaba pidiendo más alcance al acercarse a un caso útil — la versión limitada se vuelve completa o se abandona.
 
-**Si el cliente insiste:** Proponer una versión limitada:
-- Solo catálogo (artículos, precios) bidireccional, no comandas
-- Conflictos: BDP siempre gana (fuente de verdad)
-- Polling cada 5 minutos, no en tiempo real
-- Esto reduce el esfuerzo a ~20h y el riesgo significativamente
+### Recomendación: **RECHAZAR FIRME**
+
+No ofrecer NINGUNA versión limitada, ni siquiera reducida a solo catálogo. La sincronización manual con auto-arming (C1) cubre el caso real (operador escribe una venta, no 100). Si el cliente pide sync automática, explicar que BDP no está diseñado para ello y que construir un event-sourcing distribuido encima de un API sin push sería esfuerzo enorme, valor cuestionable y riesgo de pérdida de datos cierto.
+
+**Alternativa recomendada (si el cliente insiste):** Implementar `read-only diff` — un cronjob que muestra "estos 3 artículos cambiaron en BDP desde tu última sync" como aviso, sin aplicar cambios automáticamente. Visibilidad sin riesgo de sobreescritura.
 
 ---
 
 ## D4 — Pagos parciales
 
-### Estado actual
+### Riesgo crítico identificado: race condition entre dispositivos
 
-En `src/services/bdp_sync.rs:1109`:
-```rust
-if (requested - pending).abs() > 0.005 {
-    return Err(BdpSyncError::Rejected(
-        "esta integración admite un único pago completo".into()
-    ));
-}
+**Escenario peligroso:** Dos camareros en dos tablets distintas abren la misma mesa simultáneamente. Ambos ven saldo pendiente = €100. Ambos ejecutan pago parcial de €30 concurrentemente.
+
+```
+Hilo A: GetOrder → pending=€100 → AddOrderPayment(30) ✅ BDP procesa
+Hilo B: GetOrder → pending=€100 (lee antes de que A termine) → AddOrderPayment(30) ✅ BDP procesa
+Resultado: el cliente paga €60 de deuda €100, pero BDP queda con dos pagos sum = €60 sin ledger que los reconcilie.
 ```
 
-**Los pagos parciales están explícitamente bloqueados.**
+**Mitigación obligatoria (no negociable):** implementar lock distribuido por `venta_id` antes de cualquier lectura + escritura a BDP.
+
+### Diseño propuesto (revisado)
+
+```rust
+// Pseudocódigo del handler
+let lock_key = format!("bdp_payment_lock:{}", venta_id);
+let _guard = redis_lock.acquire(lock_key, ttl=10s).await?;
+
+let current_bdp_state = client.get_order(bdp_order_id).await?;
+let pending_amount = current_bdp_state.pending_amount;
+
+if requested > pending_amount + 0.005 {
+    return Err(BdpPaymentError::ExceedsPending {
+        requested, pending_amount
+    });
+}
+
+let partial_payment = bdp_partial_payments::create(...).await?;
+client.add_order_payment(bdp_order_id, requested).await?;
+partial_payment.mark_completed().await?;
+```
+
+Tabla nueva `bdp_payment_locks` (o Redis) con TTL corto (10s) dedicado a evitar duplicación concurrente.
 
 ### ¿Por qué están bloqueados?
 
@@ -449,25 +556,27 @@ Usuario quiere pagar €30 de una comanda de €100
 | Reintento automático duplica pago | Alto | Idempotency key por pago, no reintento automático |
 | Usuario confundido por estado parcial | Medio | UI clara: "Pagado: €30 / Pendiente: €70" |
 
-### Esfuerzo: ~15-20h
+### Esfuerzo (revisado): ~18-22h
 
 | Tarea | Tiempo |
 |-------|--------|
 | Migration + modelo `bdp_partial_payments` | 2h |
-| Servicio de pagos parciales | 5h |
+| **Lock distribuido por venta_id (Redis o tabla)** | **3h** |
+| Servicio de pagos parciales con lock | 5h |
 | Validación contra GetOrder | 2h |
-| Frontend: selector de monto | 4h |
-| Reconciliación automática | 3h |
-| Tests | 2h |
+| Frontend: selector de monto + indicador visual de saldo | 4h |
+| Reconciliación automática + casos de drift | 4h |
+| Tests + race conditions (tests concurrentes) | 2h |
 
 ### Recomendación: **PENDIENTE DE CONSULTA AL CLIENTE**
 
 Preguntar:
 1. ¿Necesitan pagar comandas en partes?
 2. ¿Con qué frecuencia?
-3. ¿Están dispuestos a asumir el riesgo de descuadres?
+3. ¿Tienen varios dispositivos accediendo a la misma mesa simultáneamente?
+4. ¿Están dispuestos a asumir el riesgo de descuadres mientras se implementa el ledger?
 
-Si la respuesta es sí → implementar con ledger independiente.
+Si la respuesta es sí → implementar **con lock distribuido obligatorio**.
 Si es no → mantener bloqueo actual.
 
 ---
@@ -534,55 +643,174 @@ Usuario pulsa "Cancelar en BDP" en venta-row-actions
 | Cancelar comanda facturada | Bloquear si status = invoiced |
 | Pérdida de materia prima | Documentar que cancelar no revierte preparación |
 
-### Esfuerzo: ~4h
+### Complejidad real mucho mayor que el flujo feliz
+
+**Factores no contemplados en la estimación inicial de 4h:**
+
+1. **Reversión de impuestos en Glory.** La venta original ya tiene IVA aplicado. Una cancelación debe:
+   - Emitir nota de crédito o marcar la factura original como anulada.
+   - Revertir la partida de IVA en el resumen diario del restaurante.
+   - Decidir si Glory permite cancelar ventas facturadas o solo no facturadas (afecta a qué subset aplica).
+2. **Ticket de cocina.** BDP puede haber impreso el ticket en cocina antes de la cancelación. Cancelar en BDP no avisa a la cocina. Hay que decidir si mostrar mensaje al usuario "Cancelar no retira el ticket físico — avisar manualmente".
+3. **Interacción con pagos parciales (D4).** Si la venta tiene pagos parciales, CancelOrder debe decidir:
+   - ¿Devolver los pagos parciales?
+   - ¿Marcar como cancelada pero los pagos quedan como "anticipo"?
+   - ¿Bloquear cancelación si hay pagos parciales no reintegrados?
+4. **Liberación de mesa.** La mesa puede estar ocupada en el plano de sala. Cancelación debe liberar la mesa al estado original.
+5. **Notificación de inventario.** Si la cancelación se hace después de preparada la comanda, no revierte consumo de materia prima. Documentar claramente.
+6. **Disponibilidad del método.** Hoy el método `cancel_order()` existe en `bdp_weblink.rs:253` pero BDP devuelve "Subscripción no activada". Toda la implementación queda bloqueada hasta que BDP active el módulo.
+
+### Esfuerzo (revisado): ~12-16h
 
 | Tarea | Tiempo |
 |-------|--------|
-| Backend: handler + servicio | 2h |
-| Frontend: modal + botón | 1.5h |
-| Tests | 0.5h |
+| Backend: handler + servicio + validaciones | 3h |
+| Backend: lógica de reversión de impuestos + nota de crédito | 3h |
+| Backend: integración con pagos parciales (D4) si D4 implementado | 2h |
+| Backend: liberación de mesa + notificación | 1h |
+| Frontend: modal + botón + mensajes contextuales | 2h |
+| Documentación de "no revierte cocina" en UI | 1h |
+| Tests + casos borde (facturada, con pagos, sin sync) | 2-4h |
 
-### Recomendación: **PENDIENTE DE BDP**
+### Recomendación: **PENDIENTE DE BDP** + revisión interna
 
 1. **Preguntar al cliente:** ¿Pueden activar el módulo de cancelación en BDP?
-2. **Si sí →** Implementar (4h, bajo riesgo)
-3. **Si no →** Mantener como limitación documentada
+2. **Si sí →** Implementar (12-16h, riesgo medio por impuestos/D4).
+3. **Si no →** Mantener como limitación documentada. No implementar sin el módulo activo porque no se puede probar.
+
+---
+
+## Concerns transversales (aplican a varios items)
+
+### XT1 — Throttling y rate limiting contra BDP
+
+**Problema:** los TPV de BDP corren en hardware local del restaurante, frecuentemente modestos. Si `C1 (Auto-arming)` o `D4 (Pagos parciales)` permiten ráfagas de operaciones, podemos saturar el servidor BDP y provocar timeouts en cascada.
+
+**Mitigación obligatoria (cross-cutting):** implementar semáforo global de concurrencia para todas las operaciones de **escritura y lectura** a BDP. El throttling no debe limitarse a escrituras; `GetOrder`, `ExportArticles` y otras lecturas también saturan el TPV.
+
+```rust
+// src/services/bdp_throttle.rs (nuevo)
+use std::sync::Arc;
+use dashmap::DashMap;
+use tokio::sync::{Semaphore, SemaphorePermit};
+
+pub struct BdpThrottle {
+    /// Semáforo global por base_url de BDP (máx 2 concurrentes por defecto)
+    global: Semaphore,
+    /// Cola lógica: contador de requests esperando
+    waiting: AtomicU64,
+    /// Base URL para diagnóstico
+    base_url: String,
+}
+
+pub struct BdpThrottleManager {
+    per_target: DashMap<String, Arc<BdpThrottle>>,
+}
+
+impl BdpThrottleManager {
+    pub fn get_or_create(&self, base_url: &str) -> Arc<BdpThrottle> { ... }
+    pub async fn acquire(&self, base_url: &str) -> Result<BdpThrottleGuard, ThrottleError> { ... }
+}
+```
+
+**Configuración en `configuracion_restaurante`:**
+- `bdp_max_concurrent_requests` (default 2, mínimo 1)
+- `bdp_request_queue_limit` (default 50; pasado esto devolver 503)
+- `bdp_request_timeout_secs` (default 30s)
+
+**Ámbito del semáforo:**
+- Todas las llamadas a `BdpWeblinkClient` (reads + writes)
+- Key: `base_url` del restaurante (un restaurante no bloquea a otro)
+- El semáforo vive en `AppState` como `BdpThrottleManager`
+
+**Visibilidad:** endpoint `GET /api/bdp/diagnostics` expone `queue_depth`, `active_requests`, `max_concurrent`.
+
+### XT2 — Feature flags / despliegue progresivo
+
+**Problema:** `C1`, `D4`, `D5` son cambios que afectan a operaciones críticas (pagos, facturación, cancelación). Lanzarlos globalmente sin posibilidad de apagar por cliente es un riesgo operacional.
+
+**Mitigación:** feature flags por restaurante integrados en `configuracion_restaurante`.
+
+**Decisión arquitectónica:** Usar columnas booleanas en `configuracion_restaurante` en vez de tabla separada. Razones:
+- Los flags configuran comportamiento del **módulo BDP interno** de un único restaurante.
+- La configuración ya se carga en caché/memoizada en cada request; un JOIN a tabla separada añadiría latencia.
+- El modelo Rust `ConfiguracionRestaurante` ya existe y se usa en todos los handlers.
+
+```sql
+ALTER TABLE configuracion_restaurante
+  ADD COLUMN ff_bdp_auto_arm BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN ff_bdp_partial_payments BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN ff_bdp_cancel_order BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN ff_bdp_purchase_notes_read BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN ff_bdp_purchase_notes_draft BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN ff_bdp_purchase_notes_receive BOOLEAN NOT NULL DEFAULT FALSE;
+```
+
+**Features a flaggear:**
+- `ff_bdp_auto_arm` (C1)
+- `ff_bdp_partial_payments` (D4)
+- `ff_bdp_cancel_order` (D5)
+- `ff_bdp_purchase_notes_read` (D2 Fase 1)
+- `ff_bdp_purchase_notes_draft` (D2 Fase 2)
+- `ff_bdp_purchase_notes_receive` (D2 Fase 3)
+
+**Flujo de rollout recomendado:**
+1. Implementar feature en código, marcado como `enabled = false` por defecto.
+2. Activar manualmente en el restaurante piloto desde Configuración.
+3. Validar 1-2 semanas de uso real.
+4. Si funciona, dejar como opt-in para otros restaurantes. No activar globalmente.
+
+### Concerns transversales — Documentación cliente actualizada
+
+Cuando se implementen `C1`, `D4`, `D5` o cualquier feature D2, actualizar también:
+
+- `Agente/usuario/guia-cliente-pruebas-integracion-bdp-2026-07-18.md` — añadir sección sobre la nueva feature con captura o mockup.
+- `Agente/usuario/mapeo-visual-integracion-bdp-2026-07-23.md` — registrar nueva entrada visual donde corresponda.
+- Si la feature añade toggle en UI → añadir a la sección "Lo que el cliente ve hoy".
 
 ---
 
 ## Priorización recomendada
 
-### Si el cliente quiere la mejor experiencia posible:
+### Si el cliente quiere la mejor experiencia posible (revisado):
+
+**Pre-requisitos cross-cutting primero:**
 
 | Orden | Item | Por qué |
 |-------|------|---------|
+| 0a | **XT2: Feature flags** | Base para activar C1, D4, D5 por restaurante sin redeploy |
+| 0b | **XT1: Throttling BDP** | Base para evitar saturar el TPV local con C1/D4 |
 | 1 | **C1: Auto-arming** | Impacto máximo en usabilidad diaria |
-| 2 | **D1: Verificar stock** | 2h para confirmar si la columna funciona |
-| 3 | **D5: CancelOrder** | 4h si BDP activa el módulo |
-| 4 | **D4: Pagos parciales** | Si el cliente lo necesita |
-| 5 | **D2: Compras (Fase 1)** | Solo lectura, 8h |
-| 6 | **C2: Toggle navbar** | Solo si C1 no se hace |
-| 7 | **D2: Compras (Fase 2)** | Escritura, solo si Fase 1 funciona |
-| 8 | **D3: Bidireccional** | No recomendado |
+| 2 | **C2: Toggle navbar** | Ortogonal a C1 — admin bulk reconciliations |
+| 3 | **D1: Validar parser stock** | 2h, ya implementado, sólo falta parser defensivo |
+| 4 | **D2: Compras (Fase 1)** | Solo lectura, 8h, gather data sin tocar inventario |
+| 5 | **D5: CancelOrder** | 12-16h si BDP activa el módulo |
+| 6 | **D4: Pagos parciales** | 18-22h con lock distribuido |
+| 7 | **D2: Compras (Fase 2)** | 10h borradores sin inventario |
+| 8 | **D2: Compras (Fase 3)** | 12h recepción y reconciliación |
+| **NUNCA** | **D3: Bidireccional** | Rechazado firme. No backlog. |
 
 ### Si el cliente quiere lo mínimo viable:
 
 | Orden | Item | Por qué |
 |-------|------|---------|
-| 1 | **D1: Verificar stock** | 2h, ya implementado |
+| 0 | **XT2: Feature flags** | Base minima para op-in por restaurante |
+| 1 | **D1: Parser defensivo stock** | 2h implementación proactiva |
 | 2 | **C1: Auto-arming** | Mejora crítica de UX |
-| 3 | **D5: CancelOrder** | Si BDP lo permite |
+| 3 | **C2: Toggle navbar** | Complemento administrativo, 3h |
 
 ---
 
 ## Preguntas para el cliente
 
-1. **Auto-arming:** ¿Prefieren activar escritura automática con confirmación textual, o mantener el flujo manual actual?
-2. **Stock:** ¿Necesitan ver stock detallado por almacén o con la columna actual es suficiente?
-3. **Compras:** ¿Necesitan consultar albaranes de compra desde Glory? ¿Crearlos?
-4. **CancelOrder:** ¿Pueden activar el módulo de cancelación en su BDP?
-5. **Pagos parciales:** ¿Necesitan pagar comandas en partes?
-6. **Bidireccional:** ¿Necesitan sincronización automática o con botones manuales es suficiente?
+1. **Auto-arming (C1):** ¿Quieren activar escritura automática con confirmación dinámica (monto/ID/lineas) + idempotency, o mantener el flujo manual actual? ¿Están cómodos con que el operador diario pueda ejecutar operaciones BDP con un solo modal?
+2. **Toggle navbar (C2):** ¿El restaurante tiene un管理员 (admin/manager) que necesite inspección rápida + arming bulk? Esto justifica C2 incluso con C1 activo.
+3. **Stock (D1):** ¿La columna actual en la tabla de mapeos basta o necesitan pantalla dedicada con stock por almacén/familia?
+4. **Compras (D2):** ¿El módulo de compras está activo en su BDP? ¿Necesitan solo consultar o también crear albaranes? ¿Las compras reales requieren conciliación (mercancía dañada/entregas parciales)?
+5. **CancelOrder (D5):** ¿Pueden activar el módulo de cancelación en su BDP? ¿Tienen ventas facturadas que necesiten cancelarse por error (cliente cambia de opinión, plato equivocado)?
+6. **Pagos parciales (D4):** ¿Necesitan pagar comandas en partes (ej: parte en efectivo, parte con tarjeta)? ¿Con qué frecuencia? ¿Cuántos dispositivos distintos acceden a la misma mesa simultáneamente?
+7. **Bidireccional (D3):** ¿Necesitan sincronización automática o con los botones manuales actuales + auto-arming basta? (Recomendación firme: rechazar.)
+8. **Feature flags:** ¿Están cómodos con que las nuevas features se activen opcionalmente por restaurante primero, en lugar de venir activadas por defecto?
 
 ---
 

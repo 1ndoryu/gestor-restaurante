@@ -7,6 +7,7 @@ mod bdp_explorer;
 pub(crate) mod bdp_order_poller;
 mod bdp_sync;
 mod bdp_sync_preflight;
+pub mod bdp_throttle;
 pub mod bdp_weblink;
 pub mod bdp_weblink_catalog;
 mod bdp_write_guard;
@@ -42,6 +43,7 @@ pub use bdp_order_poller::BdpOrderPollerService;
 pub use bdp_sync::BdpSyncService;
 pub use bdp_sync::SyncTablesResult;
 pub use bdp_sync_preflight::{BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncPreflightService};
+pub use bdp_throttle::{BdpThrottleManager, BDP_THROTTLE};
 pub use bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
 pub use bdp_weblink_catalog::{
     BdpCatalogSyncResult, BdpCreateCustomerRequest, BdpExportArticlesRequest,

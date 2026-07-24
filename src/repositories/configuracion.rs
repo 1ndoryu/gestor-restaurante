@@ -86,6 +86,12 @@ impl ConfiguracionRepository {
                      bdp_sync_mode = COALESCE($38, bdp_sync_mode), \
                      bdp_backup_retention_days = COALESCE($39, bdp_backup_retention_days), \
                      bdp_auto_backup_before_write = COALESCE($40, bdp_auto_backup_before_write), \
+                     ff_bdp_auto_arm = COALESCE($41, ff_bdp_auto_arm), \
+                     ff_bdp_partial_payments = COALESCE($42, ff_bdp_partial_payments), \
+                     ff_bdp_cancel_order = COALESCE($43, ff_bdp_cancel_order), \
+                     ff_bdp_purchase_notes_read = COALESCE($44, ff_bdp_purchase_notes_read), \
+                     ff_bdp_purchase_notes_draft = COALESCE($45, ff_bdp_purchase_notes_draft), \
+                     ff_bdp_purchase_notes_receive = COALESCE($46, ff_bdp_purchase_notes_receive), \
                 updated_at = NOW() \
              WHERE user_id = $1 RETURNING *",
         )
@@ -129,6 +135,12 @@ impl ConfiguracionRepository {
         .bind(req.bdp_sync_mode.as_deref())
         .bind(req.bdp_backup_retention_days)
         .bind(req.bdp_auto_backup_before_write)
+        .bind(req.ff_bdp_auto_arm)
+        .bind(req.ff_bdp_partial_payments)
+        .bind(req.ff_bdp_cancel_order)
+        .bind(req.ff_bdp_purchase_notes_read)
+        .bind(req.ff_bdp_purchase_notes_draft)
+        .bind(req.ff_bdp_purchase_notes_receive)
         .fetch_one(pool)
         .await
     }

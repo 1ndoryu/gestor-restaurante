@@ -82,6 +82,13 @@ pub struct ConfiguracionRestaurante {
     pub bdp_backup_retention_days: i32,
     pub bdp_auto_backup_before_write: bool,
     pub bdp_env_bootstrap_applied_at: Option<DateTime<Utc>>,
+    /* [XT2-1] Feature flags de funcionalidades BDP. Todos nacen desactivados. */
+    pub ff_bdp_auto_arm: bool,
+    pub ff_bdp_partial_payments: bool,
+    pub ff_bdp_cancel_order: bool,
+    pub ff_bdp_purchase_notes_read: bool,
+    pub ff_bdp_purchase_notes_draft: bool,
+    pub ff_bdp_purchase_notes_receive: bool,
     /* [094A-4] URL de Google Business para redirigir reseñas positivas */
     pub google_review_url: String,
     /* [094A-6] Datos para botones CTA en mensajes WhatsApp */
@@ -166,6 +173,13 @@ pub struct ActualizarConfiguracionRequest {
     pub bdp_sync_mode: Option<String>,
     pub bdp_backup_retention_days: Option<i32>,
     pub bdp_auto_backup_before_write: Option<bool>,
+    /* [XT2-1] Feature flags de funcionalidades BDP */
+    pub ff_bdp_auto_arm: Option<bool>,
+    pub ff_bdp_partial_payments: Option<bool>,
+    pub ff_bdp_cancel_order: Option<bool>,
+    pub ff_bdp_purchase_notes_read: Option<bool>,
+    pub ff_bdp_purchase_notes_draft: Option<bool>,
+    pub ff_bdp_purchase_notes_receive: Option<bool>,
 }
 
 fn validar_iva(valor: &rust_decimal::Decimal) -> Result<(), validator::ValidationError> {

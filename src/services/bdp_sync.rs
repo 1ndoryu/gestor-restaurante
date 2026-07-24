@@ -64,12 +64,14 @@ pub struct BdpSyncService;
 
 impl BdpSyncService {
     /// Orquesta el flujo completo Glory → BDP para una venta.
+    /// `idempotency_key` se guarda en el audit log si se proporciona (C1).
     #[allow(clippy::too_many_lines)]
     pub async fn sync_venta(
         pool: &PgPool,
         venta: &Venta,
         config: &ConfiguracionRestaurante,
         is_update: bool,
+        idempotency_key: Option<&str>,
     ) {
         if !config.bdp_sync_enabled || !crate::services::bdp_sync_preflight::bdp_configurado(config)
         {
@@ -263,6 +265,7 @@ impl BdpSyncService {
             "venta_id",
             &datos_enviados,
             snapshot_pre_id,
+            idempotency_key,
         )
         .await
         {
@@ -465,6 +468,9 @@ impl BdpSyncService {
                 }
                 crate::services::bdp_weblink::BdpWeblinkError::Api { status, body } => {
                     BdpSyncError::AmbiguousTransport(format!("BDP respondió HTTP {status}: {body}"))
+                }
+                crate::services::bdp_weblink::BdpWeblinkError::Throttled(message) => {
+                    BdpSyncError::Rejected(format!("BDP throttled: {message}"))
                 }
             })?;
 
@@ -1035,6 +1041,7 @@ impl BdpSyncService {
         config: &ConfiguracionRestaurante,
         amount: Decimal,
         tender_id: i32,
+        idempotency_key: Option<&str>,
     ) -> Result<Option<String>, String> {
         if !config.bdp_sync_enabled || !crate::services::bdp_sync_preflight::bdp_configurado(config)
         {
@@ -1140,6 +1147,7 @@ impl BdpSyncService {
             "venta_id",
             &datos_pago,
             snapshot_pre_id,
+            idempotency_key,
         )
         .await?;
 
@@ -1266,6 +1274,7 @@ impl BdpSyncService {
         pool: &PgPool,
         venta: &Venta,
         config: &ConfiguracionRestaurante,
+        idempotency_key: Option<&str>,
     ) -> Result<String, String> {
         if !config.bdp_sync_enabled || !crate::services::bdp_sync_preflight::bdp_configurado(config)
         {
@@ -1386,6 +1395,7 @@ impl BdpSyncService {
             "venta_id",
             &datos_factura,
             snapshot_pre_id,
+            idempotency_key,
         )
         .await?;
 
@@ -1560,7 +1570,7 @@ impl BdpSyncService {
                 /* [237A-4] Stock actual del artículo — viene de PricesTableDataType
                  * en la respuesta de ExportArticles. Si el módulo de almacén no
                  * está activo, current_stock será None y queda en 0. */
-                stock_actual: art.current_stock.unwrap_or(Decimal::ZERO),
+                stock_actual: art.effective_stock().unwrap_or(Decimal::ZERO),
             };
 
             match BdpArticleMapRepository::upsert_from_bdp(pool, user_id, &upsert_data).await {
@@ -1584,7 +1594,7 @@ impl BdpSyncService {
         /* [237A-4] Info si ningún artículo trajo stock — probablemente el módulo
          * de almacén de BDP no está activo. Se usa info! en vez de warn! para
          * evitar spam: es un estado esperado si el módulo no está contratado. */
-        let stock_populado = articles.iter().any(|a| a.current_stock.is_some());
+        let stock_populado = articles.iter().any(|a| a.effective_stock().is_some());
         if !stock_populado && total_bdp > 0 {
             info!(
                 "[237A-4] Ningún artículo de ExportArticles trajo CurrentStock. \

@@ -198,6 +198,7 @@ pub async fn reintentar_sync_haddock(
     path = "/api/ventas/{id}/bdp-sync",
     tag = "Ventas",
     params(("id" = Uuid, Path, description = "ID de la venta")),
+    request_body = ReintentarBdpSyncRequest,
     responses(
         (status = 200, description = "Sincronización BDP completada", body = Venta),
         (status = 404, description = "Venta no encontrada", body = ErrorResponse),
@@ -210,9 +211,51 @@ pub async fn reintentar_sync_bdp(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
+    Json(req): Json<ReintentarBdpSyncRequest>,
 ) -> Result<Json<Venta>, AppError> {
-    let venta = VentaService::retry_bdp_sync(&state.pool, id, auth.user_id).await?;
+    /* [C1-3] Auto-arming: si el request incluye idempotency_key y auto_arm,
+     * verificamos duplicados y, si no existe, creamos un armado temporal. */
+    if let Some(idempotency_key) = &req.idempotency_key {
+        if let Some((_audit_id, resultado)) =
+            crate::services::BdpWriteGuard::check_idempotency(&state.pool, auth.user_id, idempotency_key)
+                .await
+                .map_err(AppError::Internal)?
+        {
+            if resultado == "exito" {
+                /* Idempotente: la operación ya fue exitosa. */
+                let venta = VentaService::get(&state.pool, id, auth.user_id).await?;
+                return Ok(Json(venta));
+            }
+        }
+    }
+
+    if req.auto_arm {
+        let config = crate::services::ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+        let confirmation = req.confirmation_text.unwrap_or_default();
+        crate::services::BdpWriteGuard::try_auto_arm(
+            &state.pool,
+            auth.user_id,
+            &config,
+            "create_order",
+            "venta",
+            id,
+            &confirmation,
+        )
+        .await
+        .map_err(AppError::Validation)?;
+    }
+
+    let idempotency_key = req.idempotency_key.as_deref();
+    let venta = VentaService::retry_bdp_sync(&state.pool, id, auth.user_id, idempotency_key).await?;
     Ok(Json(venta))
+}
+
+#[derive(serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
+pub struct ReintentarBdpSyncRequest {
+    #[serde(default)]
+    pub auto_arm: bool,
+    pub confirmation_text: Option<String>,
+    pub idempotency_key: Option<String>,
 }
 
 /* [276A-4.3] GET /api/ventas/:id/bdp-status — Consulta el estado BDP de una venta.
@@ -302,6 +345,10 @@ pub async fn bdp_poll(
 #[derive(serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
 pub struct BdpInvoiceRequest {
     pub confirmacion: String,
+    #[serde(default)]
+    pub auto_arm: bool,
+    pub confirmation_destino: Option<String>,
+    pub idempotency_key: Option<String>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
@@ -309,6 +356,10 @@ pub struct BdpPaymentRequest {
     pub amount: rust_decimal::Decimal,
     pub tender_id: i32,
     pub confirmacion: String,
+    #[serde(default)]
+    pub auto_arm: bool,
+    pub confirmation_destino: Option<String>,
+    pub idempotency_key: Option<String>,
 }
 
 #[derive(serde::Serialize, utoipa::ToSchema)]
@@ -362,9 +413,56 @@ pub async fn bdp_invoice(
         ));
     }
 
-    let invoice_number = BdpSyncService::invoice_order(&state.pool, &venta, &config)
+    if req.auto_arm {
+        let destino = req.confirmation_destino.unwrap_or_default();
+        crate::services::BdpWriteGuard::try_auto_arm(
+            &state.pool,
+            auth.user_id,
+            &config,
+            "invoice",
+            "venta",
+            id,
+            &destino,
+        )
         .await
         .map_err(AppError::Validation)?;
+    }
+
+    let idempotency_key = req.idempotency_key.as_deref();
+    let invoice_number = match BdpSyncService::invoice_order(&state.pool, &venta, &config, idempotency_key).await {
+        Ok(number) => number,
+        Err(ref e) if e.starts_with("idempotencia_duplicada:") => {
+            /* [C1-6] Idempotencia: si la operación ya fue exitosa, devolvemos el
+             * estado actual en lugar de 422. */
+            let resultado = e.splitn(3, ':').nth(2).unwrap_or("");
+            if resultado == "exito" {
+                /* [C1-6] Recuperar el InvoiceNumber de la auditoría exitosa previa. */
+                let invoice_number: Option<String> = sqlx::query_scalar(
+                    r"SELECT datos_respuesta ->> 'InvoiceNumber'
+                       FROM bdp_audit_log
+                       WHERE user_id = $1
+                         AND operacion = 'invoice'
+                         AND target_entity_type = 'venta'
+                         AND target_entity_id = $2
+                         AND resultado = 'exito'
+                       ORDER BY created_at DESC
+                       LIMIT 1",
+                )
+                .bind(auth.user_id)
+                .bind(id)
+                .fetch_optional(&state.pool)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+                return Ok(Json(BdpInvoiceResponse {
+                    venta_id: venta.id,
+                    invoice_number: invoice_number.unwrap_or_default(),
+                    bdp_invoiced: true,
+                }));
+            }
+            return Err(AppError::Validation(e.clone()));
+        }
+        Err(e) => return Err(AppError::Validation(e)),
+    };
 
     Ok(Json(BdpInvoiceResponse {
         venta_id: venta.id,
@@ -411,9 +509,36 @@ pub async fn bdp_payment(
     let venta = crate::repositories::VentaRepository::find_by_id(&state.pool, id, auth.user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
-    BdpSyncService::add_order_payment(&state.pool, &venta, &config, req.amount, req.tender_id)
+
+    if req.auto_arm {
+        let destino = req.confirmation_destino.unwrap_or_default();
+        crate::services::BdpWriteGuard::try_auto_arm(
+            &state.pool,
+            auth.user_id,
+            &config,
+            "add_payment",
+            "venta",
+            id,
+            &destino,
+        )
         .await
         .map_err(AppError::Validation)?;
+    }
+
+    let idempotency_key = req.idempotency_key.as_deref();
+    match BdpSyncService::add_order_payment(&state.pool, &venta, &config, req.amount, req.tender_id, idempotency_key).await {
+        Ok(_) => {}
+        Err(ref e) if e.starts_with("idempotencia_duplicada:") => {
+            /* [C1-6] Idempotencia: si la operación ya fue exitosa, devolvemos el
+             * estado actual en lugar de 422. */
+            let resultado = e.splitn(3, ':').nth(2).unwrap_or("");
+            if resultado != "exito" {
+                return Err(AppError::Validation(e.clone()));
+            }
+        }
+        Err(e) => return Err(AppError::Validation(e)),
+    }
+
     Ok(Json(BdpPaymentResponse {
         venta_id: id,
         registrado: true,

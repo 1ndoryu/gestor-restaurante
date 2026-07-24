@@ -59,6 +59,8 @@ pub enum BdpWeblinkError {
     Remote(String),
     #[error("Escritura BDP bloqueada: destino no incluido en BDP_WRITE_ALLOWED_ORIGINS: {0}")]
     WriteTargetDenied(String),
+    #[error("BDP throttled: {0}")]
+    Throttled(String),
 }
 
 #[derive(Debug, Deserialize)]
@@ -433,6 +435,10 @@ impl<'a> BdpWeblinkClient<'a> {
         P: Serialize + ?Sized,
     {
         self.ensure_configured()?;
+        let base_url = self.config.bdp_base_url.as_str();
+        let _throttle_guard = crate::services::bdp_throttle::BDP_THROTTLE
+            .acquire(base_url)
+            .map_err(|reason| BdpWeblinkError::Throttled(format!("{reason} ({path})")))?;
         let url = self.build_url(path)?;
         let response = HTTP_CLIENT
             .post(url)
@@ -450,6 +456,10 @@ impl<'a> BdpWeblinkClient<'a> {
         P: Serialize + ?Sized,
     {
         self.ensure_base_url()?;
+        let base_url = self.config.bdp_base_url.as_str();
+        let _throttle_guard = crate::services::bdp_throttle::BDP_THROTTLE
+            .acquire(base_url)
+            .map_err(|reason| BdpWeblinkError::Throttled(format!("{reason} ({path})")))?;
         let url = self.build_url(path)?;
         let response = HTTP_CLIENT
             .post(url)

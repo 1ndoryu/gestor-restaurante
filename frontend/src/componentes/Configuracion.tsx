@@ -5,7 +5,8 @@
  * [283A-27] Pestaña Chatbot con gestión de API Keys.
  * [283A-39] Card de datos de prueba: botón seed y botón reset. */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useConfiguracion } from '../hooks/useConfiguracion';
 import IntegracionesMarketing from './IntegracionesMarketing';
 import ConfigChatbot from './ConfigChatbot';
@@ -23,6 +24,24 @@ import { toast } from 'sonner';
 function Configuracion() {
   const { config, cambiarCampo, guardar, mensaje, cargando, guardando } = useConfiguracion();
   const [operandoSeed, setOperandoSeed] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const bdpPanelRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState<string>('general');
+
+  /* [C2-2] Navegación desde el navbar: si venimos con state bdpArming o
+   * bdpSection='bdp', activamos la pestaña BDP y hacemos scroll al panel. */
+  useEffect(() => {
+    const state = location.state as { bdpArming?: boolean; bdpSection?: string } | null;
+    if (state?.bdpArming || state?.bdpSection === 'bdp') {
+      setActiveTab('bdp');
+      window.setTimeout(() => {
+        bdpPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+      /* Limpiar state para no reactivar al refrescar */
+      navigate('/configuracion', { replace: true, state: null });
+    }
+  }, [location.state, navigate]);
 
   /* [303A-2] Migrado de raw fetch a axios para usar interceptors JWT/401 */
   async function ejecutarOperacion(endpoint: string, descripcion: string) {
@@ -42,7 +61,7 @@ function Configuracion() {
   if (cargando) return <p className="text-sm text-muted-foreground">Cargando configuración...</p>;
 
   return (
-    <Tabs defaultValue="general" className="max-w-5xl">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="max-w-5xl">
       <TabsList>
         <TabsTrigger value="general">General</TabsTrigger>
         <TabsTrigger value="integraciones">Integraciones</TabsTrigger>
@@ -393,7 +412,9 @@ function Configuracion() {
 
       <TabsContent value="bdp" className="mt-4 flex flex-col gap-6">
         <ConfigBdp config={config} cambiarCampo={cambiarCampo} guardar={guardar} guardando={guardando} mensaje={mensaje} />
-        <PanelBdpBackup config={config} />
+        <div ref={bdpPanelRef}>
+          <PanelBdpBackup config={config} />
+        </div>
       </TabsContent>
     </Tabs>
   );

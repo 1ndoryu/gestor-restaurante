@@ -269,6 +269,15 @@ impl BdpExportArticlesRequest {
  * Tax1, Tax2, Price1..Price5, Discount, BarCode, Active}]}
  * Usado por BdpSyncService::sync_catalog(). */
 
+/// Entrada de precios donde BDP puede anidar el stock (`PricesTableDataType`).
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpArticlePriceEntry {
+    /// Stock dentro de una entrada de la tabla de precios.
+    #[serde(default, alias = "CurrentStock", alias = "Stock")]
+    pub current_stock: Option<Decimal>,
+}
+
 /// Un artículo individual del array `Articles` en la respuesta de `ExportArticles`.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -333,6 +342,20 @@ pub struct BdpExportArticleItem {
      * perfil de exportación de BDP incluya el campo CurrentStock. */
     #[serde(default, alias = "CurrentStock", alias = "Stock")]
     pub current_stock: Option<Decimal>,
+    /// Tabla de precios/stock alternativa. BDP puede devolver `CurrentStock`
+    /// anidado dentro de `PricesTableData` o `Prices` en lugar de a nivel raíz.
+    #[serde(default, alias = "PricesTableData", alias = "Prices")]
+    pub prices_table_data: Vec<BdpArticlePriceEntry>,
+}
+
+impl BdpExportArticleItem {
+    /// Devuelve el stock efectivo del artículo: primero el campo raíz, luego
+    /// cualquier entrada anidada en la tabla de precios.
+    #[must_use]
+    pub fn effective_stock(&self) -> Option<Decimal> {
+        self.current_stock
+            .or_else(|| self.prices_table_data.iter().find_map(|p| p.current_stock))
+    }
 }
 
 fn default_true() -> bool {

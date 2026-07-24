@@ -480,6 +480,7 @@ pub async fn sincronizar_cliente_bdp(
         "cliente_id",
         &datos_cliente,
         snapshot_pre_id,
+        None,
     )
     .await
     .map_err(AppError::Validation)?;

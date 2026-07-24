@@ -6,10 +6,177 @@ use crate::services::{BdpBackupService, BdpWeblinkClient};
 
 pub struct BdpWriteGuard;
 
+/* [C1-2] Scopes de escritura BDP válidos. */
+const VALID_BDP_WRITE_SCOPES: &[&str] = &[
+    "create_order",
+    "add_payment",
+    "invoice",
+    "create_customer",
+];
+
 impl BdpWriteGuard {
     /// Un registro pendiente o ambiguo puede representar una operación remota
     /// aplicada sin confirmación local. Se bloquea cualquier nueva escritura
     /// sobre la misma entidad hasta reconciliación manual.
+    /// Verifica si ya existe un registro de auditoría con la misma clave de
+    /// idempotencia para este usuario. Devuelve el audit_id y el resultado si
+    /// se encuentra, o None si no existe.
+    pub async fn check_idempotency(
+        pool: &PgPool,
+        user_id: Uuid,
+        idempotency_key: &str,
+    ) -> Result<Option<(Uuid, String)>, String> {
+        let row: Option<(Uuid, String)> = sqlx::query_as(
+            "SELECT id, resultado FROM bdp_audit_log WHERE user_id = $1 AND idempotency_key = $2",
+        )
+        .bind(user_id)
+        .bind(idempotency_key)
+        .fetch_optional(pool)
+        .await
+        .map_err(|error| format!("No se pudo verificar idempotencia BDP: {error}"))?;
+        Ok(row)
+    }
+
+    /// Crea un armado temporal para una operación de escritura BDP sin pasar
+    /// por el flujo manual de configuración. Requiere que el feature flag
+    /// `ff_bdp_auto_arm` esté activo y que `confirmation_text` coincida con el
+    /// destino BDP canónico.
+    ///
+    /// [C1-2] Auto-arming: se usa desde el handler cuando el usuario confirma
+    /// explícitamente una operación puntual (p. ej. "Enviar a BDP"). El
+    /// pre-check de armado existente y el INSERT se ejecutan dentro de una
+    /// transacción protegida por advisory lock para evitar condiciones de
+    /// carrera con armado manual concurrente.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn try_auto_arm(
+        pool: &PgPool,
+        user_id: Uuid,
+        config: &ConfiguracionRestaurante,
+        scope: &str,
+        target_entity_type: &str,
+        target_entity_id: Uuid,
+        confirmation_text: &str,
+    ) -> Result<(), String> {
+        if !config.ff_bdp_auto_arm {
+            return Err("Auto-arming BDP no está habilitado para este restaurante".into());
+        }
+        if !config.bdp_sync_enabled {
+            return Err("La integración BDP no está activa".into());
+        }
+        if !config.bdp_auto_backup_before_write {
+            return Err("Escritura BDP bloqueada: auto-backup pre-write desactivado".into());
+        }
+        if !VALID_BDP_WRITE_SCOPES.contains(&scope) {
+            return Err(format!("Scope de escritura BDP no válido: {scope}"));
+        }
+
+        let target = BdpBackupService::canonical_target(config)?;
+        if confirmation_text.trim().trim_end_matches('/') != target {
+            return Err(
+                "La confirmación no coincide con el destino BDP configurado".into(),
+            );
+        }
+
+        BdpWeblinkClient::new(config)
+            .ensure_write_target_allowed()
+            .map_err(|error| error.to_string())?;
+
+        let fingerprint = BdpBackupService::connection_fingerprint(config)?;
+
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|error| format!("No se pudo iniciar auto-arming BDP: {error}"))?;
+
+        /* [C1-4] Serializar cualquier operación de armado para este usuario
+         * dentro de la transacción para evitar que dos auto-arms concurrentes
+         * (o uno concurrente con un armado manual) pisen el armado activo. */
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!("bdp-arming:{user_id}"))
+            .execute(&mut *tx)
+            .await
+            .map_err(|error| format!("Error adquiriendo lock de armado BDP: {error}"))?;
+
+        /* No pisar un armado manual/admin existente. */
+        let arming_existente: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM bdp_write_arming WHERE user_id = $1 AND expires_at > NOW() AND remaining_operations > 0)",
+        )
+        .bind(user_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|error| format!("Error verificando armado BDP previo: {error}"))?;
+        if arming_existente {
+            return Err("Ya existe un armado BDP activo; consume el armado actual o espera a que venza antes de auto-armar".into());
+        }
+
+        let snapshot_id: Option<Uuid> = sqlx::query_scalar(
+            r"SELECT id
+                FROM bdp_snapshots
+                WHERE user_id = $1
+                  AND tipo = 'completo'
+                  AND direccion = 'bdp'
+                  AND target_base_url = $2
+                  AND connection_fingerprint = $3
+                  AND (expires_at IS NULL OR expires_at > NOW())
+                  AND created_at >= NOW() - INTERVAL '24 hours'
+                ORDER BY created_at DESC
+                LIMIT 1",        )
+        .bind(user_id)
+        .bind(&target)
+        .bind(&fingerprint)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|error| format!("Error verificando snapshot BDP: {error}"))?;
+
+    let snapshot_id = snapshot_id.ok_or_else(|| {
+            "No se puede auto-armar BDP: falta un snapshot completo de esta conexión vigente."
+                .to_string()
+        })?;
+
+        sqlx::query(
+            r"INSERT INTO bdp_write_arming
+               (user_id, base_url, scopes, target_entity_type, target_entity_id,
+                reason, expires_at, remaining_operations, snapshot_id, connection_fingerprint)
+               VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '5 minutes', 1, $7, $8)
+               ON CONFLICT (user_id) DO UPDATE SET
+                 base_url = EXCLUDED.base_url,
+                 scopes = EXCLUDED.scopes,
+                 target_entity_type = EXCLUDED.target_entity_type,
+                 target_entity_id = EXCLUDED.target_entity_id,
+                 reason = EXCLUDED.reason,
+                 expires_at = EXCLUDED.expires_at,
+                 remaining_operations = EXCLUDED.remaining_operations,
+                 snapshot_id = EXCLUDED.snapshot_id,
+                 connection_fingerprint = EXCLUDED.connection_fingerprint,
+                 created_at = NOW()",
+        )
+        .bind(user_id)
+        .bind(&target)
+        .bind(vec![scope])
+        .bind(target_entity_type)
+        .bind(target_entity_id)
+        .bind(format!("auto_arm:{scope}:{target_entity_type}:{target_entity_id}"))
+        .bind(snapshot_id)
+        .bind(&fingerprint)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| format!("No se pudo crear armado BDP automático: {error}"))?;
+
+        sqlx::query(
+            "UPDATE configuracion_restaurante SET bdp_sync_mode = 'unidirectional', updated_at = NOW() WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| format!("No se pudo activar modo escritura BDP: {error}"))?;
+
+        tx.commit()
+            .await
+            .map_err(|error| format!("No se pudo confirmar auto-arming BDP: {error}"))?;
+
+        Ok(())
+    }
+
     pub async fn ensure_no_unresolved(
         pool: &PgPool,
         user_id: Uuid,
@@ -48,6 +215,10 @@ impl BdpWriteGuard {
     /* [187A-1] Esta transacción es deliberadamente lineal: lock, bloqueo por
      * ambigüedad, consumo, auditoría y kill switch deben ser indivisibles. */
     #[allow(clippy::too_many_lines)]
+    /// Autoriza una escritura BDP consumiendo un armado existente.
+    /// Si `idempotency_key` se proporciona, se guarda en el registro de auditoría
+    /// para permitir deduplicación posterior (C1 auto-arming).
+    #[allow(clippy::too_many_arguments)]
     pub async fn authorize(
         pool: &PgPool,
         user_id: Uuid,
@@ -58,6 +229,7 @@ impl BdpWriteGuard {
         entity_json_field: &str,
         datos_enviados: &serde_json::Value,
         snapshot_pre_id: Option<Uuid>,
+        idempotency_key: Option<&str>,
     ) -> Result<Uuid, String> {
         /* La allowlist se valida antes de tocar auditoría o autorización. El
          * cliente HTTP repite esta comprobación justo antes del envío. */
@@ -154,12 +326,19 @@ impl BdpWriteGuard {
 
         let audit_snapshot_id = snapshot_pre_id.or(arming_snapshot_id);
 
-        let audit_id: Uuid = sqlx::query_scalar(
+        /* [C1-5] Si se proporciona idempotency_key, usar ON CONFLICT para que
+         * dos requests concurrentes con la misma clave no creen dos
+         * intenciones. Si ya existe, devolvemos un error estructurado con el
+         * resultado actual para que el handler decida. Las filas con
+         * idempotency_key NULL nunca pueden conflictar gracias al índice
+         * parcial, por lo que la misma consulta sirve para ambos casos. */
+        let maybe_id: Option<Uuid> = sqlx::query_scalar(
             r"INSERT INTO bdp_audit_log
                (user_id, operacion, direccion, snapshot_pre_id, datos_enviados,
                 resultado, target_base_url, target_entity_type, target_entity_id,
-                authorization_reason)
-               VALUES ($1, $2, 'glory_to_bdp', $3, $4, 'pendiente', $5, $6, $7, $8)
+                authorization_reason, idempotency_key)
+               VALUES ($1, $2, 'glory_to_bdp', $3, $4, 'pendiente', $5, $6, $7, $8, $9)
+               ON CONFLICT (user_id, idempotency_key) DO NOTHING
                RETURNING id",
         )
         .bind(user_id)
@@ -170,9 +349,26 @@ impl BdpWriteGuard {
         .bind(target_entity_type)
         .bind(target_entity_id)
         .bind(authorization_reason)
-        .fetch_one(&mut *tx)
+        .bind(idempotency_key)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(|error| format!("No se pudo registrar intención BDP: {error}"))?;
+
+        let audit_id = match maybe_id {
+            Some(id) => id,
+            None => {
+                let key = idempotency_key.unwrap_or("");
+                let (existing_id, resultado): (Uuid, String) = sqlx::query_as(
+                    "SELECT id, resultado FROM bdp_audit_log WHERE user_id = $1 AND idempotency_key = $2",
+                )
+                .bind(user_id)
+                .bind(key)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(|error| format!("No se pudo leer auditoría BDP existente: {error}"))?;
+                return Err(format!("idempotencia_duplicada:{existing_id}:{resultado}"));
+            }
+        };
 
         let mode_updated = sqlx::query(
             "UPDATE configuracion_restaurante SET bdp_sync_mode = 'read_only', updated_at = NOW() WHERE user_id = $1",

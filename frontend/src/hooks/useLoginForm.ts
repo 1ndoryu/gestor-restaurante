@@ -1,6 +1,9 @@
 /* [134A-29] Hook para Login — soporta propietario, registro y trabajador.
  * El modo trabajador llama a /api/auth/login-trabajador con el JWT que incluye tid+permisos.
- * [085A-1] onError diferencia 401 (credenciales) de otros errores (servidor/red). */
+ * [085A-1] onError diferencia 401 (credenciales) de otros errores (servidor/red).
+ * [247A-1] Si VITE_DEMO_EMAIL y VITE_DEMO_PASSWORD están definidas (desarrollo local),
+ * el formulario se auto-rellena automáticamente para no tener que escribir las credenciales
+ * cada vez que se recarga la página. */
 
 import { useState, FormEvent } from 'react';
 import axios from 'axios';
@@ -12,7 +15,13 @@ import { useAuthStore } from '../stores/authStore';
 function useLoginForm() {
   const navigate = useNavigate();
   const iniciarSesion = useAuthStore((s) => s.iniciarSesion);
-  const [credenciales, setCredenciales] = useState({ email: '', password: '' });
+
+  /* [247A-1] Auto-fill desde VITE_DEMO_EMAIL / VITE_DEMO_PASSWORD (frontend/.env).
+   * Solo se cargan al montar el hook; el usuario puede sobrescribirlas manualmente. */
+  const [credenciales, setCredenciales] = useState({
+    email: import.meta.env.VITE_DEMO_EMAIL ?? '',
+    password: import.meta.env.VITE_DEMO_PASSWORD ?? '',
+  });
   const [modoRegistro, setModoRegistro] = useState(false);
   const [esTrabajador, setEsTrabajador] = useState(false);
   const [error, setError] = useState('');
