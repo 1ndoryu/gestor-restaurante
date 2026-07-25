@@ -510,3 +510,73 @@ async fn test_upsert_from_bdp_aisla_usuarios(pool: PgPool) {
     assert_eq!(list_a.len(), 1);
     assert_eq!(list_b.len(), 0, "user_b should not see user_a articles");
 }
+
+/* [247A-10/S1] Stock por almacén por defecto */
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_upsert_stock_crea_almacen_general(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+
+    /* upsert_from_bdp debe propagar el stock a bdp_article_stock */
+    let data = BdpArticleUpsertData {
+        bdp_code: "STOCK01",
+        descripcion: "ARTÍCULO STOCK",
+        precio_tarifa1: rust_decimal::Decimal::new(100, 2),
+        iva_pct: rust_decimal::Decimal::new(1000, 2),
+        departamento: 1,
+        familia: 1,
+        subfamilia: 1,
+        activo: true,
+        barcode: "",
+        stock_actual: rust_decimal::Decimal::new(12345, 2),
+    };
+
+    BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data)
+        .await
+        .unwrap();
+
+    let stock = BdpArticleMapRepository::listar_stock(&pool, user_id, None)
+        .await
+        .unwrap();
+
+    assert_eq!(stock.len(), 1);
+    assert_eq!(stock[0].articulo_glory_codigo, "STOCK01");
+    assert_eq!(stock[0].warehouse_id, "0");
+    assert_eq!(stock[0].warehouse_name, "General");
+    assert_eq!(stock[0].stock, rust_decimal::Decimal::new(12345, 2));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_upsert_stock_actualiza_stock_existente(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+
+    let data1 = BdpArticleUpsertData {
+        bdp_code: "STOCK02",
+        descripcion: "ARTÍCULO",
+        precio_tarifa1: rust_decimal::Decimal::new(100, 2),
+        iva_pct: rust_decimal::Decimal::new(1000, 2),
+        departamento: 1,
+        familia: 1,
+        subfamilia: 1,
+        activo: true,
+        barcode: "",
+        stock_actual: rust_decimal::Decimal::new(50, 2),
+    };
+    let data2 = BdpArticleUpsertData {
+        stock_actual: rust_decimal::Decimal::new(75, 2),
+        ..data1
+    };
+
+    BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data1)
+        .await
+        .unwrap();
+    BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data2)
+        .await
+        .unwrap();
+
+    let stock = BdpArticleMapRepository::listar_stock(&pool, user_id, Some("0"))
+        .await
+        .unwrap();
+    assert_eq!(stock.len(), 1);
+    assert_eq!(stock[0].stock, rust_decimal::Decimal::new(75, 2));
+}

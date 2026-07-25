@@ -127,7 +127,26 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ---
 
-## Tareas pendientes### Bloque 247A-7 — Mitigaciones críticas BDP (implementadas)
+## Tareas pendientes
+
+### Bloque 247A-10 — Mejoras de stock BDP (en curso)
+
+| ID | Item | Estado | Notas |
+|---|---|---|---|
+| S1 | Tests de stock (parsing `effective_stock` + upsert DB) | ✅ Hecho | `tests/bdp_article_map.rs` + unit tests en `src/services/bdp_weblink_catalog.rs` |
+| S2 | Stock por almacén (solo lectura, almacén por defecto) | ✅ Hecho | Tabla `bdp_article_stock`, warehouse por defecto `"0"` / `"General"`; endpoint `/api/bdp/article-stock` preparado para futuro desglose |
+| S3 | Mejorar exportación CSV de stock | ✅ Hecho | BOM para Excel, nombre dinámico con timestamp, columnas extendidas, fila de totales, opción filtrados/todos |
+| S4 | Página individual de stock `/bdp/stock` | ✅ Hecho | Filtros, ordenación, paginación, sync catálogo |
+
+### Bloque 247A-9b — Pagos parciales BDP (UI + ambiguos)
+
+| ID | Item | Estado | Notas |
+|---|---|---|---|
+| P1 | Backend ledger `bdp_pagos`, feature flag e idempotencia | ✅ Hecho | `src/services/bdp_sync.rs`, `src/repositories/bdp_pago.rs` |
+| P2 | UI de pagos parciales en `venta-row-actions.tsx` | ✅ Hecho | Diálogo con saldo, historial, añadir pago, generar `idempotency_key`; usa axios `instance` directamente |
+| P3 | Reconciliación de pagos ambiguos (`bdp_pagos.resultado='ambiguo'`) | ✅ Hecho | `reconcile_ambiguous_pagos` en `bdp_order_poller.rs`; badge y aviso en UI |
+
+### Bloque 247A-7 — Mitigaciones críticas BDP (implementadas)
 
 | ID      | Riesgo                                                       | Estado       | Qué se hizo                                                                                                    | Archivos clave                                |
 | ------- | ------------------------------------------------------------ | ------------ | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |

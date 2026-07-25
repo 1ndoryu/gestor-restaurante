@@ -2,7 +2,7 @@
  * Vista unificada, segura y defensiva del stock proveniente del catálogo BDP.
  * No expone ninguna operación de escritura sobre el inventario. */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Search,
   RefreshCw,
@@ -60,6 +60,7 @@ function BdpStock() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data, isLoading, error: listError } = useListarArticleMaps();
+  const [exportAll, setExportAll] = useState(false);
   const syncCatalogMutation = useSyncCatalog({
     mutation: {
       onSuccess: (resp) => {
@@ -117,7 +118,10 @@ function BdpStock() {
   }
 
   function handleExport() {
-    exportToCsv(sorted);
+    exportToCsv(mapeos, sorted, {
+      allRows: exportAll,
+      filterLabel: stockFilter !== 'all' ? stockFilter : undefined,
+    });
   }
 
   return (
@@ -204,15 +208,26 @@ function BdpStock() {
                 )}
                 Sync catálogo
               </TooltipButton>
-              <Button
-                variant="outline"
-                onClick={handleExport}
-                disabled={paginated.length === 0}
-                title="Exportar resultados filtrados a CSV"
-              >
-                <Download className="size-3.5 mr-1" />
-                CSV
-              </Button>
+              <div className="flex items-center gap-2">
+                <Select value={String(exportAll)} onValueChange={(v) => setExportAll(v === 'true')}>
+                  <SelectTrigger className="w-36">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="false">Filtrados</SelectItem>
+                    <SelectItem value="true">Todos</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  onClick={handleExport}
+                  disabled={(exportAll ? mapeos.length : paginated.length) === 0}
+                  title="Exportar a CSV con BOM para Excel"
+                >
+                  <Download className="size-3.5 mr-1" />
+                  CSV
+                </Button>
+              </div>
             </div>
           </div>
 

@@ -49,6 +49,22 @@ pub struct CrearBdpArticleMapRequest {
     pub articulo_bdp_nombre: Option<String>,
 }
 
+/// Registro de stock de un artículo por almacén.
+/// [247A-10/S2] BDP actualmente no expone almacenes por artículo; se guarda
+/// un único almacén por defecto "General" para preparar la evolución futura.
+#[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
+pub struct BdpArticleStock {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub articulo_glory_codigo: String,
+    pub warehouse_id: String,
+    pub warehouse_name: String,
+    pub stock: Decimal,
+    pub ultima_sync_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 /// Request para actualizar un mapeo de artículo (PATCH parcial)
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct ActualizarBdpArticleMapRequest {

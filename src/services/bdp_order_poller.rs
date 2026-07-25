@@ -18,6 +18,7 @@
  *   - El intervalo de polling se configura en bdp_poll_interval_secs (configuración restaurante).
  *   - Cada venta tiene un mutex para evitar polling concurrente del mismo order. */
 
+use rust_decimal::prelude::ToPrimitive;
 use sqlx::PgPool;
 use tracing::{info, warn};
 
@@ -295,11 +296,12 @@ impl BdpOrderPollerService {
     }
 
     /* [R1] Reconciliar auditorías BDP marcadas como ambiguas.
-     * Devuelve el número de auditorías cerradas como exito. */
+     * [247A-10/P3] También reconcilia pagos ambiguos del ledger local.
+     * Devuelve el número de auditorías/pagos cerrados como exito. */
     async fn reconcile_ambiguous(
         pool: &PgPool,
         user_id: uuid::Uuid,
-        _config: &ConfiguracionRestaurante,
+        config: &ConfiguracionRestaurante,
         client: &BdpWeblinkClient<'_>,
     ) -> Result<usize, String> {
         let rows: Vec<(uuid::Uuid, String, uuid::Uuid, serde_json::Value)> = sqlx::query_as(
@@ -344,6 +346,77 @@ impl BdpOrderPollerService {
                 Ok(false) => {}
                 Err(e) => {
                     warn!("[R1] Error reconciliando auditoría {audit_id}: {e}");
+                }
+            }
+        }
+
+        /* [247A-10/P3] También reconciliar pagos ambiguos del ledger local. */
+        reconciled += Self::reconcile_ambiguous_pagos(pool, user_id, config, client).await?;
+
+        Ok(reconciled)
+    }
+
+    /* [247A-10/P3] Reconciliar pagos ambiguos del ledger bdp_pagos.
+     * Devuelve el número de pagos reconciliados. */
+    async fn reconcile_ambiguous_pagos(
+        pool: &PgPool,
+        user_id: uuid::Uuid,
+        _config: &ConfiguracionRestaurante,
+        client: &BdpWeblinkClient<'_>,
+    ) -> Result<usize, String> {
+        use crate::repositories::BdpPagoRepository;
+        let pagos = BdpPagoRepository::listar_ambiguos(pool, user_id)
+            .await
+            .map_err(|e| format!("Error listando pagos ambiguos: {e}"))?;
+
+        let mut reconciled = 0;
+        for pago in pagos {
+            let Some(order_id) = Self::find_bdp_order_id_for_venta(pool, pago.venta_id).await? else {
+                continue;
+            };
+            let request = BdpGetOrderRequest {
+                order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+            };
+            match client.get_order(&request).await {
+                Ok(response) => {
+                    let order = response.get("Order").cloned().unwrap_or(response);
+                    let payments = order
+                        .get("Payments")
+                        .and_then(serde_json::Value::as_array)
+                        .cloned()
+                        .unwrap_or_default();
+                    let expected_amount = rust_decimal::Decimal::to_f64(&pago.amount).unwrap_or(0.0);
+                    let expected_tender = i64::from(pago.tender_id);
+                    let mut matched: Option<String> = None;
+                    for payment in payments {
+                        let tender = payment
+                            .get("TenderId")
+                            .and_then(serde_json::Value::as_i64)
+                            .unwrap_or(-1);
+                        let amount = payment
+                            .get("Amount")
+                            .and_then(serde_json::Value::as_f64)
+                            .unwrap_or(0.0);
+                        if tender == expected_tender && (amount - expected_amount).abs() < 0.005 {
+                            matched = payment
+                                .get("PaymentId")
+                                .and_then(serde_json::Value::as_str)
+                                .map(String::from);
+                            break;
+                        }
+                    }
+                    if let Some(payment_id) = matched {
+                        let datos = serde_json::json!({ "order_id": order_id, "payment_id": payment_id });
+                        if let Err(e) = BdpPagoRepository::reconciliar_exito(pool, pago.id, Some(&payment_id), Some(&datos)).await {
+                            warn!("[247A-10/P3] Error cerrando pago ambiguo {}: {e}", pago.id);
+                        } else {
+                            info!("[247A-10/P3] Pago ambiguo {} reconciliado (PaymentId={payment_id})", pago.id);
+                            reconciled += 1;
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("[247A-10/P3] GetOrder falló para reconciliar pago {}: {e}", pago.id);
                 }
             }
         }

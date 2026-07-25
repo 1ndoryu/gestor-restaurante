@@ -22,7 +22,7 @@ use validator::Validate;
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
-use crate::models::{ActualizarBdpArticleMapRequest, BdpArticleMap, CrearBdpArticleMapRequest};
+use crate::models::{ActualizarBdpArticleMapRequest, BdpArticleMap, BdpArticleStock, CrearBdpArticleMapRequest};
 use crate::repositories::BdpArticleMapRepository;
 use crate::services::bdp_weblink_catalog::{
     BdpGetFastfoodRequest, BdpGetMenuRequest, BdpGetPackRequest,
@@ -44,6 +44,10 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/bdp/article-maps",
             get(listar_article_maps).post(crear_article_map),
+        )
+        .route(
+            "/bdp/article-stock",
+            get(listar_article_stock),
         )
         .route(
             "/bdp/article-maps/import-catalog",
@@ -85,6 +89,26 @@ pub async fn listar_article_maps(
 ) -> Result<Json<Vec<BdpArticleMap>>, AppError> {
     let maps = BdpArticleMapRepository::listar(&state.pool, auth.user_id).await?;
     Ok(Json(maps))
+}
+
+/// Listar stock de artículos por almacén. Por defecto devuelve el almacén
+/// "General" (`warehouse_id` = "0") mientras BDP no exponga desglose por almacén.
+#[utoipa::path(
+    get,
+    path = "/api/bdp/article-stock",
+    tag = "BDP Mapeos",
+    responses(
+        (status = 200, description = "Lista de stock por almacén", body = [BdpArticleStock]),
+        (status = 401, description = "No autorizado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn listar_article_stock(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<Json<Vec<BdpArticleStock>>, AppError> {
+    let stock = BdpArticleMapRepository::listar_stock(&state.pool, auth.user_id, None).await?;
+    Ok(Json(stock))
 }
 
 /// Crear o actualizar un mapeo de artículo (upsert por código Glory)

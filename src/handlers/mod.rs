@@ -363,6 +363,7 @@ impl utoipa::Modify for SecurityAddon {
         errores::ReportarErrorResponse,
         admin::AdminResult,
         crate::models::BdpArticleMap,
+        crate::models::BdpArticleStock,
         crate::models::CrearBdpArticleMapRequest,
         crate::models::ActualizarBdpArticleMapRequest,
         crate::services::BdpCatalogSyncResult,

@@ -114,6 +114,26 @@ impl BdpPagoRepository {
         Ok(row.map(|r| Self::row_to_bdp_pago(&r)))
     }
 
+    /// Lista pagos ambiguos de un usuario para reconciliación.
+    pub async fn listar_ambiguos(pool: &PgPool, user_id: Uuid) -> Result<Vec<BdpPago>, AppError> {
+        let rows = sqlx::query(
+            r"
+            SELECT id, venta_id, amount, tender_id, idempotency_key, bdp_order_id, bdp_payment_id,
+                   resultado, datos_respuesta, error_mensaje, created_at, updated_at
+            FROM bdp_pagos
+            WHERE venta_id IN (SELECT id FROM ventas WHERE user_id = $1)
+              AND resultado = 'ambiguo'
+            ORDER BY created_at ASC
+            LIMIT 100
+",
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(rows.iter().map(Self::row_to_bdp_pago).collect())
+    }
+
     /// Actualiza el resultado y datos de respuesta de un pago.
     pub async fn actualizar_resultado(
         pool: &PgPool,
@@ -133,6 +153,33 @@ impl BdpPagoRepository {
         .bind(resultado)
         .bind(datos_respuesta)
         .bind(error_mensaje)
+        .execute(pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Marca un pago ambiguo como exitoso tras reconciliarlo con BDP.
+    pub async fn reconciliar_exito(
+        pool: &PgPool,
+        id: Uuid,
+        bdp_payment_id: Option<&str>,
+        datos_respuesta: Option<&serde_json::Value>,
+    ) -> Result<(), AppError> {
+        sqlx::query(
+            r"
+            UPDATE bdp_pagos
+            SET resultado = 'exito',
+                bdp_payment_id = COALESCE($2, bdp_payment_id),
+                datos_respuesta = COALESCE($3, datos_respuesta),
+                error_mensaje = NULL,
+                updated_at = NOW()
+            WHERE id = $1
+",
+        )
+        .bind(id)
+        .bind(bdp_payment_id)
+        .bind(datos_respuesta)
         .execute(pool)
         .await?;
 

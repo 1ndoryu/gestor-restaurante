@@ -1770,9 +1770,34 @@ impl BdpSyncService {
                      * We can't distinguish created vs updated from the SQL result alone,
                      * so we count all changes as "actualizados" (upsert semantics). */
                     actualizados += 1;
+                    /* [247A-10/S2] Guardar también el stock por almacén (General por defecto).
+                     * Se hace como operación separada; si falla no debe romper el sync
+                     * del artículo, pero se loguea. */
+                    if let Err(e) = BdpArticleMapRepository::upsert_stock(
+                        pool,
+                        user_id,
+                        code,
+                        upsert_data.stock_actual,
+                    )
+                    .await
+                    {
+                        warn!("[247A-10/S2] Error upsert stock por almacén {code}: {e}");
+                    }
                 }
                 Ok(false) => {
                     sin_cambios += 1;
+                    /* Aunque el artículo no haya cambiado, sincronizamos el stock
+                     * para asegurar que existe la fila de almacén por defecto. */
+                    if let Err(e) = BdpArticleMapRepository::upsert_stock(
+                        pool,
+                        user_id,
+                        code,
+                        upsert_data.stock_actual,
+                    )
+                    .await
+                    {
+                        warn!("[247A-10/S2] Error upsert stock por almacén {code}: {e}");
+                    }
                 }
                 Err(e) => {
                     warn!("[157A-7] Error upsert artículo BDP {code}: {e}");

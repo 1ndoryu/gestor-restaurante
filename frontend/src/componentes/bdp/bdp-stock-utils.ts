@@ -35,22 +35,84 @@ export function formatDate(iso?: string | null): string {
   });
 }
 
-export function exportToCsv(rows: BdpArticleMap[]) {
-  const headers = ['Código Glory', 'Código BDP', 'Nombre BDP', 'Precio', 'Stock', 'Última sync'];
-  const lines = rows.map((m) => [
-    m.articulo_glory_codigo,
-    m.articulo_bdp_codigo,
-    m.articulo_bdp_nombre,
-    m.precio_tarifa1,
-    m.stock_actual,
-    m.ultima_sync_at ?? '',
-  ]);
-  const csv = [headers, ...lines].map((line) => line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+export interface CsvExportOptions {
+  /** Si es true exporta todas las filas; si no, solo las filas filtradas/visibles. */
+  allRows: boolean;
+  /** Descripción de los filtros aplicados para incluir en el nombre del archivo. */
+  filterLabel?: string;
+}
+
+function escapeCsvCell(cell: string | number | null | undefined): string {
+  const value = cell == null ? '' : String(cell);
+  if (/[",\n\r]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+function formatNumberCell(value?: string | null): string {
+  if (!value || value === '0') return '0';
+  const n = Number(value);
+  if (Number.isNaN(n)) return '';
+  return n.toFixed(2);
+}
+
+/** Exporta el stock a CSV. Incluye BOM para Excel, columnas extendidas,
+ * fila de totales y nombre de archivo descriptivo. */
+export function exportToCsv(allRows: BdpArticleMap[], filteredRows: BdpArticleMap[], options: CsvExportOptions = { allRows: false }) {
+  const source = options.allRows ? allRows : filteredRows;
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const filterPart = options.filterLabel ? `-${options.filterLabel}` : '';
+
+  const headers = [
+    'Código Glory',
+    'Código BDP',
+    'Nombre BDP',
+    'Descripción',
+    'Familia',
+    'Subfamilia',
+    'Departamento',
+    'Activo',
+    'Precio',
+    'Stock',
+    'Código de barras',
+    'Última sync',
+  ];
+
+  let totalStock = 0;
+  const dataLines = source.map((m) => {
+    const stockNum = Number(m.stock_actual ?? 0);
+    if (!Number.isNaN(stockNum)) {
+      totalStock += stockNum;
+    }
+    return [
+      m.articulo_glory_codigo,
+      m.articulo_bdp_codigo,
+      m.articulo_bdp_nombre,
+      m.descripcion,
+      m.familia,
+      m.subfamilia,
+      m.departamento,
+      m.activo ? 'Sí' : 'No',
+      formatNumberCell(m.precio_tarifa1),
+      formatNumberCell(m.stock_actual),
+      m.barcode,
+      m.ultima_sync_at ? formatDate(m.ultima_sync_at) : '',
+    ];
+  });
+
+  const totalLine = ['', '', '', '', '', '', '', '', 'TOTAL', totalStock.toFixed(2), '', ''];
+
+  const csv = [headers, ...dataLines, totalLine]
+    .map((line) => line.map(escapeCsvCell).join(';'))
+    .join('\r\n');
+
+  // BOM para forzar decodificación UTF-8 en Excel.
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `stock-bdp-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `bdp-stock${filterPart}-${options.allRows ? 'all' : 'filtered'}-${timestamp}.csv`;
   document.body.appendChild(a);
   a.click();
   a.remove();

@@ -4,6 +4,7 @@
 
 use rust_decimal::Decimal;
 use sqlx::PgPool;
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::models::{ActualizarBdpArticleMapRequest, BdpArticleMap, CrearBdpArticleMapRequest};
@@ -161,6 +162,69 @@ impl BdpArticleMapRepository {
         .bind(data.activo)
         .bind(data.barcode)
         .bind(data.stock_actual)
+        .execute(pool)
+        .await?;
+
+        /* [247A-10/S2] Propagar stock agregado al almacén por defecto. */
+        if let Err(e) = Self::upsert_stock(pool, user_id, data.bdp_code, data.stock_actual).await {
+            warn!(
+                "[247A-10/S2] Error propagando stock del artículo {} a bdp_article_stock: {e}",
+                data.bdp_code
+            );
+        }
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Lista el stock de un usuario opcionalmente filtrado por almacén.
+    pub async fn listar_stock(
+        pool: &PgPool,
+        user_id: Uuid,
+        warehouse_id: Option<&str>,
+    ) -> Result<Vec<crate::models::BdpArticleStock>, sqlx::Error> {
+        let rows = if let Some(wid) = warehouse_id {
+            sqlx::query_as::<_, crate::models::BdpArticleStock>(
+                "SELECT * FROM bdp_article_stock WHERE user_id = $1 AND warehouse_id = $2 ORDER BY articulo_glory_codigo",
+            )
+            .bind(user_id)
+            .bind(wid)
+            .fetch_all(pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, crate::models::BdpArticleStock>(
+                "SELECT * FROM bdp_article_stock WHERE user_id = $1 ORDER BY articulo_glory_codigo",
+            )
+            .bind(user_id)
+            .fetch_all(pool)
+            .await?
+        };
+        Ok(rows)
+    }
+
+    /// Upsert del stock por almacén. Por defecto `warehouse_id` "0" / "General".
+    /// [247A-10/S2] Se usa desde `sync_catalog` para guardar el stock agregado
+    /// de `ExportArticles` mientras BDP no devuelva desglose por almacén.
+    pub async fn upsert_stock(
+        pool: &PgPool,
+        user_id: Uuid,
+        articulo_glory_codigo: &str,
+        stock: Decimal,
+    ) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query(
+            "INSERT INTO bdp_article_stock \
+                (id, user_id, articulo_glory_codigo, warehouse_id, warehouse_name, stock, ultima_sync_at, created_at, updated_at) \
+             VALUES ($1, $2, $3, '0', 'General', $4, NOW(), NOW(), NOW()) \
+             ON CONFLICT (user_id, articulo_glory_codigo, warehouse_id) DO UPDATE SET \
+                stock = EXCLUDED.stock, \
+                warehouse_name = EXCLUDED.warehouse_name, \
+                ultima_sync_at = NOW(), \
+                updated_at = NOW() \
+             WHERE bdp_article_stock.stock IS DISTINCT FROM EXCLUDED.stock",
+        )
+        .bind(Uuid::new_v4())
+        .bind(user_id)
+        .bind(articulo_glory_codigo)
+        .bind(stock)
         .execute(pool)
         .await?;
 

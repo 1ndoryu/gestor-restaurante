@@ -802,4 +802,38 @@ mod tests {
         assert_eq!(parsed.articles.len(), 1);
         assert_eq!(parsed.articles[0].art_code(), Some("1001"));
     }
+
+    /* [247A-10/S1] Tests defensivos de parsing de stock. */
+    #[test]
+    fn effective_stock_reads_root_current_stock() {
+        let parsed: BdpExportArticlesResponse = serde_json::from_value(serde_json::json!({
+            "Articles": [{"Code": "1001", "CurrentStock": 12.34}]
+        }))
+        .unwrap();
+        assert_eq!(
+            parsed.articles[0].effective_stock(),
+            Some(rust_decimal::Decimal::from_str("12.34").unwrap())
+        );
+    }
+
+    #[test]
+    fn effective_stock_falls_back_to_prices_table_data() {
+        let parsed: BdpExportArticlesResponse = serde_json::from_value(serde_json::json!({
+            "Articles": [{"Code": "1002", "PricesTableData": [{"CurrentStock": 5.0}]}]
+        }))
+        .unwrap();
+        assert_eq!(
+            parsed.articles[0].effective_stock(),
+            Some(rust_decimal::Decimal::from_f64_retain(5.0).unwrap())
+        );
+    }
+
+    #[test]
+    fn effective_stock_returns_none_when_stock_module_inactive() {
+        let parsed: BdpExportArticlesResponse = serde_json::from_value(serde_json::json!({
+            "Articles": [{"Code": "1003", "Price1": 2.5}]
+        }))
+        .unwrap();
+        assert!(parsed.articles[0].effective_stock().is_none());
+    }
 }
