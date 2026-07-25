@@ -17,9 +17,7 @@ impl BdpPurchaseNoteRepository {
         user_id: Uuid,
         params: &BdpPurchaseNoteListParams,
     ) -> Result<Vec<BdpPurchaseNote>, sqlx::Error> {
-        let mut query = String::from(
-            "SELECT * FROM bdp_purchase_notes WHERE user_id = $1",
-        );
+        let mut query = String::from("SELECT * FROM bdp_purchase_notes WHERE user_id = $1");
         let mut args = sqlx::postgres::PgArguments::default();
         let _ = args.add(user_id);
         let mut param_idx: usize = 1;
@@ -45,13 +43,12 @@ impl BdpPurchaseNoteRepository {
 
         query.push_str(" ORDER BY fecha DESC NULLS LAST, serie, numero");
 
-        sqlx::query_as_with(&query, args)
-            .fetch_all(pool)
-            .await
+        sqlx::query_as_with(&query, args).fetch_all(pool).await
     }
 
     /// Inserta o actualiza un albarán a partir de los datos devueltos por BDP.
     /// La clave natural es (`user_id`, `serie`, `numero`).
+    /// Preserva el estado local y el `gasto_id` en caso de resincronización.
     pub async fn upsert_from_bdp(
         pool: &PgPool,
         user_id: Uuid,
@@ -59,15 +56,18 @@ impl BdpPurchaseNoteRepository {
     ) -> Result<bool, sqlx::Error> {
         let serie = note.serie_albaran.as_deref().unwrap_or("");
         let numero = note.num_albaran.as_deref().unwrap_or("");
-        let codigo_proveedor = note.cod_proveedor.as_ref().map(std::string::ToString::to_string);
+        let codigo_proveedor = note
+            .cod_proveedor
+            .as_ref()
+            .map(|v| v.as_str().map_or_else(|| v.to_string(), String::from));
         let nombre_proveedor = note.nom_proveedor.as_deref().unwrap_or("");
         let total = note.total_albaran;
         let fecha = note.fecha_albaran.as_deref().and_then(parse_fecha_bdp);
 
         let result = sqlx::query(
             "INSERT INTO bdp_purchase_notes \
-                (id, user_id, serie, numero, fecha, codigo_proveedor, nombre_proveedor, total, datos_bdp, ultima_sync_at, created_at, updated_at) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW(), NOW()) \
+                (id, user_id, serie, numero, fecha, codigo_proveedor, nombre_proveedor, total, datos_bdp, estado, ultima_sync_at, created_at, updated_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pendiente', NOW(), NOW(), NOW()) \
              ON CONFLICT (user_id, serie, numero) DO UPDATE SET \
                 fecha = EXCLUDED.fecha, \
                 codigo_proveedor = EXCLUDED.codigo_proveedor, \
@@ -89,6 +89,70 @@ impl BdpPurchaseNoteRepository {
         .execute(pool)
         .await?;
 
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Obtiene un albarán por ID, validando propiedad del usuario.
+    pub async fn find_by_id<'e, E>(
+        executor: E,
+        id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<crate::models::BdpPurchaseNote>, sqlx::Error>
+    where
+        E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+    {
+        sqlx::query_as!(crate::models::BdpPurchaseNote,
+            "SELECT id, user_id, serie, numero, fecha, codigo_proveedor, nombre_proveedor, total, datos_bdp, estado, gasto_id, ultima_sync_at, created_at, updated_at \
+             FROM bdp_purchase_notes WHERE id = $1 AND user_id = $2",
+            id,
+            user_id
+        )
+        .fetch_optional(executor)
+        .await
+    }
+
+    /// Marca un albarán como borrador. Solo puede pasar desde 'pendiente'.
+    pub async fn marcar_borrador<'e, E>(
+        executor: E,
+        id: Uuid,
+        user_id: Uuid,
+    ) -> Result<bool, sqlx::Error>
+    where
+        E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+    {
+        let result = sqlx::query!(
+            "UPDATE bdp_purchase_notes \
+             SET estado = 'borrador', updated_at = NOW() \
+             WHERE id = $1 AND user_id = $2 AND estado = 'pendiente'",
+            id,
+            user_id
+        )
+        .execute(executor)
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Vincula un albarán con un gasto y lo marca como conciliado.
+    /// Solo puede pasar desde 'borrador'.
+    pub async fn vincular_gasto<'e, E>(
+        executor: E,
+        id: Uuid,
+        user_id: Uuid,
+        gasto_id: Uuid,
+    ) -> Result<bool, sqlx::Error>
+    where
+        E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+    {
+        let result = sqlx::query!(
+            "UPDATE bdp_purchase_notes \
+             SET estado = 'conciliado', gasto_id = $1, updated_at = NOW() \
+             WHERE id = $2 AND user_id = $3 AND estado = 'borrador'",
+            gasto_id,
+            id,
+            user_id
+        )
+        .execute(executor)
+        .await?;
         Ok(result.rows_affected() > 0)
     }
 }

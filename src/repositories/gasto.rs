@@ -38,7 +38,10 @@ pub struct ActualizarGastoData<'a> {
 pub struct GastoRepository;
 
 impl GastoRepository {
-    pub async fn create(pool: &PgPool, data: &NuevoGasto<'_>) -> Result<Gasto, sqlx::Error> {
+    pub async fn create<'e, E>(executor: E, data: &NuevoGasto<'_>) -> Result<Gasto, sqlx::Error>
+    where
+        E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+    {
         let id = Uuid::new_v4();
         sqlx::query_as!(
             Gasto,
@@ -58,22 +61,25 @@ impl GastoRepository {
             data.importe_base,
             data.importe_iva
         )
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
     }
 
-    pub async fn find_by_id(
-        pool: &PgPool,
+    pub async fn find_by_id<'e, E>(
+        executor: E,
         id: Uuid,
         user_id: Uuid,
-    ) -> Result<Option<Gasto>, sqlx::Error> {
+    ) -> Result<Option<Gasto>, sqlx::Error>
+    where
+        E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+    {
         sqlx::query_as!(
             Gasto,
             "SELECT * FROM gastos WHERE id = $1 AND user_id = $2",
             id,
             user_id
         )
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await
     }
 

@@ -135,6 +135,8 @@ export interface BdpPurchaseNote {
   codigo_proveedor: string | null;
   nombre_proveedor: string | null;
   total: string | null;
+  estado: 'pendiente' | 'borrador' | 'conciliado';
+  gasto_id: string | null;
   datos_bdp: Record<string, unknown>;
   ultima_sync_at: string | null;
   created_at: string;
@@ -197,6 +199,61 @@ export function useBdpPurchaseNotes(filters: BdpPurchaseNoteFilters = {}, enable
 export function useSyncBdpPurchaseNotes(queryClient?: QueryClient) {
   return useMutation({
     mutationFn: syncBdpPurchaseNotes,
+    onSuccess: () => {
+      queryClient?.invalidateQueries({ queryKey: ['bdp-purchase-notes'] });
+    },
+  });
+}
+
+/** Marcar un albarán como borrador (Fase 2). */
+export async function draftBdpPurchaseNote(id: string): Promise<BdpPurchaseNote> {
+  const resp = await customInstance(`/api/bdp/purchase-notes/${id}/draft`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  }) as { data: BdpPurchaseNote };
+  return resp.data;
+}
+
+/** Conciliar un albarán con un gasto existente o nuevo (Fase 3). */
+export async function reconcileBdpPurchaseNote(
+  id: string,
+  req: BdpPurchaseNoteReconcileRequest,
+): Promise<BdpPurchaseNoteReconcileResult> {
+  const resp = await customInstance(`/api/bdp/purchase-notes/${id}/reconcile`, {
+    method: 'POST',
+    body: JSON.stringify(req),
+  }) as { data: BdpPurchaseNoteReconcileResult };
+  return resp.data;
+}
+
+/** Request para conciliar un albarán. */
+export interface BdpPurchaseNoteReconcileRequest {
+  gasto_existente_id?: string;
+  categoria_id?: string;
+}
+
+/** Resultado de la conciliación. */
+export interface BdpPurchaseNoteReconcileResult {
+  albaran_id: string;
+  gasto_id: string;
+  accion: string;
+}
+
+/** Mutation hook: marcar albarán como borrador. */
+export function useDraftBdpPurchaseNote(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: draftBdpPurchaseNote,
+    onSuccess: () => {
+      queryClient?.invalidateQueries({ queryKey: ['bdp-purchase-notes'] });
+    },
+  });
+}
+
+/** Mutation hook: conciliar albarán. */
+export function useReconcileBdpPurchaseNote(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: ({ id, req }: { id: string; req: BdpPurchaseNoteReconcileRequest }) =>
+      reconcileBdpPurchaseNote(id, req),
     onSuccess: () => {
       queryClient?.invalidateQueries({ queryKey: ['bdp-purchase-notes'] });
     },

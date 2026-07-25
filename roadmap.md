@@ -102,7 +102,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 | Funcionalidad                                   | Motivo                                                   | Estado                        |
 | ----------------------------------------------- | -------------------------------------------------------- | ----------------------------- |
-| **Compras** (albaranes/facturas de proveedores) | **Fase 1 (lectura de albaranes) implementada.** Fases 2 y 3 (crear borradores, recepción/reconciliación) pendientes de consulta cliente. | 🟡 Parcialmente implementado |
+| **Compras** (albaranes/facturas de proveedores) | **Fases 1-3 implementadas.** Lectura de albaranes, creación de borradores locales y conciliación con gastos (existentes o nuevos). Todo protegido por feature flags. | ✅ Implementado |
 | **Pagos parciales**                             | Implementado bajo feature flag `ff_bdp_partial_payments` | ✅ Implementado (beta)        |
 | **Sincronización bidireccional automática**     | Riesgo de bucles y conflictos; no soportada por BDP      | ❌ Rechazado                  |
 | **CancelOrder**                                 | BDP responde "Subscripción no activada"                  | ❌ Bloqueado por BDP          |
@@ -130,23 +130,6 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Tareas pendientes
 
-### Bloque 247A-10 — Mejoras de stock BDP (en curso)
-
-| ID  | Item                                                   | Estado   | Notas                                                                                                                                  |
-| --- | ------------------------------------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| S1  | Tests de stock (parsing `effective_stock` + upsert DB) | ✅ Hecho | `tests/bdp_article_map.rs` + unit tests en `src/services/bdp_weblink_catalog.rs`                                                       |
-| S2  | Stock por almacén (solo lectura, almacén por defecto)  | ✅ Hecho | Tabla `bdp_article_stock`, warehouse por defecto `"0"` / `"General"`; endpoint `/api/bdp/article-stock` preparado para futuro desglose |
-| S3  | Mejorar exportación CSV de stock                       | ✅ Hecho | BOM para Excel, nombre dinámico con timestamp, columnas extendidas, fila de totales, opción filtrados/todos                            |
-| S4  | Página individual de stock `/bdp/stock`                | ✅ Hecho | Filtros, ordenación, paginación, sync catálogo                                                                                         |
-
-### Bloque 247A-9b — Pagos parciales BDP (UI + ambiguos)
-
-| ID  | Item                                                               | Estado   | Notas                                                                                                   |
-| --- | ------------------------------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------- |
-| P1  | Backend ledger `bdp_pagos`, feature flag e idempotencia            | ✅ Hecho | `src/services/bdp_sync.rs`, `src/repositories/bdp_pago.rs`                                              |
-| P2  | UI de pagos parciales en `venta-row-actions.tsx`                   | ✅ Hecho | Diálogo con saldo, historial, añadir pago, generar `idempotency_key`; usa axios `instance` directamente |
-| P3  | Reconciliación de pagos ambiguos (`bdp_pagos.resultado='ambiguo'`) | ✅ Hecho | `reconcile_ambiguous_pagos` en `bdp_order_poller.rs`; badge y aviso en UI                               |
-
 ### Bloque 247A-7 — Mitigaciones críticas BDP (implementadas)
 
 | ID      | Riesgo                                                       | Estado          | Qué se hizo                                                                                                  | Archivos clave                                                  |
@@ -156,22 +139,18 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 | R14     | Limpieza manual de `SYNC_LOCKS`                              | ✅ Implementado | Guard RAII `SyncLockGuard` que llama `cleanup_lock` en `Drop`                                                | `src/services/bdp_sync.rs`                                      |
 | R2-nota | Lock distribuido perdido tras early commit (cross-instance)  | Documentado     | Evaluar `pg_advisory_lock` de sesión o columna `bdp_sync_status` si se despliega multi-instance              | `Agente/documentacion/bdp/riesgos-produccion-bdp-2026-07-24.md` |
 
-### Bloque 247A-8 — Mejoras de UI/UX BDP (nuevas)
-
-| ID  | Item                                   | Estado          | Descripción                                                                                                                                                                                                                            | Esfuerzo estimado |
-| --- | -------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| UI1 | **Página dedicada de historial BDP**   | ✅ Implementado | Ruta `/bdp/historial` con pestañas de auditoría y snapshots. Acciones seguras (solo ver detalles).                                                                                                                                     | ~2h               |
-| UI2 | **Página dedicada del explorador BDP** | ✅ Implementado | Ruta `/bdp/explorador` para menús/packs/fastfoods con layout de página completa y tabla de líneas.                                                                                                                                     | ~2h               |
-| UI3 | **Página dedicada de stock BDP**       | ✅ Implementado | Ruta `/bdp/stock` con tabla de artículos, filtros y botón de sync catálogo. Solo lectura.                                                                                                                                              | ~2h               |
-| UI4 | **Página de stock BDP (solo lectura)** | ✅ Implementado | Página individual `/bdp/stock` con filtros, ordenación, paginación, exportación CSV y banner de solo lectura. Ver plan en `Agente/planes/plan-stock-bdp-gestionable-2026-07-25.md`. Gestión/lectura por almacén pendiente de decisión. | ~4.5h             |
-
 ### Bloque 247A-9 — Decisiones pendientes del cliente
 
 | ID  | Item                                    | Pregunta al cliente                                                                                                                                                                                                                                                   | Esfuerzo estimado           |
-| --- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| D2  | **Compras** (solo lectura de albaranes) | ✅ Fase 1 implementada. ¿Necesita crear borradores/recepción en Glory? ¿El módulo está activo en BDP?                                                                                                                                                                 | ~8h (fase 1 lectura)        |
-| D4  | **Pagos parciales**                     | ✅ Implementado (backend + frontend + reconciliación de ambiguos). Ver `Agente/planes/plan-pagos-parciales-bdp-2026-07-25.md`. Ledger local (`bdp_pagos`), feature flag, idempotencia, prevención de sobrepago, tests de integración y UI en `venta-row-actions.tsx`. | ~18-22h (con lock + ledger) |
-| D5  | **CancelOrder**                         | BDP responde "Subscripción no activada". ¿Pueden activar el módulo?                                                                                                                                                                                                   | ~12-16h si BDP lo activa    |
+| --- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- || D2  | **Compras** (albaranes) | ✅ Fases 1-3 implementadas y testeadas sin llamar a BDP: lectura, borradores locales y conciliación con gastos. Protegidas por feature flags `ff_bdp_purchase_notes_*`. | ~12h        || D5  | **CancelOrder**                         | BDP responde "Subscripción no activada". ¿Pueden activar el módulo?                                                                                                                                                                                                  | ~12-16h si BDP lo activa    |
+
+### Bloque 247A-11 — Modo Demo y Refuerzos Compras BDP (completado)
+
+| ID  | Item                                                   | Estado   | Notas                                                                                                                                          |
+| --- | ------------------------------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| DM1 | Frontend: Modo demo en las 4 páginas BDP               | ✅ Hecho | Stock, Explorador, Historial y Compras usan datos simulados, bloquean hooks reales y deshabilitan sync.                                       |
+| C1  | Backend: Refuerzos BDP Compras Fase 1                  | ✅ Hecho | Simplificación `validar_rango_fechas`, filtrado de claves naturales vacías y mapeo seguro de errores BDP sin filtrar URLs.                      |
+| T6  | Pruebas: Simulación segura y tests unitarios BDP --lib | ✅ Hecho | Verificado con simulación sin llamar a API real. Tests unitarios en validación de fechas y clave natural. `cargo test bdp --lib` 57 tests OK. |
 
 ### Bloque 247A-9 — Pruebas y validación antes de producción
 

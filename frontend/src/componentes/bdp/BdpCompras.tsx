@@ -3,17 +3,25 @@
  * Modo demo incluido para visualizar datos de prueba. */
 
 import { useMemo, useState } from 'react';
-import { Search, RefreshCw, Loader2 } from 'lucide-react';
+import { Search, RefreshCw, Loader2, FilePen, CheckCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useBdpDemoMode } from '@/hooks/useBdpDemoMode';
-import { useBdpPurchaseNotes, useSyncBdpPurchaseNotes } from '@/api/bdp';
+import {
+  useBdpPurchaseNotes,
+  useDraftBdpPurchaseNote,
+  useReconcileBdpPurchaseNote,
+  useSyncBdpPurchaseNotes,
+} from '@/api/bdp';
+import type { BdpPurchaseNote, BdpPurchaseNoteReconcileRequest } from '@/api/bdp';
 import { mockPurchaseNotes } from './bdp-mocks';
 import { BdpDemoToggle } from './BdpDemoToggle';
+import { BdpComprasReconcileModal } from './BdpComprasReconcileModal';
 
 function formatDate(value: string | null) {
   if (!value) return '—';
@@ -38,6 +46,7 @@ function BdpCompras() {
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [profileCode, setProfileCode] = useState('1');
+  const [reconcileNote, setReconcileNote] = useState<BdpPurchaseNote | null>(null);
 
   const filters = useMemo(
     () => ({
@@ -50,6 +59,8 @@ function BdpCompras() {
 
   const { data, isLoading, error } = useBdpPurchaseNotes(filters, !demoMode);
   const syncMutation = useSyncBdpPurchaseNotes(queryClient);
+  const draftMutation = useDraftBdpPurchaseNote(queryClient);
+  const reconcileMutation = useReconcileBdpPurchaseNote(queryClient);
 
   const filteredDemoNotes = useMemo(() => {
     return mockPurchaseNotes.filter((n) => {
@@ -89,6 +100,45 @@ function BdpCompras() {
         },
         onError: () => {
           toast.error('Error al sincronizar albaranes BDP');
+        },
+      },
+    );
+  }
+
+  function handleDraft(note: BdpPurchaseNote) {
+    if (demoMode) {
+      toast.info('En modo demo no se guardan cambios reales');
+      return;
+    }
+    draftMutation.mutate(note.id, {
+      onSuccess: () => {
+        toast.success('Albarán marcado como borrador');
+      },
+      onError: () => {
+        toast.error('No se pudo marcar como borrador');
+      },
+    });
+  }
+
+  function handleReconcile(note: BdpPurchaseNote) {
+    if (demoMode) {
+      toast.info('En modo demo no se guardan cambios reales');
+      return;
+    }
+    setReconcileNote(note);
+  }
+
+  function submitReconcile(req: BdpPurchaseNoteReconcileRequest) {
+    if (!reconcileNote) return;
+    reconcileMutation.mutate(
+      { id: reconcileNote.id, req },
+      {
+        onSuccess: (res) => {
+          toast.success(`Albarán conciliado con gasto ${res.gasto_id}`);
+          setReconcileNote(null);
+        },
+        onError: () => {
+          toast.error('No se pudo conciliar el albarán');
         },
       },
     );
@@ -179,6 +229,8 @@ function BdpCompras() {
                 <TableHead>Número</TableHead>
                 <TableHead>Proveedor</TableHead>
                 <TableHead className="text-right">Total</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -193,14 +245,64 @@ function BdpCompras() {
                   <TableCell className="text-right text-xs tabular-nums">
                     {formatCurrency(note.total)}
                   </TableCell>
+                  <TableCell className="text-xs">{formatEstado(note.estado)}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {note.estado === 'pendiente' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDraft(note)}
+                          disabled={draftMutation.isPending}
+                        >
+                          <FilePen className="mr-1 size-3.5" />
+                          Borrador
+                        </Button>
+                      )}
+                      {note.estado === 'borrador' && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleReconcile(note)}
+                          disabled={reconcileMutation.isPending}
+                        >
+                          <CheckCircle className="mr-1 size-3.5" />
+                          Conciliar
+                        </Button>
+                      )}
+                      {note.estado === 'conciliado' && (
+                        <span className="text-xs text-muted-foreground">Conciliado</span>
+                      )}
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
       )}
+
+      <BdpComprasReconcileModal
+        open={!!reconcileNote}
+        note={reconcileNote}
+        onClose={() => setReconcileNote(null)}
+        onSubmit={submitReconcile}
+      />
     </div>
   );
+}
+
+function formatEstado(estado: BdpPurchaseNote['estado']) {
+  switch (estado) {
+    case 'pendiente':
+      return <span className="text-xs text-muted-foreground">Pendiente</span>;
+    case 'borrador':
+      return <span className="text-xs text-blue-600">Borrador</span>;
+    case 'conciliado':
+      return <span className="text-xs text-green-600">Conciliado</span>;
+    default:
+      return <span className="text-xs text-muted-foreground">—</span>;
+  }
 }
 
 export default BdpCompras;

@@ -7,6 +7,11 @@ mod bdp_article_map;
 mod bdp_backup;
 mod bdp_customer_sync;
 mod bdp_purchase_note;
+
+pub use bdp_purchase_note::{
+    conciliar_purchase_note, listar_purchase_notes, marcar_borrador_purchase_note,
+    sincronizar_purchase_notes,
+};
 mod campanas;
 mod canales_reserva;
 mod chatbot;
@@ -201,6 +206,8 @@ impl utoipa::Modify for SecurityAddon {
         bdp_article_map::get_pack_definition,
         bdp_purchase_note::listar_purchase_notes,
         bdp_purchase_note::sincronizar_purchase_notes,
+        bdp_purchase_note::marcar_borrador_purchase_note,
+        bdp_purchase_note::conciliar_purchase_note,
         bdp_customer_sync::importar_clientes_bdp,
         bdp_customer_sync::sincronizar_cliente_bdp,
         bdp_backup::explorar_bdp,
@@ -370,7 +377,11 @@ impl utoipa::Modify for SecurityAddon {
         crate::models::CrearBdpArticleMapRequest,
         crate::models::ActualizarBdpArticleMapRequest,
         crate::models::BdpPurchaseNote,
+        crate::models::BdpPurchaseNoteDraftRequest,
+        crate::models::BdpPurchaseNoteEstado,
         crate::models::BdpPurchaseNoteListParams,
+        crate::models::BdpPurchaseNoteReconcileRequest,
+        crate::models::BdpPurchaseNoteReconcileResult,
         crate::models::BdpPurchaseNoteSyncRequest,
         crate::models::BdpPurchaseNoteSyncResult,
         crate::services::BdpCatalogSyncResult,
