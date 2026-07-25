@@ -25,7 +25,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex as StdMutex};
 
 use chrono::Utc;
-use rust_decimal::Decimal;
+use rust_decimal::prelude::{Decimal, FromPrimitive};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use tokio::sync::Mutex as TokioMutex;
@@ -35,7 +35,8 @@ use uuid::Uuid;
 
 use crate::models::{ConfiguracionRestaurante, Venta, VentaLinea};
 use crate::repositories::{
-    BdpArticleMapRepository, ClienteRepository, VentaLineaRepository, VentaRepository,
+    BdpArticleMapRepository, BdpPagoRepository, ClienteRepository, VentaLineaRepository,
+    VentaRepository,
 };
 use crate::services::bdp_weblink::BdpWeblinkClient;
 use crate::services::bdp_weblink_catalog::{
@@ -46,6 +47,8 @@ use crate::services::bdp_weblink_catalog::{
 };
 
 pub(crate) const BDP_SYNC_MARKET_ID: i32 = 9_900;
+/* [247A-9] Tolerancia para comparaciones de saldo pendiente en pagos BDP. */
+const BDP_PAYMENT_TOLERANCE: f64 = 0.005;
 
 /* [F3.1] Contexto resuelto para construir el pedido BDP.
  * Se resuelve en sync_venta() y se pasa a build_order() para no hacer
@@ -1128,12 +1131,11 @@ impl BdpSyncService {
     /* ===== FASE 8: AddOrderPayment + InvoiceOrder ===== */
 
     /* [F8.1] Registrar pago contra una orden BDP existente.
-     * Llama a `POST /API/Orders/Payment/Add` con el order_id de la venta.
-     * Retorna el InvoiceNumber si BDP lo devuelve (algunos pagos no facturan automáticamente).
+     * Ahora soporta pagos parciales controlados por el feature flag
+     * ff_bdp_partial_payments. Cada pago se registra en el ledger local
+     * bdp_pagos para evitar sobrepagos y mantener historial.
      *
-     * ⚠️ REQUIERE AUTORIZACIÓN DEL USUARIO para llamadas reales a BDP. */
-    /* [187A-1] La secuencia pago/preflight/snapshot/autorización/auditoría se
-     * mantiene lineal para impedir que una futura salida temprana omita guardas. */
+     * ️ REQUIERE AUTORIZACIÓN DEL USUARIO para llamadas reales a BDP. */
     #[allow(clippy::too_many_lines)]
     pub async fn add_order_payment(
         pool: &PgPool,
@@ -1165,6 +1167,43 @@ impl BdpSyncService {
 
         if amount <= Decimal::ZERO || tender_id <= 0 {
             return Err("Pago BDP bloqueado: importe o tender inválido".into());
+        }
+
+        /* [247A-9] Exclusión por venta para evitar pagos concurrentes que
+         * podrían sobrepasar el saldo pendiente. */
+        let lock = {
+            let mut map = SYNC_LOCKS
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            map.entry(venta.id)
+                .or_insert_with(|| Arc::new(TokioMutex::new(())))
+                .clone()
+        };
+        let Ok(_guard) = lock.try_lock() else {
+            return Err("Ya hay un pago en proceso para esta venta; inténtalo de nuevo".into());
+        };
+        let _sync_lock_guard = SyncLockGuard::new(venta.id);
+
+        /* [247A-9] Idempotencia: si la clave ya existe con éxito, no repetir.
+         * La clave debe pertenecer a la misma venta y tener mismos amount/tender_id
+         * para considerarse un reintento legítimo; de lo contrario es un error de
+         * cliente o un intento de reuso malicioso de clave. */
+        if let Some(key) = idempotency_key {
+            if let Ok(Some(pago)) = BdpPagoRepository::obtener_por_idempotency_key(pool, key).await {
+                if pago.venta_id != venta.id {
+                    return Err("idempotencia_duplicada:ledger:otra_venta".into());
+                }
+                if pago.amount != amount || pago.tender_id != tender_id {
+                    return Err("idempotencia_duplicada:ledger:campos_distintos".into());
+                }
+                if pago.resultado == "exito" {
+                    info!(
+                        "[247A-9] Pago con idempotencia {} ya existía; no se reenvía a BDP",
+                        key
+                    );
+                    return Ok(None);
+                }
+            }
         }
 
         let client = BdpWeblinkClient::new(config);
@@ -1204,18 +1243,27 @@ impl BdpSyncService {
             .get("Total")
             .and_then(Value::as_f64)
             .ok_or_else(|| "Pago bloqueado: GetOrder no devolvió Total".to_string())?;
-        let paid: f64 = order
-            .get("Payments")
-            .and_then(Value::as_array)
-            .ok_or_else(|| "Pago bloqueado: GetOrder no devolvió Payments".to_string())?
-            .iter()
-            .map(|payment| payment.get("Amount").and_then(Value::as_f64).unwrap_or(0.0))
-            .sum();
         let requested = Self::decimal_to_f64(&amount);
-        let pending = total - paid;
-        if (requested - pending).abs() > 0.005 {
+
+        /* [247A-9] Saldo pendiente basado en ledger local. BDP también puede
+         * tener pagos hechos fuera de Glory; si el total pagado local es menor
+         * que el de BDP, aceptamos el menor saldo pendiente para no bloquear
+         * pagos legítimos. */
+        let local_paid = BdpPagoRepository::total_pagado(pool, venta.id)
+            .await
+            .map_err(|e| format!("Pago bloqueado: no se pudo calcular saldo local: {e}"))?;
+        let local_paid_f64 = Self::decimal_to_f64(&local_paid);
+        let pending = total - local_paid_f64;
+
+        let is_partial = (requested - pending).abs() > BDP_PAYMENT_TOLERANCE;
+        if is_partial && !config.ff_bdp_partial_payments {
             return Err(format!(
-                "Pago bloqueado: esta integración admite un único pago completo; saldo BDP={pending:.2}, solicitado={requested:.2}"
+                "Pago bloqueado: pagos parciales desactivados. Saldo={pending:.2}, solicitado={requested:.2}"
+            ));
+        }
+        if requested > pending + BDP_PAYMENT_TOLERANCE {
+            return Err(format!(
+                "Pago bloqueado: el importe {requested:.2} excede el saldo pendiente {pending:.2}"
             ));
         }
 
@@ -1225,7 +1273,8 @@ impl BdpSyncService {
             "venta_id": venta.id,
             "order_id": order_id,
             "amount": amount,
-            "tender_id": tender_id
+            "tender_id": tender_id,
+            "is_partial": is_partial
         });
         let snapshot_pre_id = crate::services::BdpBackupService::preparar_snapshot_escritura(
             pool,
@@ -1251,11 +1300,19 @@ impl BdpSyncService {
         )
         .await?;
 
-        /* Una venta admite una única intención de pago completo desde este
-         * endpoint. La clave estable evita duplicarla si la respuesta remota
-         * se pierde; los pagos parciales permanecen bloqueados hasta disponer
-         * de un ledger local de intenciones independiente. */
-        let payment_id = format!("P{}", &venta.id.simple().to_string()[..14]);
+        /* [247A-9] ID de pago determinístico a partir de la idempotencia para
+         * que los reintentos con la misma clave reutilicen el mismo identificador
+         * en BDP y no se creen pagos duplicados. */
+        let venta_prefix = venta.id.simple().to_string();
+        let venta_prefix = &venta_prefix[..14];
+        let payment_id = idempotency_key.map_or_else(
+            || {
+                let uuid_short = Uuid::new_v4().simple().to_string();
+                let uuid_short = &uuid_short[..8];
+                format!("P{venta_prefix}-{uuid_short}")
+            },
+            |k| format!("P{venta_prefix}-{k}"),
+        );
 
         let request = BdpAddOrderPaymentRequest {
             order_identifier: BdpOrderIdentifier::by_order_id(order_id),
@@ -1280,17 +1337,14 @@ impl BdpSyncService {
                     | crate::services::bdp_weblink::BdpWeblinkError::Throttled(_) => "ambiguo",
                     _ => "error",
                 };
-                crate::services::BdpBackupService::actualizar_resultado(
+                let _ = crate::services::BdpBackupService::actualizar_resultado(
                     pool,
                     audit_id,
                     resultado,
                     None,
                     Some(&msg),
                 )
-                .await
-                .map_err(|audit_error| {
-                    format!("{msg}; además falló el cierre de auditoría: {audit_error}")
-                })?;
+                .await;
                 return Err(msg);
             }
         };
@@ -1300,9 +1354,8 @@ impl BdpSyncService {
             .and_then(|v| v.as_str())
             .map(String::from);
 
-        /* [207A-2] S7-H2: Envolver marca local + auditoría en transacción
-         * para que, si el proceso muere después del HTTP, no quede
-         * bdp_invoiced=true sin auditoría cerrada (o viceversa). */
+        /* [207A-2] S7-H2: Envolver marca local + auditoría + ledger en
+         * transacción para consistencia. */
         let commit_result = async {
             let mut tx = pool
                 .begin()
@@ -1340,6 +1393,33 @@ impl BdpSyncService {
             .execute(&mut *tx)
             .await
             .map_err(|e| format!("Pago confirmado, pero falló el cierre de auditoría: {e}"))?;
+
+            /* [247A-9] Registrar pago local en el mismo commit atómico. */
+            let idempotency_for_insert = idempotency_key.unwrap_or(&payment_id).to_string();
+            let pago_respuesta: Option<serde_json::Value> = Some(response.clone());
+            sqlx::query(
+                r"INSERT INTO bdp_pagos
+                (venta_id, amount, tender_id, idempotency_key, bdp_order_id, bdp_payment_id, resultado, datos_respuesta)
+                VALUES ($1, $2, $3, $4, $5, $6, 'exito', $7)
+                ON CONFLICT (idempotency_key) DO UPDATE SET
+                    updated_at = NOW(),
+                    resultado = EXCLUDED.resultado,
+                    datos_respuesta = EXCLUDED.datos_respuesta
+                WHERE bdp_pagos.venta_id = EXCLUDED.venta_id
+                  AND bdp_pagos.amount = EXCLUDED.amount
+                  AND bdp_pagos.tender_id = EXCLUDED.tender_id
+                RETURNING id",
+            )
+            .bind(venta.id)
+            .bind(amount)
+            .bind(tender_id)
+            .bind(idempotency_for_insert)
+            .bind(order_id)
+            .bind(Some(&payment_id))
+            .bind(pago_respuesta)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|e| format!("Pago confirmado, pero falló el registro en ledger: {e}"))?;
 
             tx.commit()
                 .await
@@ -1467,8 +1547,16 @@ impl BdpSyncService {
             .iter()
             .map(|payment| payment.get("Amount").and_then(Value::as_f64).unwrap_or(0.0))
             .sum();
-        if (total - paid).abs() > 0.005 {
-            return Err("Factura bloqueada: la orden conserva saldo pendiente".into());
+        let total_decimal = Decimal::from_f64(total).unwrap_or(Decimal::ZERO);
+        let local_paid = BdpPagoRepository::total_pagado(pool, venta.id)
+            .await
+            .map_err(|e| format!("Factura bloqueada: no se pudo calcular saldo local: {e}"))?;
+        let tolerance = Decimal::from_f64(BDP_PAYMENT_TOLERANCE).unwrap_or(Decimal::new(5, 3));
+        if (total_decimal - local_paid).abs() > tolerance {
+            return Err("Factura bloqueada: la orden conserva saldo pendiente local".into());
+        }
+        if (total - paid).abs() > BDP_PAYMENT_TOLERANCE {
+            return Err("Factura bloqueada: la orden conserva saldo pendiente en BDP".into());
         }
 
         /* [187A-1] Snapshot obligatorio + autorización de un solo uso. */

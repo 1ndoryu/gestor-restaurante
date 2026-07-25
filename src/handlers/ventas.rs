@@ -374,6 +374,24 @@ pub struct BdpPaymentResponse {
 }
 
 #[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct BdpPaymentHistoryItem {
+    pub id: Uuid,
+    pub amount: rust_decimal::Decimal,
+    pub tender_id: i32,
+    pub resultado: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct BdpPaymentsResponse {
+    pub venta_id: Uuid,
+    pub total: rust_decimal::Decimal,
+    pub pagado: rust_decimal::Decimal,
+    pub pendiente: rust_decimal::Decimal,
+    pub pagos: Vec<BdpPaymentHistoryItem>,
+}
+
+#[derive(serde::Serialize, utoipa::ToSchema)]
 pub struct BdpInvoiceResponse {
     pub venta_id: Uuid,
     pub invoice_number: String,
@@ -560,6 +578,54 @@ pub async fn bdp_payment(
     }))
 }
 
+/* [247A-9] GET /api/ventas/:id/bdp-payments — Historial y balance de pagos
+ * parciales de una venta. Incluye pagos locales del ledger, independientes de
+ * los pagos que se hayan registrado directamente en BDP. */
+
+#[utoipa::path(
+    get,
+    path = "/api/ventas/{id}/bdp-payments",
+    tag = "Ventas",
+    params(("id" = Uuid, Path, description = "ID de la venta")),
+    responses(
+        (status = 200, description = "Historial de pagos BDP", body = BdpPaymentsResponse),
+        (status = 404, description = "Venta no encontrada", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn listar_bdp_payments(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<BdpPaymentsResponse>, AppError> {
+    let venta = crate::repositories::VentaRepository::find_by_id(&state.pool, id, auth.user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
+
+    let pagos = crate::repositories::BdpPagoRepository::listar_por_venta(&state.pool, id).await?;
+    let pagado = crate::repositories::BdpPagoRepository::total_pagado(&state.pool, id).await?;
+    let total = venta.importe_base + venta.importe_iva;
+    let pendiente = (total - pagado).max(rust_decimal::Decimal::ZERO);
+
+    Ok(Json(BdpPaymentsResponse {
+        venta_id: id,
+        total,
+        pagado,
+        pendiente,
+        pagos: pagos
+            .into_iter()
+            .map(|p| BdpPaymentHistoryItem {
+                id: p.id,
+                amount: p.amount,
+                tender_id: p.tender_id,
+                resultado: p.resultado,
+                created_at: p.created_at,
+            })
+            .collect(),
+    }))
+}
+
 /* [263A-15] Axum 0.7 (matchit 0.7.x) usa :param, no {param}.
  * Todas las rutas con path params corregidas de {id} a :id.
  * Las anotaciones #[utoipa::path] mantienen {id} (sintaxis OpenAPI, no afecta routing). */
@@ -578,5 +644,6 @@ pub fn routes() -> Router<AppState> {
         .route("/ventas/:id/lineas", get(obtener_lineas_venta))
         .route("/ventas/:id/bdp-payment", post(bdp_payment))
         .route("/ventas/:id/bdp-invoice", post(bdp_invoice))
+        .route("/ventas/:id/bdp-payments", get(listar_bdp_payments))
         .route("/ventas/bdp-poll", post(bdp_poll))
 }

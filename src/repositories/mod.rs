@@ -1,5 +1,6 @@
 pub mod api_key;
 pub mod bdp_article_map;
+pub mod bdp_pago;
 pub mod campana;
 pub mod canal_reserva;
 pub mod cliente;
@@ -40,5 +41,6 @@ pub use resena::ResenaRepository;
 pub mod inactividad;
 pub use bdp_article_map::BdpArticleMapRepository;
 pub use bdp_article_map::BdpArticleUpsertData;
+pub use bdp_pago::BdpPagoRepository;
 pub use inactividad::InactividadRepository;
 pub use venta_linea::VentaLineaRepository;

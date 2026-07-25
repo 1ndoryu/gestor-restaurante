@@ -1,5 +1,6 @@
 mod api_key;
 mod bdp_article_map;
+pub mod bdp_pago;
 mod campana;
 mod canal_reserva;
 mod cliente;
@@ -97,6 +98,7 @@ mod inactividad;
 pub use bdp_article_map::{
     ActualizarBdpArticleMapRequest, BdpArticleMap, CrearBdpArticleMapRequest,
 };
+pub use bdp_pago::BdpPago;
 pub use inactividad::{
     ActualizarReglaInactividadRequest, CrearReglaInactividadRequest, ReglaInactividad,
 };
