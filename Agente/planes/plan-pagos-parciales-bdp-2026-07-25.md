@@ -3,7 +3,7 @@
 > **Fecha:** 2026-07-25  
 > **ID bloque:** 247A-9 / D4  
 > **Rama:** `glory-rs-rest`  
-> **Estado:** Backend implementado; frontend y tests de servicio pendientes  
+> **Estado:** Implementado (backend + frontend + reconciliación de ambiguos). Tests de servicio con simulador BDP pendientes de ejecución real.  
 > **Esfuerzo estimado:** ~18-22 h (backend: 8h, frontend: 5h, tests/QA: 5-7h, docs: 2h)
 
 ## 1. Contexto y objetivo
@@ -238,9 +238,9 @@ Añadir `pub mod bdp_pago;` y re-exportar `BdpPagoRepository`.
 | 5 | Refactor `add_order_payment` para soportar parciales | `src/services/bdp_sync.rs` | ✅ Hecho | 3 h |
 | 6 | Nuevo endpoint `GET /api/ventas/:id/bdp-payments` y modificar `bdp_payment`/`bdp_invoice` | `src/handlers/ventas.rs` | ✅ Hecho | 2 h |
 | 7 | Tests de integración del ledger (`bdp_pagos`) | `tests/bdp_pagos.rs` | ✅ Hecho | 2 h |
-| 8 | Tests de servicio/simulador para `add_order_payment` | `tests/bdp_partial_payments.rs` o similares | ⏳ Pendiente | 3 h |
-| 9 | UI de pagos parciales | `frontend/src/components/venta-row-actions.tsx` | ⏳ Pendiente | 3 h |
-| 10 | Regenerar API client + tests frontend | `frontend/src/api/generated/ventas/*` | ⏳ Pendiente | 1 h |
+| 8 | Tests de servicio/simulador para `add_order_payment` | `tests/bdp_partial_payments.rs` o similares | ⏳ Pendiente (sin BDP real) | 3 h |
+| 9 | UI de pagos parciales | `frontend/src/components/venta-row-actions.tsx` | ✅ Hecho | 3 h |
+| 10 | Regenerar API client + tests frontend | `frontend/src/api/generated/ventas/*` | ✅ Hecho (llamada directa con axios instance) | 1 h |
 | 11 | Actualizar roadmap y documentación | `roadmap.md`, este plan | ✅ Hecho | 30 min |
 
 ## 9. Decisiones pendientes
@@ -251,15 +251,15 @@ Añadir `pub mod bdp_pago;` y re-exportar `BdpPagoRepository`.
 
 ## 10. Criterios de aceptación
 
-- [ ] Migración aplica sin errores.
-- [ ] Tests de integración pasan con simulador BDP.
-- [ ] Pago parcial liquida el saldo correctamente.
-- [ ] Sobrepago es rechazado.
-- [ ] Facturación sin saldo completo es rechazada.
-- [ ] `ff_bdp_partial_payments=false` bloquea pagos parciales.
-- [ ] Frontend muestra historial y saldo pendiente.
-- [ ] `cargo test` y `cargo clippy` sin errores.
-- [ ] `npm run type-check` en frontend sin errores.
+- [x] Migración aplica sin errores.
+- [ ] Tests de integración pasan con simulador BDP (pendiente de ejecución real; el ledger se testea sin BDP).
+- [x] Pago parcial liquida el saldo correctamente (UI + backend).
+- [x] Sobrepago es rechazado.
+- [x] Facturación sin saldo completo es rechazada.
+- [x] `ff_bdp_partial_payments=false` bloquea pagos parciales.
+- [x] Frontend muestra historial y saldo pendiente.
+- [x] `cargo test` y `cargo clippy` sin errores.
+- [x] `npm run type-check` en frontend sin errores.
 
 ## 11. Referencias
 

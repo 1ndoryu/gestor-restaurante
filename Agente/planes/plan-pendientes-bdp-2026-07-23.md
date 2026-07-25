@@ -16,7 +16,7 @@
 | D1 | Verificación stock + parser defensivo | Verificación | Implementado básico (237A-4) | **Sí** — parser defensivo proactivo ya | ~2h parser + opcional 8h pantalla dedicada |
 | D2 | Compras | Funcionalidad nueva | No implementado | **No** — requiere diseño completo en 3 fases | ~30-34h (8 + 10 + 12 + 4 tests) |
 | D3 | Sincronización bidireccional automática | Funcionalidad nueva | Bloqueado explícitamente en código | **Rechazado firme** — riesgo crítico sin mitigación viable | N/A — no implementar |
-| D4 | Pagos parciales | Funcionalidad nueva | Bloqueado explícitamente en código | **Sí**, con lock distribuido obligatorio | ~18-22h |
+| D4 | Pagos parciales | Funcionalidad nueva | ✅ Implementado (backend + frontend + reconciliación de ambiguos) | **Sí**, con lock distribuido obligatorio | ~18-22h |
 | D5 | CancelOrder | Funcionalidad nueva | Bloqueado por BDP ("Subscripción no activada") | **Pendiente activación BDP**, estimación realista | ~12-16h (si BDP activa módulo) |
 | **XT1** | Throttling/semáforo BDP | Cross-cutting | ✅ Implementado (247A-1) | **Sí** — `BdpThrottleManager` en `src/services/bdp_throttle.rs` | ~3-4h |
 | **XT2** | Feature flags por restaurante | Cross-cutting | ✅ Implementado (247A-1) | **Sí** — columnas en `configuracion_restaurante` | ~4-5h |

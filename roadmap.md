@@ -91,6 +91,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 | **Plano de Sala** (mesas BDP)                                       | Plano de Sala → "Sync BDP"                           | ✅ Funcional                                 |
 | **Comandas** (crear orden en BDP)                                   | Ventas → "Enviar a BDP"                              | ✅ Funcional, requiere autorización temporal |
 | **Pagos completos** (AddOrderPayment)                               | Ventas → "Pagar en BDP"                              | ✅ Funcional, requiere autorización temporal |
+| **Pagos parciales** (AddOrderPayment parcial)                       | Ventas → icono de tarjeta en fila de venta           | ✅ Funcional bajo feature flag `ff_bdp_partial_payments` |
 | **Facturas** (InvoiceOrder)                                         | Ventas → "Facturar en BDP"                           | ✅ Funcional, requiere autorización temporal |
 | **Estado BDP**                                                      | Navbar (badge BDP: lectura/escritura)                | ✅ Visible e interactivo                     |
 | **Polling de estados**                                              | Configuración → BDP → "Actualización de estados"     | ✅ Configurable                              |
@@ -102,7 +103,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 | Funcionalidad                                   | Motivo                                                   | Estado                        |
 | ----------------------------------------------- | -------------------------------------------------------- | ----------------------------- |
 | **Compras** (albaranes/facturas de proveedores) | Dominio complejo, fuera del alcance inicial              | ❌ Pendiente consulta cliente |
-| **Pagos parciales**                             | Requiere ledger + lock distribuido; riesgo de descuadres | ❌ Pendiente consulta cliente |
+| **Pagos parciales**                             | Implementado bajo feature flag `ff_bdp_partial_payments` | ✅ Implementado (beta)        |
 | **Sincronización bidireccional automática**     | Riesgo de bucles y conflictos; no soportada por BDP      | ❌ Rechazado                  |
 | **CancelOrder**                                 | BDP responde "Subscripción no activada"                  | ❌ Bloqueado por BDP          |
 | **Modificación de stock**                       | Alcance solo lectura en integración actual               | ❌ Fuera de alcance           |
@@ -169,7 +170,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 | ID  | Item                                    | Pregunta al cliente                                                                      | Esfuerzo estimado           |
 | --- | --------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------- |
 | D2  | **Compras** (solo lectura de albaranes) | ¿Necesita ver albaranes/facturas de proveedores en Glory? ¿El módulo está activo en BDP? | ~8h (fase 1 lectura)        |
-| D4  | **Pagos parciales**                     | ✅ Backend implementado. Ver `Agente/planes/plan-pagos-parciales-bdp-2026-07-25.md`. Ledger local (`bdp_pagos`), feature flag, idempotencia, prevención de sobrepago y tests de integración. Frontend del diálogo de pagos pendiente. | ~18-22h (con lock + ledger) |
+| D4  | **Pagos parciales**                     | ✅ Implementado (backend + frontend + reconciliación de ambiguos). Ver `Agente/planes/plan-pagos-parciales-bdp-2026-07-25.md`. Ledger local (`bdp_pagos`), feature flag, idempotencia, prevención de sobrepago, tests de integración y UI en `venta-row-actions.tsx`. | ~18-22h (con lock + ledger) |
 | D5  | **CancelOrder**                         | BDP responde "Subscripción no activada". ¿Pueden activar el módulo?                      | ~12-16h si BDP lo activa    |
 
 ### Bloque 247A-9 — Pruebas y validación antes de producción

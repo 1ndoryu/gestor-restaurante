@@ -118,9 +118,10 @@ Permitir actualizar stock en BDP vía `UpdateStock`/`Regularizations`.
 ## 6. Próximos pasos inmediatos
 
 1. ✅ Implementar página `/bdp/stock` solo lectura con filtros, ordenación y paginación.
-2. Validar con `type-check` y `build` del frontend.
-3. Actualizar roadmap (`UI4`) a "Implementado (solo lectura)".
-4. Si el cliente lo solicita, evaluar Opción A o B con sus respectivas salvaguardas.
+2. ✅ Validar con `type-check` y `build` del frontend.
+3. ✅ Actualizar roadmap (`UI4` y `S2`) a "Implementado (solo lectura)".
+4. ✅ Preparar modelo de datos para stock por almacén (`bdp_article_stock`, warehouse por defecto `"0"` / `"General"`).
+5. Si el cliente lo solicita, evaluar Opción A (desglose real por almacén desde BDP) o Opción B (gestión de stock con escritura).
 
 ---
 
