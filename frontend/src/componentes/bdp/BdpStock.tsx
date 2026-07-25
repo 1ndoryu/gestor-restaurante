@@ -19,7 +19,7 @@ function BdpStock() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [filtro, setFiltro] = useState('');
-  const { data, isLoading } = useListarArticleMaps();
+  const { data, isLoading, error: listError } = useListarArticleMaps();
   const syncCatalogMutation = useSyncCatalog({
     mutation: {
       onSuccess: (resp) => {
@@ -85,7 +85,11 @@ function BdpStock() {
             </TooltipButton>
           </div>
 
-          {isLoading ? (
+          {listError ? (
+            <p className="text-sm text-destructive">
+              Error al cargar el stock. Revisa que la sesión esté activa y vuelve a intentarlo.
+            </p>
+          ) : isLoading ? (
             <p className="text-sm text-muted-foreground">Cargando stock...</p>
           ) : filtrados.length === 0 ? (
             <p className="text-sm text-muted-foreground">No hay artículos con stock. Sincroniza el catálogo desde BDP.</p>

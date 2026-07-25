@@ -17,12 +17,13 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { useBdpAudit, useBdpSnapshots, type BdpAuditEntry, type BdpSnapshot } from '@/api/bdp-backup';
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('es-ES', {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('es-ES', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -156,11 +157,22 @@ function SnapshotDetail({ snapshot }: { snapshot: BdpSnapshot }) {
 function BdpHistorial() {
   const navigate = useNavigate();
   const [filtro, setFiltro] = useState('');
-  const { data: auditData, isLoading: loadingAudit } = useBdpAudit(100);
-  const { data: snapshotsData, isLoading: loadingSnapshots } = useBdpSnapshots(50);
+  const [entrySeleccionado, setEntrySeleccionado] = useState<BdpAuditEntry | null>(null);
+  const [snapshotSeleccionado, setSnapshotSeleccionado] = useState<BdpSnapshot | null>(null);
+  const [dialogAbierto, setDialogAbierto] = useState(false);
+  const { data: auditData, isLoading: loadingAudit, error: auditError } = useBdpAudit(100);
+  const { data: snapshotsData, isLoading: loadingSnapshots, error: snapshotsError } = useBdpSnapshots(50);
 
   const auditEntries = auditData ?? [];
   const snapshots = snapshotsData ?? [];
+
+  function handleDialogOpenChange(open: boolean) {
+    setDialogAbierto(open);
+    if (!open) {
+      setEntrySeleccionado(null);
+      setSnapshotSeleccionado(null);
+    }
+  }
 
   const auditFiltrado = auditEntries.filter(
     (e) =>
@@ -202,7 +214,11 @@ function BdpHistorial() {
                   className="pl-9"
                 />
               </div>
-              {loadingAudit ? (
+              {auditError ? (
+                <p className="text-sm text-destructive">
+                  Error al cargar la auditoría. Revisa que la sesión esté activa y vuelve a intentarlo.
+                </p>
+              ) : loadingAudit ? (
                 <p className="text-sm text-muted-foreground">Cargando auditoría...</p>
               ) : auditFiltrado.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Sin registros de auditoría.</p>
@@ -228,20 +244,17 @@ function BdpHistorial() {
                           <TableCell className="text-xs">{direccionLabel(entry.direccion)}</TableCell>
                           <TableCell>{resultadoBadge(entry.resultado)}</TableCell>
                           <TableCell>
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <Eye className="size-4" />
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                                <DialogHeader>
-                                  <DialogTitle>Detalle de operación BDP</DialogTitle>
-                                  <DialogDescription>Información completa del registro de auditoría.</DialogDescription>
-                                </DialogHeader>
-                                <AuditDetail entry={entry} />
-                              </DialogContent>
-                            </Dialog>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setEntrySeleccionado(entry);
+                                setSnapshotSeleccionado(null);
+                                setDialogAbierto(true);
+                              }}
+                            >
+                              <Eye className="size-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -262,7 +275,11 @@ function BdpHistorial() {
               <CardDescription>Snapshots locales de configuración y datos de BDP.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {loadingSnapshots ? (
+              {snapshotsError ? (
+                <p className="text-sm text-destructive">
+                  Error al cargar los snapshots. Revisa que la sesión esté activa y vuelve a intentarlo.
+                </p>
+              ) : loadingSnapshots ? (
                 <p className="text-sm text-muted-foreground">Cargando snapshots...</p>
               ) : snapshots.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No hay snapshots todavía.</p>
@@ -286,20 +303,17 @@ function BdpHistorial() {
                             {snapshot.notas ?? '—'}
                           </TableCell>
                           <TableCell>
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <Eye className="size-4" />
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                                <DialogHeader>
-                                  <DialogTitle>Detalle del snapshot</DialogTitle>
-                                  <DialogDescription>Información almacenada en el snapshot.</DialogDescription>
-                                </DialogHeader>
-                                <SnapshotDetail snapshot={snapshot} />
-                              </DialogContent>
-                            </Dialog>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSnapshotSeleccionado(snapshot);
+                                setEntrySeleccionado(null);
+                                setDialogAbierto(true);
+                              }}
+                            >
+                              <Eye className="size-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -311,6 +325,23 @@ function BdpHistorial() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={dialogAbierto} onOpenChange={handleDialogOpenChange}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {entrySeleccionado ? 'Detalle de operación BDP' : 'Detalle del snapshot'}
+            </DialogTitle>
+            <DialogDescription>
+              {entrySeleccionado
+                ? 'Información completa del registro de auditoría.'
+                : 'Información almacenada en el snapshot.'}
+            </DialogDescription>
+          </DialogHeader>
+          {entrySeleccionado && <AuditDetail entry={entrySeleccionado} />}
+          {snapshotSeleccionado && <SnapshotDetail snapshot={snapshotSeleccionado} />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

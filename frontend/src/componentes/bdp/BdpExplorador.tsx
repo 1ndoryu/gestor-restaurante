@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { ErrorResponse } from '@/api/generated/gestionRestauranteAPI.schemas';
 import {
   useGetMenuDefinition,
   useGetFastfoodDefinition,
@@ -102,6 +103,14 @@ function BdpExplorador() {
   const isLoading = menuQuery.isLoading || fastfoodQuery.isLoading || packQuery.isLoading;
   const error = menuQuery.error || fastfoodQuery.error || packQuery.error;
 
+  function extraerMensajeError(err: unknown): string {
+    if (typeof err === 'string') return err;
+    if (err instanceof Error) return err.message;
+    const er = err as ErrorResponse | undefined;
+    if (er?.message) return er.message;
+    return 'Error al consultar. Verifica que el código existe en BDP y que la integración está activa.';
+  }
+
   const menuData = menuQuery.data && (menuQuery.data as { status?: number }).status === 200 ? (menuQuery.data as { data: BdpDefinition }).data : null;
   const fastfoodData = fastfoodQuery.data && (fastfoodQuery.data as { status?: number }).status === 200 ? (fastfoodQuery.data as { data: BdpDefinition }).data : null;
   const packData = packQuery.data && (packQuery.data as { status?: number }).status === 200 ? (packQuery.data as { data: BdpDefinition }).data : null;
@@ -176,12 +185,7 @@ function BdpExplorador() {
           <p className="text-xs text-muted-foreground">{TIPOS.find((t) => t.value === tipo)?.desc}</p>
 
           {error && (
-            <p className="text-sm text-destructive">
-              {(
-                (error as { response?: { data?: { message?: string } } }).response?.data?.message ??
-                'Error al consultar. Verifica que el código existe en BDP y que la integración está activa.'
-              )}
-            </p>
+            <p className="text-sm text-destructive">{extraerMensajeError(error)}</p>
           )}
 
           {buscado && !isLoading && !error && !menuData && !fastfoodData && !packData && (
