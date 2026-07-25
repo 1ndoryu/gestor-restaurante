@@ -141,17 +141,19 @@ async function setSyncMode(input: SetSyncModeInput): Promise<unknown> {
 
 /* ========== React Query hooks ========== */
 
-export function useBdpSnapshots(limit = 50) {
+export function useBdpSnapshots(limit = 50, enabled = true) {
   return useQuery({
     queryKey: ['bdp-snapshots', limit],
     queryFn: () => fetchSnapshots(limit),
+    enabled,
   });
 }
 
-export function useBdpAudit(limit = 100) {
+export function useBdpAudit(limit = 100, enabled = true) {
   return useQuery({
     queryKey: ['bdp-audit', limit],
     queryFn: () => fetchAudit(limit),
+    enabled,
   });
 }
 

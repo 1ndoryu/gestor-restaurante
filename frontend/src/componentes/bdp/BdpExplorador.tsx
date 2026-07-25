@@ -1,13 +1,12 @@
-/* [BDP-EXPLORER-01] Página de explorador de menús, packs y fastfoods BDP.
- * Migración del componente embebido a una página propia con mejor UX. */
+/* [BDP-EXPLORER-02] Explorador de menús, packs y fastfoods BDP.
+ * Estructura coherente con ListaVentas/ListaGastos/ListaReservas.
+ * En modo real permite consultar por código numérico a BDP.
+ * Modo demo muestra una tabla con datos de ejemplo. */
 
-import { useState } from 'react';
-import { Search, Loader2, ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Search, Loader2, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -17,14 +16,29 @@ import {
   useGetFastfoodDefinition,
   useGetPackDefinition,
 } from '@/api/generated/bdp-mapeos/bdp-mapeos';
+import { useBdpDemoMode } from '@/hooks/useBdpDemoMode';
+import { mockExplorerItems, type BdpExplorerItem } from './bdp-mocks';
+import { BdpDemoToggle } from './BdpDemoToggle';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
-type ExploreType = 'menu' | 'fastfood' | 'pack';
+type ExploreType = 'all' | 'menu' | 'fastfood' | 'pack';
 
-const TIPOS: { value: ExploreType; label: string; desc: string }[] = [
-  { value: 'menu', label: 'Menú', desc: 'Estructura de un menú definido en BDP.' },
-  { value: 'fastfood', label: 'Fastfood', desc: 'Modalidad de venta rápida de BDP.' },
-  { value: 'pack', label: 'Pack', desc: 'Pack agrupado de artículos en BDP.' },
+const TIPOS: { value: ExploreType; label: string }[] = [
+  { value: 'all', label: 'Todos' },
+  { value: 'menu', label: 'Menú' },
+  { value: 'fastfood', label: 'Fastfood' },
+  { value: 'pack', label: 'Pack' },
 ];
+
+function tipoLabel(tipo: string) {
+  return TIPOS.find((t) => t.value === tipo)?.label ?? tipo;
+}
 
 interface BdpDefLine {
   article_code?: string | number;
@@ -39,24 +53,26 @@ interface BdpDefinition {
   lines?: BdpDefLine[];
 }
 
-function DefinitionDetail({ data, tipo }: { data: BdpDefinition; tipo: ExploreType }) {
+function DefinitionDetail({ data }: { data: BdpExplorerItem }) {
   return (
-    <div className="rounded-md border p-3 text-sm space-y-3">
-      <div className="flex items-center gap-2">
-        <span className="font-medium">{data.name ?? 'Sin nombre'}</span>
-        <Badge variant="outline">{TIPOS.find((t) => t.value === tipo)?.label ?? tipo}</Badge>
+    <div className="space-y-3 text-sm">
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <p className="text-xs text-muted-foreground">Código</p>
+          <p className="font-medium">{data.code}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Tipo</p>
+          <Badge variant="outline">{tipoLabel(data.type)}</Badge>
+        </div>
       </div>
-      {data.description && <p className="text-xs text-muted-foreground">{data.description}</p>}
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <span>
-          Código: <Badge variant="outline">{data.code ?? '—'}</Badge>
-        </span>
-        <span>
-          Artículos: <Badge variant="secondary">{data.lines?.length ?? 0}</Badge>
-        </span>
+      <div>
+        <p className="text-xs text-muted-foreground">Descripción</p>
+        <p>{data.description}</p>
       </div>
-      {data.lines && data.lines.length > 0 && (
-        <div className="rounded-md border overflow-hidden">
+      <div>
+        <p className="text-xs text-muted-foreground">Artículos</p>
+        <div className="rounded-md border overflow-hidden mt-1">
           <Table>
             <TableHeader>
               <TableRow>
@@ -66,38 +82,40 @@ function DefinitionDetail({ data, tipo }: { data: BdpDefinition; tipo: ExploreTy
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.lines.map((line: BdpDefLine, i: number) => (
+              {data.lines.map((line, i) => (
                 <TableRow key={i}>
-                  <TableCell className="text-xs">{line.article_name ?? '—'}</TableCell>
-                  <TableCell className="font-mono text-xs">{line.article_code ?? '—'}</TableCell>
-                  <TableCell className="text-xs text-right">{line.quantity ?? '—'}</TableCell>
+                  <TableCell className="text-xs">{line.articleName}</TableCell>
+                  <TableCell className="font-mono text-xs">{line.articleCode}</TableCell>
+                  <TableCell className="text-xs text-right">{line.quantity}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
 function BdpExplorador() {
-  const navigate = useNavigate();
-  const [tipo, setTipo] = useState<ExploreType>('menu');
+  const { demoMode, setDemoMode } = useBdpDemoMode();
+  const [tipo, setTipo] = useState<ExploreType>('all');
+  const [busqueda, setBusqueda] = useState('');
   const [identificador, setIdentificador] = useState('');
   const [buscado, setBuscado] = useState(false);
+  const [seleccionado, setSeleccionado] = useState<BdpExplorerItem | null>(null);
 
   const idNum = Number(identificador);
   const idValido = Number.isInteger(idNum) && idNum > 0;
 
   const menuQuery = useGetMenuDefinition(idNum, {
-    query: { enabled: buscado && tipo === 'menu' && idValido },
+    query: { enabled: buscado && tipo !== 'all' && !demoMode },
   });
   const fastfoodQuery = useGetFastfoodDefinition(idNum, {
-    query: { enabled: buscado && tipo === 'fastfood' && idValido },
+    query: { enabled: buscado && tipo === 'fastfood' && !demoMode },
   });
   const packQuery = useGetPackDefinition(idNum, {
-    query: { enabled: buscado && tipo === 'pack' && idValido },
+    query: { enabled: buscado && tipo === 'pack' && !demoMode },
   });
 
   const isLoading = menuQuery.isLoading || fastfoodQuery.isLoading || packQuery.isLoading;
@@ -111,94 +129,221 @@ function BdpExplorador() {
     return 'Error al consultar. Verifica que el código existe en BDP y que la integración está activa.';
   }
 
-  const menuData = menuQuery.data && (menuQuery.data as { status?: number }).status === 200 ? (menuQuery.data as { data: BdpDefinition }).data : null;
-  const fastfoodData = fastfoodQuery.data && (fastfoodQuery.data as { status?: number }).status === 200 ? (fastfoodQuery.data as { data: BdpDefinition }).data : null;
-  const packData = packQuery.data && (packQuery.data as { status?: number }).status === 200 ? (packQuery.data as { data: BdpDefinition }).data : null;
+  const items = useMemo(() => {
+    if (!demoMode) return [];
+    return mockExplorerItems.filter((item) => {
+      const matchesTipo = tipo === 'all' || item.type === tipo;
+      const q = busqueda.trim().toLowerCase();
+      const matchesText =
+        !q ||
+        item.name.toLowerCase().includes(q) ||
+        item.code.toLowerCase().includes(q) ||
+        item.description.toLowerCase().includes(q);
+      return matchesTipo && matchesText;
+    });
+  }, [demoMode, tipo, busqueda]);
+
+  const resultadoReal = buscado
+    ? (menuQuery.data as { data?: BdpDefinition })?.data ??
+      (fastfoodQuery.data as { data?: BdpDefinition })?.data ??
+      (packQuery.data as { data?: BdpDefinition })?.data
+    : null;
 
   function buscar() {
     if (!idValido) {
       toast.warning('Introduce un código numérico válido');
       return;
     }
+    if (tipo === 'all') {
+      toast.warning('Selecciona un tipo (Menú, Fastfood o Pack)');
+      return;
+    }
     setBuscado(true);
   }
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/configuracion')}>
-          <ArrowLeft className="size-4" />
-        </Button>
-        <h1 className="text-xl font-semibold">Explorador BDP</h1>
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {demoMode ? `${items.length} definiciones` : 'Consulta una definición de BDP por código'}
+        </p>
+        <BdpDemoToggle demoMode={demoMode} onToggle={setDemoMode} />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Search className="size-4" />
-            Explorar menús, packs y fastfoods
-          </CardTitle>
-          <CardDescription>
-            Consulta la estructura de menús, packs y modalidades de venta definidos en BDP. Solo lectura.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex gap-1">
-              {TIPOS.map((t) => (
-                <Button
-                  key={t.value}
-                  size="sm"
-                  variant={tipo === t.value ? 'default' : 'outline'}
-                  onClick={() => {
-                    setTipo(t.value);
-                    setBuscado(false);
-                  }}
-                >
-                  {t.label}
-                </Button>
-              ))}
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="bdp-explorador-id" className="text-xs">
-                Código numérico
-              </Label>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        {demoMode ? (
+          <>
+            <div className="flex flex-wrap gap-3 items-center">
               <Input
-                id="bdp-explorador-id"
-                type="number"
-                min={1}
-                className="w-36"
-                value={identificador}
-                onChange={(e) => {
-                  setIdentificador(e.target.value);
-                  setBuscado(false);
-                }}
-                placeholder="ej: 1"
+                type="search"
+                placeholder="Buscar nombre, código o descripción..."
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                className="max-w-xs"
               />
+              <select
+                value={tipo}
+                onChange={(e) => setTipo(e.target.value as ExploreType)}
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                {TIPOS.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
             </div>
+          </>
+        ) : (
+          <div className="flex flex-wrap gap-3 items-end">
+            <select
+              value={tipo}
+              onChange={(e) => {
+                setTipo(e.target.value as ExploreType);
+                setBuscado(false);
+              }}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              {TIPOS.filter((t) => t.value !== 'all').map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <Input
+              type="number"
+              min={1}
+              className="w-36"
+              placeholder="Código numérico..."
+              value={identificador}
+              onChange={(e) => {
+                setIdentificador(e.target.value);
+                setBuscado(false);
+              }}
+            />
             <Button size="sm" onClick={buscar} disabled={isLoading}>
-              {isLoading ? <Loader2 className="size-3.5 animate-spin mr-1" /> : <Search className="size-3.5 mr-1" />}
+              {isLoading ? (
+                <Loader2 className="size-3.5 animate-spin mr-1" />
+              ) : (
+                <Search className="size-3.5 mr-1" />
+              )}
               Consultar
             </Button>
           </div>
+        )}
+      </div>
 
-          <p className="text-xs text-muted-foreground">{TIPOS.find((t) => t.value === tipo)?.desc}</p>
+      {!demoMode && !buscado && (
+        <p className="text-sm text-muted-foreground">
+          Selecciona un tipo e introduce un código numérico para consultar BDP, o pulsa Cargar demo para ver datos de
+          ejemplo.
+        </p>
+      )}
 
-          {error && (
-            <p className="text-sm text-destructive">{extraerMensajeError(error)}</p>
+      {error && !demoMode && <p className="text-sm text-destructive">{extraerMensajeError(error)}</p>}
+
+      {!demoMode && buscado && !isLoading && !resultadoReal && (
+        <p className="text-sm text-muted-foreground">
+          No se encontró un {tipo} con código {identificador}.
+        </p>
+      )}
+
+      {!demoMode && resultadoReal && (
+        <div className="rounded-md border p-3 text-sm space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{resultadoReal.name ?? 'Sin nombre'}</span>
+            <Badge variant="outline">{tipoLabel(tipo)}</Badge>
+          </div>
+          {resultadoReal.description && (
+            <p className="text-xs text-muted-foreground">{resultadoReal.description}</p>
           )}
-
-          {buscado && !isLoading && !error && !menuData && !fastfoodData && !packData && (
-            <p className="text-sm text-muted-foreground">
-              No se encontró un {tipo} con código {identificador}.
-            </p>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <span>
+              Código: <Badge variant="outline">{resultadoReal.code ?? '—'}</Badge>
+            </span>
+            <span>
+              Artículos: <Badge variant="secondary">{resultadoReal.lines?.length ?? 0}</Badge>
+            </span>
+          </div>
+          {resultadoReal.lines && resultadoReal.lines.length > 0 && (
+            <div className="rounded-md border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">Artículo</TableHead>
+                    <TableHead className="text-xs">Código</TableHead>
+                    <TableHead className="text-xs text-right">Cantidad</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {resultadoReal.lines.map((line, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="text-xs">{line.article_name ?? '—'}</TableCell>
+                      <TableCell className="font-mono text-xs">{line.article_code ?? '—'}</TableCell>
+                      <TableCell className="text-xs text-right">{line.quantity ?? '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
+        </div>
+      )}
 
-          {menuData && <DefinitionDetail data={menuData} tipo="menu" />}
-          {fastfoodData && <DefinitionDetail data={fastfoodData} tipo="fastfood" />}
-          {packData && <DefinitionDetail data={packData} tipo="pack" />}
-        </CardContent>
-      </Card>
+      {demoMode && (
+        <>
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Descripción</TableHead>
+                  <TableHead className="w-10"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                      No hay definiciones que coincidan.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  items.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-mono text-xs">{item.code}</TableCell>
+                      <TableCell className="text-sm font-medium">{item.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{tipoLabel(item.type)}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
+                        {item.description}
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" onClick={() => setSeleccionado(item)}>
+                          <Eye className="size-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
+
+      <Dialog open={!!seleccionado} onOpenChange={(open) => !open && setSeleccionado(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalle de definición BDP</DialogTitle>
+            <DialogDescription>{seleccionado?.name}</DialogDescription>
+          </DialogHeader>
+          {seleccionado && <DefinitionDetail data={seleccionado} />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

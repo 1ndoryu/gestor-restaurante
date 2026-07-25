@@ -35,6 +35,10 @@ const titulos: Record<string, string> = {
   "/marketing/plantillas": "Plantillas WhatsApp",
   "/marketing/plantillas/nueva": "Nueva Plantilla",
   "/marketing/recordatorios": "Recordatorios",
+  "/bdp/stock": "Stock BDP",
+  "/bdp/explorador": "Explorador BDP",
+  "/bdp/historial": "Historial BDP",
+  "/bdp/compras": "Compras BDP",
 }
 
 function BdpStatusIndicator() {

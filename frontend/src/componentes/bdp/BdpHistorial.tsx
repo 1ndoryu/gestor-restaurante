@@ -1,13 +1,11 @@
-/* [BDP-HIST-01] Página de historial BDP.
- * Muestra el audit log y los snapshots en una página dedicada.
- * Las acciones son seguras: solo ver detalles o crear snapshots locales. */
+/* [BDP-HIST-02] Página de historial BDP.
+ * Estructura coherente con ListaVentas/ListaGastos/ListaReservas.
+ * Modo demo incluido para visualizar datos de prueba. */
 
-import { useState } from 'react';
-import { Database, Search, ArrowLeft, Eye, Download } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Search, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,6 +17,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useBdpAudit, useBdpSnapshots, type BdpAuditEntry, type BdpSnapshot } from '@/api/bdp-backup';
+import { useBdpDemoMode } from '@/hooks/useBdpDemoMode';
+import { mockAuditEntries, mockSnapshots } from './bdp-mocks';
+import { BdpDemoToggle } from './BdpDemoToggle';
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -33,12 +34,7 @@ function formatDate(iso: string): string {
 }
 
 function resultadoBadge(resultado: string) {
-  if (resultado === 'exito')
-    return (
-      <Badge variant="default" className="bg-green-600">
-        Completada
-      </Badge>
-    );
+  if (resultado === 'exito') return <Badge className="bg-green-600 hover:bg-green-600">Completada</Badge>;
   if (resultado === 'error') return <Badge variant="destructive">Falló</Badge>;
   if (resultado === 'ambiguo') return <Badge variant="destructive">Requiere revisión</Badge>;
   if (resultado === 'pendiente') return <Badge variant="secondary">En proceso</Badge>;
@@ -155,16 +151,23 @@ function SnapshotDetail({ snapshot }: { snapshot: BdpSnapshot }) {
 }
 
 function BdpHistorial() {
-  const navigate = useNavigate();
+  const { demoMode, setDemoMode } = useBdpDemoMode();
   const [filtro, setFiltro] = useState('');
   const [entrySeleccionado, setEntrySeleccionado] = useState<BdpAuditEntry | null>(null);
   const [snapshotSeleccionado, setSnapshotSeleccionado] = useState<BdpSnapshot | null>(null);
   const [dialogAbierto, setDialogAbierto] = useState(false);
-  const { data: auditData, isLoading: loadingAudit, error: auditError } = useBdpAudit(100);
-  const { data: snapshotsData, isLoading: loadingSnapshots, error: snapshotsError } = useBdpSnapshots(50);
+  const { data: auditData, isLoading: loadingAudit, error: auditError } = useBdpAudit(100, !demoMode);
+  const { data: snapshotsData, isLoading: loadingSnapshots, error: snapshotsError } = useBdpSnapshots(50, !demoMode);
 
-  const auditEntries = auditData ?? [];
-  const snapshots = snapshotsData ?? [];
+  const auditEntries = useMemo(() => {
+    if (demoMode) return mockAuditEntries;
+    return auditData ?? [];
+  }, [demoMode, auditData]);
+
+  const snapshots = useMemo(() => {
+    if (demoMode) return mockSnapshots;
+    return snapshotsData ?? [];
+  }, [demoMode, snapshotsData]);
 
   function handleDialogOpenChange(open: boolean) {
     setDialogAbierto(open);
@@ -174,157 +177,151 @@ function BdpHistorial() {
     }
   }
 
-  const auditFiltrado = auditEntries.filter(
-    (e) =>
-      operacionLabel(e.operacion).toLowerCase().includes(filtro.toLowerCase()) ||
-      e.resultado.toLowerCase().includes(filtro.toLowerCase()) ||
-      e.error_mensaje?.toLowerCase().includes(filtro.toLowerCase()),
-  );
+  const auditFiltrado = useMemo(() => {
+    const q = filtro.trim().toLowerCase();
+    return auditEntries.filter(
+      (e) =>
+        operacionLabel(e.operacion).toLowerCase().includes(q) ||
+        e.resultado.toLowerCase().includes(q) ||
+        e.error_mensaje?.toLowerCase().includes(q),
+    );
+  }, [auditEntries, filtro]);
+
+  const isLoading = !demoMode && (loadingAudit || loadingSnapshots);
+  const hasError = !demoMode && (auditError || snapshotsError);
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/configuracion')}>
-          <ArrowLeft className="size-4" />
-        </Button>
-        <h1 className="text-xl font-semibold">Historial BDP</h1>
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {auditFiltrado.length} registros de auditoría · {snapshots.length} snapshots
+        </p>
+        <BdpDemoToggle demoMode={demoMode} onToggle={setDemoMode} />
       </div>
 
-      <Tabs defaultValue="auditoria">
-        <TabsList>
-          <TabsTrigger value="auditoria">Auditoría</TabsTrigger>
-          <TabsTrigger value="snapshots">Snapshots</TabsTrigger>
-        </TabsList>
-        <TabsContent value="auditoria" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Database className="size-4" />
-                Log de operaciones BDP
-              </CardTitle>
-              <CardDescription>Registro de cada escritura, sincronización y estado entre Glory y BDP.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="relative w-full sm:w-96">
-                <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-                <Input
-                  placeholder="Filtrar operación, resultado, error..."
-                  value={filtro}
-                  onChange={(e) => setFiltro(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              {auditError ? (
-                <p className="text-sm text-destructive">
-                  Error al cargar la auditoría. Revisa que la sesión esté activa y vuelve a intentarlo.
-                </p>
-              ) : loadingAudit ? (
-                <p className="text-sm text-muted-foreground">Cargando auditoría...</p>
-              ) : auditFiltrado.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Sin registros de auditoría.</p>
-              ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Fecha</TableHead>
-                        <TableHead>Operación</TableHead>
-                        <TableHead>Dirección</TableHead>
-                        <TableHead>Resultado</TableHead>
-                        <TableHead className="w-10"></TableHead>
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="relative w-full sm:w-96">
+          <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Filtrar operación, resultado, error..."
+            value={filtro}
+            onChange={(e) => setFiltro(e.target.value)}
+            className="pl-9 max-w-xs"
+          />
+        </div>
+      </div>
+
+      {hasError && (
+        <p className="text-sm text-destructive">
+          Error al cargar el historial. Revisa que la sesión esté activa y vuelve a intentarlo.
+        </p>
+      )}
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Cargando...</p>
+      ) : (
+        <Tabs defaultValue="auditoria">
+          <TabsList>
+            <TabsTrigger value="auditoria">Auditoría</TabsTrigger>
+            <TabsTrigger value="snapshots">Snapshots</TabsTrigger>
+          </TabsList>
+          <TabsContent value="auditoria" className="space-y-4">
+            <div className="rounded-md border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Operación</TableHead>
+                    <TableHead>Dirección</TableHead>
+                    <TableHead>Resultado</TableHead>
+                    <TableHead className="w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {auditFiltrado.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                        Sin registros de auditoría.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    auditFiltrado.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell className="text-xs">{formatDate(entry.created_at)}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{operacionLabel(entry.operacion)}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">{direccionLabel(entry.direccion)}</TableCell>
+                        <TableCell>{resultadoBadge(entry.resultado)}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setEntrySeleccionado(entry);
+                              setSnapshotSeleccionado(null);
+                              setDialogAbierto(true);
+                            }}
+                          >
+                            <Eye className="size-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {auditFiltrado.map((entry) => (
-                        <TableRow key={entry.id}>
-                          <TableCell className="text-xs">{formatDate(entry.created_at)}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{operacionLabel(entry.operacion)}</Badge>
-                          </TableCell>
-                          <TableCell className="text-xs">{direccionLabel(entry.direccion)}</TableCell>
-                          <TableCell>{resultadoBadge(entry.resultado)}</TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setEntrySeleccionado(entry);
-                                setSnapshotSeleccionado(null);
-                                setDialogAbierto(true);
-                              }}
-                            >
-                              <Eye className="size-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="snapshots" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Download className="size-4" />
-                Copias de seguridad BDP
-              </CardTitle>
-              <CardDescription>Snapshots locales de configuración y datos de BDP.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {snapshotsError ? (
-                <p className="text-sm text-destructive">
-                  Error al cargar los snapshots. Revisa que la sesión esté activa y vuelve a intentarlo.
-                </p>
-              ) : loadingSnapshots ? (
-                <p className="text-sm text-muted-foreground">Cargando snapshots...</p>
-              ) : snapshots.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No hay snapshots todavía.</p>
-              ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead>Fecha</TableHead>
-                        <TableHead>Notas</TableHead>
-                        <TableHead className="w-10"></TableHead>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+          <TabsContent value="snapshots" className="space-y-4">
+            <div className="rounded-md border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Notas</TableHead>
+                    <TableHead className="w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {snapshots.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
+                        No hay snapshots todavía.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    snapshots.map((snapshot) => (
+                      <TableRow key={snapshot.id}>
+                        <TableCell className="text-xs">{snapshot.tipo}</TableCell>
+                        <TableCell className="text-xs">{formatDate(snapshot.created_at)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
+                          {snapshot.notas ?? '—'}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setSnapshotSeleccionado(snapshot);
+                              setEntrySeleccionado(null);
+                              setDialogAbierto(true);
+                            }}
+                          >
+                            <Eye className="size-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {snapshots.map((snapshot) => (
-                        <TableRow key={snapshot.id}>
-                          <TableCell className="text-xs">{snapshot.tipo}</TableCell>
-                          <TableCell className="text-xs">{formatDate(snapshot.created_at)}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
-                            {snapshot.notas ?? '—'}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setSnapshotSeleccionado(snapshot);
-                                setEntrySeleccionado(null);
-                                setDialogAbierto(true);
-                              }}
-                            >
-                              <Eye className="size-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+        </Tabs>
+      )}
 
       <Dialog open={dialogAbierto} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
