@@ -29,6 +29,7 @@ use rust_decimal::Decimal;
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use tokio::sync::Mutex as TokioMutex;
+use tokio::time::{timeout, Duration};
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -44,7 +45,7 @@ use crate::services::bdp_weblink_catalog::{
     BdpInvoiceOrderRequest, BdpOrderIdentifier, BdpOrderPayment,
 };
 
-const BDP_SYNC_MARKET_ID: i32 = 9_900;
+pub(crate) const BDP_SYNC_MARKET_ID: i32 = 9_900;
 
 /* [F3.1] Contexto resuelto para construir el pedido BDP.
  * Se resuelve en sync_venta() y se pasa a build_order() para no hacer
@@ -61,6 +62,24 @@ static SYNC_LOCKS: LazyLock<StdMutex<HashMap<uuid::Uuid, Arc<TokioMutex<()>>>>> 
     LazyLock::new(|| StdMutex::new(HashMap::new()));
 
 pub struct BdpSyncService;
+
+/* [R14] Guard RAII que limpia el lock de SYNC_LOCKS al salir del scope.
+ * Evita llamadas manuales a cleanup_lock en cada camino de retorno. */
+struct SyncLockGuard {
+    venta_id: Uuid,
+}
+
+impl SyncLockGuard {
+    fn new(venta_id: Uuid) -> Self {
+        Self { venta_id }
+    }
+}
+
+impl Drop for SyncLockGuard {
+    fn drop(&mut self) {
+        BdpSyncService::cleanup_lock(self.venta_id);
+    }
+}
 
 impl BdpSyncService {
     /// Orquesta el flujo completo Glory → BDP para una venta.
@@ -109,6 +128,7 @@ impl BdpSyncService {
             );
             return;
         };
+        let _sync_lock_guard = SyncLockGuard::new(venta.id);
 
         /* Guard: si ya sincronizada y es create (no update), saltar */
         if !is_update {
@@ -193,61 +213,6 @@ impl BdpSyncService {
             return;
         }
 
-        let client = BdpWeblinkClient::new(config);
-        let article = Self::resolve_article(&client, config).await;
-
-        /* [F7.5] Si la política exige cliente BDP, la comanda solo continúa
-         * cuando el cliente ya tiene un código local confirmado. Nunca crea ni
-         * calcula clientes automáticamente durante una venta. */
-        if config.bdp_auto_sync_customers {
-            if let Some(cliente_id) = venta.cliente_id {
-                if let Some(bdp_code) =
-                    Self::ensure_cliente_bdp_synced(pool, cliente_id, venta.user_id, config).await
-                {
-                    info!("[F7.5] Cliente {} auto-sincronizado con BDP (code={bdp_code}) para venta {}", cliente_id, venta.id);
-                } else {
-                    let msg = if config.bdp_default_customer_code.is_empty() {
-                        "Cliente sin código BDP confirmado. Asigne un código BDP al cliente o configure un cliente por defecto en Configuración → BDP."
-                    } else {
-                        "Cliente sin código BDP confirmado. Se usará el cliente por defecto configurado."
-                    };
-                    warn!(
-                        "[BDP-SAFE] {msg} (cliente {cliente_id}, venta {})",
-                        venta.id
-                    );
-                    let _ =
-                        VentaRepository::update_bdp_status(pool, venta.id, false, Some(msg), None)
-                            .await;
-                    Self::cleanup_lock(venta.id);
-                    return;
-                }
-            }
-        }
-
-        /* [F3.1] Resolver contexto del pedido: tender, order type, customer. */
-        let order_ctx = Self::resolve_order_context(pool, venta, config).await;
-
-        /* [F2.6] Obtener líneas de venta para multi-item.
-         * Si la venta tiene líneas en BD, se usan para construir un pedido multi-item.
-         * Si no, se usa el comportamiento legacy (1 artículo genérico). */
-        let lineas = match VentaLineaRepository::listar_por_venta(pool, venta.id).await {
-            Ok(l) if !l.is_empty() => Some(l),
-            Ok(_) => None,
-            Err(e) => {
-                warn!("[F2.6] Error obteniendo líneas de venta {}: {e}", venta.id);
-                None
-            }
-        };
-
-        /* [F2.8] Resolver artículo BDP por línea usando bdp_article_map.
-         * Si una línea tiene articulo_codigo mapeado en bdp_article_map, se usa ese artículo BDP.
-         * Si no, se usa el artículo default configurado. */
-        let line_article_ids: Option<Vec<i64>> = if let Some(ref lineas) = lineas {
-            Some(Self::resolve_line_articles(pool, venta.user_id, lineas, article.id).await)
-        } else {
-            None
-        };
-
         /* [187A-1] Preparación fail-closed: la autorización, la intención y el
          * retorno a solo lectura se confirman atómicamente antes del HTTP. */
         let operacion = "create_order";
@@ -298,19 +263,15 @@ impl BdpSyncService {
             }
         };
 
-        let result = Self::retry_send_order(
-            &client,
-            config,
-            venta,
-            &article,
-            lineas.as_deref(),
-            line_article_ids.as_deref(),
-            &order_ctx,
+        /* [R5] Timeout global de 45s para la fase HTTP a BDP. */
+        let http_result = timeout(
+            Duration::from_secs(45),
+            Self::run_http_phase(pool, venta, config),
         )
         .await;
 
-        match result {
-            Ok(order_id) => {
+        match http_result {
+            Ok(Ok(order_id)) => {
                 info!(
                     "[065A-5] Venta {} sincronizada con BDP → OrderId={order_id}",
                     venta.id
@@ -366,15 +327,12 @@ impl BdpSyncService {
                     .await;
                 }
             }
-            Err(failure) => {
-                let (resultado, msg) = match failure {
-                    OrderSendFailure::Rejected(msg) => ("error", msg),
-                    OrderSendFailure::Ambiguous(msg) => ("ambiguo", msg),
-                };
+            Ok(Err(OrderSendFailure::Rejected(msg))) => {
+                let safe_msg = Self::sanitize_error(&msg);
                 if let Err(error) = crate::services::BdpBackupService::actualizar_resultado(
                     pool,
                     audit_id,
-                    resultado,
+                    "error",
                     None,
                     Some(&msg),
                 )
@@ -386,10 +344,9 @@ impl BdpSyncService {
                     );
                 }
                 warn!(
-                    "[BDP-SAFE] Escritura BDP {} para venta {}: {msg}; no se reintenta a ciegas",
-                    resultado, venta.id
+                    "[BDP-SAFE] Escritura BDP error para venta {}: {safe_msg}; no se reintenta a ciegas",
+                    venta.id
                 );
-                let safe_msg = Self::sanitize_error(&msg);
                 if let Err(e) =
                     VentaRepository::update_bdp_status(pool, venta.id, false, Some(&safe_msg), None)
                         .await
@@ -400,8 +357,57 @@ impl BdpSyncService {
                     );
                 }
             }
+            Ok(Err(OrderSendFailure::Ambiguous(msg))) => {
+                if let Err(error) = crate::services::BdpBackupService::actualizar_resultado(
+                    pool,
+                    audit_id,
+                    "ambiguo",
+                    None,
+                    Some(&msg),
+                )
+                .await
+                {
+                    warn!(
+                        "[BDP-SAFE] No se pudo cerrar auditoría ambigua de venta {}: {error}",
+                        venta.id
+                    );
+                }
+                warn!(
+                    "[BDP-SAFE] Escritura BDP ambigua para venta {}: {msg}; no se reintenta a ciegas",
+                    venta.id
+                );
+                if let Err(e) =
+                    VentaRepository::update_bdp_status(pool, venta.id, false, Some(&msg), None)
+                        .await
+                {
+                    warn!(
+                        "[065A-5] Error guardando error BDP de venta {}: {e}",
+                        venta.id
+                    );
+                }
+            }
+            Err(_) => {
+                let msg = "Timeout esperando respuesta de BDP (45s)".to_string();
+                warn!("[BDP-SAFE] {msg} (venta {})", venta.id);
+                let _ = crate::services::BdpBackupService::actualizar_resultado(
+                    pool,
+                    audit_id,
+                    "ambiguo",
+                    None,
+                    Some(&msg),
+                )
+                .await;
+                if let Err(e) =
+                    VentaRepository::update_bdp_status(pool, venta.id, false, Some(&msg), None)
+                        .await
+                {
+                    warn!(
+                        "[065A-5] Error guardando timeout BDP de venta {}: {e}",
+                        venta.id
+                    );
+                }
+            }
         }
-        Self::cleanup_lock(venta.id);
     }
 
     /// Envía una sola vez. Ante un fallo de transporte intenta reconciliar por
@@ -517,7 +523,7 @@ impl BdpSyncService {
         }
     }
 
-    fn marketplace_order_id(venta_id: Uuid) -> String {
+    pub(crate) fn marketplace_order_id(venta_id: Uuid) -> String {
         let venta_hex = venta_id.simple().to_string();
         format!("G{}", &venta_hex[..14])
     }
@@ -980,6 +986,74 @@ impl BdpSyncService {
             price,
             vat_pct,
         })
+    }
+
+    /* [R5] Fase HTTP de sync_venta: resolve artículo, contexto, líneas y envío.
+     * Se extrae a una función para poder aplicar timeout global con
+     * `tokio::time::timeout` sin perder claridad. */
+    async fn run_http_phase(
+        pool: &PgPool,
+        venta: &Venta,
+        config: &ConfiguracionRestaurante,
+    ) -> Result<i64, OrderSendFailure> {
+        let client = BdpWeblinkClient::new(config);
+        let article = Self::resolve_article(&client, config).await;
+
+        /* [F7.5] Si la política exige cliente BDP, la comanda solo continúa
+         * cuando el cliente ya tiene un código local confirmado. */
+        if config.bdp_auto_sync_customers {
+            if let Some(cliente_id) = venta.cliente_id {
+                if let Some(bdp_code) =
+                    Self::ensure_cliente_bdp_synced(pool, cliente_id, venta.user_id, config).await
+                {
+                    info!(
+                        "[F7.5] Cliente {} auto-sincronizado con BDP (code={bdp_code}) para venta {}",
+                        cliente_id, venta.id
+                    );
+                } else {
+                    let msg = if config.bdp_default_customer_code.is_empty() {
+                        "Cliente sin código BDP confirmado. Asigne un código BDP al cliente o configure un cliente por defecto en Configuración → BDP.".to_string()
+                    } else {
+                        "Cliente sin código BDP confirmado. Se usará el cliente por defecto configurado.".to_string()
+                    };
+                    warn!("[BDP-SAFE] {msg} (cliente {cliente_id}, venta {})", venta.id);
+                    return Err(OrderSendFailure::Rejected(msg));
+                }
+            }
+        }
+
+        /* [F3.1] Resolver contexto del pedido: tender, order type, customer. */
+        let order_ctx = Self::resolve_order_context(pool, venta, config).await;
+
+        /* [F2.6] Obtener líneas de venta para multi-item.
+         * Si la venta tiene líneas en BD, se usan para construir un pedido multi-item.
+         * Si no, se usa el comportamiento legacy (1 artículo genérico). */
+        let lineas = match VentaLineaRepository::listar_por_venta(pool, venta.id).await {
+            Ok(l) if !l.is_empty() => Some(l),
+            Ok(_) => None,
+            Err(e) => {
+                warn!("[F2.6] Error obteniendo líneas de venta {}: {e}", venta.id);
+                None
+            }
+        };
+
+        /* [F2.8] Resolver artículo BDP por línea usando bdp_article_map. */
+        let line_article_ids: Option<Vec<i64>> = if let Some(ref lineas) = lineas {
+            Some(Self::resolve_line_articles(pool, venta.user_id, lineas, article.id).await)
+        } else {
+            None
+        };
+
+        Self::retry_send_order(
+            &client,
+            config,
+            venta,
+            &article,
+            lineas.as_deref(),
+            line_article_ids.as_deref(),
+            &order_ctx,
+        )
+        .await
     }
 
     fn decimal_to_f64(d: &rust_decimal::Decimal) -> f64 {

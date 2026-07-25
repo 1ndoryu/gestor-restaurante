@@ -681,6 +681,67 @@ Usuario pulsa "Cancelar en BDP" en venta-row-actions
 
 ---
 
+## Actualización 247A-7 — Planificación reforzada de mitigaciones, compras y pagos parciales
+
+> **Fecha:** 2026-07-25  
+> **Objetivo:** Revisar y afianzar los planes de compras/pagos parciales, e integrar las mitigaciones técnicas críticas que faltan antes de producción.
+
+### Mitigaciones técnicas críticas pendientes
+
+| ID | Riesgo | Solución técnica | Esfuerzo | Riesgo residual |
+|---|---|---|---|---|
+| **R1** | Comandas/pagos/facturas marcados `ambiguo` sin reconciliar | Añadir en `bdp_order_poller` una fase `reconcile_ambiguous`: query `bdp_audit_log` filtra `resultado='ambiguo'`. Para `create_order`, consulta `GetOrder(MarketplaceOrderId)`. Para `add_payment`/`invoice`, verifica si el estado BDP es `invoiced`/`paid` y cierra la auditoría. | ~6-8h | Bajo si GetOrder funciona; si BDP no tiene registro, queda en ambiguo para revisión manual. |
+| **R5** | `sync_venta` puede acumular llamadas BDP sin límite global | Envolver la fase HTTP (resolve_article, resolve_order_context, retry_send_order) en `tokio::time::timeout(Duration::from_secs(45), ...)` con cancelación segura. | ~2h | Bajo; si se alcanza el timeout se marca ambiguo. |
+| **R14** | Limpieza manual de `SYNC_LOCKS` | Crear `SyncLockGuard { venta_id }` con `impl Drop { cleanup_lock }`, reemplazar `let _guard = lock.try_lock()` por `let _guard = SyncLockGuard::acquire(venta_id)?`. | ~3h | Bajo; elimina olvidos de cleanup. |
+| **R2-nota** | Lock cross-instance perdido tras early commit | Documentado. Si se despliega en multi-instance, evaluar `pg_advisory_lock` de sesión o columna `bdp_sync_status`. De momento el riesgo es bajo en despliegue single-instance. | ~4h | Medio en multi-instance; bajo en single-instance. |
+
+### Compras (D2) — Planificación refinada
+
+**Alcance recomendado:** Empezar con **lectura de albaranes** (Fase 1) y detenerse hasta que el cliente valide utilidad y estado del módulo en BDP.
+
+**Fases:**
+1. **Fase 1 — Lectura de albaranes (8h):**
+   - Backend: `export_purchase_notes` en `bdp_weblink.rs` + structs `BdpPurchaseNoteRequest/Response`.
+   - Handler: `GET /api/bdp/purchase-notes`.
+   - Frontend: `bdp-purchase-notes-panel.tsx` con filtros fecha/proveedor.
+   - Migration: `bdp_purchase_notes` cache local.
+2. **Fase 2 — Crear borradores (10h):** (solo si cliente lo pide)
+   - Formulario de compra con proveedor, artículos, cantidades.
+   - Endpoint `POST /api/bdp/purchase-notes` que crea borrador en BDP sin tocar inventario.
+3. **Fase 3 — Recepción y reconciliación (12h):** (solo si cliente lo pide)
+   - Confirmar cantidades recibidas y actualizar BDP.
+
+**Preguntas clave al cliente:**
+1. ¿El módulo de compras/albaranes está activo en su BDP?
+2. ¿Necesitan ver albaranes desde Glory o solo desde BDP?
+3. ¿Necesitan crear/recepcionar compras desde Glory?
+
+### Pagos parciales (D4) — Planificación refinada
+
+**Alcance recomendado:** Solo si el cliente confirma que lo necesita y acepta riesgo residual de conciliación.
+
+**Componentes obligatorios:**
+1. **Ledger local:** tabla `bdp_partial_payments(venta_id, monto, estado, idempotency_key, created_at)`.
+2. **Lock distribuido por venta_id:** evitar pagos concurrentes sobre la misma orden (Redis o tabla Postgres con TTL).
+3. **Idempotencia:** cada intento genera UUID; si se repite, devuelve resultado cacheado.
+4. **UI de saldo:** mostrar "Pagado: X / Pendiente: Y" en tiempo real tras cada pago.
+5. **Reconciliación periódica:** polling consulta `GetOrder` y corrige estado si hay drift.
+
+**Preguntas clave al cliente:**
+1. ¿Necesitan pagar comandas en varias partes?
+2. ¿Varios dispositivos/tabletas acceden a la misma mesa a la vez?
+3. ¿Aceptan que, mientras se implementa, pueda haber pequeños descuadres a conciliar?
+
+### Riesgos transversales a vigilar
+
+- **Semaforo/throttling (XT1):** Actualmente rechaza con `Throttled` y se mapea a ambiguo. Revisar que el límite de 2 concurrentes no sea excesivamente restrictivo bajo carga real.
+- **Feature flags (XT2):** `ff_bdp_auto_arm`, `ff_bdp_partial_payments`, `ff_bdp_purchase_notes_*` están desactivados por defecto. UI debe mostrar explícitamente cuando una función está bloqueada por flag.
+- **Auto-arming (C1):** Ya implementado. Asegurar que la confirmación dinámica no sea trivial (evitar texto fijo "CONFIRMAR"). Mejorar a pregunta contextual: monto exacto, número de venta, etc.
+- **Toggle navbar (C2):** Ya implementado. Falta restringir a admins (pendiente de store de auth).
+- **Stock (D1):** Implementado como columna en tabla de mapeos. Si el cliente necesita pantalla dedicada, requiere endpoints `GetStock`/`GetListStock` y ~12h adicionales.
+
+---
+
 ## Concerns transversales (aplican a varios items)
 
 ### XT1 — Throttling y rate limiting contra BDP

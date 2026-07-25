@@ -29,23 +29,26 @@ Rama: glory-rs-rest
 **coolify-manager-rs** es una CLI Rust que centraliza toda operación contra Coolify. Reemplaza SSH directo, scp, y la UI web de Coolify para tareas operativas.
 
 ### Comandos principales
-| Comando | Uso |
-|---|---|
-| `deploy --name <sitio> --update` | Deploy completo: actualiza código, rebuild si aplica |
-| `deploy --name <sitio> --update --skip-backup` | Deploy rápido (cambios de código sin migraciones BD) |
-| `redeploy --name <sitio>` | Fuerza redeploy via API Coolify (sin cambios locales) |
-| `health --name <sitio>` | Health check remoto + HTTP. Obligatorio post-deploy |
-| `logs --name <sitio>` | Logs del contenedor remoto |
-| `restart --name <sitio>` | Reinicia servicios del sitio |
-| `backup --name <sitio>` / `restore --name <sitio>` | Backup/restore externo |
-| `exec --name <sitio> -- <cmd>` | Ejecuta comando en el contenedor |
+
+| Comando                                            | Uso                                                   |
+| -------------------------------------------------- | ----------------------------------------------------- |
+| `deploy --name <sitio> --update`                   | Deploy completo: actualiza código, rebuild si aplica  |
+| `deploy --name <sitio> --update --skip-backup`     | Deploy rápido (cambios de código sin migraciones BD)  |
+| `redeploy --name <sitio>                           | Fuerza redeploy via API Coolify (sin cambios locales) |
+| `health --name <sitio>`                            | Health check remoto + HTTP. Obligatorio post-deploy   |
+| `logs --name <sitio>`                              | Logs del contenedor remoto                            |
+| `restart --name <sitio>`                           | Reinicia servicios del sitio                          |
+| `backup --name <sitio>` / `restore --name <sitio>` | Backup/restore externo                                |
+| `exec --name <sitio> -- <cmd>`                     | Ejecuta comando en el contenedor                      |
 
 ### Flujo deploy obligatorio
+
 ```
 deploy → health → si falla → redeploy → health
 ```
 
 ### Protecciones integradas
+
 - **Pre-validación**: `validate_compose_before_deploy()` detecta errores de sintaxis antes de aplicar
 - **Backup pre-write**: `backup_compose_locally()` guarda el compose antes de modificarlo (rollback manual posible)
 - **Post-verify**: `verify_container_env_vars()` y `verify_container_volumes()` confirman que entorno y volúmenes se inyectaron
@@ -53,91 +56,121 @@ deploy → health → si falla → redeploy → health
 - **Marcador CM_GUARD_v1**: todos los comandos SSH incluyen el marker para que el servidor identifique tráfico legítimo de coolify-manager-rs
 
 ### Dónde está
+
 ```
 C:\Users\Owner\OneDrive\Documentos\WP\app\public\wp-content\themes\glorytemplate\.agent\coolify-manager-rs
 ```
+
 Binario: `target\release\coolify-manager.exe`
 Config: `config\settings.json` (servidores, tokens, sitios)
 
 ### Reglas
+
 1. **NUNCA** SSH directo ni scp — todo por coolify-manager-rs.
 2. **Siempre** `health` después de `deploy`.
 3. **Redeploy** para servicios Rust/Docker custom (deploy solo WordPress).
 4. Si un comando no está cubierto, dejar constancia para mejorar la herramienta (no buscar alternativa manual).
 
+---
+
 ## Contexto
 
 Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Axum) sirve API + SPA. Frontend React integrado en `frontend/src/`. La integración BDP permite sincronizar clientes, comandas, pagos y facturas entre Glory y el sistema de punto de venta del restaurante.
 
-## Estado interno reciente
+---
 
-- `237A-1`: auditoría adversarial extendida BDP. 7 hallazgos nuevos verificados como true positives. 6 fixes aplicados: N1 (tx atómica CreateCustomer), N2 (reconciliación clientes huérfanos en polling), N3 (SYNC_LOCKS bounded cleanup), N4 (token cache BDP para evitar doble login), N5 (circuit breaker import batch), N6 (invoice reconciliación con tx). Tests: 128/128 pasando, clippy 0 warnings.
-- `237A-2`: fixes post-247A-1 — tests compilables + MDs actualizados. Añade campos `ff_bdp_*` faltantes en constructores de test y `stock_actual` en `tests/bdp_article_map.rs`.
-- `247A-3`: fix `ON CONFLICT` en `bdp_audit_log` para índice parcial `WHERE idempotency_key IS NOT NULL`.
-- `247A-4`: evaluación de riesgos BDP en producción. Documento `Agente/documentacion/bdp/riesgos-produccion-bdp-2026-07-24.md` con 12 riesgos priorizados y mitigaciones. Tests backend/frontend pasan.
+## Resumen ejecutivo — Integración BDP (para respuesta al cliente)
+
+### ✅ Lo que ya está operativo
+
+| Funcionalidad BDP                                                   | Dónde se ve en la web                                | Estado                                       |
+| ------------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------- |
+| **Catálogo de artículos** (sync, precios, stock)                    | Configuración → BDP → "Catálogo de artículos BDP"    | ✅ Visible y funcional                       |
+| **Mapeos técnicos** (tender, canales, artículo/cliente por defecto) | Configuración → BDP → "Correspondencias Glory ↔ BDP" | ✅ Visible (colapsable)                      |
+| **Clientes BDP** (importar/sincronizar)                             | Clientes → "Importar BDP"                            | ✅ Funcional; lista clientes de BDP          |
+| **Plano de Sala** (mesas BDP)                                       | Plano de Sala → "Sync BDP"                           | ✅ Funcional                                 |
+| **Comandas** (crear orden en BDP)                                   | Ventas → "Enviar a BDP"                              | ✅ Funcional, requiere autorización temporal |
+| **Pagos completos** (AddOrderPayment)                               | Ventas → "Pagar en BDP"                              | ✅ Funcional, requiere autorización temporal |
+| **Facturas** (InvoiceOrder)                                         | Ventas → "Facturar en BDP"                           | ✅ Funcional, requiere autorización temporal |
+| **Estado BDP**                                                      | Navbar (badge BDP: lectura/escritura)                | ✅ Visible e interactivo                     |
+| **Polling de estados**                                              | Configuración → BDP → "Actualización de estados"     | ✅ Configurable                              |
+| **Explorador de menús/packs/fastfoods**                             | Configuración → BDP → sección inferior               | ✅ Visible y funcional                       |
+| **Stock (solo lectura)**                                            | Tabla de mapeos de artículos, columna "Stock"        | ✅ Visible si BDP devuelve stock             |
+
+### ❌ Lo que NO está integrado (por decisión de alcance o pendiente del cliente)
+
+| Funcionalidad                                   | Motivo                                                   | Estado                        |
+| ----------------------------------------------- | -------------------------------------------------------- | ----------------------------- |
+| **Compras** (albaranes/facturas de proveedores) | Dominio complejo, fuera del alcance inicial              | ❌ Pendiente consulta cliente |
+| **Pagos parciales**                             | Requiere ledger + lock distribuido; riesgo de descuadres | ❌ Pendiente consulta cliente |
+| **Sincronización bidireccional automática**     | Riesgo de bucles y conflictos; no soportada por BDP      | ❌ Rechazado                  |
+| **CancelOrder**                                 | BDP responde "Subscripción no activada"                  | ❌ Bloqueado por BDP          |
+| **Modificación de stock**                       | Alcance solo lectura en integración actual               | ❌ Fuera de alcance           |
+
+### 🔒 Autorización temporal para escrituras
+
+**Cómo funciona hoy:**
+
+- Por defecto, Glory está en **modo solo lectura** respecto a BDP. Puede consultar e importar, pero no escribir.
+- Para enviar una comanda, pagar o facturar, se requiere una **autorización temporal** (arming).
+- Esta autorización se puede hacer de dos formas:
+    1. **Manual**: Configuración → BDP → Permiso de operación (escritura temporal).
+    2. **Automática**: Si se activa el feature flag `ff_bdp_auto_arm`, al pulsar "Enviar a BDP" / "Pagar" / "Facturar" se solicita confirmación dinámica y el sistema arma/desarma solo para esa operación.
+- Tras cada escritura exitosa o fallida, el sistema **vuelve automáticamente a solo lectura**.
+
+**Respuesta al cliente:** No es necesario cambiar manualmente el modo cada vez si se activa el auto-arming. La confirmación se pide dentro del flujo de la operación.
+
+### 📦 Importaciones de catálogo vs stock
+
+- **Importación de catálogo**: se refiere a artículos, precios, familias, departamentos, códigos de barras y, si BDP lo devuelve, **stock actual**. Es decir, el stock es parte del catálogo, no algo separado.
+- **Stock**: se muestra en la tabla de mapeos si el módulo de almacén de BDP está activo y devuelve `CurrentStock`. Es solo lectura; no se puede modificar desde Glory.
 
 ---
 
 ## Tareas pendientes
 
-### 🟦 BDP — Estado actual
+### Bloque 247A-7 — Mitigaciones críticas BDP restantes
 
-**Documentación reciente:**
-- `Agente/documentacion/bdp/riesgos-produccion-bdp-2026-07-24.md` — evaluación de riesgos priorizados antes de producción.
-- `Agente/planes/plan-pendientes-bdp-2026-07-23.md` — plan detallado de funcionalidades pendientes de decisión del cliente (C1, C2, D1-D5, XT1, XT2).
-- `Agente/usuario/mapeo-visual-integracion-bdp-2026-07-23.md` — mapeo visual de cada funcionalidad BDP en el frontend.
+| ID      | Riesgo                                                       | Estado                | Siguiente paso                                                                                      | Esfuerzo |
+| ------- | ------------------------------------------------------------ | --------------------- | --------------------------------------------------------------------------------------------------- | -------- |
+| R1      | Reconciliación periódica de comandas/pagos/facturas ambiguas | ⏳ Pendiente          | Implementar `reconcile_ambiguous_orders` en `bdp_order_poller`; reconciliar pagos/facturas ambiguos | ~6-8h    |
+| R5      | Timeout global en fase HTTP de `sync_venta`                  | ⏳ Pendiente          | Envolver fase HTTP con `tokio::time::timeout(45s)`                                                  | ~2h      |
+| R14     | Limpieza manual de `SYNC_LOCKS`                              | ⏳ Pendiente          | Refactorizar a guard RAII que llame `cleanup_lock` en `Drop`                                        | ~3h      |
+| R2-nota | Lock distribuido perdido tras early commit (cross-instance)  | Mitigado parcialmente | Evaluar `pg_advisory_lock` de sesión o columna `bdp_sync_status` si se despliega multi-instance     | ~4h      |
 
-#### Mitigaciones críticas BDP en curso
+### Bloque 247A-8 — Decisiones pendientes del cliente
 
-| ID | Riesgo | Estado | Siguiente paso |
-| --- | --- | --- | --- |
-| R2 | Transacción abierta durante llamadas HTTP a BDP |  Parcialmente mitigado (commit temprano, pérdida de lock cross-instance) | Decidir: lock de sesión `pg_advisory_lock` o columna `bdp_sync_status` |
-| R3 | Throttling tratado como error permanente | ✅ Mitigado (`Throttled → AmbiguousTransport`) | Añadir retry/reconciliación automática |
-| R1 | Reconciliación de comandas ambiguas (`AmbiguousTransport`) | ⏳ Pendiente | Implementar `reconcile_ambiguous_orders` en `bdp_order_poller` |
-| R5 | Timeout global en `sync_venta` |  Pendiente | Envolver fase HTTP en `tokio::time::timeout` |
-| R4 | Cliente sin mapeo bloquea comanda sin feedback claro | 🟡 Backend mejorado (mensaje descriptivo) | Mejorar UI/UX de ventas (badge + toast) |
-| R11/R12 | IVA/precio por defecto hardcodeados y aritmética `f64` | ⏳ Pendiente evaluación | Revisar si BDP valida totales y pasar cálculo a `Decimal` |
-| R13 | `SYNC_LOCKS` mutex poisoning | ✅ Mitigado (`unwrap_or_else(|e| e.into_inner())`) | Considerar migración a `parking_lot`/`DashMap` |
-| R14 | Limpieza manual de `SYNC_LOCKS` | ⏳ Pendiente | Refactorizar a guard RAII |
-| R15 | `Throttled` en pagos/facturas no se trata como ambiguo | ⏳ Pendiente | Aplicar mismo mapeo en `add_order_payment` e `invoice_order` |
+| ID  | Item                                    | Pregunta al cliente                                                                      | Esfuerzo estimado           |
+| --- | --------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------- |
+| D2  | **Compras** (solo lectura de albaranes) | ¿Necesita ver albaranes/facturas de proveedores en Glory? ¿El módulo está activo en BDP? | ~8h (fase 1 lectura)        |
+| D4  | **Pagos parciales**                     | ¿Necesitan pagar comandas en partes desde varios dispositivos?                           | ~18-22h (con lock + ledger) |
+| D5  | **CancelOrder**                         | BDP responde "Subscripción no activada". ¿Pueden activar el módulo?                      | ~12-16h si BDP lo activa    |
 
-### ✅ Completado recientemente
+### Bloque 247A-9 — Pruebas y validación antes de producción
 
-#### BDP — Fase 9: Catálogo, Plano de Sala y Menús
-- **Fase 9.1 — ExportArticles: Sync de catálogo BDP → Glory.** ✅ 157A-7+157A-9
-- **Fase 9.2 — GetArticle: Consulta individual de artículo.** ✅ 157A-9
-- **Fase 9.3 — GetPricesArticles: Refresh de precios.** ✅ 157A-9
-- **Fase 9.4 — GetRoomTables: Sync de mesas BDP → Glory.** ✅ 157A-9
-- **Fase 9.5 — GetMenuDefinition: Lectura informativa de menús.** ✅ 157A-9
+| ID  | Tarea                                                                           | Esfuerzo |
+| --- | ------------------------------------------------------------------------------- | -------- |
+| T1  | Validar flujo completo con simulador BDP local (crear comanda, pagar, facturar) | ~4h      |
+| T2  | Validar flujo con BDP real del restaurante en entorno controlado                | ~4h      |
+| T3  | Probar auto-arming y toggles de seguridad                                       | ~2h      |
+| T4  | Revisar logs de ambigüedad y reconciliación                                     | ~2h      |
+| T5  | Documentar procedimiento de rollback y restauración                             | ~2h      |
 
-#### Mejoras de UX y seguridad
-- **C1 — Auto-arming** ✅ Implementado en 247A-1.
-- **C2 — Toggle rápido de modo escritura en navbar** ✅ Implementado en 247A-1.
-- **XT1 — Throttling/semáforo BDP** ✅ Implementado en 247A-1.
-- **XT2 — Feature flags por restaurante** ✅ Implementado en 247A-1.
-- **D1 — Verificación de stock (parser defensivo)** ✅ Implementado en 237A-4.
+**Plan de pruebas propuesto al cliente:**
 
-### ✅ Resuelto
+1. Fijar una sesión de 2 horas con acceso al BDP del restaurante (o simulador).
+2. Crear una venta de prueba en Glory y enviarla a BDP.
+3. Verificar que la comanda aparece en el TPV/BDP.
+4. Registrar un pago completo y facturar.
+5. Verificar que el estado se refleja en Glory (polling o consulta manual).
+6. Probar el modo de autorización temporal y auto-arming.
+7. Revisar auditoría en "Historial BDP".
 
-- **065A-4 — Resolver bloqueo BDP `[300035]` fuera de horario (sin escrituras reales).** ✅ RESUELTO 2026-06-07
-  - Causa real del 300035: campos `AlreadyInvoiced` e `Invoice` faltantes en payload (no series ni Order.Type).
-  - Causa del 300005 (IVA): POS 31 usaba serie `00031TM` sin IVA incluido. Fix: nueva serie `00031TI` con IVA incluido.
-  - `build_only_check_order()` ahora usa `Type=0` (Barra) — único tipo que pasa validación sin config extra.
-  - Validación dry-run completa: artículo real (`1001`, "CAFE BOMBON") → `ErrorMessage: ""`.
-  - Pendiente: commit, deploy a producción, y probar endpoint `/api/configuracion/bdp/sync-dry-run` en producción.
+---
 
-- **202A-2 — Fix glory-rest login + seed restoration.** ✅ RESUELTO 2026-07-02
-  - restaurante.wandori.us no dejaba entrar. Coolify regeneró compose (credenciales cambiadas).
-  - Datos originales perdidos permanentemente. Seed ejecutado para restaurar demo.
-  - Documentación: `Agente/documentacion/hosting/incidente-glory-rest-2026-07-01.md`
+## Referencias rápidas
 
-- **202A-3 — Guards E19+E20 en coolify-manager-rs.** ✅ RESUELTO 2026-07-02
-  - E19: Credential Drift Detection — aborta deploy si POSTGRES_USER/POSTGRES_DB cambian.
-  - E20: Database Existence Verification — aborta ALTER USER si la DB no existe.
-  - Commit `ea16100` en coolify-manager-rs.
-
-- **202A-4 — Documentación sistema de respaldos + incidente.** ✅ RESUELTO 2026-07-02
-  - Documentación completa del sistema de backups (3 capas, formato, retención, restore, guards).
-  - Documentación detallada del incidente glory-rest (cronología, causa raíz, acciones).
-  - Archivos: `Agente/documentacion/hosting/sistema-respaldos-2026-07-02.md`, `Agente/documentacion/hosting/incidente-glory-rest-2026-07-01.md`
-
+- `Agente/documentacion/bdp/riesgos-produccion-bdp-2026-07-24.md` — riesgos y mitigaciones.
+- `Agente/planes/plan-pendientes-bdp-2026-07-23.md` — plan detallado de funcionalidades pendientes.
+- `Agente/usuario/mapeo-visual-integracion-bdp-2026-07-23.md` — dónde se ve cada funcionalidad en el frontend.
+- `Agente/completados/tareas-2026-07-24.md` — tareas BDP completadas recientemente.

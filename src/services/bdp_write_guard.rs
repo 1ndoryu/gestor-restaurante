@@ -15,8 +15,8 @@ impl BdpWriteGuard {
     /// aplicada sin confirmación local. Se bloquea cualquier nueva escritura
     /// sobre la misma entidad hasta reconciliación manual.
     /// Verifica si ya existe un registro de auditoría con la misma clave de
-    /// idempotencia para este usuario. Devuelve el audit_id y el resultado si
-    /// se encuentra, o None si no existe.
+    /// `idempotency_key` para este usuario. Devuelve el `audit_id` y el resultado si
+    /// se encuentra, o `None` si no existe.
     pub async fn check_idempotency(
         pool: &PgPool,
         user_id: Uuid,
@@ -43,7 +43,7 @@ impl BdpWriteGuard {
     /// pre-check de armado existente y el INSERT se ejecutan dentro de una
     /// transacción protegida por advisory lock para evitar condiciones de
     /// carrera con armado manual concurrente.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
     pub async fn try_auto_arm(
         pool: &PgPool,
         user_id: Uuid,
@@ -351,20 +351,17 @@ impl BdpWriteGuard {
         .await
         .map_err(|error| format!("No se pudo registrar intención BDP: {error}"))?;
 
-        let audit_id = match maybe_id {
-            Some(id) => id,
-            None => {
-                let key = idempotency_key.unwrap_or("");
-                let (existing_id, resultado): (Uuid, String) = sqlx::query_as(
-                    "SELECT id, resultado FROM bdp_audit_log WHERE user_id = $1 AND idempotency_key = $2",
-                )
-                .bind(user_id)
-                .bind(key)
-                .fetch_one(&mut *tx)
-                .await
-                .map_err(|error| format!("No se pudo leer auditoría BDP existente: {error}"))?;
-                return Err(format!("idempotencia_duplicada:{existing_id}:{resultado}"));
-            }
+        let Some(audit_id) = maybe_id else {
+            let key = idempotency_key.unwrap_or("");
+            let (existing_id, resultado): (Uuid, String) = sqlx::query_as(
+                "SELECT id, resultado FROM bdp_audit_log WHERE user_id = $1 AND idempotency_key = $2",
+            )
+            .bind(user_id)
+            .bind(key)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|error| format!("No se pudo leer auditoría BDP existente: {error}"))?;
+            return Err(format!("idempotencia_duplicada:{existing_id}:{resultado}"));
         };
 
         let mode_updated = sqlx::query(

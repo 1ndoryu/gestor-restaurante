@@ -108,6 +108,19 @@ impl BdpOrderPollerService {
         }
 
         let client = BdpWeblinkClient::new(config);
+
+        /* [R1] Reconciliar auditorías ambiguas antes de procesar estados normales. */
+        match Self::reconcile_ambiguous(pool, user_id, config, &client).await {
+            Ok(count) => {
+                if count > 0 {
+                    info!("[R1] {} auditorías ambiguas reconciliadas para usuario {}", count, user_id);
+                }
+            }
+            Err(error) => {
+                warn!("[R1] Error reconciliando auditorías ambiguas: {error}");
+            }
+        }
+
         let mut updated = 0;
 
         if !orphaned.is_empty() {
@@ -279,6 +292,267 @@ impl BdpOrderPollerService {
                 format!("unknown_{other}")
             }
         }
+    }
+
+    /* [R1] Reconciliar auditorías BDP marcadas como ambiguas.
+     * Devuelve el número de auditorías cerradas como exito. */
+    async fn reconcile_ambiguous(
+        pool: &PgPool,
+        user_id: uuid::Uuid,
+        _config: &ConfiguracionRestaurante,
+        client: &BdpWeblinkClient<'_>,
+    ) -> Result<usize, String> {
+        let rows: Vec<(uuid::Uuid, String, uuid::Uuid, serde_json::Value)> = sqlx::query_as(
+            r"SELECT id, operacion, target_entity_id, datos_enviados
+               FROM bdp_audit_log
+               WHERE user_id = $1
+                 AND resultado = 'ambiguo'
+                 AND operacion IN ('create_order', 'add_payment', 'invoice')
+               ORDER BY created_at DESC
+               LIMIT 100",
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| format!("Error listando auditorías ambiguas: {e}"))?;
+
+        let mut reconciled = 0;
+        for (audit_id, operacion, target_entity_id, datos_enviados) in rows {
+            let result = match operacion.as_str() {
+                "create_order" => {
+                    Self::reconcile_create_order(pool, client, audit_id, target_entity_id)
+                        .await
+                }
+                "add_payment" => {
+                    Self::reconcile_add_payment(
+                        pool,
+                        client,
+                        audit_id,
+                        target_entity_id,
+                        &datos_enviados,
+                    )
+                    .await
+                }
+                "invoice" => Self::reconcile_invoice(pool, client, audit_id, target_entity_id).await,
+                _ => Ok(false),
+            };
+            match result {
+                Ok(true) => {
+                    info!("[R1] Auditoría {audit_id} reconciliada para {operacion}");
+                    reconciled += 1;
+                }
+                Ok(false) => {}
+                Err(e) => {
+                    warn!("[R1] Error reconciliando auditoría {audit_id}: {e}");
+                }
+            }
+        }
+        Ok(reconciled)
+    }
+
+    async fn reconcile_create_order(
+        pool: &PgPool,
+        client: &BdpWeblinkClient<'_>,
+        audit_id: uuid::Uuid,
+        venta_id: uuid::Uuid,
+    ) -> Result<bool, String> {
+        let marketplace_id =
+            crate::services::bdp_sync::BdpSyncService::marketplace_order_id(venta_id);
+        let request = BdpGetOrderRequest {
+            order_identifier: BdpOrderIdentifier::by_market(
+                crate::services::bdp_sync::BDP_SYNC_MARKET_ID,
+                marketplace_id.clone(),
+            ),
+        };
+        match client.get_order(&request).await {
+            Ok(response) => {
+                let order_id = response
+                    .get("OrderId")
+                    .and_then(serde_json::Value::as_i64)
+                    .or_else(|| response.get("Order")?.get("OrderId")?.as_i64())
+                    .filter(|id| *id > 0);
+                if let Some(order_id) = order_id {
+                    let respuesta = serde_json::json!({ "order_id": order_id });
+                    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+                    sqlx::query(
+                        "UPDATE ventas SET bdp_synced = true, bdp_synced_at = NOW(), bdp_order_id = $2, bdp_sync_error = NULL WHERE id = $1"
+                    )
+                    .bind(venta_id)
+                    .bind(order_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                    sqlx::query(
+                        r"UPDATE bdp_audit_log
+                        SET resultado = 'exito', datos_respuesta = $2, error_mensaje = NULL, updated_at = NOW()
+                        WHERE id = $1"
+                    )
+                    .bind(audit_id)
+                    .bind(Some(&respuesta))
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                    tx.commit().await.map_err(|e| e.to_string())?;
+                    info!("[R1] Comanda reconciliada para venta {venta_id} → OrderId={order_id}");
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+            Err(e) => {
+                warn!("[R1] GetOrder falló para reconciliar comanda {venta_id}: {e}");
+                Ok(false)
+            }
+        }
+    }
+
+    async fn reconcile_add_payment(
+        pool: &PgPool,
+        client: &BdpWeblinkClient<'_>,
+        audit_id: uuid::Uuid,
+        venta_id: uuid::Uuid,
+        datos_enviados: &serde_json::Value,
+    ) -> Result<bool, String> {
+        let Some(order_id) = Self::find_bdp_order_id_for_venta(pool, venta_id).await? else {
+            return Ok(false);
+        };
+        let request = BdpGetOrderRequest {
+            order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+        };
+        match client.get_order(&request).await {
+            Ok(response) => {
+                let order = response.get("Order").cloned().unwrap_or(response);
+                let payments = order
+                    .get("Payments")
+                    .and_then(serde_json::Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                let expected_tender = datos_enviados
+                    .get("tender_id")
+                    .and_then(serde_json::Value::as_i64)
+                    .unwrap_or(-1);
+                let expected_amount = datos_enviados
+                    .get("amount")
+                    .and_then(serde_json::Value::as_f64)
+                    .unwrap_or(0.0);
+                let matched = payments.iter().any(|payment| {
+                    let tender = payment
+                        .get("TenderId")
+                        .and_then(serde_json::Value::as_i64)
+                        .unwrap_or(-1);
+                    let amount = payment
+                        .get("Amount")
+                        .and_then(serde_json::Value::as_f64)
+                        .unwrap_or(0.0);
+                    tender == expected_tender && (amount - expected_amount).abs() < 0.005
+                });
+                if !matched {
+                    return Ok(false);
+                }
+                let invoice_number = order
+                    .get("InvoiceNumber")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+                if invoice_number.is_some() {
+                    sqlx::query(
+                        "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1"
+                    )
+                    .bind(venta_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                }
+                let respuesta = serde_json::json!({ "order_id": order_id, "invoice_number": invoice_number });
+                sqlx::query(
+                    r"UPDATE bdp_audit_log
+                    SET resultado = 'exito', datos_respuesta = $2, error_mensaje = NULL, updated_at = NOW()
+                    WHERE id = $1"
+                )
+                .bind(audit_id)
+                .bind(Some(&respuesta))
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| e.to_string())?;
+                tx.commit().await.map_err(|e| e.to_string())?;
+                info!("[R1] Pago reconciliado para venta {venta_id} → OrderId={order_id}");
+                Ok(true)
+            }
+            Err(e) => {
+                warn!("[R1] GetOrder falló para reconciliar pago {venta_id}: {e}");
+                Ok(false)
+            }
+        }
+    }
+
+    async fn reconcile_invoice(
+        pool: &PgPool,
+        client: &BdpWeblinkClient<'_>,
+        audit_id: uuid::Uuid,
+        venta_id: uuid::Uuid,
+    ) -> Result<bool, String> {
+        let Some(order_id) = Self::find_bdp_order_id_for_venta(pool, venta_id).await? else {
+            return Ok(false);
+        };
+        let request = BdpGetOrderRequest {
+            order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+        };
+        match client.get_order(&request).await {
+            Ok(response) => {
+                let order = response.get("Order").cloned().unwrap_or(response);
+                let status = order
+                    .get("Status")
+                    .and_then(serde_json::Value::as_i64)
+                    .unwrap_or(-1);
+                let invoice_number = order
+                    .get("InvoiceNumber")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                if status != 3 && invoice_number.is_none() {
+                    return Ok(false);
+                }
+                let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+                sqlx::query(
+                    "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1"
+                )
+                .bind(venta_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| e.to_string())?;
+                let respuesta = serde_json::json!({ "order_id": order_id, "invoice_number": invoice_number });
+                sqlx::query(
+                    r"UPDATE bdp_audit_log
+                    SET resultado = 'exito', datos_respuesta = $2, error_mensaje = NULL, updated_at = NOW()
+                    WHERE id = $1"
+                )
+                .bind(audit_id)
+                .bind(Some(&respuesta))
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| e.to_string())?;
+                tx.commit().await.map_err(|e| e.to_string())?;
+                info!("[R1] Factura reconciliada para venta {venta_id} → OrderId={order_id}");
+                Ok(true)
+            }
+            Err(e) => {
+                warn!("[R1] GetOrder falló para reconciliar factura {venta_id}: {e}");
+                Ok(false)
+            }
+        }
+    }
+
+    async fn find_bdp_order_id_for_venta(
+        pool: &PgPool,
+        venta_id: uuid::Uuid,
+    ) -> Result<Option<i64>, String> {
+        let order_id: Option<i64> = sqlx::query_scalar(
+            "SELECT bdp_order_id FROM ventas WHERE id = $1"
+        )
+        .bind(venta_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        Ok(order_id)
     }
 }
 

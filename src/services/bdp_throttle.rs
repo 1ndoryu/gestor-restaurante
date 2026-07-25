@@ -34,6 +34,7 @@ impl Default for BdpThrottleManager {
 }
 
 impl BdpThrottleManager {
+    #[must_use]
     pub fn new(max_concurrent: usize) -> Self {
         Self {
             per_target: Mutex::new(HashMap::new()),
@@ -69,8 +70,7 @@ impl BdpThrottleManager {
         let store = self.per_target.lock().expect("throttle map poisoned");
         store
             .get(&key)
-            .map(|semaphore| self.max_concurrent - semaphore.available_permits())
-            .unwrap_or(0)
+            .map_or(0, |semaphore| self.max_concurrent - semaphore.available_permits())
     }
 
     pub fn max_concurrent(&self) -> usize {
@@ -87,5 +87,4 @@ pub struct BdpThrottleGuard {
 ///
 /// En el futuro podemos inicializarla desde variables de entorno o desde
 /// `configuracion_restaurante` para permitir tuning por restaurante.
-pub static BDP_THROTTLE: LazyLock<BdpThrottleManager> =
-    LazyLock::new(|| BdpThrottleManager::default());
+pub static BDP_THROTTLE: LazyLock<BdpThrottleManager> = LazyLock::new(BdpThrottleManager::default);
