@@ -681,19 +681,19 @@ Usuario pulsa "Cancelar en BDP" en venta-row-actions
 
 ---
 
-## Actualización 247A-7 — Planificación reforzada de mitigaciones, compras y pagos parciales
+## Actualización 247A-7 — Mitigaciones críticas implementadas (R1, R5, R14)
 
 > **Fecha:** 2026-07-25  
-> **Objetivo:** Revisar y afianzar los planes de compras/pagos parciales, e integrar las mitigaciones técnicas críticas que faltan antes de producción.
+> **Objetivo:** Cerrar las mitigaciones técnicas críticas restantes antes de producción. Compras/pagos parciales siguen pendientes de decisión del cliente.
 
-### Mitigaciones técnicas críticas pendientes
+### Mitigaciones técnicas críticas — Estado
 
-| ID | Riesgo | Solución técnica | Esfuerzo | Riesgo residual |
+| ID | Riesgo | Solución técnica | Estado | Riesgo residual |
 |---|---|---|---|---|
-| **R1** | Comandas/pagos/facturas marcados `ambiguo` sin reconciliar | Añadir en `bdp_order_poller` una fase `reconcile_ambiguous`: query `bdp_audit_log` filtra `resultado='ambiguo'`. Para `create_order`, consulta `GetOrder(MarketplaceOrderId)`. Para `add_payment`/`invoice`, verifica si el estado BDP es `invoiced`/`paid` y cierra la auditoría. | ~6-8h | Bajo si GetOrder funciona; si BDP no tiene registro, queda en ambiguo para revisión manual. |
-| **R5** | `sync_venta` puede acumular llamadas BDP sin límite global | Envolver la fase HTTP (resolve_article, resolve_order_context, retry_send_order) en `tokio::time::timeout(Duration::from_secs(45), ...)` con cancelación segura. | ~2h | Bajo; si se alcanza el timeout se marca ambiguo. |
-| **R14** | Limpieza manual de `SYNC_LOCKS` | Crear `SyncLockGuard { venta_id }` con `impl Drop { cleanup_lock }`, reemplazar `let _guard = lock.try_lock()` por `let _guard = SyncLockGuard::acquire(venta_id)?`. | ~3h | Bajo; elimina olvidos de cleanup. |
-| **R2-nota** | Lock cross-instance perdido tras early commit | Documentado. Si se despliega en multi-instance, evaluar `pg_advisory_lock` de sesión o columna `bdp_sync_status`. De momento el riesgo es bajo en despliegue single-instance. | ~4h | Medio en multi-instance; bajo en single-instance. |
+| **R1** | Comandas/pagos/facturas marcados `ambiguo` sin reconciliar | Worker `reconcile_ambiguous_orders` en `bdp_order_poller`; consulta `GetOrder` y cierra auditorías `ambiguo`. | ✅ Implementado | Bajo si GetOrder funciona; si BDP no tiene registro, queda en ambiguo para revisión manual. |
+| **R5** | `sync_venta` puede acumular llamadas BDP sin límite global | Fase HTTP envuelta en `tokio::time::timeout(Duration::from_secs(45))`. | ✅ Implementado | Bajo; si se alcanza el timeout se marca ambiguo. |
+| **R14** | Limpieza manual de `SYNC_LOCKS` | Guard RAII `SyncLockGuard` con `impl Drop { cleanup_lock }`. | ✅ Implementado | Bajo; elimina olvidos de cleanup. |
+| **R2-nota** | Lock cross-instance perdido tras early commit | Documentado. Si se despliega en multi-instance, evaluar `pg_advisory_lock` de sesión o columna `bdp_sync_status`. |  Documentado | Medio en multi-instance; bajo en single-instance. |
 
 ### Compras (D2) — Planificación refinada
 

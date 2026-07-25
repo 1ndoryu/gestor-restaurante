@@ -127,16 +127,16 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ---
 
-## Tareas pendientes
+## Tareas pendientes### Bloque 247A-7 — Mitigaciones críticas BDP (implementadas)
 
-### Bloque 247A-7 — Mitigaciones críticas BDP restantes
+| ID      | Riesgo                                                       | Estado       | Qué se hizo                                                                                                    | Archivos clave                                |
+| ------- | ------------------------------------------------------------ | ------------ | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| R1      | Reconciliación periódica de comandas/pagos/facturas ambiguas | ✅ Completado | Worker `reconcile_ambiguous_orders` en `bdp_order_poller`; consulta `GetOrder` y cierra auditorías `ambiguo`    | `src/services/bdp_order_poller.rs`            |
+| R5      | Timeout global en fase HTTP de `sync_venta`                  | ✅ Completado | Fase HTTP envuelta en `tokio::time::timeout(Duration::from_secs(45))`                                          | `src/services/bdp_sync.rs`                      |
+| R14     | Limpieza manual de `SYNC_LOCKS`                              | ✅ Completado | Guard RAII `SyncLockGuard` que llama `cleanup_lock` en `Drop`                                                  | `src/services/bdp_sync.rs`                      |
+| R2-nota | Lock distribuido perdido tras early commit (cross-instance)  | Documentado  | Evaluar `pg_advisory_lock` de sesión o columna `bdp_sync_status` si se despliega multi-instance                | `Agente/documentacion/bdp/riesgos-produccion-bdp-2026-07-24.md` |
 
-| ID      | Riesgo                                                       | Estado                | Siguiente paso                                                                                      | Esfuerzo |
-| ------- | ------------------------------------------------------------ | --------------------- | --------------------------------------------------------------------------------------------------- | -------- |
-| R1      | Reconciliación periódica de comandas/pagos/facturas ambiguas | ⏳ Pendiente          | Implementar `reconcile_ambiguous_orders` en `bdp_order_poller`; reconciliar pagos/facturas ambiguos | ~6-8h    |
-| R5      | Timeout global en fase HTTP de `sync_venta`                  | ⏳ Pendiente          | Envolver fase HTTP con `tokio::time::timeout(45s)`                                                  | ~2h      |
-| R14     | Limpieza manual de `SYNC_LOCKS`                              | ⏳ Pendiente          | Refactorizar a guard RAII que llame `cleanup_lock` en `Drop`                                        | ~3h      |
-| R2-nota | Lock distribuido perdido tras early commit (cross-instance)  | Mitigado parcialmente | Evaluar `pg_advisory_lock` de sesión o columna `bdp_sync_status` si se despliega multi-instance     | ~4h      |
+### Bloque 247A-8 — Decisiones pendientes del cliente
 
 ### Bloque 247A-8 — Decisiones pendientes del cliente
 
