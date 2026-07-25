@@ -6,6 +6,7 @@ import { Link, useLocation } from "react-router-dom"
 import {
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -13,6 +14,7 @@ import {
 
 export function NavSecondary({
   items,
+  label,
   ...props
 }: {
   items: {
@@ -20,11 +22,13 @@ export function NavSecondary({
     url: string
     icon: React.ReactNode
   }[]
+  label?: string
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
   const location = useLocation()
 
   return (
     <SidebarGroup {...props}>
+      {label && <SidebarGroupLabel>{label}</SidebarGroupLabel>}
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => (

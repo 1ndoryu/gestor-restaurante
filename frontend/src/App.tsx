@@ -32,6 +32,9 @@ import Recordatorios from './componentes/Recordatorios';
 import ListaTrabajadores from './componentes/ListaTrabajadores';
 import ListaResenas from './componentes/ListaResenas';
 import Inactividad from './componentes/Inactividad';
+import BdpStock from './componentes/bdp/BdpStock';
+import BdpExplorador from './componentes/bdp/BdpExplorador';
+import BdpHistorial from './componentes/bdp/BdpHistorial';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -74,6 +77,9 @@ function App() {
               <Route path="/trabajadores" element={<ListaTrabajadores />} />
               <Route path="/resenas" element={<ListaResenas />} />
               <Route path="/inactividad" element={<Inactividad />} />
+              <Route path="/bdp/stock" element={<BdpStock />} />
+              <Route path="/bdp/explorador" element={<BdpExplorador />} />
+              <Route path="/bdp/historial" element={<BdpHistorial />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

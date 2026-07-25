@@ -47,6 +47,9 @@ import {
   Shield,
   Star,
   Clock,
+  Package,
+  Search,
+  Database,
 } from "lucide-react"
 import { useObtenerConfiguracion } from "@/api/generated/configuracion/configuracion"
 
@@ -66,6 +69,12 @@ const navPrincipal = [
   { title: "Trabajadores", url: "/trabajadores", icon: <Shield /> },
   { title: "Reseñas", url: "/resenas", icon: <Star /> },
   { title: "Inactividad", url: "/inactividad", icon: <Clock /> },
+]
+
+const navBdp = [
+  { title: "BDP Stock", url: "/bdp/stock", icon: <Package /> },
+  { title: "BDP Explorador", url: "/bdp/explorador", icon: <Search /> },
+  { title: "BDP Historial", url: "/bdp/historial", icon: <Database /> },
 ]
 
 const navSecundario = [
@@ -121,7 +130,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={navPrincipal} />
-        <NavSecondary items={navSecundario} className="mt-auto" />
+        <NavSecondary items={navBdp} label="Integración BDP" className="mt-auto" />
+        <NavSecondary items={navSecundario} />
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>

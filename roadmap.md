@@ -131,14 +131,21 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 | ID      | Riesgo                                                       | Estado       | Qué se hizo                                                                                                    | Archivos clave                                |
 | ------- | ------------------------------------------------------------ | ------------ | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| R1      | Reconciliación periódica de comandas/pagos/facturas ambiguas | ✅ Completado | Worker `reconcile_ambiguous_orders` en `bdp_order_poller`; consulta `GetOrder` y cierra auditorías `ambiguo`    | `src/services/bdp_order_poller.rs`            |
-| R5      | Timeout global en fase HTTP de `sync_venta`                  | ✅ Completado | Fase HTTP envuelta en `tokio::time::timeout(Duration::from_secs(45))`                                          | `src/services/bdp_sync.rs`                      |
-| R14     | Limpieza manual de `SYNC_LOCKS`                              | ✅ Completado | Guard RAII `SyncLockGuard` que llama `cleanup_lock` en `Drop`                                                  | `src/services/bdp_sync.rs`                      |
+| R1      | Reconciliación periódica de comandas/pagos/facturas ambiguas | ✅ Implementado | Worker `reconcile_ambiguous_orders` en `bdp_order_poller`; consulta `GetOrder` y cierra auditorías `ambiguo`    | `src/services/bdp_order_poller.rs`            |
+| R5      | Timeout global en fase HTTP de `sync_venta`                  | ✅ Implementado | Fase HTTP envuelta en `tokio::time::timeout(Duration::from_secs(45))`                                          | `src/services/bdp_sync.rs`                      |
+| R14     | Limpieza manual de `SYNC_LOCKS`                              | ✅ Implementado | Guard RAII `SyncLockGuard` que llama `cleanup_lock` en `Drop`                                                  | `src/services/bdp_sync.rs`                      |
 | R2-nota | Lock distribuido perdido tras early commit (cross-instance)  | Documentado  | Evaluar `pg_advisory_lock` de sesión o columna `bdp_sync_status` si se despliega multi-instance                | `Agente/documentacion/bdp/riesgos-produccion-bdp-2026-07-24.md` |
 
-### Bloque 247A-8 — Decisiones pendientes del cliente
+### Bloque 247A-8 — Mejoras de UI/UX BDP (nuevas)
 
-### Bloque 247A-8 — Decisiones pendientes del cliente
+| ID  | Item                                                  | Estado        | Descripción                                                                                                  | Esfuerzo estimado |
+| --- | ----------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------ | ----------------- |
+| UI1 | **Página dedicada de historial BDP**                  | ⏳ Planificado | Ruta `/bdp/historial` con pestañas de auditoría y snapshots. Acciones seguras (solo ver detalles/crear snapshot). | ~2h               |
+| UI2 | **Página dedicada del explorador BDP**                | ⏳ Planificado | Ruta `/bdp/explorador` para menús/packs/fastfoods con layout de página completa y tabla de líneas.              | ~2h               |
+| UI3 | **Página dedicada de stock BDP**                      | ⏳ Planificado | Ruta `/bdp/stock` con tabla de artículos, filtros y botón de sync catálogo. Solo lectura.                      | ~2h               |
+| UI4 | **Evaluación de stock gestionable**                   | ⏳ Planificado | Evaluar si se permite modificar stock desde Glory vía `GetStock`/`UpdateStock`. Queda como lectura hasta análisis. | ~1h (análisis)    |
+
+### Bloque 247A-9 — Decisiones pendientes del cliente
 
 | ID  | Item                                    | Pregunta al cliente                                                                      | Esfuerzo estimado           |
 | --- | --------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------- |
