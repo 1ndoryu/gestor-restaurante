@@ -790,24 +790,10 @@ pub struct BdpExportPurchaseNotesRequest {
     pub final_serial: Option<String>,
 }
 
-/// Línea de un albarán de compra BDP. Se mantiene genérica porque el manual
-/// no detalla todos los campos; se conserva el JSON crudo en `datos_bdp`.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct BdpPurchaseNoteLine {
-    #[serde(default, deserialize_with = "deserialize_optional_string")]
-    pub article_code: Option<String>,
-    #[serde(default)]
-    pub article_name: Option<String>,
-    #[serde(default)]
-    pub units: Option<Decimal>,
-    #[serde(default)]
-    pub price: Option<Decimal>,
-    #[serde(default)]
-    pub total: Option<Decimal>,
-}
-
 /// Albarán de compra individual devuelto por `ExportPurchaseNotes`.
+/// Solo se mapean los campos de cabecera confirmados; el resto del JSON se
+/// conserva en `extra` y se persiste en `datos_bdp`. La estructura exacta de
+/// las líneas de albarán aún no está verificada con datos reales de BDP.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct BdpPurchaseNoteData {
@@ -823,8 +809,6 @@ pub struct BdpPurchaseNoteData {
     pub nom_proveedor: Option<String>,
     #[serde(default)]
     pub total_albaran: Option<Decimal>,
-    #[serde(default)]
-    pub lineas: Vec<BdpPurchaseNoteLine>,
     #[serde(flatten)]
     pub extra: serde_json::Value,
 }
@@ -858,7 +842,7 @@ mod tests {
             BdpEndpointArea::Pagos,
             BdpEndpointArea::Salones,
             BdpEndpointArea::Menus,
-    BdpEndpointArea::Compras,
+            BdpEndpointArea::Compras,
         ] {
             assert!(BDP_ENDPOINTS.iter().any(|endpoint| endpoint.area == area));
         }

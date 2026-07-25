@@ -22,7 +22,9 @@ use validator::Validate;
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
-use crate::models::{ActualizarBdpArticleMapRequest, BdpArticleMap, BdpArticleStock, CrearBdpArticleMapRequest};
+use crate::models::{
+    ActualizarBdpArticleMapRequest, BdpArticleMap, BdpArticleStock, CrearBdpArticleMapRequest,
+};
 use crate::repositories::BdpArticleMapRepository;
 use crate::services::bdp_weblink_catalog::{
     BdpGetFastfoodRequest, BdpGetMenuRequest, BdpGetPackRequest,
@@ -45,10 +47,7 @@ pub fn routes() -> Router<AppState> {
             "/bdp/article-maps",
             get(listar_article_maps).post(crear_article_map),
         )
-        .route(
-            "/bdp/article-stock",
-            get(listar_article_stock),
-        )
+        .route("/bdp/article-stock", get(listar_article_stock))
         .route(
             "/bdp/article-maps/import-catalog",
             axum::routing::post(importar_catalogo),

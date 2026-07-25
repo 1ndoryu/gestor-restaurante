@@ -1,7 +1,7 @@
 mod api_key;
 mod bdp_article_map;
-mod bdp_purchase_note;
 pub mod bdp_pago;
+mod bdp_purchase_note;
 mod campana;
 mod canal_reserva;
 mod cliente;
@@ -99,11 +99,12 @@ mod inactividad;
 pub use bdp_article_map::{
     ActualizarBdpArticleMapRequest, BdpArticleMap, BdpArticleStock, CrearBdpArticleMapRequest,
 };
+pub use bdp_pago::BdpPago;
 pub use bdp_purchase_note::{
-    BdpPurchaseNote, BdpPurchaseNoteListParams, BdpPurchaseNoteSyncRequest,
+    BdpPurchaseNote, BdpPurchaseNoteDraftRequest, BdpPurchaseNoteEstado, BdpPurchaseNoteListParams,
+    BdpPurchaseNoteReconcileRequest, BdpPurchaseNoteReconcileResult, BdpPurchaseNoteSyncRequest,
     BdpPurchaseNoteSyncResult,
 };
-pub use bdp_pago::BdpPago;
 pub use inactividad::{
     ActualizarReglaInactividadRequest, CrearReglaInactividadRequest, ReglaInactividad,
 };

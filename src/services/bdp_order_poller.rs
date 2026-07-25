@@ -114,7 +114,10 @@ impl BdpOrderPollerService {
         match Self::reconcile_ambiguous(pool, user_id, config, &client).await {
             Ok(count) => {
                 if count > 0 {
-                    info!("[R1] {} auditorías ambiguas reconciliadas para usuario {}", count, user_id);
+                    info!(
+                        "[R1] {} auditorías ambiguas reconciliadas para usuario {}",
+                        count, user_id
+                    );
                 }
             }
             Err(error) => {
@@ -322,8 +325,7 @@ impl BdpOrderPollerService {
         for (audit_id, operacion, target_entity_id, datos_enviados) in rows {
             let result = match operacion.as_str() {
                 "create_order" => {
-                    Self::reconcile_create_order(pool, client, audit_id, target_entity_id)
-                        .await
+                    Self::reconcile_create_order(pool, client, audit_id, target_entity_id).await
                 }
                 "add_payment" => {
                     Self::reconcile_add_payment(
@@ -335,7 +337,9 @@ impl BdpOrderPollerService {
                     )
                     .await
                 }
-                "invoice" => Self::reconcile_invoice(pool, client, audit_id, target_entity_id).await,
+                "invoice" => {
+                    Self::reconcile_invoice(pool, client, audit_id, target_entity_id).await
+                }
                 _ => Ok(false),
             };
             match result {
@@ -371,7 +375,8 @@ impl BdpOrderPollerService {
 
         let mut reconciled = 0;
         for pago in pagos {
-            let Some(order_id) = Self::find_bdp_order_id_for_venta(pool, pago.venta_id).await? else {
+            let Some(order_id) = Self::find_bdp_order_id_for_venta(pool, pago.venta_id).await?
+            else {
                 continue;
             };
             let request = BdpGetOrderRequest {
@@ -385,7 +390,8 @@ impl BdpOrderPollerService {
                         .and_then(serde_json::Value::as_array)
                         .cloned()
                         .unwrap_or_default();
-                    let expected_amount = rust_decimal::Decimal::to_f64(&pago.amount).unwrap_or(0.0);
+                    let expected_amount =
+                        rust_decimal::Decimal::to_f64(&pago.amount).unwrap_or(0.0);
                     let expected_tender = i64::from(pago.tender_id);
                     let mut matched: Option<String> = None;
                     for payment in payments {
@@ -406,8 +412,16 @@ impl BdpOrderPollerService {
                         }
                     }
                     if let Some(payment_id) = matched {
-                        let datos = serde_json::json!({ "order_id": order_id, "payment_id": payment_id });
-                        if let Err(e) = BdpPagoRepository::reconciliar_exito(pool, pago.id, Some(&payment_id), Some(&datos)).await {
+                        let datos =
+                            serde_json::json!({ "order_id": order_id, "payment_id": payment_id });
+                        if let Err(e) = BdpPagoRepository::reconciliar_exito(
+                            pool,
+                            pago.id,
+                            Some(&payment_id),
+                            Some(&datos),
+                        )
+                        .await
+                        {
                             warn!("[247A-10/P3] Error cerrando pago ambiguo {}: {e}", pago.id);
                         } else {
                             info!("[247A-10/P3] Pago ambiguo {} reconciliado (PaymentId={payment_id})", pago.id);
@@ -416,7 +430,10 @@ impl BdpOrderPollerService {
                     }
                 }
                 Err(e) => {
-                    warn!("[247A-10/P3] GetOrder falló para reconciliar pago {}: {e}", pago.id);
+                    warn!(
+                        "[247A-10/P3] GetOrder falló para reconciliar pago {}: {e}",
+                        pago.id
+                    );
                 }
             }
         }
@@ -536,7 +553,8 @@ impl BdpOrderPollerService {
                     .await
                     .map_err(|e| e.to_string())?;
                 }
-                let respuesta = serde_json::json!({ "order_id": order_id, "invoice_number": invoice_number });
+                let respuesta =
+                    serde_json::json!({ "order_id": order_id, "invoice_number": invoice_number });
                 sqlx::query(
                     r"UPDATE bdp_audit_log
                     SET resultado = 'exito', datos_respuesta = $2, error_mensaje = NULL, updated_at = NOW()
@@ -592,7 +610,8 @@ impl BdpOrderPollerService {
                 .execute(&mut *tx)
                 .await
                 .map_err(|e| e.to_string())?;
-                let respuesta = serde_json::json!({ "order_id": order_id, "invoice_number": invoice_number });
+                let respuesta =
+                    serde_json::json!({ "order_id": order_id, "invoice_number": invoice_number });
                 sqlx::query(
                     r"UPDATE bdp_audit_log
                     SET resultado = 'exito', datos_respuesta = $2, error_mensaje = NULL, updated_at = NOW()
@@ -618,13 +637,12 @@ impl BdpOrderPollerService {
         pool: &PgPool,
         venta_id: uuid::Uuid,
     ) -> Result<Option<i64>, String> {
-        let order_id: Option<i64> = sqlx::query_scalar(
-            "SELECT bdp_order_id FROM ventas WHERE id = $1"
-        )
-        .bind(venta_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+        let order_id: Option<i64> =
+            sqlx::query_scalar("SELECT bdp_order_id FROM ventas WHERE id = $1")
+                .bind(venta_id)
+                .fetch_optional(pool)
+                .await
+                .map_err(|e| e.to_string())?;
         Ok(order_id)
     }
 }

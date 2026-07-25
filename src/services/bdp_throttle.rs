@@ -68,9 +68,9 @@ impl BdpThrottleManager {
     pub fn active_requests(&self, base_url: &str) -> usize {
         let key = base_url.trim().trim_end_matches('/').to_lowercase();
         let store = self.per_target.lock().expect("throttle map poisoned");
-        store
-            .get(&key)
-            .map_or(0, |semaphore| self.max_concurrent - semaphore.available_permits())
+        store.get(&key).map_or(0, |semaphore| {
+            self.max_concurrent - semaphore.available_permits()
+        })
     }
 
     pub fn max_concurrent(&self) -> usize {

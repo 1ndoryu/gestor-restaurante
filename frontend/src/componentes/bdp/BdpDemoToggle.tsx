@@ -1,6 +1,6 @@
 /* [BDP-DEMO-TOGGLE] Botón compartido para activar/desactivar modo demo en páginas BDP. */
 
-import { FlaskConical } from 'lucide-react';
+import { FlaskConical, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface BdpDemoToggleProps {
@@ -17,8 +17,17 @@ export function BdpDemoToggle({ demoMode, onToggle }: BdpDemoToggleProps) {
       className={demoMode ? 'bg-amber-100 hover:bg-amber-200' : ''}
       aria-pressed={demoMode}
     >
-      <FlaskConical className="size-4 mr-1.5" />
-      {demoMode ? 'Salir de demo' : 'Cargar demo'}
+      {demoMode ? (
+        <>
+          <Trash2 className="size-4 mr-1.5" />
+          Eliminar demo
+        </>
+      ) : (
+        <>
+          <FlaskConical className="size-4 mr-1.5" />
+          Cargar demo
+        </>
+      )}
     </Button>
   );
 }

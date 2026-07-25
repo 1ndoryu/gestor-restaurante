@@ -114,15 +114,9 @@ async fn test_total_pagado_solo_exito(pool: PgPool) {
     .unwrap();
 
     /* Marcar el segundo como ambiguo */
-    BdpPagoRepository::actualizar_resultado(
-        &pool,
-        otro.id,
-        "ambiguo",
-        None,
-        Some("timeout"),
-    )
-    .await
-    .unwrap();
+    BdpPagoRepository::actualizar_resultado(&pool, otro.id, "ambiguo", None, Some("timeout"))
+        .await
+        .unwrap();
 
     let total = BdpPagoRepository::total_pagado(&pool, venta_id)
         .await
@@ -195,8 +189,12 @@ async fn test_aislamiento_entre_ventas(pool: PgPool) {
     .await
     .unwrap();
 
-    let total_a = BdpPagoRepository::total_pagado(&pool, venta_a).await.unwrap();
-    let total_b = BdpPagoRepository::total_pagado(&pool, venta_b).await.unwrap();
+    let total_a = BdpPagoRepository::total_pagado(&pool, venta_a)
+        .await
+        .unwrap();
+    let total_b = BdpPagoRepository::total_pagado(&pool, venta_b)
+        .await
+        .unwrap();
 
     assert_eq!(total_a, Decimal::from_str("5.00").unwrap());
     assert_eq!(total_b, Decimal::from_str("7.00").unwrap());
@@ -266,7 +264,10 @@ async fn test_idempotency_key_otra_venta_falla(pool: PgPool) {
     )
     .await;
 
-    assert!(result.is_err(), "reusing idempotency_key across ventas should fail");
+    assert!(
+        result.is_err(),
+        "reusing idempotency_key across ventas should fail"
+    );
 }
 
 /* ── actualizar resultado persiste cambios ──────────────────── */

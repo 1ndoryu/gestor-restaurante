@@ -1019,7 +1019,10 @@ impl BdpSyncService {
                     } else {
                         "Cliente sin código BDP confirmado. Se usará el cliente por defecto configurado.".to_string()
                     };
-                    warn!("[BDP-SAFE] {msg} (cliente {cliente_id}, venta {})", venta.id);
+                    warn!(
+                        "[BDP-SAFE] {msg} (cliente {cliente_id}, venta {})",
+                        venta.id
+                    );
                     return Err(OrderSendFailure::Rejected(msg));
                 }
             }
@@ -1189,7 +1192,8 @@ impl BdpSyncService {
          * para considerarse un reintento legítimo; de lo contrario es un error de
          * cliente o un intento de reuso malicioso de clave. */
         if let Some(key) = idempotency_key {
-            if let Ok(Some(pago)) = BdpPagoRepository::obtener_por_idempotency_key(pool, key).await {
+            if let Ok(Some(pago)) = BdpPagoRepository::obtener_por_idempotency_key(pool, key).await
+            {
                 if pago.venta_id != venta.id {
                     return Err("idempotencia_duplicada:ledger:otra_venta".into());
                 }
