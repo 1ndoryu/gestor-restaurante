@@ -140,10 +140,10 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 | ID  | Item                                                  | Estado        | Descripción                                                                                                  | Esfuerzo estimado |
 | --- | ----------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------ | ----------------- |
-| UI1 | **Página dedicada de historial BDP**                  | ⏳ Planificado | Ruta `/bdp/historial` con pestañas de auditoría y snapshots. Acciones seguras (solo ver detalles/crear snapshot). | ~2h               |
-| UI2 | **Página dedicada del explorador BDP**                | ⏳ Planificado | Ruta `/bdp/explorador` para menús/packs/fastfoods con layout de página completa y tabla de líneas.              | ~2h               |
-| UI3 | **Página dedicada de stock BDP**                      | ⏳ Planificado | Ruta `/bdp/stock` con tabla de artículos, filtros y botón de sync catálogo. Solo lectura.                      | ~2h               |
-| UI4 | **Evaluación de stock gestionable**                   | ⏳ Planificado | Evaluar si se permite modificar stock desde Glory vía `GetStock`/`UpdateStock`. Queda como lectura hasta análisis. | ~1h (análisis)    |
+| UI1 | **Página dedicada de historial BDP**                  | ✅ Implementado | Ruta `/bdp/historial` con pestañas de auditoría y snapshots. Acciones seguras (solo ver detalles).               | ~2h               |
+| UI2 | **Página dedicada del explorador BDP**                | ✅ Implementado | Ruta `/bdp/explorador` para menús/packs/fastfoods con layout de página completa y tabla de líneas.              | ~2h               |
+| UI3 | **Página dedicada de stock BDP**                      | ✅ Implementado | Ruta `/bdp/stock` con tabla de artículos, filtros y botón de sync catálogo. Solo lectura.                      | ~2h               |
+| UI4 | **Evaluación de stock gestionable**                   | ⏳ Planificado | Ver `Agente/planes/plan-stock-bdp-gestionable-2026-07-25.md`. Opción A (lectura por almacén) o Opción B (gestión completa). | ~6-24h            |
 
 ### Bloque 247A-9 — Decisiones pendientes del cliente
 
