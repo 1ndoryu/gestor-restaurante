@@ -18,13 +18,14 @@ use crate::services::bdp_weblink_catalog::{
     BdpAddOrderPaymentRequest, BdpCancelOrderRequest, BdpCreateCustomerRequest,
     BdpCreateOrderRequest, BdpDepartmentsExportFromProfileRequest, BdpEmptyRequest,
     BdpExportArticlesRequest, BdpExportCustomersRequest, BdpExportDepartmentsRequest,
-    BdpGetArticleRequest, BdpGetEmployeeRequest, BdpGetEmployeesRequest, BdpGetFastfoodRequest,
-    BdpGetMenuRequest, BdpGetOrderRequest, BdpGetPackRequest, BdpGetPosArticlesRequest,
-    BdpGetPosEmployeesRequest, BdpGetPosRequest, BdpGetPosTendersRequest,
-    BdpGetPricesArticlesRequest, BdpGetRoomTablesRequest, BdpGetRoomsTablesRequest,
-    BdpInvoiceOrderRequest, BDP_PATH_CANCEL_ORDER, BDP_PATH_CREATE_CUSTOMER, BDP_PATH_CREATE_ORDER,
-    BDP_PATH_EXPORT_ARTICLES, BDP_PATH_EXPORT_CUSTOMERS, BDP_PATH_EXPORT_DEPARTMENTS,
-    BDP_PATH_EXPORT_DEPARTMENTS_FROM_PROFILE, BDP_PATH_GET_ARTICLE, BDP_PATH_GET_EMPLOYEE,
+    BdpExportPurchaseNotesRequest, BdpGetArticleRequest, BdpGetEmployeeRequest,
+    BdpGetEmployeesRequest, BdpGetFastfoodRequest, BdpGetMenuRequest, BdpGetOrderRequest,
+    BdpGetPackRequest, BdpGetPosArticlesRequest, BdpGetPosEmployeesRequest, BdpGetPosRequest,
+    BdpGetPosTendersRequest, BdpGetPricesArticlesRequest, BdpGetRoomTablesRequest,
+    BdpGetRoomsTablesRequest, BdpInvoiceOrderRequest, BDP_PATH_CANCEL_ORDER,
+    BDP_PATH_CREATE_CUSTOMER, BDP_PATH_CREATE_ORDER, BDP_PATH_EXPORT_ARTICLES,
+    BDP_PATH_EXPORT_CUSTOMERS, BDP_PATH_EXPORT_DEPARTMENTS, BDP_PATH_EXPORT_DEPARTMENTS_FROM_PROFILE,
+    BDP_PATH_EXPORT_PURCHASE_NOTES, BDP_PATH_GET_ARTICLE, BDP_PATH_GET_EMPLOYEE,
     BDP_PATH_GET_EMPLOYEES, BDP_PATH_GET_FASTFOOD, BDP_PATH_GET_MENU, BDP_PATH_GET_ORDER,
     BDP_PATH_GET_PACK, BDP_PATH_GET_POS, BDP_PATH_GET_POSES, BDP_PATH_GET_POS_ARTICLES,
     BDP_PATH_GET_POS_EMPLOYEES, BDP_PATH_GET_POS_TENDERS, BDP_PATH_GET_PRICES_ARTICLES,
@@ -417,6 +418,15 @@ impl<'a> BdpWeblinkClient<'a> {
         request: &BdpGetPackRequest,
     ) -> Result<Value, BdpWeblinkError> {
         self.post_authenticated_json(BDP_PATH_GET_PACK, request)
+            .await
+    }
+
+    /* [247A-11] Fase 1 compras BDP: exportación de albaranes de compra. */
+    pub async fn export_purchase_notes(
+        &self,
+        request: &BdpExportPurchaseNotesRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_EXPORT_PURCHASE_NOTES, request)
             .await
     }
 
@@ -884,5 +894,65 @@ mod tests {
             response_error_message(&value),
             Some("[300041]-BDP error".to_string())
         );
+    }
+
+    /* [247A-11] Fase 1 compras BDP: ExportPurchaseNotes envía el perfil y
+     * devuelve la lista de albaranes. */
+    #[tokio::test]
+    async fn export_purchase_notes_posts_profile_and_parses_documents() {
+        use crate::services::bdp_weblink_catalog::BdpExportPurchaseNotesRequest;
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/Auth/Login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": "",
+                "AuthSession": {
+                    "Token": "token-bdp",
+                    "ExpiresIn_InSecconds": 3540
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        Mock::given(method("POST"))
+            .and(path("/API/ExportProfiles/PurchaseNotes"))
+            .and(header("authorization", "Bearer token-bdp"))
+            .and(body_json(serde_json::json!({
+                "ExportProfileCode": 1,
+                "InitialDate": "2026-07-01",
+                "FinalDate": "2026-07-25"
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": "",
+                "DocumentsLists": [
+                    {
+                        "Serie_Albaran": "S1",
+                        "Num_Albaran": "42",
+                        "Fecha_Albaran": "2026-07-15T00:00:00",
+                        "Cod_Proveedor": 1,
+                        "Nom_Proveedor": "Proveedor A",
+                        "Total_Albaran": 123.45
+                    }
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let config = config(server.uri());
+        let client = BdpWeblinkClient::new(&config);
+        let request = BdpExportPurchaseNotesRequest {
+            export_profile_code: 1,
+            initial_date: Some("2026-07-01".to_string()),
+            final_date: Some("2026-07-25".to_string()),
+            initial_supplier: None,
+            final_supplier: None,
+            initial_serial: None,
+            final_serial: None,
+        };
+        let response = client.export_purchase_notes(&request).await.unwrap();
+
+        assert!(response["DocumentsLists"].is_array());
+        assert_eq!(response["DocumentsLists"].as_array().unwrap().len(), 1);
     }
 }

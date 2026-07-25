@@ -125,6 +125,84 @@ export function useBdpArticleMaps(enabled = true) {
   });
 }
 
+/** Albarán de compra BDP importado. */
+export interface BdpPurchaseNote {
+  id: string;
+  user_id: string;
+  serie: string;
+  numero: string;
+  fecha: string | null;
+  codigo_proveedor: string | null;
+  nombre_proveedor: string | null;
+  total: string | null;
+  datos_bdp: Record<string, unknown>;
+  ultima_sync_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Parámetros para listar albaranes. */
+export interface BdpPurchaseNoteFilters {
+  proveedor?: string;
+  fecha_desde?: string;
+  fecha_hasta?: string;
+}
+
+/** Request para sincronizar albaranes desde BDP. */
+export interface BdpPurchaseNoteSyncRequest {
+  export_profile_code: number;
+  fecha_desde?: string;
+  fecha_hasta?: string;
+  proveedor_desde?: number;
+  proveedor_hasta?: number;
+}
+
+/** Resumen de sincronización. */
+export interface BdpPurchaseNoteSyncResult {
+  procesados: number;
+  total_bdp: number;
+}
+
+/** Listar albaranes de compra BDP. */
+export async function fetchBdpPurchaseNotes(filters: BdpPurchaseNoteFilters = {}): Promise<BdpPurchaseNote[]> {
+  const params = new URLSearchParams();
+  if (filters.proveedor) params.set('proveedor', filters.proveedor);
+  if (filters.fecha_desde) params.set('fecha_desde', filters.fecha_desde);
+  if (filters.fecha_hasta) params.set('fecha_hasta', filters.fecha_hasta);
+  const url = `/api/bdp/purchase-notes?${params.toString()}`;
+  const resp = await customInstance(url, { method: 'GET' }) as { data: BdpPurchaseNote[] };
+  return resp.data;
+}
+
+/** Sincronizar albaranes de compra desde BDP. */
+export async function syncBdpPurchaseNotes(req: BdpPurchaseNoteSyncRequest): Promise<BdpPurchaseNoteSyncResult> {
+  const resp = await customInstance('/api/bdp/purchase-notes/sync', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  }) as { data: BdpPurchaseNoteSyncResult };
+  return resp.data;
+}
+
+/** Query hook: obtener albaranes de compra BDP. */
+export function useBdpPurchaseNotes(filters: BdpPurchaseNoteFilters = {}, enabled = true) {
+  return useQuery({
+    queryKey: ['bdp-purchase-notes', filters],
+    queryFn: () => fetchBdpPurchaseNotes(filters),
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Mutation hook: sincronizar albaranes de compra BDP. */
+export function useSyncBdpPurchaseNotes(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: syncBdpPurchaseNotes,
+    onSuccess: () => {
+      queryClient?.invalidateQueries({ queryKey: ['bdp-purchase-notes'] });
+    },
+  });
+}
+
 /** Mutation hook: reintentar sincronización BDP individual de una venta.
  *  Usa el hook generado por Orval (useReintentarSyncBdp) y añade invalidación de queries. */
 export function useRetryBdpSync(queryClient?: QueryClient) {

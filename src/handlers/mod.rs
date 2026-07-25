@@ -6,6 +6,7 @@ mod auth;
 mod bdp_article_map;
 mod bdp_backup;
 mod bdp_customer_sync;
+mod bdp_purchase_note;
 mod campanas;
 mod canales_reserva;
 mod chatbot;
@@ -198,6 +199,8 @@ impl utoipa::Modify for SecurityAddon {
         bdp_article_map::get_menu_definition,
         bdp_article_map::get_fastfood_definition,
         bdp_article_map::get_pack_definition,
+        bdp_purchase_note::listar_purchase_notes,
+        bdp_purchase_note::sincronizar_purchase_notes,
         bdp_customer_sync::importar_clientes_bdp,
         bdp_customer_sync::sincronizar_cliente_bdp,
         bdp_backup::explorar_bdp,
@@ -366,6 +369,10 @@ impl utoipa::Modify for SecurityAddon {
         crate::models::BdpArticleStock,
         crate::models::CrearBdpArticleMapRequest,
         crate::models::ActualizarBdpArticleMapRequest,
+        crate::models::BdpPurchaseNote,
+        crate::models::BdpPurchaseNoteListParams,
+        crate::models::BdpPurchaseNoteSyncRequest,
+        crate::models::BdpPurchaseNoteSyncResult,
         crate::services::BdpCatalogSyncResult,
         crate::services::SyncTablesResult,
         bdp_article_map::SyncTablesRequest,
@@ -462,6 +469,7 @@ fn api_routes() -> Router<AppState> {
         .merge(bdp_article_map::routes())
         .merge(bdp_backup::routes())
         .merge(bdp_customer_sync::routes())
+        .merge(bdp_purchase_note::routes())
         .merge(campanas::routes())
         .merge(plantillas_whatsapp::routes())
         .merge(recordatorios::routes())

@@ -39,6 +39,8 @@ pub const BDP_PATH_GET_ROOMS_TABLES: &str = "/API/Rooms/GetTables";
 pub const BDP_PATH_GET_MENU: &str = "/API/Menus/Get";
 pub const BDP_PATH_GET_FASTFOOD: &str = "/API/FastFoods/Get";
 pub const BDP_PATH_GET_PACK: &str = "/API/Packs/Get";
+/* [247A-11] Fase 1 compras BDP: exportación de albaranes de compra. */
+pub const BDP_PATH_EXPORT_PURCHASE_NOTES: &str = "/API/ExportProfiles/PurchaseNotes";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BdpEndpointArea {
@@ -52,6 +54,7 @@ pub enum BdpEndpointArea {
     Pagos,
     Salones,
     Menus,
+    Compras,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -231,6 +234,13 @@ pub const BDP_ENDPOINTS: &[BdpEndpointSpec] = &[
         area: BdpEndpointArea::Menus,
         path: BDP_PATH_GET_PACK,
         purpose: "definicion de pack",
+    },
+    /* [247A-11] Fase 1 compras BDP: exportación de albaranes de compra. */
+    BdpEndpointSpec {
+        name: "ExportPurchaseNotes",
+        area: BdpEndpointArea::Compras,
+        path: BDP_PATH_EXPORT_PURCHASE_NOTES,
+        purpose: "albaranes de compra",
     },
 ];
 
@@ -760,9 +770,80 @@ pub struct BdpGetPackRequest {
     pub pack_id: i32,
 }
 
+/* [247A-11] Fase 1 compras BDP: petición de ExportPurchaseNotes.
+ * Los rangos de fecha/proveedor/serie son opcionales; BDP usa defaults. */
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpExportPurchaseNotesRequest {
+    pub export_profile_code: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub final_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_supplier: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub final_supplier: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_serial: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub final_serial: Option<String>,
+}
+
+/// Línea de un albarán de compra BDP. Se mantiene genérica porque el manual
+/// no detalla todos los campos; se conserva el JSON crudo en `datos_bdp`.
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpPurchaseNoteLine {
+    #[serde(default, deserialize_with = "deserialize_optional_string")]
+    pub article_code: Option<String>,
+    #[serde(default)]
+    pub article_name: Option<String>,
+    #[serde(default)]
+    pub units: Option<Decimal>,
+    #[serde(default)]
+    pub price: Option<Decimal>,
+    #[serde(default)]
+    pub total: Option<Decimal>,
+}
+
+/// Albarán de compra individual devuelto por `ExportPurchaseNotes`.
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpPurchaseNoteData {
+    #[serde(default, deserialize_with = "deserialize_optional_string")]
+    pub serie_albaran: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_string")]
+    pub num_albaran: Option<String>,
+    #[serde(default)]
+    pub fecha_albaran: Option<String>,
+    #[serde(default)]
+    pub cod_proveedor: Option<serde_json::Value>,
+    #[serde(default)]
+    pub nom_proveedor: Option<String>,
+    #[serde(default)]
+    pub total_albaran: Option<Decimal>,
+    #[serde(default)]
+    pub lineas: Vec<BdpPurchaseNoteLine>,
+    #[serde(flatten)]
+    pub extra: serde_json::Value,
+}
+
+/// Respuesta tipada de `POST /API/ExportProfiles/PurchaseNotes`.
+/// BDP devuelve `DocumentsLists` como array de albaranes.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpExportPurchaseNotesResponse {
+    #[serde(default, alias = "DocumentsLists")]
+    pub documents_lists: Vec<BdpPurchaseNoteData>,
+    #[serde(default)]
+    pub error_message: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn endpoint_inventory_covers_pending_bdp_domains() {
@@ -777,6 +858,7 @@ mod tests {
             BdpEndpointArea::Pagos,
             BdpEndpointArea::Salones,
             BdpEndpointArea::Menus,
+    BdpEndpointArea::Compras,
         ] {
             assert!(BDP_ENDPOINTS.iter().any(|endpoint| endpoint.area == area));
         }

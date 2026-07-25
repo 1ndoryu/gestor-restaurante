@@ -14,7 +14,7 @@
 | C1 | Auto-arming (escritura automática con confirmación dinámica + idempotency) | Mejora de flujo | ✅ Implementado (247A-1) | **Sí** — backend `BdpWriteGuard::try_auto_arm` + handlers | ~12-14h |
 | C2 | Toggle rápido en navbar | Mejora UX (admin) | ✅ Implementado (247A-1) | **Sí** — badge interactivo en `site-header.tsx` | ~3h |
 | D1 | Verificación stock + parser defensivo | Verificación | Implementado básico (237A-4) | **Sí** — parser defensivo proactivo ya | ~2h parser + opcional 8h pantalla dedicada |
-| D2 | Compras | Funcionalidad nueva | No implementado | **No** — requiere diseño completo en 3 fases | ~30-34h (8 + 10 + 12 + 4 tests) |
+| D2 | **Compras** | Funcionalidad nueva | **Fase 1 (lectura de albaranes) implementada** (247A-11) | **Sí** para Fase 1; Fases 2 y 3 pendientes de consulta cliente | ~8h Fase 1 hecha; ~22-26h restantes si se aprueban Fases 2-3 |
 | D3 | Sincronización bidireccional automática | Funcionalidad nueva | Bloqueado explícitamente en código | **Rechazado firme** — riesgo crítico sin mitigación viable | N/A — no implementar |
 | D4 | Pagos parciales | Funcionalidad nueva | ✅ Implementado (backend + frontend + reconciliación de ambiguos) | **Sí**, con lock distribuido obligatorio | ~18-22h |
 | D5 | CancelOrder | Funcionalidad nueva | Bloqueado por BDP ("Subscripción no activada") | **Pendiente activación BDP**, estimación realista | ~12-16h (si BDP activa módulo) |
@@ -400,6 +400,16 @@ BDP WebLink API
 | Fase 3 (recepción + reconciliación) | ~12h |
 | Tests + integración | ~4h |
 
+### Estado actual
+
+- **Fase 1 — Lectura de albaranes**: ✅ Implementada en `247A-11`.
+  - Backend: `export_purchase_notes` + structs + repositorio + handler.
+  - Frontend: página `/bdp/compras` con tabla, filtros y sync.
+  - Migración: `bdp_purchase_notes` con cache local.
+  - Tests: parsing de fechas, serialización de request/response, unit tests.
+- **Fase 2 — Crear borradores**: ⏳ Pendiente de consulta cliente.
+- **Fase 3 — Recepción y reconciliación**: ⏳ Pendiente de consulta cliente.
+
 ### Recomendación: **PENDIENTE DE CONSULTA AL CLIENTE**
 
 Preguntar:
@@ -407,9 +417,9 @@ Preguntar:
 2. ¿Necesitan ver albaranes de compra desde Glory?
 3. ¿Necesitan crear albaranes desde Glory o solo consultar?
 
-Si solo necesitan consultar → **Fase 1 (8h)**.
-Si necesitan crear → **Fases 1 + 2 (18h)** sin tocar inventario.
-Si necesitan ciclo completo → **Fases 1 + 2 + 3 (30h)**.
+Si solo necesitan consultar → **Fase 1 ya está lista**.
+Si necesitan crear → **Fases 2 (10h)** sin tocar inventario.
+Si necesitan ciclo completo → **Fases 2 + 3 (22h)**.
 
 ---
 

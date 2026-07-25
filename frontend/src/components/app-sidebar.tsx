@@ -50,6 +50,7 @@ import {
   Package,
   Search,
   Database,
+  Receipt,
 } from "lucide-react"
 import { useObtenerConfiguracion } from "@/api/generated/configuracion/configuracion"
 
@@ -75,6 +76,7 @@ const navBdp = [
   { title: "BDP Stock", url: "/bdp/stock", icon: <Package /> },
   { title: "BDP Explorador", url: "/bdp/explorador", icon: <Search /> },
   { title: "BDP Historial", url: "/bdp/historial", icon: <Database /> },
+  { title: "BDP Compras", url: "/bdp/compras", icon: <Receipt /> },
 ]
 
 const navSecundario = [
