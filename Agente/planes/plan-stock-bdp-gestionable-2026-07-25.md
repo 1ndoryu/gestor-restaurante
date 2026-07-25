@@ -1,198 +1,135 @@
-# Plan: Stock BDP gestionable
+# Plan: Stock BDP — página individual y solo lectura
 
 > **Fecha:** 2026-07-25
-> **Tarea roadmap:** UI4 — Evaluación de stock gestionable
-> **Contexto:** Actualmente el stock es solo lectura, extraído del campo `CurrentStock`/`Stock` de `ExportArticles` y mostrado en `/bdp/stock`.
+> **Tarea roadmap:** UI4 — Stock BDP
+> ** Alcance actual:** página individual `/bdp/stock`, **solo lectura**, con datos provenientes de `ExportArticles`/`CurrentStock` almacenados en `bdp_article_map.stock_actual`.
 
 ---
 
-## 1. Resumen ejecutivo
+## 1. Alcance actual (solo lectura)
 
-Se evalúan dos opciones para el stock en Glory:
+Se mantiene el stock como **información consultiva**. La página muestra lo que BDP devuelve a través del catálogo; no hay escritura sobre el inventario del restaurante.
 
-| Opción | Descripción | Riesgo | Esfuerzo |
-|--------|-------------|--------|----------|
-| **A — Solo lectura por almacén** | Mostrar stock desglosado por almacén usando `GetStock`/`GetListStock` | Bajo | ~6-8h |
-| **B — Gestión de stock** | Permitir actualizar stock en BDP vía `UpdateStock`/`Regularizations` | Alto | ~16-24h |
-
-**Recomendación:** implementar primero la Opción A. La Opción B solo si el cliente acepta el riesgo operacional y BDP activa el módulo de almacén.
-
----
-
-## 2. Opción A — Stock por almacén (solo lectura)
-
-### 2.1 Endpoints BDP a usar
-
-BDP tiene endpoints de almacén documentados en el manual WebLink:
-
-| Endpoint | Ruta aproximada | Descripción |
-|----------|-----------------|-------------|
-| `GetStock` | `/API/Warehouse/GetStock` | Stock de un artículo en un almacén |
-| `GetListStock` | `/API/Warehouse/GetListStock` | Stock de varios artículos en un almacén |
-| `GetWarehouses` | `/API/Warehouses/GetList` o similar | Listar almacenes disponibles |
-
-> Nota: las rutas exactas deben verificarse en el manual WebLink. No se harán llamadas reales a BDP hasta tener confirmación del cliente o entorno de pruebas.
-
-### 2.2 Cambios backend (~3-4h)
-
-1. **Modelos** (`src/services/bdp_weblink_catalog.rs`):
-   - `BdpGetStockRequest { warehouse_id: i32, article_code: String }`
-   - `BdpGetListStockRequest { warehouse_id: i32, article_codes: Vec<String> }`
-   - `BdpStockResponse { warehouse_id, article_code, quantity, warehouse_name }`
-
-2. **Cliente BDP** (`src/services/bdp_weblink.rs`):
-   - `get_stock(request) -> Result<Value, BdpWeblinkError>`
-   - `get_list_stock(request) -> Result<Value, BdpWeblinkError>`
-   - No requieren `ensure_write_target_allowed` porque son lecturas.
-
-3. **Handlers** (`src/handlers/bdp_stock.rs` nuevo):
-   - `GET /api/bdp/stock?warehouse_id={id}` → llama `GetListStock` para todos los artículos mapeados.
-   - `GET /api/bdp/warehouses` → lista almacenes (si el endpoint existe).
-
-4. **Base de datos**:
-   - No requiere migraciones. Los datos se consultan en tiempo real a BDP y se cachean en memoria por 1 minuto si se desea.
-
-### 2.3 Cambios frontend (~2-3h)
-
-1. **Página `/bdp/stock`**:
-   - Añadir selector de almacén (dropdown con warehouses disponibles).
-   - Mostrar tabla: Artículo | Código BDP | Stock almacén seleccionado | Stock total.
-   - Botón "Refrescar" para volver a consultar BDP.
-
-2. **Hooks**:
-   - Nuevos hooks manuales en `frontend/src/api/bdp-stock.ts` para `getStock` y `getListStock`.
-
-### 2.4 Seguridad
-
-- Solo lectura. No hay riesgo de modificar inventario.
-- Reutiliza autenticación JWT existente.
-- No requiere arming.
+| Aspecto | Decisión | Justificación |
+|---------|----------|---------------|
+| **Escritura de stock** |  No permitida | El cliente pidó "ver" stock, no gestionarlo. Las modificaciones se hacen en BDP. |
+| **Página propia** | ✅ `/bdp/stock` | Tiene su ruta, menú lateral y URL independiente. |
+| **Fuente de datos** | `bdp_article_map.stock_actual` | Se sincroniza con `ExportArticles`/`CurrentStock`. |
+| **Sync catálogo** | ✅ Botón visible | Solo lectura desde BDP + upsert local en `bdp_article_map`. No escribe en BDP. |
+| **Exportación** | ✅ CSV informativo | Exporta los registros filtrados a CSV localmente; no toca BDP. |
 
 ---
 
-## 3. Opción B — Gestión de stock (escritura en BDP)
+## 2. Página `/bdp/stock` (implementada)
 
-### 3.1 Endpoints BDP a usar
+### 2.1 Funcionalidades
 
-| Endpoint | Ruta aproximada | Descripción |
-|----------|-----------------|-------------|
-| `UpdateStock` | `/API/Warehouse/UpdateStock` | Actualiza stock de un artículo en un almacén |
-| `Regularizations` | `/API/Warehouse/Regularizations` | Regularizaciones de inventario |
-| `Transfers` | `/API/Warehouse/Transfers` | Transferencias entre almacenes |
+- **Tabla paginada** de artículos mapeados con su stock.
+- **Filtros**: texto libre (código/nombre), stock (con/sin/todos), estado (activo/inactivo/todos).
+- **Ordenación** por código Glory, código BDP, nombre, precio y stock.
+- **Paginación** configurable (10, 25, 50 por página).
+- **Banner de solo lectura** que explica que el stock no se puede modificar desde Glory.
+- **Exportación a CSV** de los resultados filtrados/ordenados.
+- **Sync catálogo** para refrescar stock desde BDP a Glory.
+- **Estados defensivos**: carga, vacío, error y datos inválidos.
 
-### 3.2 Requisitos de seguridad obligatorios
+### 2.2 Archivos
 
-Antes de permitir escritura, debe cumplirse:
-
-1. **Feature flag** `ff_bdp_stock_write` en `configuracion_restaurante`, desactivado por defecto.
-2. **Arming temporal** del usuario (mismo patrón que comandas/pagos).
-3. **Confirmación textual** con el monto exacto de ajuste y el motivo.
-4. **Idempotencia** por `idempotency_key` para evitar doble aplicación.
-5. **Audit log** en `bdp_audit_log` con datos enviados, respuesta y usuario.
-6. **Permisos**: solo usuarios con rol admin/gerente.
-7. **Throttling**: contar dentro del semáforo BDP existente.
-
-### 3.3 Cambios backend (~10-14h)
-
-1. **Modelos** (`src/services/bdp_weblink_catalog.rs`):
-   - `BdpUpdateStockRequest { warehouse_id, article_code, quantity, reason }`
-   - `BdpRegularizationRequest { warehouse_id, article_code, quantity_adjustment, reason }`
-
-2. **Cliente BDP** (`src/services/bdp_weblink.rs`):
-   - `update_stock(...)` con `ensure_write_target_allowed`.
-   - `regularize_stock(...)` con `ensure_write_target_allowed`.
-
-3. **Servicio** (`src/services/bdp_stock.rs` nuevo):
-   - `adjust_stock(user_id, article_map_id, warehouse_id, new_quantity, reason)`:
-     - Validar arming activo.
-     - Validar que el artículo esté mapeado.
-     - Calcular diferencia (`new_quantity - current_quantity`).
-     - Llamar `UpdateStock` con cantidad final o regularización según BDP.
-     - Registrar en `bdp_audit_log`.
-     - Invalidar caché de `bdp_article_map`.
-
-4. **Handlers**:
-   - `POST /api/bdp/stock/adjust` → ajustar stock.
-   - `POST /api/bdp/stock/transfer` → transferir entre almacenes (opcional).
-
-5. **Base de datos**:
-   - Nueva tabla `bdp_stock_adjustments(article_map_id, warehouse_id, previous_quantity, new_quantity, reason, user_id, created_at)`.
-
-### 3.4 Cambios frontend (~6-10h)
-
-1. **Página `/bdp/stock`**:
-   - Selector de almacén.
-   - Botón "Ajustar stock" por fila (solo si `ff_bdp_stock_write` activo).
-   - Modal con campo de cantidad y motivo.
-   - Confirmación textual del tipo "Ajustar {cantidad} unidades de {artículo}".
-
-2. **Hooks**:
-   - `useAdjustStock()` mutation.
-   - `useBdpWarehouses()` query.
+| Archivo | Responsabilidad |
+|---------|-----------------|
+| `frontend/src/componentes/bdp/BdpStock.tsx` | Página principal de stock. |
+| `frontend/src/hooks/useBdpStockFilters.ts` | Lógica de filtros, ordenación y paginación. |
+| `frontend/src/componentes/bdp/bdp-stock-utils.ts` | Formateo de precio/stock/fecha y exportación CSV. |
+| `frontend/src/components/app-sidebar.tsx` | Menú lateral con acceso directo a `/bdp/stock`. |
 
 ---
 
-## 4. Riesgos y mitigaciones
+## 3. Seguridad y mitigaciones
 
-| Riesgo | Mitigación |
-|--------|------------|
-| BDP no tiene activado el módulo de almacén | Verificar con `GetStock` antes de mostrar la UI. Si devuelve error de módulo no activado, mostrar mensaje informativo. |
-| Sobrescribir stock real de BDP por error | Opción A no escribe. Opción B requiere confirmación textual + arming + idempotencia. |
-| Descuadre entre Glory y BDP | Audit log y tabla `bdp_stock_adjustments` para trazabilidad. |
-| Race condition entre usuarios | Lock por `article_map_id + warehouse_id` durante el ajuste. |
-| Endpoint BDP no documentado o cambia | No implementar escritura hasta validar contrato con BDP real. |
+### 3.1 Sin operaciones de escritura sobre stock
 
----
+- No existe endpoint `POST /api/bdp/stock/adjust` ni similar.
+- La página solo consume `GET /api/bdp/article-maps` (lista de mapeos) y `POST /api/bdp/article-maps/sync-catalog` (importa desde BDP).
+- `sync-catalog` es **importación**, no exportación: lee de BDP y actualiza registros locales.
 
-## 5. Flujo de decisión recomendado
+### 3.2 Prevención de manipulación accidental
 
-```
-¿El cliente necesita gestionar stock desde Glory?
-├── No  → Mantener Opción A (solo lectura)
-└── Sí  → ¿BDP tiene activado el módulo de almacén?
-            ├── No  → Opción A + documentar limitación
-            └── Sí  → ¿Aceptan riesgo y complejidad?
-                     ├── No  → Opción A
-                     └── Sí  → Opción B con todas las salvaguardas
-```
+- **Banner visible** en la parte superior: "Solo lectura".
+- **No hay botones de editar/ajustar/eliminar stock** en la interfaz.
+- **Sync catálogo** muestra tooltip aclarando que no modifica BDP.
 
----
+### 3.3 Defensas en datos
 
-## 6. Tareas concretas si se aprueba Opción A
+- `formatPrice` ignora valores nulos, `0` o no numéricos.
+- `formatStock` trata `0`, `null`, `undefined` y strings no numéricos como "sin stock".
+- `formatDate` guarda contra fechas inválidas.
+- La tabla muestra "—" para datos faltantes en lugar de romper la UI.
 
-1. Añadir modelos `BdpGetStockRequest`/`BdpGetListStockRequest` en `bdp_weblink_catalog.rs`.
-2. Añadir métodos en `BdpWeblinkClient`.
-3. Crear handler `GET /api/bdp/stock` y `GET /api/bdp/warehouses`.
-4. Crear hooks frontend en `frontend/src/api/bdp-stock.ts`.
-5. Actualizar `BdpStock.tsx` con selector de almacén.
-6. Validar con simulador BDP local.
+### 3.4 Rendimiento
 
----
+- `useMemo` para filtrado, ordenación y paginación.
+- Página con paginación para evitar renderizar miles de filas de una vez.
+- Hook y utilidades extraídos para mantener el componente manejable.
 
-## 7. Tareas concretas si se aprueba Opción B
+### 3.5 Mitigaciones futuras si se amplía el alcance
 
-1. Crear feature flag `ff_bdp_stock_write` en `configuracion_restaurante`.
-2. Crear tabla `bdp_stock_adjustments`.
-3. Implementar servicio `BdpStockService::adjust`.
-4. Implementar handler `POST /api/bdp/stock/adjust`.
-5. Integrar `BdpWriteGuard` para arming.
-6. Actualizar frontend con modal de ajuste y permisos.
-7. Tests de integración con simulador BDP.
+| Escenario | Mitigación |
+|-----------|------------|
+| Lectura por almacén (`GetStock`) | Nuevo endpoint `GET /api/bdp/stock` sin escritura; selector de almacén en UI. |
+| Gestión de stock (`UpdateStock`) | Feature flag desactivado por defecto + arming + confirmación textual + idempotencia + audit log. |
+| Race conditions en ajustes | Lock por `article_map_id + warehouse_id`. |
+| Descuadre de inventario | Tabla de ajustes propios + audit log. |
 
 ---
 
-## 8. Esfuerzo total estimado
+## 4. Opciones futuras (pendientes de decisión del cliente)
 
-| Escenario | Esfuerzo |
-|-----------|----------|
-| Opción A (lectura por almacén) | ~6-8h |
-| Opción B (gestión completa) | ~16-24h |
-| Análisis previo y verificación de endpoints | ~2-4h |
+### 4.1 Opción A — Stock por almacén (solo lectura)
+
+Mostrar stock desglosado por almacén usando `GetStock`/`GetListStock`.
+
+- **Endpoints BDP**: `GetStock`, `GetListStock`, `GetWarehouses`.
+- **Cambios backend**: nuevos handlers `GET /api/bdp/stock` y `GET /api/bdp/warehouses`.
+- **Cambios frontend**: selector de almacén, columnas de stock por almacén.
+- **Esfuerzo estimado**: ~6-8h.
+- **Riesgo**: bajo.
+
+### 4.2 Opción B — Gestión de stock (escritura en BDP)
+
+Permitir actualizar stock en BDP vía `UpdateStock`/`Regularizations`.
+
+- **Requisitos de seguridad**: feature flag desactivado, arming, confirmación textual, idempotencia, audit log, permisos de admin/gerente, throttling.
+- **Cambios backend**: servicio `BdpStockService::adjust`, handler `POST /api/bdp/stock/adjust`, tabla `bdp_stock_adjustments`.
+- **Cambios frontend**: modal de ajuste, permisos, confirmación.
+- **Esfuerzo estimado**: ~16-24h.
+- **Riesgo**: alto.
 
 ---
 
-## 9. Próximos pasos inmediatos
+## 5. Decisiones pendientes del cliente
 
-1. Confirmar con el cliente si quiere solo lectura por almacén o gestión completa.
-2. Verificar en el manual WebLink las rutas exactas de `GetStock`/`GetListStock`/`UpdateStock`.
-3. Si es posible, probar contra el simulador BDP local para confirmar contratos de datos.
+| ID | Pregunta | Opción recomendada por defecto |
+|----|----------|-------------------------------|
+| D1 | ¿Necesitas ver stock por almacén? | No — mantener página consolidada actual. |
+| D2 | ¿Quieres poder ajustar stock desde Glory? | No — solo lectura hasta nuevo aviso. |
+
+---
+
+## 6. Próximos pasos inmediatos
+
+1. ✅ Implementar página `/bdp/stock` solo lectura con filtros, ordenación y paginación.
+2. Validar con `type-check` y `build` del frontend.
+3. Actualizar roadmap (`UI4`) a "Implementado (solo lectura)".
+4. Si el cliente lo solicita, evaluar Opción A o B con sus respectivas salvaguardas.
+
+---
+
+## 7. Esfuerzo real invertido
+
+| Tarea | Esfuerzo |
+|-------|----------|
+| Diseño de página read-only con seguridad y mitigaciones | ~1h |
+| Implementación de `BdpStock.tsx`, hook y utilidades | ~2h |
+| Type-check, build y revisiones | ~1h |
+| Documentación del plan | ~30min |
+| **Total** | **~4.5h** |

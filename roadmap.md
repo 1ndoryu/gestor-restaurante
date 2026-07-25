@@ -143,7 +143,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 | UI1 | **Página dedicada de historial BDP**                  | ✅ Implementado | Ruta `/bdp/historial` con pestañas de auditoría y snapshots. Acciones seguras (solo ver detalles).               | ~2h               |
 | UI2 | **Página dedicada del explorador BDP**                | ✅ Implementado | Ruta `/bdp/explorador` para menús/packs/fastfoods con layout de página completa y tabla de líneas.              | ~2h               |
 | UI3 | **Página dedicada de stock BDP**                      | ✅ Implementado | Ruta `/bdp/stock` con tabla de artículos, filtros y botón de sync catálogo. Solo lectura.                      | ~2h               |
-| UI4 | **Evaluación de stock gestionable**                   | ⏳ Planificado | Ver `Agente/planes/plan-stock-bdp-gestionable-2026-07-25.md`. Opción A (lectura por almacén) o Opción B (gestión completa). | ~6-24h            |
+| UI4 | **Página de stock BDP (solo lectura)**                | ✅ Implementado | Página individual `/bdp/stock` con filtros, ordenación, paginación, exportación CSV y banner de solo lectura. Ver plan en `Agente/planes/plan-stock-bdp-gestionable-2026-07-25.md`. Gestión/lectura por almacén pendiente de decisión. | ~4.5h             |
 
 ### Bloque 247A-9 — Decisiones pendientes del cliente
 
