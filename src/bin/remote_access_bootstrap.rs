@@ -895,25 +895,22 @@ mod tests {
 
     #[test]
     fn parseo_cli_aplica_overrides_y_flags() {
-        let config = Config::parse_from_iter(
-            vec![
-                "--tailscale-auth-key".to_string(),
-                "tskey-demo".to_string(),
-                "--rustdesk-password".to_string(),
-                "ClaveSegura123".to_string(),
-                "--device-name".to_string(),
-                "restaurante-bdp".to_string(),
-                "--advertise-tags".to_string(),
-                "tag:restaurante".to_string(),
-                "--report-path".to_string(),
-                r"C:\temp\bootstrap.txt".to_string(),
-                "--bdp-port".to_string(),
-                "9000".to_string(),
-                "--skip-rdp".to_string(),
-                "--skip-rustdesk".to_string(),
-            ]
-            .into_iter(),
-        )
+        let config = Config::parse_from_iter(vec![
+            "--tailscale-auth-key".to_string(),
+            "tskey-demo".to_string(),
+            "--rustdesk-password".to_string(),
+            "ClaveSegura123".to_string(),
+            "--device-name".to_string(),
+            "restaurante-bdp".to_string(),
+            "--advertise-tags".to_string(),
+            "tag:restaurante".to_string(),
+            "--report-path".to_string(),
+            r"C:\temp\bootstrap.txt".to_string(),
+            "--bdp-port".to_string(),
+            "9000".to_string(),
+            "--skip-rdp".to_string(),
+            "--skip-rustdesk".to_string(),
+        ])
         .unwrap();
 
         assert_eq!(config.tailscale_auth_key.as_deref(), Some("tskey-demo"));
@@ -931,10 +928,9 @@ mod tests {
 
     #[test]
     fn parseo_cli_rechaza_puerto_bdp_invalido() {
-        let error = Config::parse_from_iter(
-            vec!["--bdp-port".to_string(), "no-es-numero".to_string()].into_iter(),
-        )
-        .unwrap_err();
+        let error =
+            Config::parse_from_iter(vec!["--bdp-port".to_string(), "no-es-numero".to_string()])
+                .unwrap_err();
 
         assert!(error.to_string().contains("--bdp-port"));
     }

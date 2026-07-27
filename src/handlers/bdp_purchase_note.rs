@@ -116,8 +116,11 @@ pub async fn sincronizar_purchase_notes(
         export_profile_code: req.export_profile_code,
         initial_date: req.fecha_desde.clone(),
         final_date: req.fecha_hasta.clone(),
-        initial_supplier: req.proveedor_desde,
-        final_supplier: req.proveedor_hasta,
+        /* [287A-4] BDP real rechaza proveedores omitidos con 403900.
+         * La UI mantiene filtros opcionales, pero WebLink recibe el rango
+         * completo cuando el usuario no limita proveedores. */
+        initial_supplier: Some(req.proveedor_desde.unwrap_or(1)),
+        final_supplier: Some(req.proveedor_hasta.unwrap_or(999_999)),
         initial_serial: None,
         final_serial: None,
     };

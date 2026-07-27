@@ -137,7 +137,7 @@ pub async fn obtener_configuracion(
 pub async fn actualizar_configuracion(
     State(state): State<AppState>,
     auth: AuthUser,
-    Json(req): Json<ActualizarConfiguracionRequest>,
+    Json(mut req): Json<ActualizarConfiguracionRequest>,
 ) -> Result<Json<ConfiguracionRestaurante>, AppError> {
     if req.bdp_sync_mode.is_some() {
         return Err(AppError::Validation(
@@ -199,7 +199,15 @@ pub async fn actualizar_configuracion(
         || req.bdp_tender_map.is_some()
         || req.bdp_order_type_map.is_some()
         || req.bdp_default_customer_code.is_some()
-        || req.bdp_auto_sync_customers.is_some();
+        || req.bdp_auto_sync_customers.is_some()
+        || req.bdp_sync_enabled.is_some();
+
+    if invalida_armado_bdp {
+        /* [287A-4] El cierre de modo forma parte del mismo UPDATE que activa o
+         * desactiva BDP. Aunque falle después el borrado del arming, el guard
+         * ya ve read_only y ninguna escritura puede salir. */
+        req.bdp_sync_mode = Some("read_only".to_string());
+    }
 
     let mut config = ConfiguracionService::actualizar(&state.pool, auth.user_id, &req).await?;
     if invalida_armado_bdp {
@@ -212,13 +220,6 @@ pub async fn actualizar_configuracion(
             .begin()
             .await
             .map_err(|error| AppError::Internal(format!("No se pudo desarmar BDP: {error}")))?;
-        sqlx::query(
-            "UPDATE configuracion_restaurante SET bdp_sync_mode = 'read_only', updated_at = NOW() WHERE user_id = $1",
-        )
-        .bind(auth.user_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|error| AppError::Internal(format!("No se pudo cerrar modo BDP: {error}")))?;
         sqlx::query("DELETE FROM bdp_write_arming WHERE user_id = $1")
             .bind(auth.user_id)
             .execute(&mut *tx)

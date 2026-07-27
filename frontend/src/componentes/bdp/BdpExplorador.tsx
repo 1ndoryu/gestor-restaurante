@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { ErrorResponse } from '@/api/generated/gestionRestauranteAPI.schemas';
 import {
@@ -109,7 +110,7 @@ function BdpExplorador() {
   const idValido = Number.isInteger(idNum) && idNum > 0;
 
   const menuQuery = useGetMenuDefinition(idNum, {
-    query: { enabled: buscado && tipo !== 'all' && !demoMode },
+    query: { enabled: buscado && tipo === 'menu' && !demoMode },
   });
   const fastfoodQuery = useGetFastfoodDefinition(idNum, {
     query: { enabled: buscado && tipo === 'fastfood' && !demoMode },
@@ -143,10 +144,16 @@ function BdpExplorador() {
     });
   }, [demoMode, tipo, busqueda]);
 
+  /* [287A-4] Cada tipo consulta exclusivamente su endpoint. Esto evita que
+   * Fastfood y Pack disparen también GetMenu y muestren una respuesta ajena. */
   const resultadoReal = buscado
-    ? (menuQuery.data as { data?: BdpDefinition })?.data ??
-      (fastfoodQuery.data as { data?: BdpDefinition })?.data ??
-      (packQuery.data as { data?: BdpDefinition })?.data
+    ? tipo === 'menu'
+      ? (menuQuery.data as { data?: BdpDefinition })?.data
+      : tipo === 'fastfood'
+        ? (fastfoodQuery.data as { data?: BdpDefinition })?.data
+        : tipo === 'pack'
+          ? (packQuery.data as { data?: BdpDefinition })?.data
+          : null
     : null;
 
   function buscar() {
@@ -181,35 +188,43 @@ function BdpExplorador() {
                 onChange={(e) => setBusqueda(e.target.value)}
                 className="max-w-xs"
               />
-              <select
+              <Select
                 value={tipo}
-                onChange={(e) => setTipo(e.target.value as ExploreType)}
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                onValueChange={(v) => setTipo(v as ExploreType)}
               >
-                {TIPOS.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-full sm:w-44">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIPOS.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </>
         ) : (
           <div className="flex flex-wrap gap-3 items-end">
-            <select
+            <Select
               value={tipo}
-              onChange={(e) => {
-                setTipo(e.target.value as ExploreType);
+              onValueChange={(v) => {
+                setTipo(v as ExploreType);
                 setBuscado(false);
               }}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             >
-              {TIPOS.filter((t) => t.value !== 'all').map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                {TIPOS.filter((t) => t.value !== 'all').map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               type="number"
               min={1}
@@ -221,7 +236,7 @@ function BdpExplorador() {
                 setBuscado(false);
               }}
             />
-            <Button size="sm" onClick={buscar} disabled={isLoading}>
+            <Button onClick={buscar} disabled={isLoading}>
               {isLoading ? (
                 <Loader2 className="size-3.5 animate-spin mr-1" />
               ) : (

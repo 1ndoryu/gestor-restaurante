@@ -417,3 +417,9 @@
 - En la interfaz deben distinguirse tres conceptos: integración activa, lecturas BDP → Glory y autorización puntual Glory → BDP. Presentarlos como un único “modo de sincronización” induce a pensar que existe una doble vía automática que el contrato no implementa.
 - Los validadores automatizados no deben cargar perfiles personales ni compilar macros SQLx contra una base local arbitraria. `-NoProfile` evita salida accidental de secretos y `SQLX_OFFLINE` hace que el contrato versionado sea la fuente reproducible.
 - Un self-check que imprime errores pero termina con código 0 es un fallo silencioso: el resultado agregado debe propagarse con un exit code distinto de cero para que CI y agentes no lo interpreten como éxito.
+
+## Contratos reales BDP y documentación segura (2026-07-28)
+
+- Un test real marcado como ignorado no puede “aprobar” cuando faltan variables, falla el acceso o no reconoce la forma de la respuesta: debe fallar de manera concluyente y sin imprimir payloads ni secretos.
+- El simulador confirma nuestra lógica, pero no prueba nombres de campos, valores predeterminados ni perfiles propios de una instalación BDP. En la instalación real, `TenderList` y los rangos obligatorios demostraron esa diferencia.
+- Las credenciales nunca deben copiarse a planes, resultados ni guías, aunque el repositorio sea privado. Si ya estuvieron en el historial, redactar el árbol actual no basta: deben rotarse.

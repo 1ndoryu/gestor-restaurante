@@ -23,12 +23,12 @@ async fn create_test_user(pool: &PgPool) -> Uuid {
     id
 }
 
-/// Crea configuración mínima para el usuario (necesaria para retention/auto_backup defaults).
+/// Crea configuración mínima para el usuario (necesaria para `retention/auto_backup` defaults).
 async fn create_test_config(pool: &PgPool, user_id: Uuid) {
     sqlx::query(
-        r#"INSERT INTO configuracion_restaurante (user_id, nombre_restaurante, bdp_auto_backup_before_write)
+        r"INSERT INTO configuracion_restaurante (user_id, nombre_restaurante, bdp_auto_backup_before_write)
         VALUES ($1, 'Test Restaurant', true)
-        ON CONFLICT (user_id) DO NOTHING"#,
+        ON CONFLICT (user_id) DO NOTHING",
     )
     .bind(user_id)
     .execute(pool)
@@ -46,10 +46,10 @@ async fn insert_snapshot_for_test(
     datos: serde_json::Value,
 ) -> BdpSnapshot {
     sqlx::query_as::<_, BdpSnapshot>(
-        r#"INSERT INTO bdp_snapshots (user_id, tipo, direccion, trigger_tipo, datos)
+        r"INSERT INTO bdp_snapshots (user_id, tipo, direccion, trigger_tipo, datos)
         VALUES ($1, $2, $3, $4, $5)
         RETURNING id, user_id, tipo, direccion, trigger_tipo, datos, metadata,
-                  target_base_url, connection_fingerprint, created_at, expires_at, notas"#,
+                  target_base_url, connection_fingerprint, created_at, expires_at, notas",
     )
     .bind(user_id)
     .bind(tipo)
@@ -68,10 +68,10 @@ async fn insert_audit_for_test(
     datos: serde_json::Value,
 ) -> Uuid {
     sqlx::query_scalar(
-        r#"INSERT INTO bdp_audit_log
+        r"INSERT INTO bdp_audit_log
            (user_id, operacion, direccion, datos_enviados, resultado)
            VALUES ($1, $2, 'glory_to_bdp', $3, 'pendiente')
-           RETURNING id"#,
+           RETURNING id",
     )
     .bind(user_id)
     .bind(operacion)
@@ -81,7 +81,7 @@ async fn insert_audit_for_test(
     .expect("insert_audit_for_test failed")
 }
 
-/// Crea un artículo en bdp_article_map para tests de restauración.
+/// Crea un artículo en `bdp_article_map` para tests de restauración.
 async fn create_test_article_map(
     pool: &PgPool,
     user_id: Uuid,
@@ -89,11 +89,11 @@ async fn create_test_article_map(
     codigo_bdp: &str,
 ) -> Uuid {
     let id: Uuid = sqlx::query_scalar(
-        r#"INSERT INTO bdp_article_map
+        r"INSERT INTO bdp_article_map
         (user_id, articulo_glory_codigo, articulo_bdp_codigo, articulo_bdp_nombre,
          descripcion, precio_tarifa1, iva_pct, activo)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        RETURNING id"#,
+        RETURNING id",
     )
     .bind(user_id)
     .bind(codigo_glory)
@@ -112,9 +112,9 @@ async fn create_test_article_map(
 /// Crea un cliente para tests de restauración.
 async fn create_test_cliente(pool: &PgPool, user_id: Uuid, nombre: &str) -> Uuid {
     let id: Uuid = sqlx::query_scalar(
-        r#"INSERT INTO clientes (user_id, nombre, email)
+        r"INSERT INTO clientes (user_id, nombre, email)
         VALUES ($1, $2, $3)
-        RETURNING id"#,
+        RETURNING id",
     )
     .bind(user_id)
     .bind(nombre)
@@ -443,8 +443,8 @@ async fn test_preparar_snapshot_rechaza_auto_backup_off(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     /* Config con auto_backup = false */
     sqlx::query(
-        r#"INSERT INTO configuracion_restaurante (user_id, nombre_restaurante, bdp_auto_backup_before_write)
-        VALUES ($1, 'Test', false)"#,
+        r"INSERT INTO configuracion_restaurante (user_id, nombre_restaurante, bdp_auto_backup_before_write)
+        VALUES ($1, 'Test', false)",
     )
     .bind(user_id)
     .execute(&pool)
@@ -477,8 +477,8 @@ async fn test_preparar_snapshot_rechaza_auto_backup_off(pool: PgPool) {
 async fn test_preparar_snapshot_create_no_hace_lectura_remota(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     sqlx::query(
-        r#"INSERT INTO configuracion_restaurante (user_id, nombre_restaurante, bdp_auto_backup_before_write)
-        VALUES ($1, 'Test', true)"#,
+        r"INSERT INTO configuracion_restaurante (user_id, nombre_restaurante, bdp_auto_backup_before_write)
+        VALUES ($1, 'Test', true)",
     )
     .bind(user_id)
     .execute(&pool)
@@ -513,8 +513,8 @@ async fn test_preparar_snapshot_create_no_hace_lectura_remota(pool: PgPool) {
 async fn test_actualizar_resultado(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     sqlx::query(
-        r#"INSERT INTO configuracion_restaurante (user_id, nombre_restaurante, bdp_auto_backup_before_write)
-        VALUES ($1, 'Test', true)"#,
+        r"INSERT INTO configuracion_restaurante (user_id, nombre_restaurante, bdp_auto_backup_before_write)
+        VALUES ($1, 'Test', true)",
     )
     .bind(user_id)
     .execute(&pool)
@@ -553,8 +553,8 @@ async fn test_actualizar_resultado(pool: PgPool) {
 async fn test_actualizar_resultado_con_error(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     sqlx::query(
-        r#"INSERT INTO configuracion_restaurante (user_id, nombre_restaurante, bdp_auto_backup_before_write)
-        VALUES ($1, 'Test', true)"#,
+        r"INSERT INTO configuracion_restaurante (user_id, nombre_restaurante, bdp_auto_backup_before_write)
+        VALUES ($1, 'Test', true)",
     )
     .bind(user_id)
     .execute(&pool)
@@ -607,8 +607,8 @@ async fn test_listar_audit_aisla_usuarios(pool: PgPool) {
 
     for uid in [user_a, user_b] {
         sqlx::query(
-            r#"INSERT INTO configuracion_restaurante (user_id, nombre_restaurante, bdp_auto_backup_before_write)
-            VALUES ($1, 'Test', true)"#,
+            r"INSERT INTO configuracion_restaurante (user_id, nombre_restaurante, bdp_auto_backup_before_write)
+            VALUES ($1, 'Test', true)",
         )
         .bind(uid)
         .execute(&pool)
@@ -808,8 +808,8 @@ async fn test_limpiar_expirados(pool: PgPool) {
 
     /* Insertar snapshot expirado directamente */
     sqlx::query(
-        r#"INSERT INTO bdp_snapshots (user_id, tipo, direccion, trigger_tipo, datos, expires_at)
-        VALUES ($1, 'test', 'glory', 'manual', '{}', NOW() - INTERVAL '1 day')"#,
+        r"INSERT INTO bdp_snapshots (user_id, tipo, direccion, trigger_tipo, datos, expires_at)
+        VALUES ($1, 'test', 'glory', 'manual', '{}', NOW() - INTERVAL '1 day')",
     )
     .bind(user_id)
     .execute(&pool)
@@ -818,8 +818,8 @@ async fn test_limpiar_expirados(pool: PgPool) {
 
     /* Insertar snapshot sin expiración */
     sqlx::query(
-        r#"INSERT INTO bdp_snapshots (user_id, tipo, direccion, trigger_tipo, datos, expires_at)
-        VALUES ($1, 'test', 'glory', 'manual', '{}', NULL)"#,
+        r"INSERT INTO bdp_snapshots (user_id, tipo, direccion, trigger_tipo, datos, expires_at)
+        VALUES ($1, 'test', 'glory', 'manual', '{}', NULL)",
     )
     .bind(user_id)
     .execute(&pool)
@@ -828,8 +828,8 @@ async fn test_limpiar_expirados(pool: PgPool) {
 
     /* Insertar snapshot con expiración futura */
     sqlx::query(
-        r#"INSERT INTO bdp_snapshots (user_id, tipo, direccion, trigger_tipo, datos, expires_at)
-        VALUES ($1, 'test', 'glory', 'manual', '{}', NOW() + INTERVAL '30 days')"#,
+        r"INSERT INTO bdp_snapshots (user_id, tipo, direccion, trigger_tipo, datos, expires_at)
+        VALUES ($1, 'test', 'glory', 'manual', '{}', NOW() + INTERVAL '30 days')",
     )
     .bind(user_id)
     .execute(&pool)

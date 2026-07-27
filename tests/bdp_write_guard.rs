@@ -1,4 +1,4 @@
-//! Pruebas SQLx del armado BDP. Solo usa una base temporal local; no hace HTTP.
+//! Pruebas `SQLx` del armado BDP. Solo usa una base temporal local; no hace HTTP.
 
 use glory_backend::repositories::ConfiguracionRepository;
 use glory_backend::services::{BdpBackupService, BdpWriteGuard};
@@ -36,10 +36,10 @@ async fn armado_solo_se_consume_por_entidad_exacta(pool: PgPool) {
 
     let fingerprint = BdpBackupService::connection_fingerprint(&config).expect("fingerprint");
     let snapshot_id: Uuid = sqlx::query_scalar(
-        r#"INSERT INTO bdp_snapshots
+        r"INSERT INTO bdp_snapshots
            (user_id, tipo, direccion, trigger_tipo, datos, target_base_url, connection_fingerprint)
            VALUES ($1, 'completo', 'bdp', 'manual', $2, $3, $4)
-           RETURNING id"#,
+           RETURNING id",
     )
     .bind(user_id)
     .bind(serde_json::json!({
@@ -54,11 +54,11 @@ async fn armado_solo_se_consume_por_entidad_exacta(pool: PgPool) {
     let venta_autorizada = Uuid::new_v4();
     let otra_venta = Uuid::new_v4();
     sqlx::query(
-        r#"INSERT INTO bdp_write_arming
+        r"INSERT INTO bdp_write_arming
            (user_id, base_url, scopes, target_entity_type, target_entity_id,
             reason, expires_at, remaining_operations, snapshot_id, connection_fingerprint)
            VALUES ($1, $2, ARRAY['create_order'], 'venta', $3,
-                   'prueba local', NOW() + INTERVAL '5 minutes', 1, $4, $5)"#,
+                   'prueba local', NOW() + INTERVAL '5 minutes', 1, $4, $5)",
     )
     .bind(user_id)
     .bind(&config.bdp_base_url)
@@ -131,11 +131,11 @@ async fn armado_solo_se_consume_por_entidad_exacta(pool: PgPool) {
     .await
     .expect("rearmar solo para probar bloqueo cruzado");
     sqlx::query(
-        r#"INSERT INTO bdp_write_arming
+        r"INSERT INTO bdp_write_arming
            (user_id, base_url, scopes, target_entity_type, target_entity_id,
             reason, expires_at, remaining_operations, snapshot_id, connection_fingerprint)
            VALUES ($1, $2, ARRAY['invoice'], 'venta', $3,
-                   'prueba bloqueo cruzado', NOW() + INTERVAL '5 minutes', 1, $4, $5)"#,
+                   'prueba bloqueo cruzado', NOW() + INTERVAL '5 minutes', 1, $4, $5)",
     )
     .bind(user_id)
     .bind(&config.bdp_base_url)
@@ -192,10 +192,10 @@ async fn cambio_de_conexion_invalida_armado_sin_consumirlo(pool: PgPool) {
     config.bdp_integrator_code = "integrador-local".into();
     config.bdp_sync_mode = "unidirectional".into();
     sqlx::query(
-        r#"UPDATE configuracion_restaurante
+        r"UPDATE configuracion_restaurante
            SET bdp_base_url = $2, bdp_login = $3, bdp_password = $4,
                bdp_integrator_code = $5, bdp_sync_mode = 'unidirectional'
-           WHERE user_id = $1"#,
+           WHERE user_id = $1",
     )
     .bind(user_id)
     .bind(&config.bdp_base_url)
@@ -209,10 +209,10 @@ async fn cambio_de_conexion_invalida_armado_sin_consumirlo(pool: PgPool) {
     let original_fingerprint =
         BdpBackupService::connection_fingerprint(&config).expect("fingerprint original");
     let snapshot_id: Uuid = sqlx::query_scalar(
-        r#"INSERT INTO bdp_snapshots
+        r"INSERT INTO bdp_snapshots
            (user_id, tipo, direccion, trigger_tipo, datos, target_base_url, connection_fingerprint)
            VALUES ($1, 'completo', 'bdp', 'manual', $2, $3, $4)
-           RETURNING id"#,
+           RETURNING id",
     )
     .bind(user_id)
     .bind(serde_json::json!({
@@ -225,11 +225,11 @@ async fn cambio_de_conexion_invalida_armado_sin_consumirlo(pool: PgPool) {
     .expect("crear snapshot original");
     let venta_id = Uuid::new_v4();
     sqlx::query(
-        r#"INSERT INTO bdp_write_arming
+        r"INSERT INTO bdp_write_arming
            (user_id, base_url, scopes, target_entity_type, target_entity_id,
             reason, expires_at, remaining_operations, snapshot_id, connection_fingerprint)
            VALUES ($1, $2, ARRAY['create_order'], 'venta', $3,
-                   'prueba cambio conexión', NOW() + INTERVAL '5 minutes', 1, $4, $5)"#,
+                   'prueba cambio conexión', NOW() + INTERVAL '5 minutes', 1, $4, $5)",
     )
     .bind(user_id)
     .bind(&config.bdp_base_url)

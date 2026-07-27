@@ -560,8 +560,8 @@ Tests que conectan al servidor BDP real pero SOLO hacen llamadas de lectura. `#[
 | -------------------------- | -------------------------------- | --------------------------------------- |
 | `BDP_BASE_URL`             | `http://100.83.196.35:8068`      | IP Tailscale — BDP debe estar encendido |
 | `BDP_LOGIN`                | `admin`                          |                                         |
-| `BDP_PASSWORD`             | `kamples2026`                    |                                         |
-| `BDP_INTEGRATOR_CODE`      | `VBW2MBM5`                       |                                         |
+| `BDP_PASSWORD`             | *(secreto; solo entorno seguro)* | Nunca documentar ni versionar           |
+| `BDP_INTEGRATOR_CODE`      | *(secreto; solo entorno seguro)* | Nunca documentar ni versionar           |
 | `BDP_POS_ID`               | `31`                             | Terminal POS                            |
 | `BDP_EMPLOYEE_ID`          | `1`                              | Empleado por defecto                    |
 | `BDP_ITEMS_PROFILE_ID`     | `1`                              | Perfil de artículos                     |

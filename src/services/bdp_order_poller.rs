@@ -142,30 +142,49 @@ impl BdpOrderPollerService {
                              Marcando bdp_synced=true.",
                             venta.id
                         );
-                        let _ = VentaRepository::update_bdp_status(
+                        /* [D10] No descartar errores: un fallo persistente de BD
+                         * haría que el poller repita reconciliaciones infinitamente. */
+                        if let Err(e) = VentaRepository::update_bdp_status(
                             pool,
                             venta.id,
                             true,
                             None,
                             venta.bdp_order_id,
                         )
-                        .await;
-                        let _ =
-                            VentaRepository::update_bdp_order_status(pool, venta.id, &status).await;
+                        .await
+                        {
+                            warn!(
+                                "[D10] Error actualizando bdp_status de venta huérfana {}: {e}",
+                                venta.id
+                            );
+                            continue;
+                        }
+                        if let Err(e) =
+                            VentaRepository::update_bdp_order_status(pool, venta.id, &status).await
+                        {
+                            warn!(
+                                "[D10] Error actualizando order_status de venta huérfana {}: {e}",
+                                venta.id
+                            );
+                        }
                         updated += 1;
                     }
                     Err(e) => {
                         /* La comanda no existe o BDP no responde → marcar error
                          * para que no se reintente infinitamente */
                         warn!("[AUDIT-2.11b] Venta {} no reconciliable: {e}", venta.id);
-                        let _ = VentaRepository::update_bdp_status(
+                        /* [D10] Propagar errores de BD en vez de descartarlos. */
+                        if let Err(e) = VentaRepository::update_bdp_status(
                             pool,
                             venta.id,
                             false,
                             Some("No se pudo verificar existencia en BDP; reconciliación manual requerida"),
                             venta.bdp_order_id,
                         )
-                        .await;
+                        .await
+                        {
+                            warn!("[D10] Error marcando venta huérfana {} como no reconciliable: {e}", venta.id);
+                        }
                     }
                 }
             }
@@ -183,7 +202,7 @@ impl BdpOrderPollerService {
                 if let Some(bdp_code) = cliente.bdp_customer_code {
                     /* El cliente ya tiene bdp_synced=true → la operación fue exitosa.
                      * Cerrar todas las auditorías pendientes para este cliente. */
-                    let _ = sqlx::query(
+                    let audit_update = sqlx::query(
                         r"UPDATE bdp_audit_log
                         SET resultado = 'exito', error_mensaje = 'reconciliado por polling N2', updated_at = NOW()
                         WHERE user_id = $1
@@ -196,11 +215,23 @@ impl BdpOrderPollerService {
                     .bind(cliente.id)
                     .execute(pool)
                     .await;
-                    updated += 1;
-                    info!(
-                        "[AUDIT-N2] Cliente {} (code={bdp_code}) reconciliado: auditoría cerrada.",
-                        cliente.id
-                    );
+                    match audit_update {
+                        Ok(result) if result.rows_affected() > 0 => {
+                            updated += 1;
+                            info!(
+                                "[AUDIT-N2] Cliente {} (code={bdp_code}) reconciliado: auditoría cerrada.",
+                                cliente.id
+                            );
+                        }
+                        Ok(_) => warn!(
+                            "[AUDIT-N2] Cliente {} no tenía auditorías pendientes que cerrar.",
+                            cliente.id
+                        ),
+                        Err(error) => warn!(
+                            "[AUDIT-N2] No se pudo cerrar la auditoría del cliente {}: {error}",
+                            cliente.id
+                        ),
+                    }
                 }
             }
         }
@@ -399,10 +430,14 @@ impl BdpOrderPollerService {
                             .get("TenderId")
                             .and_then(serde_json::Value::as_i64)
                             .unwrap_or(-1);
-                        let amount = payment
-                            .get("Amount")
-                            .and_then(serde_json::Value::as_f64)
-                            .unwrap_or(0.0);
+                        /* [D1] No usar unwrap_or(0.0) en montos financieros.
+                         * Si BDP devuelve Amount como string o null, no hacer match
+                         * con 0.0 — eso podría reconciliar un pago fantasma. */
+                        let Some(amount) =
+                            payment.get("Amount").and_then(serde_json::Value::as_f64)
+                        else {
+                            continue;
+                        };
                         if tender == expected_tender && (amount - expected_amount).abs() < 0.005 {
                             matched = payment
                                 .get("PaymentId")
@@ -517,24 +552,42 @@ impl BdpOrderPollerService {
                     .and_then(serde_json::Value::as_array)
                     .cloned()
                     .unwrap_or_default();
-                let expected_tender = datos_enviados
-                    .get("tender_id")
-                    .and_then(serde_json::Value::as_i64)
-                    .unwrap_or(-1);
-                let expected_amount = datos_enviados
-                    .get("amount")
-                    .and_then(serde_json::Value::as_f64)
-                    .unwrap_or(0.0);
+                let Some(expected_tender) = datos_enviados.get("tender_id").and_then(json_i64)
+                else {
+                    warn!("[R1] Pago {venta_id} sin tender_id verificable; se mantiene ambiguo");
+                    return Ok(false);
+                };
+                let Some(expected_amount) = datos_enviados.get("amount").and_then(json_f64) else {
+                    warn!("[R1] Pago {venta_id} sin amount verificable; se mantiene ambiguo");
+                    return Ok(false);
+                };
+                /* [D1+D5] No usar unwrap_or(0.0) en montos de BDP.
+                 * Verificar PaymentId para evitar falsos positivos cuando
+                 * hay múltiples pagos con mismo tender y monto similar. */
+                let Some(expected_payment_id) = datos_enviados
+                    .get("idempotency_key")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                else {
+                    warn!("[R1] Pago {venta_id} sin idempotency_key; se mantiene ambiguo");
+                    return Ok(false);
+                };
                 let matched = payments.iter().any(|payment| {
-                    let tender = payment
-                        .get("TenderId")
-                        .and_then(serde_json::Value::as_i64)
-                        .unwrap_or(-1);
-                    let amount = payment
-                        .get("Amount")
-                        .and_then(serde_json::Value::as_f64)
-                        .unwrap_or(0.0);
-                    tender == expected_tender && (amount - expected_amount).abs() < 0.005
+                    let tender = payment.get("TenderId").and_then(json_i64);
+                    let amount = payment.get("Amount").and_then(json_f64);
+                    let payment_id = payment.get("PaymentId").and_then(serde_json::Value::as_str);
+                    let (Some(tender), Some(amount), Some(payment_id)) =
+                        (tender, amount, payment_id)
+                    else {
+                        return false;
+                    };
+                    if tender != expected_tender || (amount - expected_amount).abs() >= 0.005 {
+                        return false;
+                    }
+                    /* [D5/287A-4] Sin PaymentId no hay evidencia suficiente:
+                     * tender+monto pueden coincidir con otro pago legítimo. */
+                    payment_id.ends_with(expected_payment_id)
                 });
                 if !matched {
                     return Ok(false);
@@ -544,9 +597,11 @@ impl BdpOrderPollerService {
                     .and_then(|v| v.as_str())
                     .map(String::from);
                 let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+                /* [D11] Solo marcar como facturado si NO lo estaba ya localmente.
+                 * Evita sobreescribir datos de factura tras una corrección manual. */
                 if invoice_number.is_some() {
                     sqlx::query(
-                        "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1"
+                        "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1 AND bdp_invoiced = FALSE"
                     )
                     .bind(venta_id)
                     .execute(&mut *tx)
@@ -647,6 +702,19 @@ impl BdpOrderPollerService {
     }
 }
 
+fn json_f64(value: &serde_json::Value) -> Option<f64> {
+    value
+        .as_f64()
+        .or_else(|| value.as_str()?.trim().parse::<f64>().ok())
+        .filter(|number| number.is_finite())
+}
+
+fn json_i64(value: &serde_json::Value) -> Option<i64> {
+    value
+        .as_i64()
+        .or_else(|| value.as_str()?.trim().parse::<i64>().ok())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -665,5 +733,16 @@ mod tests {
         let value = serde_json::json!({"Order": {"Status": "3"}});
         assert_eq!(BdpOrderPollerService::parse_status(&value), Ok(3));
         assert!(BdpOrderPollerService::parse_status(&serde_json::json!({"Status": "x"})).is_err());
+    }
+
+    #[test]
+    fn numeric_evidence_accepts_number_or_string_but_rejects_invalid_values() {
+        assert_eq!(json_f64(&serde_json::json!("50.50")), Some(50.5));
+        assert_eq!(json_f64(&serde_json::json!(50.5)), Some(50.5));
+        assert_eq!(json_f64(&serde_json::json!("NaN")), None);
+        assert_eq!(json_f64(&serde_json::Value::Null), None);
+        assert_eq!(json_i64(&serde_json::json!("7")), Some(7));
+        assert_eq!(json_i64(&serde_json::json!(7)), Some(7));
+        assert_eq!(json_i64(&serde_json::json!("7.2")), None);
     }
 }

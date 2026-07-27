@@ -89,8 +89,8 @@ Estos campos ya estaban configurados ANTES de nuestras pruebas (confirmado en la
 | IP Address                    | Configurado         | ❌ No            |
 | IP Port                       | 8068                | ❌ No            |
 | Usar Password                 | Activo              | ❌ No            |
-| Credenciales (login/password) | admin / kamples2026 | ❌ No            |
-| CodigoIntegrador              | VBW2MBM5            | ❌ No            |
+| Credenciales (login/password) | Variables de entorno; valor omitido | ❌ No            |
+| CodigoIntegrador              | Variable de entorno; valor omitido  | ❌ No            |
 
 ---
 

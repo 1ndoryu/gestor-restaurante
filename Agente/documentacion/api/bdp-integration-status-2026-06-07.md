@@ -154,7 +154,7 @@
 Glory: Venta creada/actualizada
   → VentaService::spawn_bdp_sync()
     → BdpSyncService::sync_venta()
-      → Login a BDP (admin/kamples2026, JWT ~59 min)
+      → Login a BDP (credenciales desde entorno, JWT ~59 min)
       → [NUEVO F7.5] Si bdp_auto_sync_customers=true && cliente_id:
         → ensure_cliente_bdp_synced()
           → Si cliente no tiene bdp_customer_code:
@@ -348,8 +348,8 @@ BdpOrderPollerService::poll_loop()
 | `bdp_sync_enabled`         | `true`                      | Activa/desactiva sync automática |
 | `bdp_url`                  | `http://100.83.196.35:8068` | URL del WebLink API              |
 | `bdp_login`                | `admin`                     | Usuario de autenticación         |
-| `bdp_password`             | `kamples2026`               | Password (encriptado en BD)      |
-| `bdp_integrator_code`      | `VBW2MBM5`                  | Código de integrador             |
+| `bdp_password`             | *(secreto; valor omitido)*  | Password protegido en BD         |
+| `bdp_integrator_code`      | *(secreto; valor omitido)*  | Código de integrador             |
 | `bdp_pos_id`               | `31`                        | Terminal POS                     |
 | `bdp_employee_id`          | `1`                         | Empleado por defecto             |
 | `bdp_items_profile_id`     | `1`                         | Perfil de artículos              |

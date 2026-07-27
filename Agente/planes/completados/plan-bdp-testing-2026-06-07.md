@@ -27,7 +27,7 @@ Ahora necesitamos probar el **ciclo completo**: crear → verificar → cancelar
 ### Paso 1.1 — Login + Health
 ```powershell
 POST /Auth/Login
-Body: {"Login":"admin","Password":"kamples2026","TiempoSession":59,"CodigoIntegrador":"VBW2MBM5"}
+Body: {"Login":"${BDP_LOGIN}","Password":"${BDP_PASSWORD}","TiempoSession":59,"CodigoIntegrador":"${BDP_INTEGRATOR_CODE}"}
 → Guardar AuthSession.Token
 
 GET /Service/Health

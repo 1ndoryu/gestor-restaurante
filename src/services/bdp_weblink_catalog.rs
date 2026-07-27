@@ -245,7 +245,8 @@ pub const BDP_ENDPOINTS: &[BdpEndpointSpec] = &[
 ];
 
 #[derive(Debug, Serialize)]
-pub struct BdpEmptyRequest;
+#[serde(rename_all = "PascalCase")]
+pub struct BdpEmptyRequest {}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "PascalCase")]
@@ -770,8 +771,9 @@ pub struct BdpGetPackRequest {
     pub pack_id: i32,
 }
 
-/* [247A-11] Fase 1 compras BDP: petición de ExportPurchaseNotes.
- * Los rangos de fecha/proveedor/serie son opcionales; BDP usa defaults. */
+/* [247A-11/287A-4] Fase 1 compras BDP: petición de ExportPurchaseNotes.
+ * Los filtros son opcionales en Glory, pero el BDP real exige un rango de
+ * proveedores; el handler lo completa antes de construir este contrato. */
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct BdpExportPurchaseNotesRequest {

@@ -219,7 +219,7 @@ mod tests {
         ]
     }
 
-    fn restore_meta_env(values: [Option<String>; 4]) {
+    fn restore_meta_env(values: &[Option<String>; 4]) {
         for (name, value) in [
             (META_ENV_WABA_ID, values[0].clone()),
             (META_ENV_BUSINESS_APP_ID, values[1].clone()),
@@ -257,7 +257,7 @@ mod tests {
         );
         assert!(effective.meta_configurado());
 
-        restore_meta_env(previous);
+        restore_meta_env(&previous);
     }
 
     #[test]
@@ -275,6 +275,6 @@ mod tests {
 
         assert_eq!(effective.meta_waba_id.as_deref(), Some("desde-bd"));
 
-        restore_meta_env(previous);
+        restore_meta_env(&previous);
     }
 }

@@ -1,17 +1,18 @@
 /* [BDP-C] Tests de integración read-only contra BDP real.
  * Estos tests NO escriben ni modifican nada en el sistema BDP.
  * Solo hacen llamadas de lectura: health, login, export_articles, get_tenders.
+ * No imprimen payloads del restaurante ni aceptan credenciales incompletas.
  *
  * Para ejecutar:
  *   BDP_BASE_URL=http://... BDP_LOGIN=admin BDP_PASSWORD=pass BDP_INTEGRATOR_CODE=TEST cargo test --test bdp_readonly -- --include-ignored
  *
  * Si las env vars no están configurados, los tests se ignoran automáticamente. */
 
-use chrono::{NaiveTime, Utc};
+use chrono::{Duration, NaiveTime, Utc};
 use glory_backend::models::ConfiguracionRestaurante;
 use glory_backend::services::bdp_weblink::BdpWeblinkClient;
 use glory_backend::services::bdp_weblink_catalog::{
-    BdpExportArticlesRequest, BdpGetOrderRequest, BdpOrderIdentifier,
+    BdpExportArticlesRequest, BdpExportPurchaseNotesRequest, BdpGetOrderRequest, BdpOrderIdentifier,
 };
 use rust_decimal::Decimal;
 use serde_json::json;
@@ -21,7 +22,18 @@ use uuid::Uuid;
  * Si falta BDP_BASE_URL, retorna None (tests se ignoran). */
 fn bdp_config_from_env() -> Option<ConfiguracionRestaurante> {
     let base_url = std::env::var("BDP_BASE_URL").ok()?;
-    if base_url.is_empty() {
+    let login = std::env::var("BDP_LOGIN").ok()?;
+    let password = std::env::var("BDP_PASSWORD").ok()?;
+    let integrator_code = std::env::var("BDP_INTEGRATOR_CODE").ok()?;
+    if [
+        base_url.as_str(),
+        login.as_str(),
+        password.as_str(),
+        integrator_code.as_str(),
+    ]
+    .iter()
+    .any(|value| value.trim().is_empty())
+    {
         return None;
     }
     Some(ConfiguracionRestaurante {
@@ -45,9 +57,9 @@ fn bdp_config_from_env() -> Option<ConfiguracionRestaurante> {
         haddock_api_token: String::new(),
         haddock_sync_enabled: false,
         bdp_base_url: base_url,
-        bdp_login: std::env::var("BDP_LOGIN").unwrap_or_else(|_| "admin".into()),
-        bdp_password: std::env::var("BDP_PASSWORD").unwrap_or_default(),
-        bdp_integrator_code: std::env::var("BDP_INTEGRATOR_CODE").unwrap_or_default(),
+        bdp_login: login,
+        bdp_password: password,
+        bdp_integrator_code: integrator_code,
         bdp_sync_enabled: true,
         bdp_pos_id: std::env::var("BDP_POS_ID")
             .ok()
@@ -90,12 +102,10 @@ fn bdp_config_from_env() -> Option<ConfiguracionRestaurante> {
 
 macro_rules! skip_if_no_bdp {
     ($config:ident) => {
-        let $config = match bdp_config_from_env() {
-            Some(c) => c,
-            None => {
-                eprintln!("SKIP: BDP_BASE_URL no configurado — test ignorado");
-                return;
-            }
+        let Some($config) = bdp_config_from_env() else {
+            panic!(
+                "Faltan BDP_BASE_URL, BDP_LOGIN, BDP_PASSWORD o BDP_INTEGRATOR_CODE; no se ejecutó la prueba real"
+            );
         };
     };
 }
@@ -105,7 +115,7 @@ macro_rules! skip_if_no_bdp {
  * Endpoint: POST /service/health (sin auth)
  * ────────────────────────────────────────────────────── */
 #[tokio::test]
-#[ignore] /* Solo ejecutar con BDP_BASE_URL configurado */
+#[ignore = "requiere un BDP real autorizado y variables explícitas"]
 async fn bdp_real_health() {
     skip_if_no_bdp!(config);
     let client = BdpWeblinkClient::new(&config);
@@ -117,8 +127,7 @@ async fn bdp_real_health() {
             assert!(h.is_alive, "BDP should report is_alive=true");
         }
         Err(e) => {
-            /* Si BDP no está corriendo, no fallamos — es un error de infraestructura */
-            eprintln!("SKIP: BDP health failed (servidor no disponible?): {e}");
+            panic!("BDP health failed — servidor no disponible o destino incorrecto: {e}");
         }
     }
 }
@@ -128,7 +137,7 @@ async fn bdp_real_health() {
  * Endpoint: POST /auth/login
  * ────────────────────────────────────────────────────── */
 #[tokio::test]
-#[ignore]
+#[ignore = "requiere un BDP real autorizado y variables explícitas"]
 async fn bdp_real_login() {
     skip_if_no_bdp!(config);
     let client = BdpWeblinkClient::new(&config);
@@ -159,7 +168,7 @@ async fn bdp_real_login() {
  * Endpoint: POST /articles/export — solo lectura
  * ────────────────────────────────────────────────────── */
 #[tokio::test]
-#[ignore]
+#[ignore = "requiere un BDP real autorizado y variables explícitas"]
 async fn bdp_real_export_articles() {
     skip_if_no_bdp!(config);
     let client = BdpWeblinkClient::new(&config);
@@ -169,11 +178,12 @@ async fn bdp_real_export_articles() {
     let result = client.export_articles(&request).await;
     match &result {
         Ok(articles) => {
-            let count = articles.as_array().map_or(0, std::vec::Vec::len);
+            let list = articles
+                .get("Articles")
+                .and_then(serde_json::Value::as_array)
+                .unwrap_or_else(|| panic!("ExportArticles no devolvió el array Articles esperado"));
+            let count = list.len();
             println!("BDP export_articles: {count} artículos recibidos");
-            if let Some(first) = articles.as_array().and_then(|a| a.first()) {
-                println!("  Primer artículo: {first}");
-            }
         }
         Err(e) => {
             eprintln!("FAIL: BDP export_articles failed: {e}");
@@ -187,7 +197,7 @@ async fn bdp_real_export_articles() {
  * Endpoint: POST /tenders/get — solo lectura
  * ────────────────────────────────────────────────────── */
 #[tokio::test]
-#[ignore]
+#[ignore = "requiere un BDP real autorizado y variables explícitas"]
 async fn bdp_real_get_tenders() {
     skip_if_no_bdp!(config);
     let client = BdpWeblinkClient::new(&config);
@@ -195,8 +205,15 @@ async fn bdp_real_get_tenders() {
     let result = client.get_tenders().await;
     match &result {
         Ok(tenders) => {
-            let pretty = serde_json::to_string_pretty(&tenders).unwrap_or_default();
-            println!("BDP get_tenders: {pretty}");
+            let list = tenders
+                .get("Tenders")
+                .or_else(|| tenders.get("TenderList"))
+                .and_then(serde_json::Value::as_array)
+                .unwrap_or_else(|| {
+                    panic!("GetTenderList no devolvió los arrays Tenders/TenderList esperados")
+                });
+            let count = list.len();
+            println!("BDP get_tenders: {count} formas de pago recibidas");
         }
         Err(e) => {
             eprintln!("FAIL: BDP get_tenders failed: {e}");
@@ -205,12 +222,42 @@ async fn bdp_real_get_tenders() {
     }
 }
 
+/* [287A-4] Lectura real acotada de albaranes. El rango de siete días limita
+ * carga y datos; no se imprime ningún documento ni se persiste en Glory. */
+#[tokio::test]
+#[ignore = "requiere un BDP real autorizado y variables explícitas"]
+async fn bdp_real_export_purchase_notes() {
+    skip_if_no_bdp!(config);
+    let client = BdpWeblinkClient::new(&config);
+    let final_date = Utc::now().date_naive();
+    let initial_date = final_date - Duration::days(7);
+    let request = BdpExportPurchaseNotesRequest {
+        export_profile_code: config.bdp_items_profile_id,
+        initial_date: Some(initial_date.format("%Y-%m-%d").to_string()),
+        final_date: Some(final_date.format("%Y-%m-%d").to_string()),
+        initial_supplier: Some(1),
+        final_supplier: Some(999_999),
+        initial_serial: None,
+        final_serial: None,
+    };
+
+    let response = client
+        .export_purchase_notes(&request)
+        .await
+        .unwrap_or_else(|error| panic!("ExportPurchaseNotes falló: {error}"));
+    let count = response
+        .get("DocumentsLists")
+        .and_then(serde_json::Value::as_array)
+        .map_or(0, std::vec::Vec::len);
+    println!("BDP ExportPurchaseNotes: {count} albaranes recibidos en el rango acotado");
+}
+
 /* ──────────────────────────────────────────────────────
  * Test 5: Get order inexistente — no crea nada en BDP
  * Endpoint: POST /order/get con código inexistente
  * ────────────────────────────────────────────────────── */
 #[tokio::test]
-#[ignore]
+#[ignore = "requiere un BDP real autorizado y variables explícitas"]
 async fn bdp_real_get_order_inexistente() {
     skip_if_no_bdp!(config);
     let client = BdpWeblinkClient::new(&config);
@@ -246,7 +293,7 @@ async fn bdp_real_get_order_inexistente() {
  * Valida que el token funciona para llamadas autenticadas.
  * ────────────────────────────────────────────────────── */
 #[tokio::test]
-#[ignore]
+#[ignore = "requiere un BDP real autorizado y variables explícitas"]
 async fn bdp_real_login_then_export_articles() {
     skip_if_no_bdp!(config);
     let client = BdpWeblinkClient::new(&config);
@@ -257,8 +304,7 @@ async fn bdp_real_login_then_export_articles() {
             s
         }
         Err(e) => {
-            eprintln!("SKIP: Login failed: {e}");
-            return;
+            panic!("Login falló; no se ejecutó ExportArticles: {e}");
         }
     };
 

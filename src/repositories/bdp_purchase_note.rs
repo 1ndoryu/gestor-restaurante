@@ -101,12 +101,14 @@ impl BdpPurchaseNoteRepository {
     where
         E: sqlx::Executor<'e, Database = sqlx::Postgres>,
     {
-        sqlx::query_as!(crate::models::BdpPurchaseNote,
+        /* [287A-4] Consulta dinámica con tipo explícito para que el build
+         * offline no dependa de metadatos SQLx ausentes en `.sqlx/`. */
+        sqlx::query_as::<_, crate::models::BdpPurchaseNote>(
             "SELECT id, user_id, serie, numero, fecha, codigo_proveedor, nombre_proveedor, total, datos_bdp, estado, gasto_id, ultima_sync_at, created_at, updated_at \
              FROM bdp_purchase_notes WHERE id = $1 AND user_id = $2",
-            id,
-            user_id
         )
+        .bind(id)
+        .bind(user_id)
         .fetch_optional(executor)
         .await
     }
@@ -120,13 +122,13 @@ impl BdpPurchaseNoteRepository {
     where
         E: sqlx::Executor<'e, Database = sqlx::Postgres>,
     {
-        let result = sqlx::query!(
+        let result = sqlx::query(
             "UPDATE bdp_purchase_notes \
              SET estado = 'borrador', updated_at = NOW() \
              WHERE id = $1 AND user_id = $2 AND estado = 'pendiente'",
-            id,
-            user_id
         )
+        .bind(id)
+        .bind(user_id)
         .execute(executor)
         .await?;
         Ok(result.rows_affected() > 0)
@@ -143,14 +145,14 @@ impl BdpPurchaseNoteRepository {
     where
         E: sqlx::Executor<'e, Database = sqlx::Postgres>,
     {
-        let result = sqlx::query!(
+        let result = sqlx::query(
             "UPDATE bdp_purchase_notes \
              SET estado = 'conciliado', gasto_id = $1, updated_at = NOW() \
              WHERE id = $2 AND user_id = $3 AND estado = 'borrador'",
-            gasto_id,
-            id,
-            user_id
         )
+        .bind(gasto_id)
+        .bind(id)
+        .bind(user_id)
         .execute(executor)
         .await?;
         Ok(result.rows_affected() > 0)

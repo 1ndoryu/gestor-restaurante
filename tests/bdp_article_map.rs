@@ -475,7 +475,7 @@ async fn test_upsert_from_bdp_desactiva_articulo(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(list.len(), 1);
-    assert_eq!(list[0].activo, false);
+    assert!(!list[0].activo);
 }
 
 #[sqlx::test(migrations = "./migrations")]
