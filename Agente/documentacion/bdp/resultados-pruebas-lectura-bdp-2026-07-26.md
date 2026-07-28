@@ -59,14 +59,21 @@ Ninguna de estas llamadas invocó endpoints de clientes, comandas, pagos, factur
 
 **Bloqueos reales descubiertos:** confirmar qué tarifa/perfil hace exportables los artículos y obtener del restaurante el código exacto de la plantilla `ExportPurchaseNotes`. Hasta entonces, Stock y Compras no están funcionalmente validados contra datos reales.
 
+## 3.2 Configuración guiada añadida — 2026-07-28
+
+- Un catálogo con `total_bdp = 0` muestra en Stock y Configuración un selector de tarifa BDP (1–5), permite guardarla y reintenta la misma lectura.
+- El backend dejó de fijar `TypePrice = 1`; usa la tarifa persistida para `ExportArticles`.
+- Compras conserva el código de plantilla `ExportPurchaseNotes`. Si falta o BDP lo rechaza, el formulario aparece en la propia pantalla con el error y permite corregirlo.
+- Estos ajustes se guardan únicamente en la base de Glory. Ninguna de las dos acciones habilita escritura en BDP.
+- El Explorador queda fuera del criterio actual de entrega por decisión del responsable del proyecto.
+
 ## 4. Próximos pasos para pruebas reales
 
 | # | Acción | Requisito |
 |---|---|---|
 | 1 | Verificar que el restaurante está en TailScale | Ejecutar el test acotado `bdp_real_health`, que usa `POST /Service/Health` sin mostrar secretos |
 | 2 | Probar Stock contra BDP real | Local + TailScale activo → `http://localhost:5173/bdp/stock`, desactivar demo mode, pulsar "Sync catálogo" |
-| 3 | Probar Explorador contra BDP real | Local + TailScale → buscar código de menú/pack/fastfood conocido del restaurante |
-| 4 | Probar Historial contra BDP real | Local + TailScale → verificar entradas de auditoría (lee DB local, no requiere BDP activo) |
-| 5 | Probar Compras contra BDP real | Local + TailScale → pulsar "Sync albaranes" con rango de fechas reciente |
+| 3 | Probar Historial | Verificar entradas de auditoría en la DB de Glory; no requiere BDP activo |
+| 4 | Probar Compras contra BDP real | Local + TailScale → introducir la plantilla solicitada y pulsar "Guardar y reintentar" con un rango reciente |
 
 **Recomendación:** Hacer las lecturas fuera de horas punta, con TailScale verificado y sin ejecutar pruebas de escritura en la misma sesión.

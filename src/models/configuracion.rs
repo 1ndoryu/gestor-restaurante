@@ -56,6 +56,9 @@ pub struct ConfiguracionRestaurante {
     pub bdp_pos_id: i32,
     pub bdp_employee_id: i32,
     pub bdp_items_profile_id: i32,
+    /* [287A-5] Parámetros de consultas BDP. No conceden permiso de escritura. */
+    pub bdp_catalog_price_type: i32,
+    pub bdp_purchase_notes_profile_id: Option<i32>,
     /* [065A-5] Artículo BDP genérico para el mapeo Glory → BDP.
      * Si el código es numérico, se usa directamente como ArtCode.
      * Si no, se busca el primer artículo del perfil. */
@@ -145,6 +148,10 @@ pub struct ActualizarConfiguracionRequest {
     pub bdp_employee_id: Option<i32>,
     #[validate(range(min = 1, max = 999_999))]
     pub bdp_items_profile_id: Option<i32>,
+    #[validate(range(min = 1, max = 5))]
+    pub bdp_catalog_price_type: Option<i32>,
+    #[validate(range(min = 1, max = 999_999))]
+    pub bdp_purchase_notes_profile_id: Option<i32>,
     #[validate(length(max = 100))]
     pub bdp_default_article_code: Option<String>,
     #[validate(length(max = 255))]

@@ -4,7 +4,7 @@
  * [237A-4] Añadida columna Stock (solo lectura, viene de sync-catalog). */
 
 import { useState } from 'react';
-import { Plus, Trash2, Loader2, RefreshCw, Package } from 'lucide-react';
+import { Plus, Trash2, Package } from 'lucide-react';
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListarArticleMaps } from '../api/generated/bdp-mapeos/bdp-mapeos';
 import { useCrearArticleMap, useEliminarArticleMap } from '../api/generated/bdp-mapeos/bdp-mapeos';
-import { useSyncCatalog, useSyncPrices } from '../api/generated/bdp-mapeos/bdp-mapeos';
+import { BdpArticleCatalogActions } from './BdpArticleCatalogActions';
 
 interface NuevoMapeo {
   articulo_glory_codigo: string;
@@ -52,31 +52,6 @@ function BdpArticleMapTable() {
   });
 
   const [nuevo, setNuevo] = useState<NuevoMapeo>(mapeoVacio);
-  const [sincronizando, setSincronizando] = useState(false);
-  const [actualizandoPrecios, setActualizandoPrecios] = useState(false);
-  const syncCatalogMutation = useSyncCatalog({
-    mutation: {
-      onSuccess: (resp) => {
-        const d = resp as unknown as { creados?: number; actualizados?: number; sin_cambios?: number; errores?: number };
-        toast.success(`Sync completado: ${d.creados ?? 0} nuevos, ${d.actualizados ?? 0} actualizados`);
-        queryClient.invalidateQueries({ queryKey: ['/api/bdp/article-maps'] });
-      },
-      onError: () => toast.error('Error al sincronizar catálogo BDP'),
-      onSettled: () => setSincronizando(false),
-    },
-  });
-
-  const syncPricesMutation = useSyncPrices({
-    mutation: {
-      onSuccess: (resp) => {
-        const d = resp as unknown as { actualizados?: number; sin_cambios?: number };
-        toast.success(`Precios actualizados: ${d.actualizados ?? 0} artículos`);
-      },
-      onError: () => toast.error('Error al sincronizar precios BDP'),
-      onSettled: () => setActualizandoPrecios(false),
-    },
-  });
-
   const mapeos = data?.status === 200 ? data.data : [];
 
   function handleCrear() {
@@ -92,18 +67,9 @@ function BdpArticleMapTable() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-sm font-medium">Mapeo artículos Glory → BDP</span>
-        <div className="flex gap-2">
-          <TooltipButton variant="default" size="sm" onClick={() => { setSincronizando(true); syncCatalogMutation.mutate(); }} disabled={sincronizando} tooltip="Importa/actualiza artículos desde BDP a Glory. Crea mapeos automáticos por código.">
-            {sincronizando ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-            Sync catálogo
-          </TooltipButton>
-          <TooltipButton variant="outline" size="sm" onClick={() => { setActualizandoPrecios(true); syncPricesMutation.mutate(); }} disabled={actualizandoPrecios} tooltip="Actualiza los precios de los artículos mapeados desde BDP. El stock solo se actualiza con 'Sync catálogo'.">
-            {actualizandoPrecios ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-            Sync precios
-          </TooltipButton>
-        </div>
+        <BdpArticleCatalogActions />
       </div>
 
       {isLoading ? (

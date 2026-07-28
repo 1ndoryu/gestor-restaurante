@@ -9,6 +9,37 @@ use uuid::Uuid;
 
 use crate::models::{ActualizarConfiguracionRequest, ConfiguracionRestaurante};
 
+/* [287A-5] El contrato SQL vive fuera del método para que la operación de
+ * persistencia sea legible sin ocultar ni silenciar el límite de Clippy. */
+const UPDATE_CONFIG_SQL: &str = "UPDATE configuracion_restaurante SET \
+    reserva_email_obligatorio = COALESCE($2, reserva_email_obligatorio), \
+    reserva_telefono_obligatorio = COALESCE($3, reserva_telefono_obligatorio), \
+    reserva_nombre_obligatorio = COALESCE($4, reserva_nombre_obligatorio), \
+    reserva_apellidos_obligatorio = COALESCE($5, reserva_apellidos_obligatorio), \
+    iva_por_defecto = COALESCE($6, iva_por_defecto), nombre_restaurante = COALESCE($7, nombre_restaurante), \
+    groq_api_key = COALESCE($8, groq_api_key), auto_venta_reserva = COALESCE($9, auto_venta_reserva), \
+    hora_desayuno_inicio = COALESCE($10, hora_desayuno_inicio), hora_desayuno_fin = COALESCE($11, hora_desayuno_fin), \
+    hora_comida_inicio = COALESCE($12, hora_comida_inicio), hora_comida_fin = COALESCE($13, hora_comida_fin), \
+    hora_cena_inicio = COALESCE($14, hora_cena_inicio), hora_cena_fin = COALESCE($15, hora_cena_fin), \
+    url_haddock = COALESCE($16, url_haddock), haddock_api_token = COALESCE($17, haddock_api_token), \
+    haddock_sync_enabled = COALESCE($18, haddock_sync_enabled), bdp_base_url = COALESCE($19, bdp_base_url), \
+    bdp_login = COALESCE($20, bdp_login), bdp_password = COALESCE($21, bdp_password), \
+    bdp_integrator_code = COALESCE($22, bdp_integrator_code), bdp_sync_enabled = COALESCE($23, bdp_sync_enabled), \
+    bdp_pos_id = COALESCE($24, bdp_pos_id), bdp_employee_id = COALESCE($25, bdp_employee_id), \
+    bdp_items_profile_id = COALESCE($26, bdp_items_profile_id), bdp_default_article_code = COALESCE($27, bdp_default_article_code), \
+    bdp_default_article_name = COALESCE($28, bdp_default_article_name), google_review_url = COALESCE($29, google_review_url), \
+    telefono_restaurante = COALESCE($30, telefono_restaurante), url_reservas = COALESCE($31, url_reservas), \
+    bdp_tender_map = COALESCE($32, bdp_tender_map), bdp_order_type_map = COALESCE($33, bdp_order_type_map), \
+    bdp_default_customer_code = COALESCE($34, bdp_default_customer_code), bdp_poll_interval_secs = COALESCE($35, bdp_poll_interval_secs), \
+    bdp_poll_enabled = COALESCE($36, bdp_poll_enabled), bdp_auto_sync_customers = COALESCE($37, bdp_auto_sync_customers), \
+    bdp_sync_mode = COALESCE($38, bdp_sync_mode), bdp_backup_retention_days = COALESCE($39, bdp_backup_retention_days), \
+    bdp_auto_backup_before_write = COALESCE($40, bdp_auto_backup_before_write), ff_bdp_auto_arm = COALESCE($41, ff_bdp_auto_arm), \
+    ff_bdp_partial_payments = COALESCE($42, ff_bdp_partial_payments), ff_bdp_cancel_order = COALESCE($43, ff_bdp_cancel_order), \
+    ff_bdp_purchase_notes_read = COALESCE($44, ff_bdp_purchase_notes_read), ff_bdp_purchase_notes_draft = COALESCE($45, ff_bdp_purchase_notes_draft), \
+    ff_bdp_purchase_notes_receive = COALESCE($46, ff_bdp_purchase_notes_receive), bdp_catalog_price_type = COALESCE($47, bdp_catalog_price_type), \
+    bdp_purchase_notes_profile_id = COALESCE($48, bdp_purchase_notes_profile_id), updated_at = NOW() \
+    WHERE user_id = $1 RETURNING *";
+
 pub struct ConfiguracionRepository;
 
 impl ConfiguracionRepository {
@@ -45,103 +76,56 @@ impl ConfiguracionRepository {
         user_id: Uuid,
         req: &ActualizarConfiguracionRequest,
     ) -> Result<ConfiguracionRestaurante, sqlx::Error> {
-        sqlx::query_as::<_, ConfiguracionRestaurante>(
-            "UPDATE configuracion_restaurante SET \
-                reserva_email_obligatorio = COALESCE($2, reserva_email_obligatorio), \
-                reserva_telefono_obligatorio = COALESCE($3, reserva_telefono_obligatorio), \
-                reserva_nombre_obligatorio = COALESCE($4, reserva_nombre_obligatorio), \
-                reserva_apellidos_obligatorio = COALESCE($5, reserva_apellidos_obligatorio), \
-                iva_por_defecto = COALESCE($6, iva_por_defecto), \
-                nombre_restaurante = COALESCE($7, nombre_restaurante), \
-                groq_api_key = COALESCE($8, groq_api_key), \
-                auto_venta_reserva = COALESCE($9, auto_venta_reserva), \
-                hora_desayuno_inicio = COALESCE($10, hora_desayuno_inicio), \
-                hora_desayuno_fin = COALESCE($11, hora_desayuno_fin), \
-                hora_comida_inicio = COALESCE($12, hora_comida_inicio), \
-                hora_comida_fin = COALESCE($13, hora_comida_fin), \
-                hora_cena_inicio = COALESCE($14, hora_cena_inicio), \
-                hora_cena_fin = COALESCE($15, hora_cena_fin), \
-                url_haddock = COALESCE($16, url_haddock), \
-                haddock_api_token = COALESCE($17, haddock_api_token), \
-                haddock_sync_enabled = COALESCE($18, haddock_sync_enabled), \
-                     bdp_base_url = COALESCE($19, bdp_base_url), \
-                     bdp_login = COALESCE($20, bdp_login), \
-                     bdp_password = COALESCE($21, bdp_password), \
-                     bdp_integrator_code = COALESCE($22, bdp_integrator_code), \
-                     bdp_sync_enabled = COALESCE($23, bdp_sync_enabled), \
-                     bdp_pos_id = COALESCE($24, bdp_pos_id), \
-                     bdp_employee_id = COALESCE($25, bdp_employee_id), \
-                     bdp_items_profile_id = COALESCE($26, bdp_items_profile_id), \
-                     bdp_default_article_code = COALESCE($27, bdp_default_article_code), \
-                     bdp_default_article_name = COALESCE($28, bdp_default_article_name), \
-                     google_review_url = COALESCE($29, google_review_url), \
-                     telefono_restaurante = COALESCE($30, telefono_restaurante), \
-                     url_reservas = COALESCE($31, url_reservas), \
-                     bdp_tender_map = COALESCE($32, bdp_tender_map), \
-                     bdp_order_type_map = COALESCE($33, bdp_order_type_map), \
-                     bdp_default_customer_code = COALESCE($34, bdp_default_customer_code), \
-                     bdp_poll_interval_secs = COALESCE($35, bdp_poll_interval_secs), \
-                     bdp_poll_enabled = COALESCE($36, bdp_poll_enabled), \
-                     bdp_auto_sync_customers = COALESCE($37, bdp_auto_sync_customers), \
-                     bdp_sync_mode = COALESCE($38, bdp_sync_mode), \
-                     bdp_backup_retention_days = COALESCE($39, bdp_backup_retention_days), \
-                     bdp_auto_backup_before_write = COALESCE($40, bdp_auto_backup_before_write), \
-                     ff_bdp_auto_arm = COALESCE($41, ff_bdp_auto_arm), \
-                     ff_bdp_partial_payments = COALESCE($42, ff_bdp_partial_payments), \
-                     ff_bdp_cancel_order = COALESCE($43, ff_bdp_cancel_order), \
-                     ff_bdp_purchase_notes_read = COALESCE($44, ff_bdp_purchase_notes_read), \
-                     ff_bdp_purchase_notes_draft = COALESCE($45, ff_bdp_purchase_notes_draft), \
-                     ff_bdp_purchase_notes_receive = COALESCE($46, ff_bdp_purchase_notes_receive), \
-                updated_at = NOW() \
-             WHERE user_id = $1 RETURNING *",
-        )
-        .bind(user_id)
-        .bind(req.reserva_email_obligatorio)
-        .bind(req.reserva_telefono_obligatorio)
-        .bind(req.reserva_nombre_obligatorio)
-        .bind(req.reserva_apellidos_obligatorio)
-        .bind(req.iva_por_defecto)
-        .bind(req.nombre_restaurante.as_deref())
-        .bind(req.groq_api_key.as_deref())
-        .bind(req.auto_venta_reserva)
-        .bind(req.hora_desayuno_inicio)
-        .bind(req.hora_desayuno_fin)
-        .bind(req.hora_comida_inicio)
-        .bind(req.hora_comida_fin)
-        .bind(req.hora_cena_inicio)
-        .bind(req.hora_cena_fin)
-        .bind(req.url_haddock.as_deref())
-        .bind(req.haddock_api_token.as_deref())
-        .bind(req.haddock_sync_enabled)
-        .bind(req.bdp_base_url.as_deref())
-        .bind(req.bdp_login.as_deref())
-        .bind(req.bdp_password.as_deref())
-        .bind(req.bdp_integrator_code.as_deref())
-        .bind(req.bdp_sync_enabled)
-        .bind(req.bdp_pos_id)
-        .bind(req.bdp_employee_id)
-        .bind(req.bdp_items_profile_id)
-        .bind(req.bdp_default_article_code.as_deref())
-        .bind(req.bdp_default_article_name.as_deref())
-        .bind(req.google_review_url.as_deref())
-        .bind(req.telefono_restaurante.as_deref())
-        .bind(req.url_reservas.as_deref())
-        .bind(req.bdp_tender_map.as_ref())
-        .bind(req.bdp_order_type_map.as_ref())
-        .bind(req.bdp_default_customer_code.as_deref())
-        .bind(req.bdp_poll_interval_secs)
-        .bind(req.bdp_poll_enabled)
-        .bind(req.bdp_auto_sync_customers)
-        .bind(req.bdp_sync_mode.as_deref())
-        .bind(req.bdp_backup_retention_days)
-        .bind(req.bdp_auto_backup_before_write)
-        .bind(req.ff_bdp_auto_arm)
-        .bind(req.ff_bdp_partial_payments)
-        .bind(req.ff_bdp_cancel_order)
-        .bind(req.ff_bdp_purchase_notes_read)
-        .bind(req.ff_bdp_purchase_notes_draft)
-        .bind(req.ff_bdp_purchase_notes_receive)
-        .fetch_one(pool)
-        .await
+        sqlx::query_as::<_, ConfiguracionRestaurante>(UPDATE_CONFIG_SQL)
+            .bind(user_id)
+            .bind(req.reserva_email_obligatorio)
+            .bind(req.reserva_telefono_obligatorio)
+            .bind(req.reserva_nombre_obligatorio)
+            .bind(req.reserva_apellidos_obligatorio)
+            .bind(req.iva_por_defecto)
+            .bind(req.nombre_restaurante.as_deref())
+            .bind(req.groq_api_key.as_deref())
+            .bind(req.auto_venta_reserva)
+            .bind(req.hora_desayuno_inicio)
+            .bind(req.hora_desayuno_fin)
+            .bind(req.hora_comida_inicio)
+            .bind(req.hora_comida_fin)
+            .bind(req.hora_cena_inicio)
+            .bind(req.hora_cena_fin)
+            .bind(req.url_haddock.as_deref())
+            .bind(req.haddock_api_token.as_deref())
+            .bind(req.haddock_sync_enabled)
+            .bind(req.bdp_base_url.as_deref())
+            .bind(req.bdp_login.as_deref())
+            .bind(req.bdp_password.as_deref())
+            .bind(req.bdp_integrator_code.as_deref())
+            .bind(req.bdp_sync_enabled)
+            .bind(req.bdp_pos_id)
+            .bind(req.bdp_employee_id)
+            .bind(req.bdp_items_profile_id)
+            .bind(req.bdp_default_article_code.as_deref())
+            .bind(req.bdp_default_article_name.as_deref())
+            .bind(req.google_review_url.as_deref())
+            .bind(req.telefono_restaurante.as_deref())
+            .bind(req.url_reservas.as_deref())
+            .bind(req.bdp_tender_map.as_ref())
+            .bind(req.bdp_order_type_map.as_ref())
+            .bind(req.bdp_default_customer_code.as_deref())
+            .bind(req.bdp_poll_interval_secs)
+            .bind(req.bdp_poll_enabled)
+            .bind(req.bdp_auto_sync_customers)
+            .bind(req.bdp_sync_mode.as_deref())
+            .bind(req.bdp_backup_retention_days)
+            .bind(req.bdp_auto_backup_before_write)
+            .bind(req.ff_bdp_auto_arm)
+            .bind(req.ff_bdp_partial_payments)
+            .bind(req.ff_bdp_cancel_order)
+            .bind(req.ff_bdp_purchase_notes_read)
+            .bind(req.ff_bdp_purchase_notes_draft)
+            .bind(req.ff_bdp_purchase_notes_receive)
+            .bind(req.bdp_catalog_price_type)
+            .bind(req.bdp_purchase_notes_profile_id)
+            .fetch_one(pool)
+            .await
     }
 }

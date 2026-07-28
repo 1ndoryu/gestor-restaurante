@@ -3,10 +3,9 @@
  * Modo demo incluido para visualizar datos de prueba. */
 
 import { useMemo, useState } from 'react';
-import { Search, RefreshCw, Loader2, FilePen, CheckCircle } from 'lucide-react';
+import { Search, FilePen, CheckCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,12 +15,11 @@ import {
   useBdpPurchaseNotes,
   useDraftBdpPurchaseNote,
   useReconcileBdpPurchaseNote,
-  useSyncBdpPurchaseNotes,
 } from '@/api/bdp';
 import type { BdpPurchaseNote, BdpPurchaseNoteReconcileRequest } from '@/api/bdp';
 import { mockPurchaseNotes } from './bdp-mocks';
-import { BdpDemoToggle } from './BdpDemoToggle';
 import { BdpComprasReconcileModal } from './BdpComprasReconcileModal';
+import { BdpPurchaseSyncControls } from './BdpPurchaseSyncControls';
 
 function formatDate(value: string | null) {
   if (!value) return '—';
@@ -45,9 +43,6 @@ function BdpCompras() {
   const [proveedor, setProveedor] = useState('');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
-  /* [287A-4] No asumir perfil 1: el BDP real exige una plantilla de
-   * ExportPurchaseNotes existente y configurada específicamente. */
-  const [profileCode, setProfileCode] = useState('');
   const [reconcileNote, setReconcileNote] = useState<BdpPurchaseNote | null>(null);
 
   const filters = useMemo(
@@ -60,7 +55,6 @@ function BdpCompras() {
   );
 
   const { data, isLoading, error } = useBdpPurchaseNotes(filters, !demoMode);
-  const syncMutation = useSyncBdpPurchaseNotes(queryClient);
   const draftMutation = useDraftBdpPurchaseNote(queryClient);
   const reconcileMutation = useReconcileBdpPurchaseNote(queryClient);
 
@@ -79,33 +73,6 @@ function BdpCompras() {
   }, [proveedor, fechaDesde, fechaHasta]);
 
   const notes = demoMode ? filteredDemoNotes : (data ?? []);
-
-  function handleSync() {
-    const code = Number(profileCode);
-    if (Number.isNaN(code) || code <= 0) {
-      toast.error('El perfil de exportación debe ser un número mayor que 0');
-      return;
-    }
-    if (!fechaDesde || !fechaHasta) {
-      toast.error('Indica fecha_desde y fecha_hasta para el sync');
-      return;
-    }
-    syncMutation.mutate(
-      {
-        export_profile_code: code,
-        fecha_desde: fechaDesde,
-        fecha_hasta: fechaHasta,
-      },
-      {
-        onSuccess: (res) => {
-          toast.success(`Sync completado: ${res.procesados} albaranes procesados de ${res.total_bdp}`);
-        },
-        onError: () => {
-          toast.error('Error al sincronizar albaranes BDP');
-        },
-      },
-    );
-  }
 
   function handleDraft(note: BdpPurchaseNote) {
     if (demoMode) {
@@ -148,36 +115,13 @@ function BdpCompras() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{`${notes.length} albaranes`}</p>
-        <div className="flex items-center gap-2">
-          <BdpDemoToggle demoMode={demoMode} onToggle={setDemoMode} />
-          <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              min={1}
-              value={profileCode}
-              onChange={(e) => setProfileCode(e.target.value)}
-              className="w-24"
-              placeholder="Perfil compras"
-              disabled={demoMode}
-            />
-            <TooltipButton
-              variant="outline"
-              onClick={handleSync}
-              disabled={syncMutation.isPending || demoMode}
-              tooltip="Usa el código de la plantilla ExportPurchaseNotes configurada en BDP. Importa albaranes en Glory y no modifica BDP."
-            >
-              {syncMutation.isPending ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="size-3.5" />
-              )}
-              Sync albaranes
-            </TooltipButton>
-          </div>
-        </div>
-      </div>
+      <BdpPurchaseSyncControls
+        count={notes.length}
+        demoMode={demoMode}
+        fechaDesde={fechaDesde}
+        fechaHasta={fechaHasta}
+        onToggleDemo={setDemoMode}
+      />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-wrap gap-3 items-center">

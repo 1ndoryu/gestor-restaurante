@@ -73,6 +73,13 @@ fn bdp_config_from_env() -> Option<ConfiguracionRestaurante> {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(1),
+        bdp_catalog_price_type: std::env::var("BDP_CATALOG_PRICE_TYPE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(1),
+        bdp_purchase_notes_profile_id: std::env::var("BDP_PURCHASE_NOTES_PROFILE_ID")
+            .ok()
+            .and_then(|v| v.parse().ok()),
         bdp_default_article_code: "1001".into(),
         bdp_default_article_name: "Servicio".into(),
         bdp_tender_map: json!({"efectivo": "1", "tarjeta": "2"}),
@@ -232,7 +239,9 @@ async fn bdp_real_export_purchase_notes() {
     let final_date = Utc::now().date_naive();
     let initial_date = final_date - Duration::days(7);
     let request = BdpExportPurchaseNotesRequest {
-        export_profile_code: config.bdp_items_profile_id,
+        export_profile_code: config
+            .bdp_purchase_notes_profile_id
+            .expect("BDP_PURCHASE_NOTES_PROFILE_ID es obligatorio para esta lectura"),
         initial_date: Some(initial_date.format("%Y-%m-%d").to_string()),
         final_date: Some(final_date.format("%Y-%m-%d").to_string()),
         initial_supplier: Some(1),

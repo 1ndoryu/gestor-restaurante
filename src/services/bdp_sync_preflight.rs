@@ -734,6 +734,8 @@ mod tests {
             bdp_pos_id: 31,
             bdp_employee_id: 1,
             bdp_items_profile_id: 1,
+            bdp_catalog_price_type: 1,
+            bdp_purchase_notes_profile_id: None,
             bdp_default_article_code: "GLORY".to_string(),
             bdp_default_article_name: "Servicio Glory".to_string(),
             bdp_tender_map: serde_json::json!({"efectivo": "1", "tarjeta": "2"}),

@@ -277,6 +277,8 @@ Estos valores dependen de cada instalación y se configuran durante la puesta en
 2. Usar los filtros de búsqueda, stock y estado para encontrar artículos.
 3. Si se necesita exportar, hacer clic en el botón **"CSV"** (junto a los filtros, arriba a la derecha).
 4. Para actualizar los datos desde BDP, hacer clic en **"Sync catálogo"**.
+5. Si BDP responde con cero artículos, Glory muestra inmediatamente **"BDP no devolvió artículos"**. Seleccionar una tarifa de catálogo entre 1 y 5 y pulsar **"Guardar y reintentar"**. La selección queda guardada en Glory y la operación solo consulta BDP.
+6. Si las cinco tarifas devuelven cero artículos, no seguir probando: la exportación de artículos debe habilitarse o revisarse en BDP.
 
 ### Explorar menús y packs
 
@@ -328,14 +330,16 @@ Estos valores dependen de cada instalación y se configuran durante la puesta en
 ### Conciliar un albarán de compra
 
 1. Ir al menú lateral → **BDP Compras** (icono de recibo).
-2. Indicar en "Perfil compras" el código de la plantilla de exportación de albaranes configurada en BDP. No es el perfil de artículos ni un valor genérico; debe confirmarlo quien administra BDP.
-3. Hacer clic en **"Sync albaranes"**. Esta acción lee BDP e importa la información en Glory; no modifica el restaurante.
-4. Usar los filtros de proveedor y fechas para encontrar el albarán.
-5. Hacer clic en **"Borrador"** en la fila del albarán pendiente.
-6. Revisar los datos del albarán.
-7. Hacer clic en **"Conciliar"** en la fila del albarán en borrador.
-8. En la ventana emergente, elegir entre crear un gasto nuevo o vincular a uno existente.
-9. Confirmar la conciliación. Los pasos desde "Borrador" en adelante solo cambian datos locales de Glory; no escriben en BDP.
+2. Si todavía no hay una plantilla guardada, Glory muestra automáticamente **"Configura la plantilla de Compras"**.
+3. Introducir el código de la plantilla `ExportPurchaseNotes` y pulsar **"Guardar y reintentar"**. No es el perfil de artículos ni un valor genérico; debe ser una plantilla existente en BDP.
+4. Si BDP indica que la plantilla es inválida, el mismo formulario vuelve a aparecer con el mensaje recibido para poder corregir el código.
+5. También se puede pulsar **"Sync albaranes"** cuando la plantilla ya está guardada. Esta acción lee BDP e importa la información en Glory; no modifica el restaurante.
+6. Usar los filtros de proveedor y fechas para encontrar el albarán.
+7. Hacer clic en **"Borrador"** en la fila del albarán pendiente.
+8. Revisar los datos del albarán.
+9. Hacer clic en **"Conciliar"** en la fila del albarán en borrador.
+10. En la ventana emergente, elegir entre crear un gasto nuevo o vincular a uno existente.
+11. Confirmar la conciliación. Los pasos desde "Borrador" en adelante solo cambian datos locales de Glory; no escriben en BDP.
 
 ---
 
@@ -370,7 +374,7 @@ Las 4 pantallas de lectura (Stock, Explorador, Historial, Compras) funcionan con
 - Las formas de pago se pudieron consultar correctamente.
 - La consulta del catálogo fue aceptada, pero devolvió cero artículos. El cliente debe confirmar cuál es el perfil de artículos que exporta su instalación.
 - La consulta de Compras fue rechazada porque falta o no es válida la plantilla de exportación. El cliente debe facilitar el código exacto de la plantilla configurada en BDP para albaranes de proveedores.
-- Para terminar la comprobación del Explorador se necesitan códigos reales de un menú, pack o fast food existente.
+- El Explorador de menús, packs y fast food no forma parte del criterio de entrega solicitado y puede verificarse más adelante si el restaurante decide utilizarlo.
 
 Estas consultas no crearon pedidos, pagos, facturas, clientes ni movimientos de stock. Los puntos anteriores son configuraciones propias de la instalación BDP y no pueden deducirse de forma segura desde Glory.
 
@@ -420,7 +424,20 @@ Confirmar que:
 
 ---
 
-## 13. Preguntas frecuentes
+## 13. Puesta en marcha y entrega
+
+Al instalar esta versión, Glory crea automáticamente los campos necesarios en su propia base de datos. No hay que modificar manualmente la base ni añadir variables de entorno para la tarifa de catálogo o la plantilla de Compras.
+
+Después del despliegue:
+
+1. Confirmar que el indicador muestra **BDP: lectura**.
+2. En Stock, pulsar **Sync catálogo**. Si aparecen cero artículos, probar las tarifas 1–5 desde el formulario mostrado por Glory.
+3. En Compras, introducir el código de plantilla cuando Glory lo solicite.
+4. Confirmar que las credenciales BDP vigentes fueron rotadas y entregadas al responsable técnico por un canal seguro.
+
+La entrega técnica puede realizarse con Catálogo y Compras pendientes de estos dos valores propios del restaurante; quedarán identificados en pantalla y no habilitan escrituras en BDP.
+
+## 14. Preguntas frecuentes
 
 **¿Tengo que activar manualmente la escritura cada vez que quiero pagar una venta?**
 No. Si el interruptor de auto-arming está activado, el sistema autoriza automáticamente cada operación de pago o factura. Solo hay que confirmar con el texto indicado.

@@ -104,16 +104,15 @@ pub async fn sincronizar_purchase_notes(
     /* Evitar importes masivos descontrolados: exigir rango de fechas de <= 31 días. */
     validar_rango_fechas(&req)?;
 
-    if req.export_profile_code <= 0 {
-        return Err(AppError::Validation(
-            "El perfil de exportación debe ser mayor que 0".into(),
-        ));
-    }
+    let export_profile_code = resolver_perfil_exportacion(
+        req.export_profile_code,
+        config.bdp_purchase_notes_profile_id,
+    )?;
 
     let client = BdpWeblinkClient::new(&config);
 
     let bdp_request = BdpExportPurchaseNotesRequest {
-        export_profile_code: req.export_profile_code,
+        export_profile_code,
         initial_date: req.fecha_desde.clone(),
         final_date: req.fecha_hasta.clone(),
         /* [287A-4] BDP real rechaza proveedores omitidos con 403900.
@@ -325,6 +324,20 @@ fn map_bdp_error(err: &BdpWeblinkError) -> AppError {
     }
 }
 
+fn resolver_perfil_exportacion(
+    requested: Option<i32>,
+    configured: Option<i32>,
+) -> Result<i32, AppError> {
+    requested
+        .or(configured)
+        .filter(|code| *code > 0)
+        .ok_or_else(|| {
+            AppError::Validation(
+                "Configura el código de plantilla ExportPurchaseNotes para continuar".into(),
+            )
+        })
+}
+
 /// Indica si el albarán tiene clave natural completa (serie y número).
 /// Los documentos sin ambos valores se descartan para evitar conflictos de clave
 /// vacía en la restricción `UNIQUE (user_id, serie, numero)`.
@@ -373,7 +386,7 @@ mod tests {
 
     fn req_con_fechas(fecha_desde: &str, fecha_hasta: &str) -> BdpPurchaseNoteSyncRequest {
         BdpPurchaseNoteSyncRequest {
-            export_profile_code: 1,
+            export_profile_code: Some(1),
             fecha_desde: Some(fecha_desde.to_string()),
             fecha_hasta: Some(fecha_hasta.to_string()),
             proveedor_desde: None,
@@ -382,9 +395,25 @@ mod tests {
     }
 
     #[test]
+    fn perfil_de_peticion_tiene_prioridad_sobre_configuracion() {
+        assert_eq!(resolver_perfil_exportacion(Some(7), Some(3)).unwrap(), 7);
+    }
+
+    #[test]
+    fn usa_perfil_persistido_si_la_peticion_lo_omite() {
+        assert_eq!(resolver_perfil_exportacion(None, Some(3)).unwrap(), 3);
+    }
+
+    #[test]
+    fn rechaza_compras_sin_plantilla_configurada() {
+        assert!(resolver_perfil_exportacion(None, None).is_err());
+        assert!(resolver_perfil_exportacion(Some(0), None).is_err());
+    }
+
+    #[test]
     fn validar_rango_fechas_rejects_missing_dates() {
         let req = BdpPurchaseNoteSyncRequest {
-            export_profile_code: 1,
+            export_profile_code: Some(1),
             fecha_desde: None,
             fecha_hasta: Some("2024-07-31".to_string()),
             proveedor_desde: None,

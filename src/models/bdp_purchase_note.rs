@@ -88,7 +88,9 @@ pub struct BdpPurchaseNoteListParams {
 /// Request para sincronizar albaranes desde BDP.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct BdpPurchaseNoteSyncRequest {
-    pub export_profile_code: i32,
+    /* [287A-5] Opcional en cada petición: si se omite se usa el perfil
+     * persistido en configuración. */
+    pub export_profile_code: Option<i32>,
     #[serde(default)]
     pub fecha_desde: Option<String>,
     #[serde(default)]

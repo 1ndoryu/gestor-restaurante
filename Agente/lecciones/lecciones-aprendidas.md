@@ -423,3 +423,4 @@
 - Un test real marcado como ignorado no puede “aprobar” cuando faltan variables, falla el acceso o no reconoce la forma de la respuesta: debe fallar de manera concluyente y sin imprimir payloads ni secretos.
 - El simulador confirma nuestra lógica, pero no prueba nombres de campos, valores predeterminados ni perfiles propios de una instalación BDP. En la instalación real, `TenderList` y los rangos obligatorios demostraron esa diferencia.
 - Las credenciales nunca deben copiarse a planes, resultados ni guías, aunque el repositorio sea privado. Si ya estuvieron en el historial, redactar el árbol actual no basta: deben rotarse.
+- Una migración SQL aplicada es inmutable. Cualquier refuerzo, incluso eliminar un índice redundante, debe vivir en una migración posterior; editarla provoca `VersionMismatch` y bloquea el arranque antes de servir tráfico.

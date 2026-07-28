@@ -224,9 +224,14 @@ pub async fn importar_catalogo(
         .await
         .map_err(|e| AppError::Internal(format!("Error login BDP: {e}")))?;
 
-    let result = BdpSyncService::sync_catalog(&client, &state.pool, auth.user_id, 1)
-        .await
-        .map_err(AppError::Internal)?;
+    let result = BdpSyncService::sync_catalog(
+        &client,
+        &state.pool,
+        auth.user_id,
+        config.bdp_catalog_price_type,
+    )
+    .await
+    .map_err(AppError::Internal)?;
     Ok(Json(serde_json::json!({
         "imported": result.creados + result.actualizados,
         "unchanged": result.sin_cambios,
@@ -270,9 +275,17 @@ pub async fn sync_catalog(
         .await
         .map_err(|e| AppError::Internal(format!("Error login BDP: {e}")))?;
 
-    let result = BdpSyncService::sync_catalog(&client, &state.pool, auth.user_id, 1)
-        .await
-        .map_err(AppError::Internal)?;
+    /* [287A-5] ExportArticles usa TypePrice (1-5), no el perfil de
+     * CreateOrder/GetPosArticles. El valor persistido permite corregir un
+     * catálogo vacío desde la UI sin tocar BDP. */
+    let result = BdpSyncService::sync_catalog(
+        &client,
+        &state.pool,
+        auth.user_id,
+        config.bdp_catalog_price_type,
+    )
+    .await
+    .map_err(AppError::Internal)?;
 
     Ok(Json(result))
 }

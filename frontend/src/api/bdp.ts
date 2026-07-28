@@ -152,7 +152,7 @@ export interface BdpPurchaseNoteFilters {
 
 /** Request para sincronizar albaranes desde BDP. */
 export interface BdpPurchaseNoteSyncRequest {
-  export_profile_code: number;
+  export_profile_code?: number;
   fecha_desde?: string;
   fecha_hasta?: string;
   proveedor_desde?: number;

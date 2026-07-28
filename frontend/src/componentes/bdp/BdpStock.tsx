@@ -5,10 +5,7 @@
 import { useMemo } from 'react';
 import {
   Search,
-  RefreshCw,
-  Loader2,
   Package,
-  Download,
   AlertCircle,
   ChevronDown,
   ChevronUp,
@@ -17,17 +14,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
-import { useListarArticleMaps, useSyncCatalog } from '@/api/generated/bdp-mapeos/bdp-mapeos';
-import { TooltipButton } from '@/components/ui/tooltip-button';
+import { useListarArticleMaps } from '@/api/generated/bdp-mapeos/bdp-mapeos';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useBdpStockFilters } from '@/hooks/useBdpStockFilters';
 import { useBdpDemoMode } from '@/hooks/useBdpDemoMode';
 import { formatPrice, formatStock, formatDate, exportToCsv, PAGE_SIZES, type SortKey } from './bdp-stock-utils';
 import { mockArticleMaps } from './bdp-mocks';
-import { BdpDemoToggle } from './BdpDemoToggle';
+import { BdpStockActions } from './BdpStockActions';
 
 function TableSkeleton() {
   return (
@@ -55,22 +49,10 @@ function ReadOnlyBanner() {
 }
 
 function BdpStock() {
-  const queryClient = useQueryClient();
   const { demoMode, setDemoMode } = useBdpDemoMode();
   const { data, isLoading, error: listError } = useListarArticleMaps({
     query: { enabled: !demoMode },
   });
-  const syncCatalogMutation = useSyncCatalog({
-    mutation: {
-      onSuccess: (resp) => {
-        const d = resp as unknown as { creados?: number; actualizados?: number };
-        toast.success(`Sync completado: ${d.creados ?? 0} nuevos, ${d.actualizados ?? 0} actualizados`);
-        queryClient.invalidateQueries({ queryKey: ['/api/bdp/article-maps'] });
-      },
-      onError: () => toast.error('Error al sincronizar catálogo BDP'),
-    },
-  });
-
   const apiRows = data?.status === 200 ? data.data : [];
   const mapeos = demoMode ? mockArticleMaps : apiRows;
   const lastSync = useMemo(() => {
@@ -129,36 +111,13 @@ function BdpStock() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {`${filteredCount} artículos`} · Última sync: {lastSync ? formatDate(lastSync) : '—'}
-        </p>
-        <div className="flex items-center gap-2">
-          <BdpDemoToggle demoMode={demoMode} onToggle={setDemoMode} />
-          <Button
-            variant="outline"
-            onClick={handleExport}
-            disabled={paginated.length === 0}
-            title="Exportar a CSV con BOM para Excel"
-          >
-            <Download className="size-4 mr-1.5" />
-            CSV
-          </Button>
-          <TooltipButton
-            variant="outline"
-            onClick={() => syncCatalogMutation.mutate()}
-            disabled={syncCatalogMutation.isPending || demoMode}
-            tooltip="Importa/actualiza artículos y stock desde BDP a Glory. No modifica BDP."
-          >
-            {syncCatalogMutation.isPending ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="size-3.5" />
-            )}
-            Sync catálogo
-          </TooltipButton>
-        </div>
-      </div>
+      <BdpStockActions
+        summary={`${filteredCount} artículos · Última sync: ${lastSync ? formatDate(lastSync) : '—'}`}
+        demoMode={demoMode}
+        exportDisabled={paginated.length === 0}
+        onToggleDemo={setDemoMode}
+        onExport={handleExport}
+      />
 
       <ReadOnlyBanner />
 
