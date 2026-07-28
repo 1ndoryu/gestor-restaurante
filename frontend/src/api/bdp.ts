@@ -171,7 +171,10 @@ export async function fetchBdpPurchaseNotes(filters: BdpPurchaseNoteFilters = {}
   if (filters.proveedor) params.set('proveedor', filters.proveedor);
   if (filters.fecha_desde) params.set('fecha_desde', filters.fecha_desde);
   if (filters.fecha_hasta) params.set('fecha_hasta', filters.fecha_hasta);
-  const url = `/api/bdp/purchase-notes?${params.toString()}`;
+  /* [287A-7] No añadir un separador vacío: la colección sin filtros usa su URL
+   * canónica y los parámetros solo aparecen cuando realmente existen. */
+  const query = params.toString();
+  const url = query ? `/api/bdp/purchase-notes?${query}` : '/api/bdp/purchase-notes';
   const resp = await customInstance(url, { method: 'GET' }) as { data: BdpPurchaseNote[] };
   return resp.data;
 }

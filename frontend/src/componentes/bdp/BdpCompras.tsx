@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
 import { useBdpDemoMode } from '@/hooks/useBdpDemoMode';
 import {
   useBdpPurchaseNotes,
@@ -20,6 +21,7 @@ import type { BdpPurchaseNote, BdpPurchaseNoteReconcileRequest } from '@/api/bdp
 import { mockPurchaseNotes } from './bdp-mocks';
 import { BdpComprasReconcileModal } from './BdpComprasReconcileModal';
 import { BdpPurchaseSyncControls } from './BdpPurchaseSyncControls';
+import { BdpPurchaseFeatureNotice } from './BdpPurchaseFeatureNotice';
 
 function formatDate(value: string | null) {
   if (!value) return '—';
@@ -40,6 +42,7 @@ function formatCurrency(value: string | null) {
 function BdpCompras() {
   const queryClient = useQueryClient();
   const { demoMode, setDemoMode } = useBdpDemoMode();
+  const { data: configResponse, isLoading: isLoadingConfig } = useObtenerConfiguracion();
   const [proveedor, setProveedor] = useState('');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
@@ -54,7 +57,12 @@ function BdpCompras() {
     [proveedor, fechaDesde, fechaHasta],
   );
 
-  const { data, isLoading, error } = useBdpPurchaseNotes(filters, !demoMode);
+  const purchaseFeatureEnabled = configResponse?.status === 200
+    && configResponse.data.ff_bdp_purchase_notes_read;
+  /* [287A-7] El backend protege Compras con feature flag. No generar 422
+   * previsibles mientras la función está apagada; la pantalla explica cómo activarla. */
+  const shouldLoadPurchases = !demoMode && !isLoadingConfig && purchaseFeatureEnabled;
+  const { data, isLoading, error } = useBdpPurchaseNotes(filters, shouldLoadPurchases);
   const draftMutation = useDraftBdpPurchaseNote(queryClient);
   const reconcileMutation = useReconcileBdpPurchaseNote(queryClient);
 
@@ -118,10 +126,13 @@ function BdpCompras() {
       <BdpPurchaseSyncControls
         count={notes.length}
         demoMode={demoMode}
+        featureEnabled={purchaseFeatureEnabled}
         fechaDesde={fechaDesde}
         fechaHasta={fechaHasta}
         onToggleDemo={setDemoMode}
       />
+
+      {!demoMode && !isLoadingConfig && !purchaseFeatureEnabled && <BdpPurchaseFeatureNotice />}
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-wrap gap-3 items-center">

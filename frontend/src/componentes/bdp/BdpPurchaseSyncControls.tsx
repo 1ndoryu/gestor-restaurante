@@ -15,6 +15,7 @@ import { BdpDemoToggle } from './BdpDemoToggle';
 interface BdpPurchaseSyncControlsProps {
   count: number;
   demoMode: boolean;
+  featureEnabled: boolean;
   fechaDesde: string;
   fechaHasta: string;
   onToggleDemo: (enabled: boolean) => void;
@@ -28,6 +29,7 @@ function getErrorMessage(error: unknown): string {
 export function BdpPurchaseSyncControls({
   count,
   demoMode,
+  featureEnabled,
   fechaDesde,
   fechaHasta,
   onToggleDemo,
@@ -44,6 +46,10 @@ export function BdpPurchaseSyncControls({
   const syncMutation = useSyncBdpPurchaseNotes(queryClient);
 
   async function syncWithSavedProfile() {
+    if (!featureEnabled) {
+      toast.error('Activa Compras BDP en Configuración antes de sincronizar');
+      return;
+    }
     const code = Number(profileCode);
     if (!Number.isInteger(code) || code <= 0) {
       setProfileProblem('Indica el código numérico de la plantilla de Compras configurada en BDP.');
@@ -85,8 +91,10 @@ export function BdpPurchaseSyncControls({
           <TooltipButton
             variant="outline"
             onClick={syncWithSavedProfile}
-            disabled={syncMutation.isPending || isSaving || demoMode}
-            tooltip="Consulta albaranes en BDP y los importa en la Aplicación Web. No modifica BDP."
+            disabled={syncMutation.isPending || isSaving || demoMode || !featureEnabled}
+            tooltip={featureEnabled
+              ? 'Consulta albaranes en BDP y los importa en la Aplicación Web. No modifica BDP.'
+              : 'Activa primero la lectura de Compras BDP en Configuración.'}
           >
             {syncMutation.isPending || isSaving ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Sync albaranes
