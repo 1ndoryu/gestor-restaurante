@@ -321,7 +321,7 @@ function ListaClientes() {
 
       <Dialog open={importarBdpAbierto} onOpenChange={setImportarBdpAbierto}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Importar clientes desde BDP</DialogTitle><DialogDescription>Primero previsualiza. Esta operación solo lee BDP y, al aplicar, modifica Glory; nunca escribe clientes en BDP.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Importar clientes desde BDP</DialogTitle><DialogDescription>Primero previsualiza. Esta operación solo lee BDP y, al aplicar, modifica la Aplicación Web; nunca escribe clientes en BDP.</DialogDescription></DialogHeader>
           {previewImportar && (
             <div className="grid grid-cols-2 gap-2 rounded-md border p-3 text-sm">
               <span>Nuevos: {previewImportar.imported}</span><span>Vínculos: {previewImportar.updated}</span>
@@ -334,7 +334,7 @@ function ListaClientes() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setImportarBdpAbierto(false)}>Cancelar</Button>
             <Button variant="secondary" disabled={importandoBdp} onClick={() => importarClientesBdp(false)}>{importandoBdp ? 'Consultando…' : 'Previsualizar sin cambios'}</Button>
-            {previewImportar && <Button disabled={importandoBdp || confirmacionImportar !== 'IMPORTAR CLIENTES BDP'} onClick={() => importarClientesBdp(true)}>Aplicar en Glory</Button>}
+            {previewImportar && <Button disabled={importandoBdp || confirmacionImportar !== 'IMPORTAR CLIENTES BDP'} onClick={() => importarClientesBdp(true)}>Aplicar en la Aplicación Web</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>

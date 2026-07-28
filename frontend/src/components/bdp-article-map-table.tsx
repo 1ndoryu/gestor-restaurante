@@ -68,7 +68,7 @@ function BdpArticleMapTable() {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <span className="text-sm font-medium">Mapeo artículos Glory → BDP</span>
+        <span className="text-sm font-medium">Mapeo artículos Aplicación Web → BDP</span>
         <BdpArticleCatalogActions />
       </div>
 
@@ -79,7 +79,7 @@ function BdpArticleMapTable() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Código Glory</TableHead>
+                <TableHead>Código Aplicación Web</TableHead>
                 <TableHead>Código BDP</TableHead>
                 <TableHead>Nombre BDP</TableHead>
                 <TableHead>Precio</TableHead>
@@ -127,7 +127,7 @@ function BdpArticleMapTable() {
       {/* Formulario inline para nuevo mapeo */}
       <div className="grid gap-2 md:grid-cols-4 items-end">
         <div className="flex flex-col gap-1">
-          <Label htmlFor="nuevo-glory-codigo" className="text-xs">Código Glory</Label>
+          <Label htmlFor="nuevo-glory-codigo" className="text-xs">Código Aplicación Web</Label>
           <Input
             id="nuevo-glory-codigo"
             className="font-mono text-xs"

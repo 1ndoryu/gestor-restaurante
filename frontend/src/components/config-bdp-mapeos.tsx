@@ -51,7 +51,7 @@ function ConfigBdpMapeos({ config, cambiarCampo, soloArticulos, soloMapeosTecnic
         )}
         <div className="grid gap-4 md:grid-cols-2">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="bdp-tender-map">Formas de pago de Glory → códigos BDP</Label>
+            <Label htmlFor="bdp-tender-map">Formas de pago de la Aplicación Web → códigos BDP</Label>
             <Textarea
               id="bdp-tender-map"
               className="font-mono text-xs"
@@ -60,10 +60,10 @@ function ConfigBdpMapeos({ config, cambiarCampo, soloArticulos, soloMapeosTecnic
               onChange={(e) => handleJsonChange('bdp_tender_map', e.target.value)}
               placeholder='{"efectivo": 1, "tarjeta": 2}'
             />
-            <p className="text-xs text-muted-foreground">Relaciona cada nombre de método de pago en Glory con el identificador numérico en BDP.</p>
+            <p className="text-xs text-muted-foreground">Relaciona cada nombre de método de pago en la Aplicación Web con el identificador numérico en BDP.</p>
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="bdp-order-type-map">Canales de Glory → tipos de pedido BDP</Label>
+            <Label htmlFor="bdp-order-type-map">Canales de la Aplicación Web → tipos de pedido BDP</Label>
             <Textarea
               id="bdp-order-type-map"
               className="font-mono text-xs"
@@ -93,7 +93,7 @@ function ConfigBdpMapeos({ config, cambiarCampo, soloArticulos, soloMapeosTecnic
               id="bdp-default-article-name"
               value={config.bdp_default_article_name}
               onChange={(e) => cambiarCampo('bdp_default_article_name', e.target.value)}
-              placeholder="Venta Glory"
+              placeholder="Venta Aplicación Web"
             />
           </div>
           <div className="flex flex-col gap-2">
@@ -131,7 +131,7 @@ function ConfigBdpMapeos({ config, cambiarCampo, soloArticulos, soloMapeosTecnic
       )}
       <div className="grid gap-4 md:grid-cols-2">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="bdp-tender-map">Formas de pago de Glory → códigos BDP</Label>
+          <Label htmlFor="bdp-tender-map">Formas de pago de la Aplicación Web → códigos BDP</Label>
           <Textarea
             id="bdp-tender-map"
             className="font-mono text-xs"
@@ -142,7 +142,7 @@ function ConfigBdpMapeos({ config, cambiarCampo, soloArticulos, soloMapeosTecnic
           />
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="bdp-order-type-map">Canales de Glory → tipos de pedido BDP</Label>
+          <Label htmlFor="bdp-order-type-map">Canales de la Aplicación Web → tipos de pedido BDP</Label>
           <Textarea
             id="bdp-order-type-map"
             className="font-mono text-xs"
@@ -170,7 +170,7 @@ function ConfigBdpMapeos({ config, cambiarCampo, soloArticulos, soloMapeosTecnic
             id="bdp-default-article-name"
             value={config.bdp_default_article_name}
             onChange={(e) => cambiarCampo('bdp_default_article_name', e.target.value)}
-            placeholder="Venta Glory"
+            placeholder="Venta Aplicación Web"
           />
         </div>
         <div className="flex flex-col gap-2">

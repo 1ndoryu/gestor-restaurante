@@ -2,18 +2,18 @@
 
 > **Fecha:** 26 de julio de 2026
 > **Versión:** 2.0 (actualización de la guía del 19 de julio)
-> **Objetivo:** explicar al cliente cómo funciona la integración entre Glory y BDP, qué puede hacer, cómo se usa día a día y qué protecciones tiene.
+> **Objetivo:** explicar al cliente cómo funciona la integración entre la Aplicación Web y BDP, qué puede hacer, cómo se usa día a día y qué protecciones tiene.
 > **Lenguaje:** no técnico, orientado a la operación del restaurante.
 
 ---
 
 ## Resumen rápido
 
-La integración permite que Glory y BDP compartan información. Glory puede **leer** datos de BDP (catálogo, clientes, estados) y, cuando se autorice, **escribir** (crear clientes, comandas, pagos y facturas). El estado normal es de solo lectura. Las escrituras se protegen con autorización temporal automática.
+La integración permite que la Aplicación Web y BDP compartan información. La Aplicación Web puede **leer** datos de BDP (catálogo, clientes, estados) y, cuando se autorice, **escribir** (crear clientes, comandas, pagos y facturas). El estado normal es de solo lectura. Las escrituras se protegen con autorización temporal automática.
 
 ---
 
-## 1. Qué puede hacer Glory con BDP
+## 1. Qué puede hacer la Aplicación Web con BDP
 
 ### Consultas (solo lectura — no modifican BDP)
 
@@ -24,7 +24,7 @@ Estas funciones están disponibles siempre que la integración esté activa y no
 - **Explorador de menús:** consultar la estructura de menús, packs y modalidades de venta (fast food, comedor, etc.).
 - **Historial de pedidos:** revisar el estado de comandas ya enviadas (aceptadas, canceladas, facturadas).
 - **Albaranes de compra (Compras):** importar albaranes desde BDP, marcar como borrador y conciliarlos con gastos locales.
-- **Clientes:** importar clientes desde BDP con vista previa antes de copiarlos o vincularlos en Glory.
+- **Clientes:** importar clientes desde BDP con vista previa antes de copiarlos o vincularlos en la Aplicación Web.
 - **Salones y mesas:** ver la estructura del plano del restaurante en BDP antes de agregarla al plano local.
 
 ### Escrituras (sí modifican BDP)
@@ -65,7 +65,7 @@ Muestra el catálogo de artículos sincronizados desde BDP con su stock actual. 
 - **Arriba a la izquierda:** contador de artículos y fecha de última sincronización.
 - **Arriba a la derecha:** botón de modo demo, botón "CSV" para exportar, y botón "Sync catálogo" para actualizar.
 - **Filtros:** campo de búsqueda por código o nombre, selector de stock (Con stock / Sin stock / Todos) y selector de estado (Activos / Inactivos / Todos).
-- **Tabla:** columnas de Código Glory, Código BDP, Nombre, Precio y Stock. Las columnas se pueden ordenar haciendo clic en el encabezado. El stock se muestra con un icono de paquete cuando hay unidades disponibles.
+- **Tabla:** columnas de Código de la Aplicación Web, Código BDP, Nombre, Precio y Stock. Las columnas se pueden ordenar haciendo clic en el encabezado. El stock se muestra con un icono de paquete cuando hay unidades disponibles.
 - **Paginación:** botones Anterior/Siguiente y selector de cantidad por página (10, 25 o 50).
 
 ### Explorador
@@ -87,7 +87,7 @@ Muestra el registro de operaciones realizadas contra BDP. La pantalla tiene dos 
 **Pestaña "Auditoría":**
 
 - Campo de búsqueda para filtrar por operación, resultado o error.
-- Tabla con columnas: Fecha, Operación (con etiquetas como "Crear comanda", "Registrar pago", etc.), Dirección (Glory → BDP o BDP → Glory), y Resultado.
+- Tabla con columnas: Fecha, Operación (con etiquetas como "Crear comanda", "Registrar pago", etc.), Dirección (Aplicación Web → BDP o BDP → Aplicación Web), y Resultado.
 - Los resultados se muestran con colores: verde para "Completada", rojo para "Falló", ámbar para "Requiere revisión".
 - Cada fila tiene un botón de ojo para ver el detalle completo de la operación.
 
@@ -120,11 +120,11 @@ La integración está diseñada para que las escrituras a BDP sean seguras. Esta
 
 ### Estado normal: solo lectura
 
-Cuando Glory arranca, la integración está en modo **Solo lectura**. Esto significa que todas las consultas funcionan (catálogo, stock, historial, etc.) pero ninguna acción puede modificar BDP.
+Cuando la Aplicación Web arranca, la integración está en modo **Solo lectura**. Esto significa que todas las consultas funcionan (catálogo, stock, historial, etc.) pero ninguna acción puede modificar BDP.
 
 ### Auto-arming: autorización automática por operación
 
-Cuando un usuario quiere pagar o facturar una venta desde Glory, el sistema:
+Cuando un usuario quiere pagar o facturar una venta desde la Aplicación Web, el sistema:
 
 1. Pide una **confirmación textual** (escribir "PAGAR" y el importe exacto).
 2. Verifica automáticamente que la configuración BDP sea correcta y que exista un respaldo reciente.
@@ -164,14 +164,14 @@ Las consultas de solo lectura (importar catálogo, consultar stock, ver historia
 
 ## 6. Respaldos y protección de datos
 
-### Qué respalda Glory
+### Qué respalda la Aplicación Web
 
-- **Snapshots de BDP:** antes de una escritura, Glory puede guardar una copia del estado leído de BDP (clientes, artículos, configuración). Sirve para comparar antes/después y para investigar respuestas dudosas.
-- **Respaldos locales:** Glory puede guardar y restaurar su propia información (clientes locales, mapeos de artículos, configuración).
+- **Snapshots de BDP:** antes de una escritura, la Aplicación Web puede guardar una copia del estado leído de BDP (clientes, artículos, configuración). Sirve para comparar antes/después y para investigar respuestas dudosas.
+- **Respaldos locales:** la Aplicación Web puede guardar y restaurar su propia información (clientes locales, mapeos de artículos, configuración).
 
 ### Límite importante
 
-Un snapshot de Glory **no es una copia restaurable de BDP**. La integración no puede usarlo para:
+Un snapshot de la Aplicación Web **no es una copia restaurable de BDP**. La integración no puede usarlo para:
 
 - eliminar un cliente creado en BDP;
 - borrar o anular una comanda;
@@ -201,7 +201,7 @@ La integración incluye 6 interruptores que permiten activar o desactivar funcio
 
 ## 8. Indicador de estado BDP en la barra superior
 
-La barra superior de Glory muestra un indicador del estado de la integración BDP:
+La barra superior de la Aplicación Web muestra un indicador del estado de la integración BDP:
 
 | Indicador          | Significado                                                                                                                            |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -225,19 +225,19 @@ Es el bloque principal. Contiene:
 
 - **URL pública BDP:** dirección del servidor BDP del restaurante.
 - **Datos de acceso:** login, contraseña, código integrador, terminal POS, empleado y perfil de artículos. Estos valores los configura el responsable técnico. **No deben modificarse sin consultar.**
-- **Interruptor "Integración BDP activa":** interruptor general. Si está apagado, Glory no procesa la integración. Si está encendido, permite las consultas configuradas pero **no concede por sí solo permiso para escribir en BDP**.
-- **Catálogo de artículos BDP:** tabla con los artículos sincronizados (código Glory, código BDP, nombre, precio, stock). Incluye botones para sincronizar el catálogo completo o solo los precios, y un formulario para crear mapeos manuales.
+- **Interruptor "Integración BDP activa":** interruptor general. Si está apagado, la Aplicación Web no procesa la integración. Si está encendido, permite las consultas configuradas pero **no concede por sí solo permiso para escribir en BDP**.
+- **Catálogo de artículos BDP:** tabla con los artículos sincronizados (código de la Aplicación Web, código BDP, nombre, precio, stock). Incluye botones para sincronizar el catálogo completo o solo los precios, y un formulario para crear mapeos manuales.
 - **Actualización de estados:** interruptor para activar la consulta automática de estados de comandas, con campo para indicar cada cuántos segundos se consulta.
-- **Sección técnica colapsable:** "Correspondencias Glory ↔ BDP (solo soporte)" — solo visible al expandir, contiene los mapeos técnicos entre Glory y BDP.
-- **Botones de diagnóstico:** "Probar conexión" (verifica que Glory puede comunicarse con BDP) y "Validar con simulador local" (comprueba cada endpoint sin modificar datos).
+- **Sección técnica colapsable:** "Correspondencias Aplicación Web ↔ BDP (solo soporte)" — solo visible al expandir, contiene los mapeos técnicos entre la Aplicación Web y BDP.
+- **Botones de diagnóstico:** "Probar conexión" (verifica que la Aplicación Web puede comunicarse con BDP) y "Validar con simulador local" (comprueba cada endpoint sin modificar datos).
 - **Botón "Guardar conexión BDP"** al final para aplicar los cambios.
 
 ### Bloque 2: "Modo de operaciones BDP"
 
 Muestra visualmente el modo actual con dos recuadros:
 
-- **"Solo lectura (BDP → Glory)"** — borde resaltado cuando está activo.
-- **"Autorización manual (Glory → BDP)"** — borde ámbar cuando está activo.
+- **"Solo lectura (BDP → Aplicación Web)"** — borde resaltado cuando está activo.
+- **"Autorización manual (Aplicación Web → BDP)"** — borde ámbar cuando está activo.
 
 ### Bloque 3: "Funcionalidades BDP"
 
@@ -258,11 +258,11 @@ Muestra un explorador de solo lectura para consultar menús, packs y fast food d
 
 _(Dentro del bloque 1, sección colapsable.)_
 
-Relaciona los códigos de Glory con los códigos propios de BDP:
+Relaciona los códigos de la Aplicación Web con los códigos propios de BDP:
 
 - **Formas de pago:** qué código BDP corresponde a efectivo, tarjeta u otros métodos.
 - **Canales:** relación entre comedor, barra o domicilio con el tipo de pedido BDP.
-- **Artículo sin equivalencia:** artículo BDP genérico cuando una línea de Glory no tiene relación específica.
+- **Artículo sin equivalencia:** artículo BDP genérico cuando una línea de la Aplicación Web no tiene relación específica.
 - **Cliente por defecto:** código numérico del cliente genérico de BDP.
 
 Estos valores dependen de cada instalación y se configuran durante la puesta en marcha.
@@ -277,7 +277,7 @@ Estos valores dependen de cada instalación y se configuran durante la puesta en
 2. Usar los filtros de búsqueda, stock y estado para encontrar artículos.
 3. Si se necesita exportar, hacer clic en el botón **"CSV"** (junto a los filtros, arriba a la derecha).
 4. Para actualizar los datos desde BDP, hacer clic en **"Sync catálogo"**.
-5. Si BDP responde con cero artículos, Glory muestra inmediatamente **"BDP no devolvió artículos"**. Seleccionar una tarifa de catálogo entre 1 y 5 y pulsar **"Guardar y reintentar"**. La selección queda guardada en Glory y la operación solo consulta BDP.
+5. Si BDP responde con cero artículos, la Aplicación Web muestra inmediatamente **"BDP no devolvió artículos"**. Seleccionar una tarifa de catálogo entre 1 y 5 y pulsar **"Guardar y reintentar"**. La selección queda guardada en la Aplicación Web y la operación solo consulta BDP.
 6. Si las cinco tarifas devuelven cero artículos, no seguir probando: la exportación de artículos debe habilitarse o revisarse en BDP.
 
 ### Explorar menús y packs
@@ -299,7 +299,7 @@ Estos valores dependen de cada instalación y se configuran durante la puesta en
 2. Hacer clic en el botón **"Importar BDP"** (icono de descarga, junto a "+ Nuevo Cliente").
 3. En el diálogo que aparece, hacer clic en **"Previsualizar sin cambios"** para ver qué clientes se encontraron.
 4. Revisar el resumen: Nuevos, Vínculos, Sin cambios, Conflictos.
-5. Escribir la confirmación ("IMPORTAR CLIENTES BDP") y hacer clic en **"Aplicar en Glory"**.
+5. Escribir la confirmación ("IMPORTAR CLIENTES BDP") y hacer clic en **"Aplicar en la Aplicación Web"**.
 
 ### Sincronizar un cliente individual
 
@@ -311,7 +311,7 @@ Estos valores dependen de cada instalación y se configuran durante la puesta en
 
 ### Enviar una venta a BDP (pagar o facturar)
 
-1. Crear la venta normalmente en Glory.
+1. Crear la venta normalmente en la Aplicación Web.
 2. En la lista de ventas, buscar la fila de la venta. Si está sincronizada con BDP, aparecen pequeños botones con iconos:
     - **Verde (tarjeta de crédito):** para registrar el pago.
     - **Violeta (recibo):** para facturar.
@@ -330,16 +330,16 @@ Estos valores dependen de cada instalación y se configuran durante la puesta en
 ### Conciliar un albarán de compra
 
 1. Ir al menú lateral → **BDP Compras** (icono de recibo).
-2. Si todavía no hay una plantilla guardada, Glory muestra automáticamente **"Configura la plantilla de Compras"**.
+2. Si todavía no hay una plantilla guardada, la Aplicación Web muestra automáticamente **"Configura la plantilla de Compras"**.
 3. Introducir el código de la plantilla `ExportPurchaseNotes` y pulsar **"Guardar y reintentar"**. No es el perfil de artículos ni un valor genérico; debe ser una plantilla existente en BDP.
 4. Si BDP indica que la plantilla es inválida, el mismo formulario vuelve a aparecer con el mensaje recibido para poder corregir el código.
-5. También se puede pulsar **"Sync albaranes"** cuando la plantilla ya está guardada. Esta acción lee BDP e importa la información en Glory; no modifica el restaurante.
+5. También se puede pulsar **"Sync albaranes"** cuando la plantilla ya está guardada. Esta acción lee BDP e importa la información en la Aplicación Web; no modifica el restaurante.
 6. Usar los filtros de proveedor y fechas para encontrar el albarán.
 7. Hacer clic en **"Borrador"** en la fila del albarán pendiente.
 8. Revisar los datos del albarán.
 9. Hacer clic en **"Conciliar"** en la fila del albarán en borrador.
 10. En la ventana emergente, elegir entre crear un gasto nuevo o vincular a uno existente.
-11. Confirmar la conciliación. Los pasos desde "Borrador" en adelante solo cambian datos locales de Glory; no escriben en BDP.
+11. Confirmar la conciliación. Los pasos desde "Borrador" en adelante solo cambian datos locales de la Aplicación Web; no escriben en BDP.
 
 ---
 
@@ -347,7 +347,7 @@ Estos valores dependen de cada instalación y se configuran durante la puesta en
 
 No se incluyeron:
 
-- administración de stock desde Glory (solo lectura);
+- administración de stock desde la Aplicación Web (solo lectura);
 - transferencias entre almacenes;
 - tallas, colores ni fidelización;
 - administración completa de menús y packs (solo consulta);
@@ -376,7 +376,7 @@ Las 4 pantallas de lectura (Stock, Explorador, Historial, Compras) funcionan con
 - La consulta de Compras fue rechazada porque falta o no es válida la plantilla de exportación. El cliente debe facilitar el código exacto de la plantilla configurada en BDP para albaranes de proveedores.
 - El Explorador de menús, packs y fast food no forma parte del criterio de entrega solicitado y puede verificarse más adelante si el restaurante decide utilizarlo.
 
-Estas consultas no crearon pedidos, pagos, facturas, clientes ni movimientos de stock. Los puntos anteriores son configuraciones propias de la instalación BDP y no pueden deducirse de forma segura desde Glory.
+Estas consultas no crearon pedidos, pagos, facturas, clientes ni movimientos de stock. Los puntos anteriores son configuraciones propias de la instalación BDP y no pueden deducirse de forma segura desde la Aplicación Web.
 
 ### Pruebas de escritura contra BDP real
 
@@ -400,7 +400,7 @@ Estas 4 pruebas producen cambios reales en BDP y solo pueden hacerse con acceso 
 Confirmar que:
 
 - la versión actualizada está instalada en el entorno del restaurante;
-- Glory inicia en **Solo lectura**;
+- la Aplicación Web inicia en **Solo lectura**;
 - hay un respaldo reciente comprobado;
 - el destino configurado corresponde al BDP del restaurante;
 - el responsable conoce cómo corregir manualmente cada efecto en BDP.
@@ -426,13 +426,13 @@ Confirmar que:
 
 ## 13. Puesta en marcha y entrega
 
-Al instalar esta versión, Glory crea automáticamente los campos necesarios en su propia base de datos. No hay que modificar manualmente la base ni añadir variables de entorno para la tarifa de catálogo o la plantilla de Compras.
+Al instalar esta versión, la Aplicación Web crea automáticamente los campos necesarios en su propia base de datos. No hay que modificar manualmente la base ni añadir variables de entorno para la tarifa de catálogo o la plantilla de Compras.
 
 Después del despliegue:
 
 1. Confirmar que el indicador muestra **BDP: lectura**.
-2. En Stock, pulsar **Sync catálogo**. Si aparecen cero artículos, probar las tarifas 1–5 desde el formulario mostrado por Glory.
-3. En Compras, introducir el código de plantilla cuando Glory lo solicite.
+2. En Stock, pulsar **Sync catálogo**. Si aparecen cero artículos, probar las tarifas 1–5 desde el formulario mostrado por la Aplicación Web.
+3. En Compras, introducir el código de plantilla cuando la Aplicación Web lo solicite.
 4. Confirmar que las credenciales BDP vigentes fueron rotadas y entregadas al responsable técnico por un canal seguro.
 
 La entrega técnica puede realizarse con Catálogo y Compras pendientes de estos dos valores propios del restaurante; quedarán identificados en pantalla y no habilitan escrituras en BDP.
@@ -445,7 +445,7 @@ No. Si el interruptor de auto-arming está activado, el sistema autoriza automá
 **¿Qué pasa si se corta la conexión durante una escritura?**
 El sistema registra el resultado como "ambiguo" y bloquea nuevos intentos hasta verificar qué ocurrió en BDP. Esto evita duplicados.
 
-**¿Puedo ver el stock de BDP en Glory?**
+**¿Puedo ver el stock de BDP en la Aplicación Web?**
 Sí. La pantalla de Stock muestra el stock sincronizado desde BDP. Se actualiza cada vez que se sincroniza el catálogo.
 
 **¿Los albaranes de compra se concilian solos?**
@@ -454,8 +454,8 @@ No. El flujo es: importar → revisar como borrador → conciliar manualmente co
 **¿Qué pasa si cambio la URL o las credenciales de BDP?**
 Cualquier autorización temporal activa se anula automáticamente. Esto es una protección para evitar que escrituras se envíen al destino equivocado.
 
-**¿Puedo deshacer una factura emitida desde Glory?**
-No desde Glory. Las facturas emitidas en BDP deben anularse desde el propio BDP. Glory registra el resultado pero no puede revertirlo.
+**¿Puedo deshacer una factura emitida desde la Aplicación Web?**
+No desde la Aplicación Web. Las facturas emitidas en BDP deben anularse desde el propio BDP. La Aplicación Web registra el resultado pero no puede revertirlo.
 
 ---
 

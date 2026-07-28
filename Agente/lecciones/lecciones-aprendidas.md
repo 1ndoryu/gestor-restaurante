@@ -424,3 +424,4 @@
 - El simulador confirma nuestra lógica, pero no prueba nombres de campos, valores predeterminados ni perfiles propios de una instalación BDP. En la instalación real, `TenderList` y los rangos obligatorios demostraron esa diferencia.
 - Las credenciales nunca deben copiarse a planes, resultados ni guías, aunque el repositorio sea privado. Si ya estuvieron en el historial, redactar el árbol actual no basta: deben rotarse.
 - Una migración SQL aplicada es inmutable. Cualquier refuerzo, incluso eliminar un índice redundante, debe vivir en una migración posterior; editarla provoca `VersionMismatch` y bloquea el arranque antes de servir tráfico.
+- La marca interna de un contrato no debe filtrarse al texto orientado al cliente. Se conserva en campos, rutas y valores persistidos por compatibilidad, mientras la interfaz usa el nombre público acordado.

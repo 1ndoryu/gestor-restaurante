@@ -82,7 +82,7 @@ export function BdpStockActions({
             variant="outline"
             onClick={() => syncMutation.mutate()}
             disabled={syncMutation.isPending || demoMode}
-            tooltip="Importa/actualiza artículos y stock desde BDP a Glory. No modifica BDP."
+            tooltip="Importa/actualiza artículos y stock desde BDP a la Aplicación Web. No modifica BDP."
           >
             {syncMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Sync catálogo
@@ -92,7 +92,7 @@ export function BdpStockActions({
       {requiresConfiguration && (
         <BdpRequiredSetting
           title="BDP no devolvió artículos"
-          description="Prueba la tarifa de precios que usa el catálogo del restaurante (1 a 5). Esto solo consulta BDP y guarda la selección en Glory."
+          description="Prueba la tarifa de precios que usa el catálogo del restaurante (1 a 5). Esto solo consulta BDP y guarda la selección en la Aplicación Web."
           label="Tarifa del catálogo BDP"
           value={priceType}
           max={5}

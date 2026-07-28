@@ -86,7 +86,7 @@ export function BdpPurchaseSyncControls({
             variant="outline"
             onClick={syncWithSavedProfile}
             disabled={syncMutation.isPending || isSaving || demoMode}
-            tooltip="Consulta albaranes en BDP y los importa en Glory. No modifica BDP."
+            tooltip="Consulta albaranes en BDP y los importa en la Aplicación Web. No modifica BDP."
           >
             {syncMutation.isPending || isSaving ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Sync albaranes
@@ -96,7 +96,7 @@ export function BdpPurchaseSyncControls({
       {requiresConfiguration && (
         <BdpRequiredSetting
           title="Configura la plantilla de Compras"
-          description={profileProblem || 'BDP necesita el código de la plantilla ExportPurchaseNotes creada para albaranes. Se guarda en Glory y esta consulta no modifica BDP.'}
+          description={profileProblem || 'BDP necesita el código de la plantilla ExportPurchaseNotes creada para albaranes. Se guarda en la Aplicación Web y esta consulta no modifica BDP.'}
           label="Código de plantilla ExportPurchaseNotes"
           value={profileCode}
           saving={syncMutation.isPending || isSaving}

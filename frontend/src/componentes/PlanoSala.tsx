@@ -378,13 +378,13 @@ function PlanoSala() {
       />
       <Dialog open={dialogoSyncBdp} onOpenChange={setDialogoSyncBdp}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Importar salones y mesas desde BDP</DialogTitle><DialogDescription>Primero consulta el impacto. BDP solo se lee; al aplicar se crean únicamente zonas/mesas faltantes en Glory y no se elimina nada.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Importar salones y mesas desde BDP</DialogTitle><DialogDescription>Primero consulta el impacto. BDP solo se lee; al aplicar se crean únicamente zonas/mesas faltantes en la Aplicación Web y no se elimina nada.</DialogDescription></DialogHeader>
           {previewSyncBdp && <div className="rounded-md border p-3 text-sm">Se crearían {previewSyncBdp.zonas_creadas} zonas y {previewSyncBdp.mesas_creadas} mesas a partir de {previewSyncBdp.salones_bdp} salones BDP.</div>}
           {previewSyncBdp && <div><Label htmlFor="confirmar-sync-mesas">Escribe IMPORTAR MESAS BDP</Label><Input id="confirmar-sync-mesas" value={confirmacionSyncBdp} onChange={(e) => setConfirmacionSyncBdp(e.target.value)} /></div>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogoSyncBdp(false)}>Cancelar</Button>
             <Button variant="secondary" disabled={sincronizandoMesas} onClick={() => { setSincronizandoMesas(true); syncTablesMutation.mutate({ data: { aplicar: false } }); }}>Previsualizar sin cambios</Button>
-            {previewSyncBdp && <Button disabled={sincronizandoMesas || confirmacionSyncBdp !== 'IMPORTAR MESAS BDP'} onClick={() => { setSincronizandoMesas(true); syncTablesMutation.mutate({ data: { aplicar: true, confirmacion: confirmacionSyncBdp } }); }}>Aplicar en Glory</Button>}
+            {previewSyncBdp && <Button disabled={sincronizandoMesas || confirmacionSyncBdp !== 'IMPORTAR MESAS BDP'} onClick={() => { setSincronizandoMesas(true); syncTablesMutation.mutate({ data: { aplicar: true, confirmacion: confirmacionSyncBdp } }); }}>Aplicar en la Aplicación Web</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>

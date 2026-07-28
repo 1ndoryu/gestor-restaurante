@@ -61,7 +61,7 @@ export function BdpArticleCatalogActions() {
   return (
     <div className="flex w-full flex-col items-end gap-2 sm:w-auto">
       <div className="flex flex-wrap justify-end gap-2">
-        <TooltipButton variant="default" size="sm" onClick={() => catalogMutation.mutate()} disabled={catalogMutation.isPending} tooltip="Importa/actualiza artículos desde BDP a Glory. Crea mapeos automáticos por código.">
+        <TooltipButton variant="default" size="sm" onClick={() => catalogMutation.mutate()} disabled={catalogMutation.isPending} tooltip="Importa/actualiza artículos desde BDP a la Aplicación Web. Crea mapeos automáticos por código.">
           {catalogMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
           Sync catálogo
         </TooltipButton>

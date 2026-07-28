@@ -197,11 +197,11 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
 
         <div className="grid gap-3 md:grid-cols-3">
           <div className="rounded-md border p-3">
-            <p className="text-sm font-medium">BDP → Glory</p>
+            <p className="text-sm font-medium">BDP → Aplicación Web</p>
             <p className="mt-1 text-xs text-muted-foreground">Catálogo, clientes, mesas y estados se consultan o importan sin modificar BDP.</p>
           </div>
           <div className="rounded-md border p-3">
-            <p className="text-sm font-medium">Glory → BDP</p>
+            <p className="text-sm font-medium">Aplicación Web → BDP</p>
             <p className="mt-1 text-xs text-muted-foreground">Solo una operación concreta con permiso temporal. Después vuelve a Solo lectura.</p>
           </div>
           <div className="rounded-md border p-3">
@@ -217,7 +217,7 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
             <span className="text-sm font-medium">Catálogo de artículos BDP</span>
           </div>
           <p className="mb-3 text-xs text-muted-foreground">
-            Sincroniza el catálogo de artículos desde BDP a Glory. Crea mapeos automáticos por código y actualiza precios.
+            Sincroniza el catálogo de artículos desde BDP a la Aplicación Web. Crea mapeos automáticos por código y actualiza precios.
           </p>
           <ConfigBdpMapeos config={config} cambiarCampo={cambiarCampo} soloArticulos />
         </div>
@@ -250,7 +250,7 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
                 value={config.bdp_poll_interval_secs}
                 onChange={(e) => cambiarCampo('bdp_poll_interval_secs', Number(e.target.value))}
               />
-              <p className="text-xs text-muted-foreground">Cada cuántos segundos Glory consulta el estado de comandas (10-600).</p>
+              <p className="text-xs text-muted-foreground">Cada cuántos segundos la Aplicación Web consulta el estado de comandas (10-600).</p>
             </div>
           </div>
         </div>
@@ -264,7 +264,7 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
           >
             {mostrarMapeos ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
             <Settings className="size-4" />
-            Correspondencias Glory ↔ BDP (solo soporte)
+            Correspondencias Aplicación Web ↔ BDP (solo soporte)
           </button>
           {!mostrarMapeos && (
             <p className="mt-1 text-xs text-muted-foreground">
@@ -353,7 +353,7 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
           Modo de operaciones BDP
         </CardTitle>
         <CardDescription>
-          Controla cómo Glory interactúa con BDP para operaciones de escritura (crear comandas, pagar, facturar, crear clientes).
+          Controla cómo la Aplicación Web interactúa con BDP para operaciones de escritura (crear comandas, pagar, facturar, crear clientes).
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -363,7 +363,7 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
               {(config.bdp_sync_mode || 'read_only') === 'read_only' && (
                 <Badge variant="default">Activo</Badge>
               )}
-              <p className="text-sm font-medium">Solo lectura (BDP → Glory)</p>
+              <p className="text-sm font-medium">Solo lectura (BDP → Aplicación Web)</p>
             </div>
             <p className="text-xs text-muted-foreground">
               Permite consultas e importaciones. No se puede crear ni modificar nada en BDP. Es el modo seguro por defecto.
@@ -374,7 +374,7 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
               {config.bdp_sync_mode === 'unidirectional' && (
                 <Badge variant="default" className="bg-amber-600">Activo</Badge>
               )}
-              <p className="text-sm font-medium">Autorización manual (Glory → BDP)</p>
+              <p className="text-sm font-medium">Autorización manual (Aplicación Web → BDP)</p>
             </div>
             <p className="text-xs text-muted-foreground">
               Para cada operación de escritura se requiere confirmación textual y un arming temporal. Después vuelve automáticamente a Solo lectura.

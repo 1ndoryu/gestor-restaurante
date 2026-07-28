@@ -18,8 +18,8 @@ import type {EstadoConfiguracion} from '@/hooks/useConfiguracion';
 /* ========== Constantes ========== */
 
 const SYNC_MODES: {value: SyncMode; label: string; desc: string}[] = [
-    {value: 'read_only', label: 'Solo lectura (BDP → Glory)', desc: 'Permite consultas e importaciones; Glory no crea ni modifica datos en BDP.'},
-    {value: 'unidirectional', label: 'Autorizar una operación (Glory → BDP)', desc: 'Permiso excepcional para un cliente o venta exactos. Se cierra después de una operación.'}
+    {value: 'read_only', label: 'Solo lectura (BDP → Aplicación Web)', desc: 'Permite consultas e importaciones; la Aplicación Web no crea ni modifica datos en BDP.'},
+    {value: 'unidirectional', label: 'Autorizar una operación (Aplicación Web → BDP)', desc: 'Permiso excepcional para un cliente o venta exactos. Se cierra después de una operación.'}
 ];
 
 const SNAPSHOT_TIPOS_BDP = ['articulos', 'clientes', 'departamentos', 'salones', 'empleados'];
@@ -81,9 +81,9 @@ function operacionLabel(operacion: string): string {
 }
 
 function direccionLabel(direccion: string): string {
-    if (direccion === 'glory_to_bdp') return 'Glory → BDP';
-    if (direccion === 'bdp_to_glory') return 'BDP → Glory';
-    if (direccion === 'internal') return 'Configuración de Glory';
+    if (direccion === 'glory_to_bdp') return 'Aplicación Web → BDP';
+    if (direccion === 'bdp_to_glory') return 'BDP → Aplicación Web';
+    if (direccion === 'internal') return 'Configuración de la Aplicación Web';
     return direccion;
 }
 
@@ -257,7 +257,7 @@ function SnapshotActions() {
             </div>
 
             <div className="border rounded-md p-3 space-y-2">
-                <p className="text-sm font-medium">Snapshot Glory (local, 0 llamadas BDP)</p>
+                <p className="text-sm font-medium">Snapshot de la Aplicación Web (local, 0 llamadas BDP)</p>
                 <div className="flex flex-wrap gap-1.5">
                     {SNAPSHOT_TIPOS_GLORY.map(t => (
                         <Badge key={t} variant={tiposGlory.includes(t) ? 'default' : 'outline'} className="cursor-pointer select-none" onClick={() => toggleTipo(tiposGlory, setTiposGlory, t)}>
@@ -273,7 +273,7 @@ function SnapshotActions() {
                             {tipos: tiposGlory, notas: notas || undefined},
                             {
                                 onSuccess: () => {
-                                    toast.success('Snapshot Glory creado');
+                                    toast.success('Snapshot de la Aplicación Web creado');
                                     setNotas('');
                                     setTiposGlory([]);
                                 },
@@ -282,7 +282,7 @@ function SnapshotActions() {
                         )
                     }>
                     {crearGlory.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Download className="h-4 w-4 mr-1" />}
-                    Crear Glory
+                    Crear snapshot local
                 </Button>
             </div>
         </div>
@@ -359,11 +359,11 @@ function SnapshotTable({snapshots}: {snapshots: BdpSnapshot[]}) {
                                             variant="outline"
                                             onClick={() => {
                                                 toast.info('Restaurar sobre datos actuales', {
-                                                    description: 'Esto sobrescribirá los datos locales de Glory con los del snapshot.'
+                                                    description: 'Esto sobrescribirá los datos locales de la Aplicación Web con los del snapshot.'
                                                 });
                                                 setConfirmRestore(s.id);
                                             }}
-                                            tooltip="Restaurar Glory desde este snapshot">
+                                            tooltip="Restaurar la Aplicación Web desde este snapshot">
                                             <Upload className="h-3 w-3" />
                                         </TooltipButton>
                                         <TooltipButton

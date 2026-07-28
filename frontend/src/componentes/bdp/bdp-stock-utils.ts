@@ -65,7 +65,7 @@ export function exportToCsv(allRows: BdpArticleMap[], filteredRows: BdpArticleMa
   const filterPart = options.filterLabel ? `-${options.filterLabel}` : '';
 
   const headers = [
-    'Código Glory',
+    'Código Aplicación Web',
     'Código BDP',
     'Nombre BDP',
     'Descripción',

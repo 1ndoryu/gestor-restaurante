@@ -54,9 +54,9 @@ function operacionLabel(operacion: string): string {
 }
 
 function direccionLabel(direccion: string): string {
-  if (direccion === 'glory_to_bdp') return 'Glory → BDP';
-  if (direccion === 'bdp_to_glory') return 'BDP → Glory';
-  if (direccion === 'internal') return 'Configuración de Glory';
+  if (direccion === 'glory_to_bdp') return 'Aplicación Web → BDP';
+  if (direccion === 'bdp_to_glory') return 'BDP → Aplicación Web';
+  if (direccion === 'internal') return 'Configuración de la Aplicación Web';
   return direccion;
 }
 

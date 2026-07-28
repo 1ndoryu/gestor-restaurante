@@ -187,7 +187,7 @@ function BdpStock() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="cursor-pointer" onClick={() => handleSort('articulo_glory_codigo')}>
-                    <span className="flex items-center gap-1">Código Glory <SortIcon column="articulo_glory_codigo" /></span>
+                    <span className="flex items-center gap-1">Código Aplicación Web <SortIcon column="articulo_glory_codigo" /></span>
                   </TableHead>
                   <TableHead className="cursor-pointer" onClick={() => handleSort('articulo_bdp_codigo')}>
                     <span className="flex items-center gap-1">Código BDP <SortIcon column="articulo_bdp_codigo" /></span>
