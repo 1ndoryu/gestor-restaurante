@@ -132,7 +132,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 - Automatizar la detección de credenciales literales en documentación según `Agente/prevencion/prevencion-secretos-documentacion-bdp-2026-07-28.md`.
 - Automatizar la inmutabilidad de migraciones aplicadas según `Agente/prevencion/prevencion-inmutabilidad-migraciones-2026-07-28.md`.
-- **287A-8 — Corregir rollback Rust en coolify-manager-rs:** al restaurar el compose de `glory-rest`, el contenedor `app` pierde la red externa `coolify`; la aplicación queda sana internamente pero Traefik responde `503`. El rollback también puede evaluar salud después de restaurar el compose anterior. Debe persistir la red en el compose y validar la versión realmente desplegada antes de decidir rollback. Ver `Agente/documentacion/hosting/incidente-red-traefik-glory-rest-2026-07-28.md`.
+- **287A-8 — Corregir health/rollback Rust en coolify-manager-rs:** el gestor sustituye el healthcheck seguro por `hostname -i`; al conectar `coolify`, la primera dirección es IPv6 y la URL sin corchetes hace que `curl` falle, Docker marque `unhealthy` y Traefik responda `503`. Además, el rollback puede perder la red externa y evaluar salud después de restaurar el compose anterior. Debe conservar `localhost`, persistir la red y validar la versión activa antes de decidir rollback. Ver `Agente/documentacion/hosting/incidente-red-traefik-glory-rest-2026-07-28.md`.
 
 ### Bloque 247A-7 — Mitigaciones críticas BDP (implementadas)
 
