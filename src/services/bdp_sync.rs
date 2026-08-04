@@ -25,7 +25,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex as StdMutex};
 
 use chrono::Utc;
-use rust_decimal::prelude::{Decimal, FromPrimitive};
+use rust_decimal::prelude::Decimal;
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use tokio::sync::Mutex as TokioMutex;
@@ -47,9 +47,6 @@ use crate::services::bdp_weblink_catalog::{
 };
 
 pub(crate) const BDP_SYNC_MARKET_ID: i32 = 9_900;
-/* [247A-9] Tolerancia para comparaciones de saldo pendiente en pagos BDP. */
-const BDP_PAYMENT_TOLERANCE: f64 = 0.005;
-
 /* [F3.1] Contexto resuelto para construir el pedido BDP.
  * Se resuelve en sync_venta() y se pasa a build_order() para no hacer
  * lookups dentro de la función de construcción del payload. */
@@ -475,6 +472,14 @@ impl BdpSyncService {
         line_article_ids: Option<&[i64]>,
         order_ctx: &OrderContext,
     ) -> Result<i64, BdpSyncError> {
+        if let Some(lineas) = lineas {
+            /* [028A-BDP-WRITE] Mantener la validación en la frontera que
+             * precede al HTTP, incluso si aparece otro caller de send_order. */
+            Self::validate_order_lines(lineas).map_err(|failure| match failure {
+                OrderSendFailure::Rejected(message) => BdpSyncError::Rejected(message),
+                OrderSendFailure::Ambiguous(message) => BdpSyncError::AmbiguousTransport(message),
+            })?;
+        }
         let order = Self::build_order(config, venta, article, lineas, line_article_ids, order_ctx);
         let response = client
             .create_order(&order)
@@ -1044,10 +1049,22 @@ impl BdpSyncService {
             Ok(l) if !l.is_empty() => Some(l),
             Ok(_) => None,
             Err(e) => {
-                warn!("[F2.6] Error obteniendo líneas de venta {}: {e}", venta.id);
-                None
+                /* [028A-BDP-WRITE] Una lectura incompleta no puede degradarse a
+                 * una comanda genérica: hacerlo podría enviar un importe o una
+                 * composición distinta de la venta real. El fallback legacy
+                 * solo aplica cuando la consulta tuvo éxito y no hay líneas. */
+                return Err(OrderSendFailure::Rejected(format!(
+                    "Comanda BDP bloqueada: no se pudieron leer las líneas de la venta: {e}"
+                )));
             }
         };
+
+        /* [028A-BDP-WRITE] No enviar líneas financieramente imposibles al TPV.
+         * La validación de la UI no es una frontera de seguridad: las ventas
+         * pueden llegar desde jobs, imports o datos históricos. */
+        if let Some(ref lineas) = lineas {
+            Self::validate_order_lines(lineas)?;
+        }
 
         /* [F2.8] Resolver artículo BDP por línea usando bdp_article_map. */
         let line_article_ids: Option<Vec<i64>> = if let Some(ref lineas) = lineas {
@@ -1066,6 +1083,125 @@ impl BdpSyncService {
             &order_ctx,
         )
         .await
+    }
+
+    /* [028A-BDP-WRITE] Valida las líneas justo antes de construir el payload.
+     * Precio cero sigue permitido para cortesías; precios negativos y cantidades
+     * no positivas no representan una línea válida para una escritura BDP. */
+    fn validate_order_lines(lineas: &[VentaLinea]) -> Result<(), OrderSendFailure> {
+        for linea in lineas {
+            if linea.cantidad <= Decimal::ZERO {
+                return Err(OrderSendFailure::Rejected(format!(
+                    "Línea BDP inválida '{}': la cantidad debe ser mayor que cero",
+                    linea.descripcion
+                )));
+            }
+            if linea.precio_unitario < Decimal::ZERO {
+                return Err(OrderSendFailure::Rejected(format!(
+                    "Línea BDP inválida '{}': el precio no puede ser negativo",
+                    linea.descripcion
+                )));
+            }
+            if linea.descuento < Decimal::ZERO {
+                return Err(OrderSendFailure::Rejected(format!(
+                    "Línea BDP inválida '{}': el descuento no puede ser negativo",
+                    linea.descripcion
+                )));
+            }
+            let bruto = linea.precio_unitario * linea.cantidad;
+            if linea.descuento > bruto {
+                return Err(OrderSendFailure::Rejected(format!(
+                    "Línea BDP inválida '{}': el descuento supera el importe bruto",
+                    linea.descripcion
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /* [028A-BDP-WRITE] Parseo estricto de importes remotos. Nunca convertir
+     * null/formatos inválidos a cero: en dinero, cero es un dato válido y no
+     * puede usarse como fallback de una respuesta corrupta. */
+    fn parse_remote_money(value: &Value, field: &str) -> Result<Decimal, String> {
+        let raw = match value {
+            Value::Number(number) => number.to_string(),
+            Value::String(text) => text.trim().to_string(),
+            _ => return Err(format!("BDP devolvió {field} con formato inválido")),
+        };
+        let parsed = raw
+            .parse::<Decimal>()
+            .map_err(|_| format!("BDP devolvió {field} inválido: '{raw}'"))?;
+        if parsed < Decimal::ZERO {
+            return Err(format!("BDP devolvió {field} negativo"));
+        }
+        Ok(parsed)
+    }
+
+    /* PaymentId no tiene un tipo estable entre respuestas BDP. Un identificador
+     * vacío equivale a ausencia de identidad y no debe usarse para deduplicar. */
+    fn remote_payment_id(value: Option<&Value>) -> Option<String> {
+        let value = value?;
+        let id = match value {
+            Value::String(text) => text.trim().to_string(),
+            Value::Number(number) => number.to_string(),
+            _ => return None,
+        };
+        (!id.is_empty()).then_some(id)
+    }
+
+    /* [028A-BDP-WRITE] Decide la contribución de una fila local a la unión
+     * financiera. Cero significa que el mismo pago ya está en BDP; el importe
+     * completo significa identidad ausente/desconocida; una discrepancia de
+     * importe bloquea. */
+    fn local_payment_contribution(
+        remote_payment_amounts: &HashMap<String, Decimal>,
+        payment_id: Option<&str>,
+        amount: Decimal,
+    ) -> Result<Decimal, String> {
+        let Some(payment_id) = payment_id else {
+            return Ok(amount);
+        };
+        match remote_payment_amounts.get(payment_id) {
+            None => Ok(amount),
+            Some(remote_amount) if remote_amount == &amount => Ok(Decimal::ZERO),
+            Some(_) => Err(format!(
+                "Pago bloqueado: PaymentId {payment_id} tiene importe local y remoto distinto"
+            )),
+        }
+    }
+
+    /* [028A-BDP-WRITE] Normaliza y agrega Payments en una función pura para
+     * que la regla financiera tenga regresiones unitarias independientes de
+     * PostgreSQL/HTTP. Un ID repetido con el mismo importe es una repetición
+     * de respuesta; el mismo ID con importe distinto es inconsistente y bloquea. */
+    fn parse_remote_payments(
+        payments: &[Value],
+    ) -> Result<(HashMap<String, Decimal>, Decimal), String> {
+        let mut amounts = HashMap::<String, Decimal>::new();
+        let mut total = Decimal::ZERO;
+        for payment in payments {
+            let paid = Self::parse_remote_money(
+                payment.get("Amount").ok_or_else(|| {
+                    "Pago bloqueado: un pago remoto no contiene Amount".to_string()
+                })?,
+                "Payments.Amount",
+            )?;
+            let Some(payment_id) = Self::remote_payment_id(payment.get("PaymentId")) else {
+                total += paid;
+                continue;
+            };
+            if let Some(previous) = amounts.get(&payment_id) {
+                if previous != &paid {
+                    return Err(format!(
+                        "Pago bloqueado: PaymentId remoto {payment_id} tiene importes contradictorios"
+                    ));
+                }
+                continue;
+            }
+            amounts.insert(payment_id, paid);
+            total += paid;
+        }
+        Ok((amounts, total))
     }
 
     /* [R16] Conversión Decimal → f64 para serialización JSON a BDP.
@@ -1253,29 +1389,55 @@ impl BdpSyncService {
         if matches!(status, 2 | 3) {
             return Err("Pago bloqueado: la orden está cancelada o facturada".into());
         }
-        let total = order
-            .get("Total")
-            .and_then(Value::as_f64)
-            .ok_or_else(|| "Pago bloqueado: GetOrder no devolvió Total".to_string())?;
-        let requested = Self::decimal_to_f64(&amount);
+        let total = Self::parse_remote_money(
+            order
+                .get("Total")
+                .ok_or_else(|| "Pago bloqueado: GetOrder no devolvió Total".to_string())?,
+            "Total",
+        )?;
+        let payments = order
+            .get("Payments")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                "Pago bloqueado: GetOrder no devolvió la colección Payments".to_string()
+            })?;
+        /* PaymentId puede llegar como string o número según la versión de
+         * WebLink. Conservamos también su importe para detectar respuestas
+         * internamente inconsistentes y no duplicar una entrada repetida. */
+        let (remote_payment_amounts, remote_paid) = Self::parse_remote_payments(payments)?;
+        let requested = amount;
 
-        /* [247A-9] Saldo pendiente basado en ledger local. BDP también puede
-         * tener pagos hechos fuera de Glory; si el total pagado local es menor
-         * que el de BDP, aceptamos el menor saldo pendiente para no bloquear
-         * pagos legítimos. */
-        let local_paid = BdpPagoRepository::total_pagado(pool, venta.id)
+        /* [028A-BDP-WRITE] Calcula la unión de ambos libros. Un pago local con
+         * bdp_payment_id coincidente ya está incluido en Payments; uno sin
+         * identidad remota no puede demostrarse como el mismo pago, así que se
+         * suma conservadoramente para no permitir un posible sobrepago. */
+        let local_payments = BdpPagoRepository::listar_por_venta(pool, venta.id)
             .await
-            .map_err(|e| format!("Pago bloqueado: no se pudo calcular saldo local: {e}"))?;
-        let local_paid_f64 = Self::decimal_to_f64(&local_paid);
-        let pending = total - local_paid_f64;
-
-        let is_partial = (requested - pending).abs() > BDP_PAYMENT_TOLERANCE;
+            .map_err(|e| format!("Pago bloqueado: no se pudo leer el ledger local: {e}"))?;
+        let local_only_paid = local_payments
+            .iter()
+            .filter(|payment| payment.resultado == "exito")
+            .try_fold(Decimal::ZERO, |sum, payment| {
+                Self::local_payment_contribution(
+                    &remote_payment_amounts,
+                    payment.bdp_payment_id.as_deref(),
+                    payment.amount,
+                )
+                .map(|contribution| sum + contribution)
+            })?;
+        let paid = remote_paid + local_only_paid;
+        if paid > total + Decimal::new(5, 3) {
+            return Err("Pago bloqueado: la unión de pagos supera el total remoto".into());
+        }
+        let pending = (total - paid).max(Decimal::ZERO);
+        let tolerance = Decimal::new(5, 3);
+        let is_partial = (requested - pending).abs() > tolerance;
         if is_partial && !config.ff_bdp_partial_payments {
             return Err(format!(
                 "Pago bloqueado: pagos parciales desactivados. Saldo={pending:.2}, solicitado={requested:.2}"
             ));
         }
-        if requested > pending + BDP_PAYMENT_TOLERANCE {
+        if requested > pending + tolerance {
             return Err(format!(
                 "Pago bloqueado: el importe {requested:.2} excede el saldo pendiente {pending:.2}"
             ));
@@ -1550,34 +1712,28 @@ impl BdpSyncService {
                 .map_err(|e| format!("Error confirmando tx reconciliación factura: {e}"))?;
             return Ok(invoice_number);
         }
-        /* [D9] Parsear Total como string directamente a Decimal para evitar
-         * pérdida de precisión por conversión f64 intermedia. BDP puede
-         * devolver tanto números como strings. */
-        let total_decimal = match order.get("Total") {
-            Some(serde_json::Value::Number(n)) => {
-                n.as_f64().and_then(Decimal::from_f64).ok_or_else(|| {
-                    "Factura bloqueada: Total de BDP no es convertible a Decimal".to_string()
-                })?
-            }
-            Some(serde_json::Value::String(s)) => s
-                .parse::<Decimal>()
-                .map_err(|_| format!("Factura bloqueada: Total '{s}' no es un Decimal válido"))?,
-            _ => return Err("Factura bloqueada: GetOrder no devolvió Total".into()),
-        };
-        /* [D9] Parsear pagos de BDP sin unwrap_or(0.0) */
+        /* [028A-BDP-WRITE] El mismo parseo estricto se usa para factura:
+         * un importe remoto malformado bloquea, nunca se interpreta como cero. */
+        let total_decimal = Self::parse_remote_money(
+            order
+                .get("Total")
+                .ok_or_else(|| "Factura bloqueada: GetOrder no devolvió Total".to_string())?,
+            "Total",
+        )?;
         let paid: Decimal = order
             .get("Payments")
             .and_then(Value::as_array)
             .ok_or_else(|| "Factura bloqueada: GetOrder no devolvió Payments".to_string())?
             .iter()
-            .map(|payment| {
-                payment
-                    .get("Amount")
-                    .and_then(Value::as_f64)
-                    .and_then(Decimal::from_f64)
-                    .unwrap_or(Decimal::ZERO)
-            })
-            .sum();
+            .try_fold(Decimal::ZERO, |sum, payment| {
+                let amount = Self::parse_remote_money(
+                    payment.get("Amount").ok_or_else(|| {
+                        "Factura bloqueada: un pago remoto no contiene Amount".to_string()
+                    })?,
+                    "Payments.Amount",
+                )?;
+                Ok::<Decimal, String>(sum + amount)
+            })?;
         let local_paid = BdpPagoRepository::total_pagado(pool, venta.id)
             .await
             .map_err(|e| format!("Factura bloqueada: no se pudo calcular saldo local: {e}"))?;
@@ -2810,5 +2966,160 @@ mod tests {
             7777,
             "Should fallback to article.id when line_article_ids is None"
         );
+    }
+
+    #[test]
+    fn validate_order_lines_rejects_non_positive_quantity() {
+        let venta_id = uuid::Uuid::new_v4();
+        let lineas = vec![VentaLinea {
+            id: uuid::Uuid::new_v4(),
+            venta_id,
+            articulo_codigo: "A".into(),
+            descripcion: "Cantidad inválida".into(),
+            cantidad: Decimal::ZERO,
+            precio_unitario: Decimal::from_str("2.00").unwrap(),
+            iva_pct: Decimal::from_str("10").unwrap(),
+            descuento: Decimal::ZERO,
+            created_at: Utc::now(),
+        }];
+        assert!(BdpSyncService::validate_order_lines(&lineas).is_err());
+    }
+
+    #[test]
+    fn validate_order_lines_rejects_negative_price_or_discount() {
+        let venta_id = uuid::Uuid::new_v4();
+        for (price, discount) in [("-1.00", "0"), ("1.00", "-0.01")] {
+            let lineas = vec![VentaLinea {
+                id: uuid::Uuid::new_v4(),
+                venta_id,
+                articulo_codigo: "A".into(),
+                descripcion: "Importe inválido".into(),
+                cantidad: Decimal::ONE,
+                precio_unitario: Decimal::from_str(price).unwrap(),
+                iva_pct: Decimal::from_str("10").unwrap(),
+                descuento: Decimal::from_str(discount).unwrap(),
+                created_at: Utc::now(),
+            }];
+            assert!(BdpSyncService::validate_order_lines(&lineas).is_err());
+        }
+    }
+
+    #[test]
+    fn parse_remote_money_accepts_number_and_string_but_rejects_invalid_values() {
+        assert_eq!(
+            BdpSyncService::parse_remote_money(&serde_json::json!("12.50"), "Total").unwrap(),
+            Decimal::from_str("12.50").unwrap()
+        );
+        assert_eq!(
+            BdpSyncService::parse_remote_money(&serde_json::json!(0), "Total").unwrap(),
+            Decimal::ZERO
+        );
+        assert!(BdpSyncService::parse_remote_money(&serde_json::Value::Null, "Total").is_err());
+        assert!(BdpSyncService::parse_remote_money(&serde_json::json!("NaN"), "Total").is_err());
+        assert!(BdpSyncService::parse_remote_money(&serde_json::json!(-1), "Total").is_err());
+    }
+
+    #[test]
+    fn remote_payment_id_accepts_string_or_number_but_rejects_empty_values() {
+        assert_eq!(
+            BdpSyncService::remote_payment_id(Some(&serde_json::json!("PAY-1"))),
+            Some("PAY-1".to_string())
+        );
+        assert_eq!(
+            BdpSyncService::remote_payment_id(Some(&serde_json::json!(42))),
+            Some("42".to_string())
+        );
+        assert_eq!(
+            BdpSyncService::remote_payment_id(Some(&serde_json::json!("  "))),
+            None
+        );
+        assert_eq!(
+            BdpSyncService::remote_payment_id(Some(&serde_json::Value::Null)),
+            None
+        );
+    }
+
+    #[test]
+    fn parse_remote_payments_deduplicates_same_id_and_amount() {
+        let payments = vec![
+            serde_json::json!({"PaymentId": "PAY-1", "Amount": "4.50"}),
+            serde_json::json!({"PaymentId": "PAY-1", "Amount": 4.50}),
+            serde_json::json!({"PaymentId": 42, "Amount": "2.00"}),
+            serde_json::json!({"Amount": "1.00"}),
+        ];
+        let (amounts, total) = BdpSyncService::parse_remote_payments(&payments).unwrap();
+        assert_eq!(amounts.len(), 2);
+        assert_eq!(
+            amounts.get("PAY-1"),
+            Some(&Decimal::from_str("4.50").unwrap())
+        );
+        assert_eq!(amounts.get("42"), Some(&Decimal::from_str("2.00").unwrap()));
+        assert_eq!(total, Decimal::from_str("7.50").unwrap());
+    }
+
+    #[test]
+    fn parse_remote_payments_rejects_same_id_with_different_amount() {
+        let payments = vec![
+            serde_json::json!({"PaymentId": "PAY-1", "Amount": "4.50"}),
+            serde_json::json!({"PaymentId": "PAY-1", "Amount": "5.00"}),
+        ];
+        let error = BdpSyncService::parse_remote_payments(&payments).unwrap_err();
+        assert!(error.contains("importes contradictorios"));
+    }
+
+    #[test]
+    fn local_payment_union_is_conservative_and_rejects_mismatch() {
+        let remote = HashMap::from([("PAY-1".to_string(), Decimal::from_str("4.50").unwrap())]);
+        assert_eq!(
+            BdpSyncService::local_payment_contribution(
+                &remote,
+                Some("PAY-1"),
+                Decimal::from_str("4.50").unwrap()
+            )
+            .unwrap(),
+            Decimal::ZERO
+        );
+        assert_eq!(
+            BdpSyncService::local_payment_contribution(
+                &remote,
+                Some("LOCAL-2"),
+                Decimal::from_str("2.00").unwrap()
+            )
+            .unwrap(),
+            Decimal::from_str("2.00").unwrap()
+        );
+        assert_eq!(
+            BdpSyncService::local_payment_contribution(
+                &remote,
+                None,
+                Decimal::from_str("1.00").unwrap()
+            )
+            .unwrap(),
+            Decimal::from_str("1.00").unwrap()
+        );
+        let error = BdpSyncService::local_payment_contribution(
+            &remote,
+            Some("PAY-1"),
+            Decimal::from_str("5.00").unwrap(),
+        )
+        .unwrap_err();
+        assert!(error.contains("importe local y remoto distinto"));
+    }
+
+    #[test]
+    fn validate_order_lines_rejects_discount_above_gross_amount() {
+        let venta_id = uuid::Uuid::new_v4();
+        let lineas = vec![VentaLinea {
+            id: uuid::Uuid::new_v4(),
+            venta_id,
+            articulo_codigo: "A".into(),
+            descripcion: "Descuento imposible".into(),
+            cantidad: Decimal::ONE,
+            precio_unitario: Decimal::from_str("2.00").unwrap(),
+            iva_pct: Decimal::from_str("10").unwrap(),
+            descuento: Decimal::from_str("2.01").unwrap(),
+            created_at: Utc::now(),
+        }];
+        assert!(BdpSyncService::validate_order_lines(&lineas).is_err());
     }
 }

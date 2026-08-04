@@ -59,3 +59,5 @@ prerendered/
 /frontend/public/legacy-assets/colors/
 /temp/
 tools/bdp-weblink-simulator/__pycache__/
+.quality-reports/
+.quality-tools/
