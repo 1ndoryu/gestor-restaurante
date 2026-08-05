@@ -43,6 +43,11 @@
 8. `PaymentId` es estable por venta; el flujo actual admite una única intención de pago por venta.
 9. La factura local solo se marca con `InvoiceNumber` no vacío.
 10. El simulador rechaza bind no-loopback, redacta secretos y permite reproducir una operación aplicada cuya respuesta se perdió.
+
+**Limitación de la API gratuita de WebLink (verificada en BDP real 2026-08-05):**
+- `GET/POST /API/Orders/Get` devuelve `[301010]` en la API gratuita: **solo expone `Status`** (0=abierta, 2=cobrada, 3=anulada); no devuelve `Order`, `Total`, `Items` ni `Payments`. Suficiente para verificar estado de la comanda, insuficiente para reconciliar saldos.
+- `POST /API/Orders/Payment/Add` responde HTTP 200 con `ErrorMessage: "Subscripción no activada"` → **los pagos requieren la WebLink RESTAPI de pago** (suscripción activa).
+- Consecuencia en Glory: `add_order_payment` exige reconciliar (`Order.Total` + `Order.Payments`) antes de escribir → con la API gratuita falla siempre con 422. No es un bug de Glory; es el plan contratado de WebLink.
 11. El modo write requiere un armado persistente con URL exacta, alcances, motivo, expiración máxima de 15 minutos y cupo atómico de operaciones.
 12. Una auditoría `pendiente` o `ambiguo` bloquea nuevas escrituras para la misma entidad hasta reconciliación.
 13. El snapshot habilitante guarda URL y huella de credenciales/configuración; evidencia legacy o de otra conexión nunca autoriza.
