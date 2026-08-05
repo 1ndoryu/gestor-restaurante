@@ -436,12 +436,30 @@ pub async fn sincronizar_cliente_bdp(
         format!("{} {}", cliente.apellidos, cliente.nombre)
     };
 
+    /* [048A-8] Payload completo del contrato CreateCustomer. El BDP real con
+     * módulo de gestión devuelve NullReferenceException si faltan los campos
+     * de gestión (PaymentMode, Representative, AreaCode, TAVCode, RateCode),
+     * así que se envían todos los campos, con valores neutros seguros para
+     * los que el cliente local no tiene. FINType=1 (N.I.F.) por defecto. */
     let req = BdpCreateCustomerRequest {
         code: bdp_code,
         fiscal_name,
         commercial_name: cliente.nombre.clone(),
+        address: String::new(),
+        post_code: String::new(),
+        town: String::new(),
+        province: String::new(),
+        land_line: String::new(),
         mobile_phone: cliente.telefono.clone(),
+        fin: String::new(),
+        fin_type: 1,
         email: cliente.email.clone(),
+        per_discount: 0.0,
+        payment_mode: 1,
+        representative: 1,
+        area_code: 1,
+        tav_code: 1,
+        rate_code: 1,
         overwrite: false,
     };
 

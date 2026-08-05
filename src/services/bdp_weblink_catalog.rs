@@ -477,15 +477,55 @@ impl Default for BdpExportCustomersRequest {
     }
 }
 
+/* [048A-8] Contrato completo de CreateCustomer según la documentación
+ * oficial de BDP (WebLink REST API). El BDP real con módulo de gestión
+ * devuelve NullReferenceException si faltan los campos de gestión
+ * (PaymentMode, Representative, AreaCode, TAVCode, RateCode), por lo que
+ * el payload debe incluir todos los campos del JSON de solicitud, incluso
+ * con valores vacíos. La clave del e-mail en la solicitud es `Email`
+ * (no `EMail`, que es la clave de la respuesta de ExportCustomers). */
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct BdpCreateCustomerRequest {
     pub code: i32,
+    /// Nombre fiscal (máx. 40 caracteres; BDP recorta a 40).
     pub fiscal_name: String,
+    /// Nombre comercial (máx. 40 caracteres; BDP recorta a 40).
     pub commercial_name: String,
+    /// Dirección (máx. 40 caracteres; BDP recorta a 40).
+    pub address: String,
+    /// Código postal (máx. 10 caracteres; BDP recorta a 10).
+    pub post_code: String,
+    /// Población (máx. 40 caracteres; BDP recorta a 40).
+    pub town: String,
+    /// Provincia (máx. 40 caracteres; BDP recorta a 40).
+    pub province: String,
+    /// Teléfono fijo (máx. 15 caracteres; BDP recorta a 15).
+    pub land_line: String,
+    /// Teléfono móvil (máx. 15 caracteres; BDP recorta a 15).
     pub mobile_phone: String,
-    #[serde(rename = "EMail")]
+    /// Identificador fiscal (máx. 15 caracteres; BDP recorta a 15).
+    pub fin: String,
+    /// Tipo de documento de identificación:
+    /// 1=N.I.F., 2=N.I.F. Extranjero, 3=Pasaporte, 4=ID País de Residencia,
+    /// 5=Certificado Residencia, 6=Otro Documento.
+    /// El BDP real exige un entero (desecha "1.0" con "not a valid integer").
+    pub fin_type: i32,
+    /// Correo electrónico (máx. 60 caracteres; BDP recorta a 10).
+    #[serde(rename = "Email")]
     pub email: String,
+    /// Porcentaje de descuento (0,00 a 99,99; más de 2 decimales se redondea).
+    pub per_discount: f64,
+    /// Código de forma de pago (1-99). En apps con módulo de gestión NO puede ser 0.
+    pub payment_mode: i32,
+    /// Código de representante (1-9999). En módulo de gestión NO puede ser 0.
+    pub representative: i32,
+    /// Código de zona (1-999). En módulo de gestión NO puede ser 0.
+    pub area_code: i32,
+    /// Código de TAV (1-99). En módulo de gestión NO puede ser 0.
+    pub tav_code: i32,
+    /// Código de tarifa (1-99). En módulo de gestión NO puede ser 0.
+    pub rate_code: i32,
     pub overwrite: bool,
 }
 

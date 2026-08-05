@@ -7,10 +7,11 @@
 use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::models::ConfiguracionRestaurante;
-use crate::services::bdp_weblink::{response_error_message, BdpWeblinkClient};
+use crate::services::bdp_weblink::{response_error_message, BdpWeblinkClient, BdpWeblinkError};
 use crate::services::bdp_weblink_catalog::{
     BdpExportArticlesRequest, BdpExportCustomersRequest, BdpExportDepartmentsRequest,
     BdpGetEmployeesRequest, BdpGetOrderRequest, BdpGetRoomsTablesRequest, BdpOrderIdentifier,
@@ -141,8 +142,19 @@ impl BdpBackupService {
             "empleados": empleados,
         });
 
+        /* [048A-7] Traza en metadata si salones vino ausente (subscripción BDP no
+         * activada): se guarda [] y queda documentado para el arming/auditoría. */
+        let salones_ausentes = datos["salones"]
+            .as_array()
+            .is_some_and(|arr| arr.is_empty());
         let metadata = serde_json::json!({
             "endpoints": ["ExportArticles", "ExportCustomers", "ExportDepartments", "GetRoomsTables", "GetEmployees"],
+            "salones_ausentes": salones_ausentes,
+            "motivo_salones": if salones_ausentes {
+                "Subscripción BDP no activada (GetRoomsTables); salones guardados como []"
+            } else {
+                ""
+            },
         });
 
         /* Calcular expiración */
@@ -807,9 +819,12 @@ impl BdpBackupService {
         client: &BdpWeblinkClient<'_>,
         config: &ConfiguracionRestaurante,
     ) -> Result<serde_json::Value, String> {
+        /* [048A-7] Fix: type_price usa bdp_catalog_price_type (1 = IVA incluido),
+         * NO bdp_pos_id (31). El BDP real rechaza pos_id como tipo de precio:
+         * [200106]-TIPO DE PRECIO INCORRECTO. */
         let value = client
             .export_articles(&BdpExportArticlesRequest::all_web_articles(
-                config.bdp_pos_id,
+                config.bdp_catalog_price_type,
             ))
             .await
             .map_err(|error| format!("Snapshot BDP abortado al leer artículos: {error}"))?;
@@ -838,18 +853,51 @@ impl BdpBackupService {
             .export_departments(&BdpExportDepartmentsRequest::default())
             .await
             .map_err(|error| format!("Snapshot BDP abortado al leer departamentos: {error}"))?;
+        /* [048A-7] El BDP real devuelve la key DepartmentListData (con un
+         * ErrorMessage posicional de .NET cuando no hay items). */
         Self::validate_snapshot_response(
             "departamentos",
             value,
-            &["Departments", "Department", "DepartmentList"],
+            &[
+                "Departments",
+                "Department",
+                "DepartmentList",
+                "DepartmentListData",
+            ],
         )
     }
 
     async fn fetch_rooms(client: &BdpWeblinkClient<'_>) -> Result<serde_json::Value, String> {
-        let value = client
+        let value = match client
             .get_rooms_tables(&BdpGetRoomsTablesRequest::default())
             .await
-            .map_err(|error| format!("Snapshot BDP abortado al leer salones: {error}"))?;
+        {
+            Ok(value) => value,
+            /* [048A-7] El BDP real no tiene contratada la subscripción de salones:
+             * get_rooms_tables lanza BdpWeblinkError::Remote("Subscripción no
+             * activada") por el ErrorMessage, ANTES de llegar al análisis de la
+             * respuesta. No es fallo de red ni de parseo; el módulo simplemente
+             * no está activo. Se guarda [] para no abortar el snapshot completo
+             * y queda trazado en metadata/log. */
+            Err(BdpWeblinkError::Remote(message))
+                if message.trim() == "Subscripción no activada" =>
+            {
+                warn!("Snapshot BDP: salones no disponibles para esta conexión ({message})");
+                return Ok(serde_json::json!([]));
+            }
+            Err(error) => {
+                return Err(format!("Snapshot BDP abortado al leer salones: {error}"));
+            }
+        };
+        /* Si pese a todo llega respuesta sin colección (Rooms:null sin
+         * ErrorMessage), también se tolera como []. */
+        if !value.get("Rooms").is_some_and(serde_json::Value::is_array) {
+            warn!(
+                "Snapshot BDP: salones no disponibles para esta conexión ({})",
+                response_error_message(&value).unwrap_or_default()
+            );
+            return Ok(serde_json::json!([]));
+        }
         Self::validate_snapshot_response("salones", value, &["Rooms", "RoomList"])
     }
 
@@ -873,15 +921,20 @@ impl BdpBackupService {
         value: serde_json::Value,
         expected_keys: &[&str],
     ) -> Result<serde_json::Value, String> {
-        if let Some(error) = response_error_message(&value) {
-            return Err(format!(
-                "Snapshot BDP abortado: la lectura de {label} devolvió {error}"
-            ));
-        }
+        /* [048A-7] Se valida primero la colección: si existe una key reconocible
+         * con payload no-nulo (aunque array vacío, p.ej. DepartmentListData:[]
+         * con un ErrorMessage posicional de .NET), la lectura es válida y no
+         * debe abortar. El ErrorMessage solo se usa como contexto cuando no
+         * hay colección (caso salones con Rooms:null). */
         let has_payload = expected_keys
             .iter()
             .any(|key| value.get(*key).is_some_and(|payload| !payload.is_null()));
         if !has_payload {
+            if let Some(error) = response_error_message(&value) {
+                return Err(format!(
+                    "Snapshot BDP abortado: la lectura de {label} devolvió {error}"
+                ));
+            }
             return Err(format!(
                 "Snapshot BDP abortado: la lectura de {label} no contiene una colección reconocible"
             ));

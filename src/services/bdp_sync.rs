@@ -560,8 +560,25 @@ impl BdpSyncService {
          * una escritura que sí se aplicó pero cuya respuesta se perdió. */
         let marketplace_order_id = Self::marketplace_order_id(venta.id);
 
-        let total =
-            Self::decimal_to_f64(&venta.importe_base) + Self::decimal_to_f64(&venta.importe_iva);
+        /* [048A-10] El Total del Order debe coincidir con la suma de los Item.Total
+         * (bruto por línea), que es el "teórico" que BDP valida — error 300033 cuando
+         * no coincide. El IVA se calcula desde VatPct de cada item, no se suma aquí.
+         * Evidencia: dry-run real (2026-06-01) pasó validación de totales con
+         * Item.Total=Price y Order.Total=Price (sin IVA). En fallback legacy, el item
+         * usa base+iva como precio y el total coincide con ese mismo valor. */
+        let total: f64 = match lineas {
+            Some(ls) => ls
+                .iter()
+                .map(|linea| {
+                    Self::decimal_to_f64(&linea.precio_unitario)
+                        * Self::decimal_to_f64(&linea.cantidad)
+                        - Self::decimal_to_f64(&linea.descuento)
+                })
+                .sum(),
+            None => {
+                Self::decimal_to_f64(&venta.importe_base) + Self::decimal_to_f64(&venta.importe_iva)
+            }
+        };
 
         /* [F2.7] Construir Items array — multi-item si hay líneas, fallback si no */
         let items: Vec<Value> = if let Some(lineas) = lineas {

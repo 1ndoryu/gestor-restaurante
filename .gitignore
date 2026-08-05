@@ -61,3 +61,6 @@ prerendered/
 tools/bdp-weblink-simulator/__pycache__/
 .quality-reports/
 .quality-tools/
+.freebuff/desktop-v2.db
+.freebuff/desktop-v2.db-shm
+.freebuff/
