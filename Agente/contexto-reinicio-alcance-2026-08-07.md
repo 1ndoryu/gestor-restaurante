@@ -105,7 +105,7 @@ La solución que debe investigarse e implementarse es distinta:
 
 ### Contrato corregido que debe implementar/documentar el flujo
 
-> **Estado:** el contrato propuesto se implementó de forma parcial en la extensión local (puntos 5, 6, 9 y parte de 8): manifiesto de entorno (`sentinel.env-manifest.json` / `--env-manifest`), provisión de `ignored-local` al worktree, `missing-task-input` y rechazo de pisar contenido tracked. Siguen pendientes: UI de autorización de archivos ignorados por tarea (punto 7, la visibilidad controlada hoy se resuelve por el manifiesto) y el resto de garantías de `integrate` (punto 8) que ya cubría la validación de worktree limpio. `0.6.4` base no tiene ninguna de estas capacidades.
+> **Estado actualizado (2026-08-07):** los puntos 5, 6, 8 y 9 están implementados en la extensión publicada `cfac119`; el padre ya está repineado a ese commit. El manifiesto (`sentinel.env-manifest.json` / `--env-manifest`) admite `editable: true` únicamente para `ignored-local`; por defecto las entradas provisionadas quedan protegidas por hash. Sentinel captura una línea base hash de los archivos ignorados preexistentes y bloquea modificaciones/eliminaciones no autorizadas y nuevos paths ignorados en `gate`, `integrate` y `cleanup`. También rechaza manifiestos fuera del `projectRoot`, symlinks de escape, fuentes externas y fuentes de directorio no soportadas, y migra registros `TaskRecord` v2 a schema v3 al leerlos. La autorización visible sigue siendo declarativa por manifiesto; la UI de autorización por tarea (punto 7) continúa pendiente. `0.6.4` base no tiene estas capacidades.
 
 1. **Contexto explícito:** Sentinel debe publicar para cada tarea `projectRoot` (raíz Git del consumidor), `worktreeRoot` (ruta exacta del worktree), `taskId`, agente, rama, base/HEAD y estado de autorización. La UI debe mostrar esos valores antes de habilitar edición o gate.
 2. **Configuración disponible en la raíz:** `sentinel.config.json`, `quality-tools.json`, `sentinel.lock.json` y cualquier otra política que necesite `task gate` deben estar presentes dentro del worktree o ser entradas declaradas y provisionadas antes del gate. Si una de esas piezas es local/ignorada y no se materializa, el gate no debe apuntar silenciosamente al checkout principal: debe fallar con una dependencia ausente explícita.
@@ -149,27 +149,27 @@ La lista anterior define diez requisitos propuestos; no son IDs existentes de Se
 
 **Decisión provisional:** no apuntar las herramientas al checkout principal ni usar reescrituras completas como solución. La dirección preferida es un worktree físico temporal visible dentro de `area-trabajo`, con una raíz de worktrees autorizada y validada por Sentinel, exclusión local de Git separada de la visibilidad de las herramientas, provisión declarada de archivos ignorados y cleanup verificable. Antes de cambiar Sentinel hay que probar que la ubicación visible realmente permite que las herramientas encuentren y editen parcialmente un archivo sin ruta directa.
 
-### Implementación en Sentinel (extensión local, committeada en `8502710`, sin publicar upstream)
+### Implementación histórica en Sentinel (extensión local `8502710`, ya publicada; referencia histórica)
 
-Se implementó la capacidad en el checkout local de `tools/sentinel` (marca `[VISIBLE-WORKTREE]`, no publicada):
+Se implementó la capacidad en el checkout local de `tools/sentinel` (marca `[VISIBLE-WORKTREE]`) y esa primera extensión ya fue publicada; la ampliación descrita en **Estado actual de esta continuación B** todavía es local:
 
 - **Nuevo flag:** `sentinel task start ... --worktrees-root <dir>` declara una raíz externa autorizada para worktrees temporalmente visibles (p. ej. `area-trabajo/task-worktrees`).
 - **Validaciones:** la raíz debe existir y resolverse a un path físico real (canonical); NO puede ser el repositorio ni una subcarpeta de él; el worktree debe quedar dentro de esa raíz; sin `--worktrees-root` sigue el comportamiento interno anterior (`<repo>/.sentinel/worktrees`) y se siguen rechazando rutas arbitrarias.
-- **Metadata:** `TaskRecord` (schema v2) conserva `worktreesRoot` para que `cleanup`/`recover` validen contención contra la misma raíz usada en `start`.
+- **Metadata:** `TaskRecord` (schema v3) conserva `worktreesRoot`, snapshots de `ignored-local` y la línea base hash para que `verify`/`integrate`/`cleanup`/`recover` validen contención y no oculten contaminación local; los registros v2 se migran de forma segura al leerse.
 - **Gate en worktree externo:** `repositoryRoot()` acepta worktrees vinculados cuyo top level es hermano de la raíz Git (la identidad sigue anclada al common dir); `verifyTaskWorktree`/`task gate` funcionan desde la raíz visible.
-- **Pruebas:** `taskCoordinator.test.ts` añade caso positivo (worktree creado en la raíz externa + repo limpio) y caso negativo (raíz dentro del repo rechazada). Suite completa del submodulo: **505 pass / 1 pending**; `check:core` OK; `smoke:lsp` OK; probe end-to-end OK (claim → start con `--worktrees-root` → worktree visible → gate ejecutado en la raíz externa).
+- **Pruebas históricas de la primera extensión:** `taskCoordinator.test.ts` añadió caso positivo (worktree creado en la raíz externa + repo limpio) y caso negativo (raíz dentro del repo rechazada). La validación actual de la ampliación está en el bloque de estado al final: **517 passing / 1 pending**, `check:core` y `smoke:lsp` OK.
 - **Docs:** `README.md` y `CHANGELOG.md` del submodulo actualizados (marcados como `[Unreleased]` — extensión local, no se declaró release `0.6.5`).
-- **Compatibilidad de metadata:** `TaskRecord` pasó a schema v2 con `worktreesRoot`. La validación es fail-closed: un registro v1 antiguo (sin el campo) se reporta como `invalidMetadata`, que `task status` diagnostica y `task recover` limpia — no hay migración silenciosa a propósito. Hoy no hay tareas activas, así que no hay registros v1 que migrar.
+- **Compatibilidad de metadata:** `TaskRecord` usa schema v3. Los registros v2 existentes se leen y se migran automáticamente añadiendo snapshots vacíos (`ignoredInputs: []`, `ignoredBaseline: null`), conservando los recursos y evitando romper tareas activas antiguas. Registros con schemas desconocidos siguen siendo `invalidMetadata` y no se limpian silenciosamente.
 
-**Cierre del consumidor (hecho):** el cambio quedó committeado en el submodulo (`8502710a`) y el gate del consumidor fue repineado y validado:
+**Cierre histórico del consumidor:** el cambio quedó committeado en el submodulo (`8502710a`) y el gate del consumidor fue repineado y validado:
 1. `quality-tools.json`: `tools.sentinel.commit` → `8502710a` (versión manifest sigue `0.6.4`; el CLI provisionado reporta `0.6.4`).
 2. `quality:setup` re-provisionó el CLI en `.quality-tools/sentinel` desde el nuevo commit (staging aislado + suite) — el binario del gate ya expone `--worktrees-root`.
 3. `sentinel.lock.json` regenerado y verificado: doctor `--lock` → `pass`/`match`; suite `quality:test` → **230 pass / 0 fail** (1 skip esperado).
 4. Commits del padre: repin (`59d6bb24`) + cierre de gate y docs (siguiente commit).
 
-**Contrato de entorno implementado (extensión local `9126811`):** `sentinel.env-manifest.json` (o `--env-manifest <path>`) declara entradas `tracked`, `generated`, `ignored-local`, `external` y `secret`; `task start` provisiona las `ignored-local` desde su fuente declarada (contenida en el projectRoot) dentro del worktree antes de ACTIVE. Fuente faltante → `missing-task-input` con ruta, categoría, origen y acción (y rollback del worktree sin huérfanos). `secret` no admite source; `external`/`generated` no se copian; el manifiesto no puede pisar contenido tracked; los provisionados son ignorados por Git (worktree limpio para gate/integrate). `worktree remove` usa `--force` en rollback/cleanup por los provisionados. Validación: 511 pass / 1 pending en el submódulo, e2e con CLI (provisión + missing-task-input + sin huérfanos), `check:core` OK, `smoke:lsp` OK, suite del gate 230/230.
+**Contrato de entorno inicial (extensión `9126811`, ya publicada):** `sentinel.env-manifest.json` (o `--env-manifest <path>`) declara entradas `tracked`, `generated`, `ignored-local`, `external` y `secret`; `task start` provisiona las `ignored-local` desde su fuente declarada (contenida en el projectRoot) dentro del worktree antes de ACTIVE. Fuente faltante → `missing-task-input` con ruta, categoría, origen y acción (y rollback del worktree sin huérfanos). `secret` no admite source; `external`/`generated` no se copian; el manifiesto no puede pisar contenido tracked; los provisionados son ignorados por Git (worktree limpio para gate/integrate). `worktree remove` usa `--force` en rollback/cleanup por los provisionados. Validación: 511 pass / 1 pending en el submódulo, e2e con CLI (provisión + missing-task-input + sin huérfanos), `check:core` OK, `smoke:lsp` OK, suite del gate 230/230.
 
-**Publicación (hecha):** `tools/sentinel` `9126811` empujado a `origin/main`; padre actualizado (repin `73fca3e5` + lock) y publicado.
+**Publicación previa:** `tools/sentinel` `9126811` fue empujado a `origin/main`; la ampliación actual de autorización y protección de baseline quedó publicada en `cfac119` y el padre la referencia mediante el repin `b1737fba`; el lock se regeneró y verificó.
 
 
 ## Sentinel
@@ -191,7 +191,7 @@ El checkout actual ya tenía cambios ajenos a esta conversación; no deben sobre
 - La tarea de prueba Sentinel `SCOPE-PROBE-CURRENT` fue liberada y no quedó activa.
 - No se hizo commit, push ni deploy.
 
-> **Actualización posterior (mismo día):** los bloques de calidad y Sentinel cerraron con commits locales propios de esta conversación (`8502710` en el submodulo; `59d6bb24` + `b105188b` en el padre). El árbol final quedó limpio (ahead 5, sin push). Ver sección "Pendientes del gate".
+> **Actualización histórica (mismo día):** los bloques de calidad y Sentinel cerraron con commits locales propios de aquella fase (`8502710` en el submodulo; `59d6bb24` + `b105188b` en el padre). El estado de publicación de esa fase se detalla más abajo; no usar esta frase como estado actual del checkout.
 
 ## Siguiente paso recomendado
 
@@ -241,13 +241,13 @@ La afirmación de que ampliar el alcance obligaría a mover Sentinel es incorrec
 - **Validación**: `bench-fixtures` 4 tests PASS; suite completa 230/230 PASS.
 
 ### 3. Pendientes del gate→ estado al cierre del bloque
-- ✅ **Repin del consumidor cerrado** (extensión local de Sentinel `8502710`): `quality-tools.json` repineado, CLI re-provisionado en `.quality-tools/sentinel`, `sentinel.lock.json` regenerado; doctor `--lock` → `pass`/`match`; commits `59d6bb24` (repin) + `b105188b` (lock + fixes + docs) en `glory-rs-rest` (ahead 5, **sin push**).
+- ✅ **Repin histórico del consumidor cerrado** (extensión de Sentinel `8502710`): `quality-tools.json` repineado, CLI re-provisionado en `.quality-tools/sentinel`, `sentinel.lock.json` regenerado; doctor `--lock` → `pass`/`match`; commits `59d6bb24` + `b105188b` en `glory-rs-rest`.
 - ✅ **`npm run quality:test` completo: 230 PASS / 0 FAIL / 1 skip esperado** (ejecutado el 2026-08-07 y revalidado tras el repin).
 - ✅ Verificación del doctor: `doctor.mjs` ya no existe (migrado); el equivalente actual es `node scripts/quality/sentinel-doctor.mjs --lock` → `pass: match`, y el doctor de política → ok.
 - ✅ **Gate final `task:check` ejecutado** (2026-08-07, task `048A-11`, alcance full automático, 631s): el gate completo corrió todas las etapas (sentinel, varsense, rust, frontend, docs, custom) y **falló por problemas preexistentes de la rama, ninguno introducido por este bloque**: scanner Sentinel reporta errores de fixtures de otros worktrees (`/worktrees/...028A-22`, `gate-hardening/`) y del código `src/` (broadcast-mutex, incidente 096A); TS de `ListaReservas.tsx`; clippy de `glory-backend`; 6 planes sin checklist; varsense `Invalid string length`; cargo test supera timeout (4m15s). Reporte completo en `.quality-reports/branches/glory-rs-rest--f100af0a041e6e8a/048A-11/`. El árbol quedó limpio y sin locks.
 - ✅ Plan de deploy actualizado: `Agente/planes/plan-deploy-produccion-intuitividad-2026-08-07.md` Fase 2 documenta que el gate está configurado y usa `task:check` (sigue en gitignore).
 - ✅ **Repin global del binario Sentinel a 0.6.4 hecho:** el `sentinel update` del binario 0.5.0 tiene un bug (descarga el mismo artefacto `945d41e6…` para cualquier versión y falla el rename del shim con EPERM); se reparó manualmente copiando el build provisionado del gate a `versions/0.6.4/` (0.6.4 + extensión). `sentinel --version` → **0.6.4** con `--worktrees-root` disponible. Queda el bug del updater reportado para upstream.
-- ✅ **Push hecho:** `tools/sentinel` → `origin/main` (`8502710`) primero; luego `glory-rs-rest` → `origin` (`ec57799e`). Rama en sync, sin push pendiente.
+- ✅ **Push histórico hecho:** `tools/sentinel` → `origin/main` (`8502710`) primero; luego `glory-rs-rest` → `origin` (`ec57799e`). Este registro corresponde al cierre anterior, no a los cambios locales actuales.
 
 ### 4. Limitación de edición confirmada en vivo: `str_replace` no edita archivos gitignored
 
@@ -259,6 +259,13 @@ Durante la corrección de los bugs anteriores se reprodujo la limitación exacta
 - `write_file` SÍ puede crearlos/sobrescribirlos (riesgo de reescritura completa) — por eso se usó edición vía terminal (python heredoc con reemplazo exacto y assert de unicidad) para cambios parciales seguros.
 
 **Regla operativa adoptada:** cuando un archivo necesario esté gitignored y `str_replace` no pueda tocarlo, usar edición quirúrgica vía terminal con verificación previa (assert de que el patrón aparece exactamente una vez), nunca `write_file` completo para cambios parciales. Esta regla se documenta también en la skill de conducta global.
+
+### Estado actual de esta continuación B
+
+- ✅ Implementación local de autorización y protección: `editable: true` solo para `ignored-local`; baseline hash de ignorados preexistentes; bloqueo de modificaciones/eliminaciones no autorizadas y nuevos paths ignorados; validación física de symlinks; manifiesto contenido dentro del `projectRoot`; migración v2→v3.
+- ✅ Pruebas actuales del submódulo: `npm run test:unit` → **517 passing / 1 pending**, `check:core` OK y `smoke:lsp` OK.
+- ✅ La ampliación está validada y publicada en `tools/sentinel@cfac119`; el padre quedó repineado, reprovisionado y con `sentinel.lock.json` actualizado/verificado. Falta publicar el commit documental/lock actual del padre.
+- ⏳ Sigue pendiente la UI/autorización interactiva por tarea (punto 7); hoy la autorización es declarativa en el manifiesto.
 
 ## Límites del bloque (no olvidar)
 - Arbol limpio antes del gate: `git status --porcelain` vacío. Si hay untracked que ensucia el scope, ignorarlo o moverlo en `.gitignore`.
