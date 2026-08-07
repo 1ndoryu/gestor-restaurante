@@ -5,8 +5,9 @@
     "sentinel": {
       "repository": "https://github.com/1ndoryu/glory-sentinel.git",
       "sourcePath": "tools/sentinel",
-      "commit": "44dc8fa00c9ac498e64cad0d6a4edd16afa752d8",
-      "version": "0.6.0",
+      "provisionPath": ".quality-tools/sentinel",
+      "commit": "83eafbfef7a469c309059c9bcc0bb1a648e391b7",
+      "version": "0.6.4",
       "outputSchemaVersion": "1",
       "buildScript": "compile",
       "testScript": "test:unit",
@@ -17,12 +18,13 @@
     "varsense": {
       "repository": "https://github.com/1ndoryu/varsense.git",
       "sourcePath": "tools/varsense",
+      "provisionPath": ".quality-tools/varsense",
       "commit": "e8360927ee92c4067f1f501dd77b951c8bc4f61d",
       "version": "2.2.0",
       "outputSchemaVersion": "1",
       "buildScript": "compile",
       "cli": "dist/cli/index.js",
-      "testScript": "test",
+      "testScript": "smoke:lsp",
       "releaseRefs": ["refs/remotes/origin/main", "refs/tags/v*"],
       "capabilities": {
         "filesFrom": true,

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inspectInstalledAnalyzers } from './lockfile.mjs';
-import { resolveConfiguredSourcePath } from './source-path.mjs';
+import { resolveConfiguredProvisionPath, resolveConfiguredSourcePath } from './source-path.mjs';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const manifestPath = path.join(projectRoot, 'quality-tools.json');
@@ -52,13 +52,16 @@ function run(executable, args, options = {}) {
     const child = spawn(executable, args, {
       cwd: options.cwd ?? projectRoot,
       shell: false,
-      stdio: options.capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+      stdio: options.capture
+        ? [options.input ? 'pipe' : 'ignore', 'pipe', 'pipe']
+        : [options.input ? 'pipe' : 'ignore', 'inherit', 'inherit'],
       windowsHide: true,
       ...(options.env ? { env: options.env } : {}),
     });
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    if (options.input !== undefined) child.stdin?.end(options.input);
     const timeout = setTimeout(() => {
       timedOut = true;
       if (process.platform === 'win32' && child.pid) {
@@ -108,6 +111,7 @@ function captureBinary(executable, args, options = {}) {
     const stdout = [];
     let stderr = '';
     let timedOut = false;
+    if (options.input !== undefined) child.stdin?.end(options.input);
     const timeout = setTimeout(() => {
       timedOut = true;
       if (process.platform === 'win32' && child.pid) {
@@ -221,22 +225,32 @@ async function writeReleaseEvidence(name, config, commit) {
 }
 
 async function stageSourcePathBuild(name, config, toolRoot) {
+  const provisionRoot = resolveConfiguredProvisionPath(config, `quality-tools.json.tools.${name}`, { baseDir: projectRoot });
+  if (provisionRoot === null) throw new Error(`${name}: sourcePath requiere provisionPath para conservar artefactos fuera del checkout`);
+  const sourceReal = path.resolve(toolRoot);
+  const provisionReal = path.resolve(provisionRoot);
+  const relativeProvision = path.relative(sourceReal, provisionReal);
+  if (relativeProvision === '' || (!relativeProvision.startsWith('..') && !path.isAbsolute(relativeProvision))) {
+    throw new Error(`${name}: provisionPath no puede estar dentro del sourcePath versionado`);
+  }
   const currentCommit = await run('git', ['rev-parse', 'HEAD'], { cwd: toolRoot, capture: true });
   if (currentCommit !== config.commit) {
     throw new Error(`${name}: sourcePath está en ${currentCommit}; se esperaba ${config.commit}`);
   }
   const beforeStatus = await run('git', ['status', '--porcelain=v1', '--untracked-files=all'], { cwd: toolRoot, capture: true });
   const stagingRoot = await mkdtemp(path.join(os.tmpdir(), `glory-quality-${name}-`));
-  const treeArchive = path.join(os.tmpdir(), `glory-quality-${name}-${process.pid}.tar`);
   try {
     /* [SNT-16f] El staging se materializa desde `git archive HEAD`: solo el
      * árbol commiteado (sin cambios sin commitear ni artefactos locales), de
      * modo que compile + suite certifican exactamente el commit fijado. */
-    await writeFile(treeArchive, await captureBinary('git', ['archive', '--format=tar', 'HEAD'], { cwd: toolRoot }));
+    const archive = await captureBinary('git', ['archive', '--format=tar', 'HEAD'], { cwd: toolRoot });
     /* Windows bsdtar interpreta `C:\...` como host remoto; rutas en forward-slash
-     * y `--force-local` fuerzan interpretación local en todas las plataformas. */
-    const tarPath = target => target.replace(/\\/g, '/');
-    await run('tar', ['-xf', tarPath(treeArchive), '-C', tarPath(stagingRoot), '--force-local']);
+     * y `-C` fuerzan extracción local portable; `--force-local` no se usa
+     * porque bsdtar de Windows 3.8.4 lo rechaza. */
+    /* [048A-12] bsdtar de Windows no soporta `--force-local` y trata una
+     * ruta `C:/...` como host remoto. El tar entra por stdin y el cwd ya es
+     * staging: no existe ninguna ruta que bsdtar pueda reinterpretar. */
+    await run('tar', ['-xf', '-'], { cwd: stagingRoot, capture: true, input: archive });
     const env = isolatedNpmEnvironment();
     env.GLORY_QUALITY_SETUP = '1';
     await run(process.execPath, [npmCliPath, 'ci', '--ignore-scripts'], { cwd: stagingRoot, env });
@@ -246,13 +260,16 @@ async function stageSourcePathBuild(name, config, toolRoot) {
       await run(process.execPath, testArgs, { cwd: stagingRoot, env });
     }
 
-    /* Solo se materializan artefactos generados/ignorados. La instalación y
-     * compilación nunca ejecutan npm dentro del checkout versionado. */
-    await rm(path.join(toolRoot, 'node_modules'), { recursive: true, force: true });
-    await cp(path.join(stagingRoot, 'node_modules'), path.join(toolRoot, 'node_modules'), { recursive: true });
-    const artifactRoot = String(config.cli).split(/[\\/]/u)[0];
-    await rm(path.join(toolRoot, artifactRoot), { recursive: true, force: true });
-    await cp(path.join(stagingRoot, artifactRoot), path.join(toolRoot, artifactRoot), { recursive: true });
+    /* [SNT-16f] El checkout versionado no recibe node_modules ni artefactos.
+     * La provisión utilizable vive en el cache declarado, fuera del submódulo;
+     * el gate posterior inspecciona ese cache aislado. */
+    await rm(provisionRoot, { recursive: true, force: true });
+    await mkdir(provisionRoot, { recursive: true });
+    const artifactRoots = new Set(['package.json', 'package-lock.json', 'node_modules', String(config.cli).split(/[\\/]/u)[0]]);
+    for (const artifact of artifactRoots) {
+      const sourceArtifact = path.join(stagingRoot, artifact);
+      if (await exists(sourceArtifact)) await cp(sourceArtifact, path.join(provisionRoot, artifact), { recursive: true });
+    }
     const afterStatus = await run('git', ['status', '--porcelain=v1', '--untracked-files=all'], { cwd: toolRoot, capture: true });
     if (afterStatus !== beforeStatus) {
       throw new Error(`${name}: el provisioning aislado modificó archivos versionados del submódulo`);
@@ -261,7 +278,7 @@ async function stageSourcePathBuild(name, config, toolRoot) {
     await writeReleaseEvidence(name, config, commit);
   } finally {
     await rm(stagingRoot, { recursive: true, force: true });
-    await rm(treeArchive, { force: true }).catch(() => undefined);
+    /* El archivo tar nunca se materializa: el staging no deja temporales. */
   }
 }
 
@@ -290,11 +307,13 @@ async function ensureSourcePathReady(name, config) {
   if (currentCommit !== config.commit) {
     throw new Error(`${name}: sourcePath está en ${currentCommit}; se esperaba ${config.commit}`);
   }
-  const installedVersion = await run(process.execPath, [path.join(toolRoot, config.cli), '--version'], { capture: true });
+  const provisionRoot = resolveConfiguredProvisionPath(config, `quality-tools.json.tools.${name}`, { baseDir: projectRoot });
+  const installedRoot = provisionRoot ?? toolRoot;
+  const installedVersion = await run(process.execPath, [path.join(installedRoot, config.cli), '--version'], { capture: true });
   if (installedVersion !== config.version) {
-    throw new Error(`${name}: sourcePath reporta ${installedVersion}; se esperaba ${config.version}`);
+    throw new Error(`${name}: provisión reporta ${installedVersion}; se esperaba ${config.version}`);
   }
-  return { toolRoot, currentCommit, installedVersion };
+  return { toolRoot, provisionRoot, currentCommit, installedVersion };
 }
 
 async function installTool(name, config, installRoot) {
@@ -302,7 +321,7 @@ async function installTool(name, config, installRoot) {
   if (configuredSourcePath !== null) {
     if (config.patch) throw new Error(`${name}: sourcePath no puede combinarse con patch local`);
     const { currentCommit, installedVersion } = await ensureSourcePathReady(name, config);
-    process.stdout.write(`[quality:setup] ${name}: sourcePath verificado, no se modifica .quality-tools\\n`);
+    process.stdout.write(`[quality:setup] ${name}: sourcePath y provisión verificados, no se modifica el submódulo\\n`);
     return {
       commit: currentCommit,
       version: installedVersion,

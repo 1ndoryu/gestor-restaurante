@@ -5,6 +5,7 @@ import {
   resolveConfiguredSourcePath,
   validateSourcePathEnv,
   validateSourcePath,
+  resolveConfiguredProvisionPath,
 } from '../source-path.mjs';
 
 test('resuelve sourcePathEnv desde una variable GLORY_*', () => {
@@ -46,5 +47,17 @@ test('rechaza sourcePath relativo sin baseDir', () => {
   assert.throws(
     () => resolveConfiguredSourcePath({ sourcePath: 'tools/varsense' }, 'tool'),
     /requiere baseDir/,
+  );
+});
+
+test('resuelve provisionPath relativo y rechaza escapes', () => {
+  const root = path.resolve('workspace-raiz');
+  assert.equal(
+    resolveConfiguredProvisionPath({ provisionPath: '.quality-tools/sentinel' }, 'tool', { baseDir: root }),
+    path.resolve(root, '.quality-tools', 'sentinel'),
+  );
+  assert.throws(
+    () => resolveConfiguredProvisionPath({ provisionPath: '../cache' }, 'tool', { baseDir: root }),
+    /ruta relativa dentro del workspace/,
   );
 });

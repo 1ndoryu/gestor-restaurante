@@ -31,6 +31,17 @@ export function validateSourcePathEnv(value, label) {
   return value;
 }
 
+export function resolveConfiguredProvisionPath(config, label, options = {}) {
+  if (config.provisionPath === undefined) return null;
+  if (typeof config.provisionPath !== 'string' || config.provisionPath.length === 0 || path.isAbsolute(config.provisionPath) || path.win32.isAbsolute(config.provisionPath) || config.provisionPath.replace(/\\/g, '/').split('/').includes('..')) {
+    throw new Error(`${label}.provisionPath debe ser una ruta relativa dentro del workspace`);
+  }
+  if (typeof options.baseDir !== 'string' || options.baseDir.length === 0) {
+    throw new Error(`${label}.provisionPath requiere baseDir`);
+  }
+  return path.resolve(options.baseDir, config.provisionPath);
+}
+
 export function resolveConfiguredSourcePath(config, label, options = {}) {
   if (config.sourcePath !== undefined && config.sourcePathEnv !== undefined) {
     throw new Error(`${label}: sourcePath y sourcePathEnv son mutuamente excluyentes`);

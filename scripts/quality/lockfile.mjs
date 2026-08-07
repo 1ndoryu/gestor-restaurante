@@ -3,7 +3,7 @@ import { access, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { runProcess } from './runner.mjs';
-import { resolveConfiguredSourcePath, validateSourcePath } from './source-path.mjs';
+import { resolveConfiguredProvisionPath, resolveConfiguredSourcePath, validateSourcePath } from './source-path.mjs';
 
 const LOCK_SCHEMA_VERSION = 1;
 const LOCK_FILE = 'sentinel.lock.json';
@@ -59,6 +59,14 @@ function validateInstallRoot(value) {
 
 export async function resolveToolRoot(workspaceRoot, name, config, manifest) {
   const configuredSourcePath = resolveConfiguredSourcePath(config, `quality-tools.json.tools.${name}`, { baseDir: workspaceRoot });
+  const configuredProvisionPath = resolveConfiguredProvisionPath(config, `quality-tools.json.tools.${name}`, { baseDir: workspaceRoot });
+  if (configuredProvisionPath !== null) {
+    try {
+      return await realpath(configuredProvisionPath);
+    } catch {
+      fail(`quality-tools.json.tools.${name}.provisionPath no existe o no es resoluble; ejecuta npm run quality:setup`);
+    }
+  }
   if (configuredSourcePath !== null) {
     try {
       return await realpath(configuredSourcePath);
@@ -276,14 +284,19 @@ async function gitStatusPorcelain(toolRoot) {
   });
 }
 
-async function parentGitlinkCommit(workspaceRoot, configuredSourcePath) {
+async function parentGitlinkCommit(workspaceRoot, configuredSourcePath, staged = false) {
   const rootReal = await realpath(workspaceRoot);
   const sourceReal = await realpath(configuredSourcePath);
   const relative = path.relative(rootReal, sourceReal).replace(/\\/g, '/');
   if (!relative || relative.startsWith('../') || path.isAbsolute(relative)) return null;
-  const result = await runProcess('git', ['-C', rootReal, 'ls-tree', 'HEAD', '--', relative], { cwd: rootReal, timeoutMs: 10_000 });
+  const args = staged
+    ? ['-C', rootReal, 'ls-files', '--stage', '--', relative]
+    : ['-C', rootReal, 'ls-tree', 'HEAD', '--', relative];
+  const result = await runProcess('git', args, { cwd: rootReal, timeoutMs: 10_000 });
   if (result.code !== 0) throw new Error(`no se pudo leer el gitlink de ${relative}`);
-  const match = /^160000\s+commit\s+([a-f0-9]{40})\s+/mu.exec(result.stdout);
+  const match = staged
+    ? /^160000\s+([a-f0-9]{40})\s+0\s+/mu.exec(result.stdout)
+    : /^160000\s+commit\s+([a-f0-9]{40})\s+/mu.exec(result.stdout);
   return match?.[1] ?? null;
 }
 
@@ -328,15 +341,16 @@ export async function inspectInstalledAnalyzers(workspaceRoot, manifest) {
   if (manifest.installRoot !== undefined) validateInstallRoot(manifest.installRoot);
   for (const [name, config] of Object.entries(manifest.tools)) {
     const toolRoot = await resolveToolRoot(workspaceRoot, name, config, manifest);
+    const configuredSourcePath = resolveConfiguredSourcePath(config, `quality-tools.json.tools.${name}`, { baseDir: workspaceRoot });
+    const sourceRoot = configuredSourcePath === null ? toolRoot : await realpath(configuredSourcePath);
     const cliPath = path.join(toolRoot, config.cli);
     try {
       await access(cliPath);
     } catch {
-      throw new Error(`Falta el CLI instalado de ${name}; ejecuta npm run quality:setup`);
+      throw new Error(`Falta el CLI provisionado de ${name}; ejecuta npm run quality:setup`);
     }
-    const status = await gitStatusPorcelain(toolRoot);
+    const status = await gitStatusPorcelain(sourceRoot);
     const untrustedChanges = untrustedCheckoutChanges(status.text);
-    const configuredSourcePath = resolveConfiguredSourcePath(config, `quality-tools.json.tools.${name}`, { baseDir: workspaceRoot });
     if (configuredSourcePath !== null && config.patch !== undefined) {
       throw new Error(`${name}: sourcePath no puede combinarse con patch local`);
     }
@@ -347,7 +361,7 @@ export async function inspectInstalledAnalyzers(workspaceRoot, manifest) {
     }
     let actualPatchSha = createHash('sha256').digest('hex');
     if (untrustedChanges.length > 0) {
-      actualPatchSha = await gitDiffSha256(toolRoot);
+      actualPatchSha = await gitDiffSha256(sourceRoot);
       const patchPaths = patchSha256 ? await declaredPatchPaths(workspaceRoot, config.patch.path) : new Set();
       const changedPaths = checkoutPaths(status.text);
       const onlyDeclaredPatch = patchSha256 !== null
@@ -360,9 +374,9 @@ export async function inspectInstalledAnalyzers(workspaceRoot, manifest) {
     }
     const version = await runProcess(process.execPath, [cliPath, '--version'], { cwd: workspaceRoot, timeoutMs: 10_000 });
     if (version.code !== 0) throw new Error(`${name}: no se pudo leer la versión instalada`);
-    const revision = await runProcess('git', ['-C', toolRoot, 'rev-parse', 'HEAD'], { cwd: workspaceRoot, timeoutMs: 10_000 });
+    const revision = await runProcess('git', ['-C', sourceRoot, 'rev-parse', 'HEAD'], { cwd: workspaceRoot, timeoutMs: 10_000 });
     if (revision.code !== 0) throw new Error(`${name}: no se pudo leer el commit instalado`);
-    const sha256 = await gitArchiveSha256(toolRoot);
+    const sha256 = await gitArchiveSha256(sourceRoot);
     if (patchSha256 !== null && actualPatchSha !== patchSha256) {
       throw new Error(`${name}: patch aplicado no coincide con quality-tools.json`);
     }
@@ -371,7 +385,13 @@ export async function inspectInstalledAnalyzers(workspaceRoot, manifest) {
     }
     if (configuredSourcePath !== null) {
       const gitlink = await parentGitlinkCommit(workspaceRoot, configuredSourcePath);
-      if (!gitlink) throw new Error(`${name}: sourcePath interno no está representado por un gitlink inicializado`);
+      if (!gitlink) {
+        const stagedGitlink = await parentGitlinkCommit(workspaceRoot, configuredSourcePath, true);
+        if (stagedGitlink) {
+          throw new Error(`${name}: el gitlink está preparado en el índice (${stagedGitlink}), pero aún no está committeado en HEAD; committea el pin antes del lock/gate`);
+        }
+        throw new Error(`${name}: sourcePath interno no está representado por un gitlink en HEAD; inicializa el submódulo y committea el pin antes del lock/gate`);
+      }
       if (gitlink !== revision.stdout.trim()) throw new Error(`${name}: gitlink del workspace no coincide con el checkout instalado`);
       if (gitlink !== config.commit) throw new Error(`${name}: gitlink no coincide con quality-tools.json`);
     }

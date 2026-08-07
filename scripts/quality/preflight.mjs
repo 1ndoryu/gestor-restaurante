@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { runProcess } from './runner.mjs';
 import { loadPolicy, policyIdentity } from './policy.mjs';
 import { assertRuntimeLockHash, readLock, resolveToolRoot, verifyInstalledAnalyzers } from './lockfile.mjs';
+import { resolveConfiguredSourcePath } from './source-path.mjs';
 import { branchReportRoot, resolveBranchIdentity } from './branch-identity.mjs';
 import { normalizeReportRetention } from './report-retention.mjs';
 
@@ -39,6 +40,7 @@ async function assertTaskExists(root, taskId) {
 
 async function verifyTool(root, name, toolConfig, manifest) {
   const toolRoot = await resolveToolRoot(root, name, toolConfig, manifest);
+  const sourceRoot = resolveConfiguredSourcePath(toolConfig, `quality-tools.json.tools.${name}`, { baseDir: root });
   const cliPath = path.join(toolRoot, toolConfig.cli);
   if (!await exists(cliPath)) {
     throw new Error(`Falta ${name} ${toolConfig.version}. Ejecuta: npm run quality:setup`);
@@ -47,7 +49,8 @@ async function verifyTool(root, name, toolConfig, manifest) {
   if (version.code !== 0 || version.stdout.trim() !== toolConfig.version) {
     throw new Error(`${name} incompatible. Ejecuta: npm run quality:setup`);
   }
-  const revision = await runProcess('git', ['-C', toolRoot, 'rev-parse', 'HEAD'], { cwd: root, timeoutMs: 10_000 });
+  const revisionRoot = sourceRoot ?? toolRoot;
+  const revision = await runProcess('git', ['-C', revisionRoot, 'rev-parse', 'HEAD'], { cwd: root, timeoutMs: 10_000 });
   if (revision.code !== 0 || revision.stdout.trim() !== toolConfig.commit) {
     throw new Error(`${name} no coincide con el commit fijado. Ejecuta: npm run quality:setup`);
   }

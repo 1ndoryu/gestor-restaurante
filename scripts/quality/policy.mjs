@@ -20,7 +20,7 @@ const LEGACY_SENTINEL_KEYS = new Set(['includePatterns', 'excludePatterns', 'dir
 const LEGACY_QUALITY_KEYS = new Set(['schemaVersion', 'maxFindings', 'maxReminders', 'maxTerminalLines', 'lockWaitMs', 'maxConcurrentStages', 'timeoutsMs', 'performanceBudgets', 'heavyRun', 'reportRetention', 'fullPatterns', 'profiles', 'stageTimeBudgets', 'indexRetention', 'roadmapMaxLines']);
 const LEGACY_VARSENSE_KEYS = new Set(['variableFiles', 'includePatterns', 'excludePatterns', 'scanAllFiles', 'hardcodedDetection', 'inlineDetection', 'tokenDetection', 'bannedProperties', 'orphanClassDetection']);
 const LEGACY_TOOL_MANIFEST_KEYS = new Set(['schemaVersion', 'installRoot', 'tools']);
-const LEGACY_TOOL_KEYS = new Set(['repository', 'commit', 'version', 'outputSchemaVersion', 'buildScript', 'cli', 'testScript', 'patch', 'capabilities', 'requiredCapabilities', 'releaseRefs', 'sourcePath', 'sourcePathEnv']);
+const LEGACY_TOOL_KEYS = new Set(['repository', 'commit', 'version', 'outputSchemaVersion', 'buildScript', 'cli', 'testScript', 'patch', 'capabilities', 'requiredCapabilities', 'releaseRefs', 'sourcePath', 'sourcePathEnv', 'provisionPath']);
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
