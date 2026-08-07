@@ -64,3 +64,15 @@ tools/bdp-weblink-simulator/__pycache__/
 .freebuff/desktop-v2.db
 .freebuff/desktop-v2.db-shm
 .freebuff/
+.quality-bench/
+.sentinel/
+
+# Checkouts locales de las herramientas del quality gate (no versionar)
+sentinel.lock.json.bak
+.tmp-sentinel/
+
+# Worktree local del otro agente (task/gate-hardening) — no es parte de esta rama
+/gate-hardening/
+
+# Borrador del plan de deploy (no versionar hasta aprobado)
+/Agente/planes/plan-deploy-produccion-intuitividad-2026-08-07.md

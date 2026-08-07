@@ -17,7 +17,25 @@
     "seed": "node scripts/run-with-db.mjs run --bin seed",
     "self-check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/self-check.ps1",
     "roadmap": "node scripts/check-roadmap.mjs",
-    "roadmap:watch": "node scripts/check-roadmap.mjs --watch"
+    "roadmap:watch": "node scripts/check-roadmap.mjs --watch",
+    "quality:setup": "node scripts/quality/setup.mjs",
+    "quality:test": "node --test scripts/quality/tests/*.test.mjs",
+    "quality:guard": "node scripts/quality/heavy-run-guard.mjs --status",
+    "quality:doctor": "node scripts/quality/sentinel-doctor.mjs",
+    "quality:lock": "node scripts/quality/lock-generator.mjs",
+    "quality:cleanup": "node scripts/quality/target-maintenance.mjs --cleanup",
+    "quality:cleanup:dry": "node scripts/quality/target-maintenance.mjs --dry-run",
+    "quality:reports:cleanup": "node scripts/quality/report-cleanup.mjs --cleanup --yes",
+    "quality:reports:cleanup:dry": "node scripts/quality/report-cleanup.mjs --dry-run",
+    "task:take": "node scripts/quality/task-takeover.mjs take",
+    "task:release": "node scripts/quality/task-takeover.mjs release",
+    "task:status": "node scripts/quality/task-takeover.mjs status",
+    "quality:reports:read": "node scripts/quality/report-reader.mjs",
+    "quality:install-guard": "node scripts/quality/install-global-runtime.mjs",
+    "quality:uninstall-guard": "node scripts/quality/install-global-runtime.mjs --uninstall",
+    "task:check": "node scripts/quality/task-check.mjs",
+    "quality:profile": "node scripts/quality/quality-profile.mjs",
+    "quality:bench": "node scripts/quality/bench-baseline.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"
