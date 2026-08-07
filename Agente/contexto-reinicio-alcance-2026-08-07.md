@@ -181,6 +181,8 @@ El checkout actual ya tenía cambios ajenos a esta conversación; no deben sobre
 - La tarea de prueba Sentinel `SCOPE-PROBE-CURRENT` fue liberada y no quedó activa.
 - No se hizo commit, push ni deploy.
 
+> **Actualización posterior (mismo día):** los bloques de calidad y Sentinel cerraron con commits locales propios de esta conversación (`8502710` en el submodulo; `59d6bb24` + `b105188b` en el padre). El árbol final quedó limpio (ahead 5, sin push). Ver sección "Pendientes del gate".
+
 ## Siguiente paso recomendado
 
 1. Abrir/reiniciar el workspace con alcance en `C:\Users\Owner\OneDrive\Documentos\area-trabajo`.
@@ -228,13 +230,14 @@ La afirmación de que ampliar el alcance obligaría a mover Sentinel es incorrec
   - `medium`: 12 archivos reales (`api/bdp.ts`, `api/axios-instance.ts`, `componentes/FormularioReserva.tsx`, `componentes/ListaClientes.tsx`, `components/bdp-menu-explorer.tsx`, `components/bdp-required-setting.tsx`, `hooks/useBdpStockFilters.ts`, `stores/authStore.ts`, `lib/utils.ts`, `estilos/PlanoSala.css`, `index.css`, `vite.config.ts`) con borrado simulado (`estilos/PlanoOcupacion.css`) y rename simulado (`componentes/CalendarioReservas.tsx` → `ReservasCalendario.tsx`).
 - **Validación**: `bench-fixtures` 4 tests PASS; suite completa 230/230 PASS.
 
-### 3. Pendientes del gate→ verificar siguiente ciclo
-- Repin global: el binario runtime de Sentinel en el sistema puede reportar `--version 0.5.0` mientras el doctor dice 0.6.4 → ejecutar `sentinel update --version 0.6.4 --with-shims --with-profiles --with-path` (revisar si aplica aquí).
-- ✅ **`npm run quality:test` completo: 230 PASS / 0 FAIL / 1 skip esperado** (ejecutado el 2026-08-07).
-- Con suite verde: `node scripts/quality/doctor.mjs --json` → confirma `ready:true`.
-- Gate final: `npm run task:check -- <taskId>` (con árbol limpio; perfil completo; vigilar guard full cooldown 3h). Revisar `npm run self-check` de la sección VI del AGENTS.md para el stock.
-- Actualizar el plan `Agente/planes/plan-deploy-produccion-intuitividad-2026-08-07.md` (debe seguir en gitignore) para documentar que el gate está configurado y que la Fase 2 usa `task:check`.
-- Commit + push (regla 12, `git add` explícito, no `git add .`).
+### 3. Pendientes del gate→ estado al cierre del bloque
+- ✅ **Repin del consumidor cerrado** (extensión local de Sentinel `8502710`): `quality-tools.json` repineado, CLI re-provisionado en `.quality-tools/sentinel`, `sentinel.lock.json` regenerado; doctor `--lock` → `pass`/`match`; commits `59d6bb24` (repin) + `b105188b` (lock + fixes + docs) en `glory-rs-rest` (ahead 5, **sin push**).
+- ✅ **`npm run quality:test` completo: 230 PASS / 0 FAIL / 1 skip esperado** (ejecutado el 2026-08-07 y revalidado tras el repin).
+- ✅ Verificación del doctor: `doctor.mjs` ya no existe (migrado); el equivalente actual es `node scripts/quality/sentinel-doctor.mjs --lock` → `pass: match`, y el doctor de política → ok.
+- ⏳ **Gate final `task:check`:** pendiente de ejecutar con un task-id real (el árbol ya está limpio; perfil completo; vigilar guard full cooldown 3h). `npm run self-check` de la sección VI del AGENTS.md revisa el stock.
+- ✅ Plan de deploy actualizado: `Agente/planes/plan-deploy-produccion-intuitividad-2026-08-07.md` Fase 2 documenta que el gate está configurado y usa `task:check` (sigue en gitignore).
+- ⏳ **Repin global del binario Sentinel (0.5.0 → 0.6.4):** detectado `sentinel --version` = 0.5.0 en `%LOCALAPPDATA%\GlorySentinel`. El gate usa el CLI provisionado `.quality-tools/sentinel` 0.6.4 (por eso la suite pasa), pero el binario global del guard quedó desactualizado. Aplicar `sentinel update --version 0.6.4 --with-shims --with-profiles --with-path` requiere aprobación explícita (modifica el entorno fuera del proyecto).
+- ⏳ **Push:** los commits son locales; para publicar hay que empujar primero `tools/sentinel` (`8502710`) a `origin` y después el padre.
 
 ### 4. Limitación de edición confirmada en vivo: `str_replace` no edita archivos gitignored
 
