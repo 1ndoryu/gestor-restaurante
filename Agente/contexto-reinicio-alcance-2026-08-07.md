@@ -152,6 +152,7 @@ Se implementó la capacidad en el checkout local de `tools/sentinel` (marca `[VI
 - **Gate en worktree externo:** `repositoryRoot()` acepta worktrees vinculados cuyo top level es hermano de la raíz Git (la identidad sigue anclada al common dir); `verifyTaskWorktree`/`task gate` funcionan desde la raíz visible.
 - **Pruebas:** `taskCoordinator.test.ts` añade caso positivo (worktree creado en la raíz externa + repo limpio) y caso negativo (raíz dentro del repo rechazada). Suite completa del submodulo: **505 pass / 1 pending**; `check:core` OK; `smoke:lsp` OK; probe end-to-end OK (claim → start con `--worktrees-root` → worktree visible → gate ejecutado en la raíz externa).
 - **Docs:** `README.md` y `CHANGELOG.md` del submodulo actualizados (marcados como `[Unreleased]` — extensión local, no se declaró release `0.6.5`).
+- **Compatibilidad de metadata:** `TaskRecord` pasó a schema v2 con `worktreesRoot`. La validación es fail-closed: un registro v1 antiguo (sin el campo) se reporta como `invalidMetadata`, que `task status` diagnostica y `task recover` limpia — no hay migración silenciosa a propósito. Hoy no hay tareas activas, así que no hay registros v1 que migrar.
 
 **Cierre del consumidor (hecho):** el cambio quedó committeado en el submodulo (`8502710a`) y el gate del consumidor fue repineado y validado:
 1. `quality-tools.json`: `tools.sentinel.commit` → `8502710a` (versión manifest sigue `0.6.4`; el CLI provisionado reporta `0.6.4`).
