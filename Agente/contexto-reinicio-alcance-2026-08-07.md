@@ -105,7 +105,7 @@ La solución que debe investigarse e implementarse es distinta:
 
 ### Contrato corregido que debe implementar/documentar el flujo
 
-> **Estado:** lo siguiente es el contrato propuesto pendiente de implementación en Sentinel; no forma parte todavía de las capacidades garantizadas por `0.6.4`. En particular, `0.6.4` no tiene manifiesto de entorno, UI de autorización, provisión de entradas ignoradas ni código de `missing-task-input`.
+> **Estado:** el contrato propuesto se implementó de forma parcial en la extensión local (puntos 5, 6, 9 y parte de 8): manifiesto de entorno (`sentinel.env-manifest.json` / `--env-manifest`), provisión de `ignored-local` al worktree, `missing-task-input` y rechazo de pisar contenido tracked. Siguen pendientes: UI de autorización de archivos ignorados por tarea (punto 7, la visibilidad controlada hoy se resuelve por el manifiesto) y el resto de garantías de `integrate` (punto 8) que ya cubría la validación de worktree limpio. `0.6.4` base no tiene ninguna de estas capacidades.
 
 1. **Contexto explícito:** Sentinel debe publicar para cada tarea `projectRoot` (raíz Git del consumidor), `worktreeRoot` (ruta exacta del worktree), `taskId`, agente, rama, base/HEAD y estado de autorización. La UI debe mostrar esos valores antes de habilitar edición o gate.
 2. **Configuración disponible en la raíz:** `sentinel.config.json`, `quality-tools.json`, `sentinel.lock.json` y cualquier otra política que necesite `task gate` deben estar presentes dentro del worktree o ser entradas declaradas y provisionadas antes del gate. Si una de esas piezas es local/ignorada y no se materializa, el gate no debe apuntar silenciosamente al checkout principal: debe fallar con una dependencia ausente explícita.
@@ -138,7 +138,14 @@ La lista anterior define diez requisitos propuestos; no son IDs existentes de Se
 
 **Confirmado por inspección:** Sentinel `0.6.4` aísla ramas/worktrees, mantiene los worktrees dentro del repositorio, verifica el worktree registrado para `task gate` y no copia automáticamente archivos ignorados/untracked del checkout de origen. También se confirmó que `.sentinel/`, `.quality-tools/` y `frontend/node_modules/` están ignorados en este consumidor. No se encontró soporte actual para un worktree físicamente visible bajo `area-trabajo` ni para hacer que las herramientas ignoren selectivamente `.gitignore`.
 
-**Aún pendiente como prueba operativa:** abrir el workspace con raíz `area-trabajo`; crear un worktree físico temporal visible sin ruta externa suministrada a cada herramienta; comprobar que una búsqueda normal lo descubre y que `str_replace` modifica una sola línea; verificar en paralelo que el checkout principal sigue limpio, que otro proyecto no cambia y que Git no intenta integrar el worktree. Después repetir dentro de ese worktree con un archivo ignorado provisionado explícitamente. Hasta realizar esta prueba, no se debe afirmar que la ampliación de Freebuff ya habilita el flujo multi-carpeta ni que Sentinel ya soporta la provisión de archivos ignorados.
+**Prueba operativa EJECUTADA (2026-08-07, workspace raíz `area-trabajo`):** ✅ resultados:
+1. `str_replace` sobre un archivo en `area-trabajo` fuera de `glory-rust-template`: **funcionó** (edición de una sola línea; hipótesis confirmada — la ampliación del workspace sí habilita la edición multi-carpeta).
+2. `sentinel task start --worktrees-root ../task-worktrees` creó el worktree físicamente en `area-trabajo/task-worktrees/glory-rust-template-<identity>-PROBE-01`.
+3. Dentro del worktree, con ruta relativa al workspace (sin ruta absoluta): `read_files` **funcionó**, `str_replace` de una línea **funcionó**, y una búsqueda normal **descubrió el worktree** (encontró la marca `PROBE-01`).
+4. `write_file` sobre un archivo existente del worktree: **SOBRESCRIBIÓ sin bloquearse** (el bloqueo propuesto no existe en esta build; sigue aplicando la regla operativa: `str_replace` para cambios parciales).
+5. Archivo gitignored (`.env`) dentro del worktree: `str_replace` **falló** con “The file does not exist” — limitación confirmada; requiere provisión declarada (parte B del contrato).
+6. Checkout principal: **limpio** durante toda la prueba; `git worktree list` muestra el worktree visible pero Git no lo integra ni lo reporta como cambio.
+7. Cleanup: la ruta de abandono diseñada exige tarea expirada (TTL 6h) — se hizo teardown manual seguro del probe propio (worktree + rama + metadata + carpeta vacía). Nota de diseño: `cleanup --force`/`release` no cubren una tarea ACTIVE sin commits; considerar un flujo de abandono explícito.
 
 **Decisión provisional:** no apuntar las herramientas al checkout principal ni usar reescrituras completas como solución. La dirección preferida es un worktree físico temporal visible dentro de `area-trabajo`, con una raíz de worktrees autorizada y validada por Sentinel, exclusión local de Git separada de la visibilidad de las herramientas, provisión declarada de archivos ignorados y cleanup verificable. Antes de cambiar Sentinel hay que probar que la ubicación visible realmente permite que las herramientas encuentren y editen parcialmente un archivo sin ruta directa.
 
@@ -160,7 +167,9 @@ Se implementó la capacidad en el checkout local de `tools/sentinel` (marca `[VI
 3. `sentinel.lock.json` regenerado y verificado: doctor `--lock` → `pass`/`match`; suite `quality:test` → **230 pass / 0 fail** (1 skip esperado).
 4. Commits del padre: repin (`59d6bb24`) + cierre de gate y docs (siguiente commit).
 
-**Pendiente de publicación (cuando se quiera publicar):** empujar primero `tools/sentinel` (`8502710` y la rama `main`) a `origin` (glory-sentinel) y después el padre; si se empuja el padre sin el submodulo, el gitlink apuntaría a un commit inexistente en el remoto.
+**Contrato de entorno implementado (extensión local `9126811`):** `sentinel.env-manifest.json` (o `--env-manifest <path>`) declara entradas `tracked`, `generated`, `ignored-local`, `external` y `secret`; `task start` provisiona las `ignored-local` desde su fuente declarada (contenida en el projectRoot) dentro del worktree antes de ACTIVE. Fuente faltante → `missing-task-input` con ruta, categoría, origen y acción (y rollback del worktree sin huérfanos). `secret` no admite source; `external`/`generated` no se copian; el manifiesto no puede pisar contenido tracked; los provisionados son ignorados por Git (worktree limpio para gate/integrate). `worktree remove` usa `--force` en rollback/cleanup por los provisionados. Validación: 511 pass / 1 pending en el submódulo, e2e con CLI (provisión + missing-task-input + sin huérfanos), `check:core` OK, `smoke:lsp` OK, suite del gate 230/230.
+
+**Publicación (hecha):** `tools/sentinel` `9126811` empujado a `origin/main`; padre actualizado (repin `73fca3e5` + lock) y publicado.
 
 
 ## Sentinel
