@@ -108,7 +108,10 @@ Invariantes:
 
 - `claim` es atómico; una tarea activa ajena se respeta. Un takeover exige expiración y evidencia.
 - `start` crea una rama/worktree exclusivo, determinista y dentro de la raíz autorizada por el proyecto.
-  Rechaza árbol sucio, path ocupado, traversal, symlink/junction de escape y colisiones.
+  Por defecto esa raíz es `<repo>/.sentinel/worktrees/`; una raíz externa solo es válida si el proyecto la
+  declara explícitamente para hacer visible el worktree, y Sentinel valida identidad Git, `realpath`,
+  contención física, symlink/junction de escape, colisiones y cleanup. Nunca se acepta una ruta arbitraria.
+  Rechaza árbol sucio, path ocupado, traversal y colisiones.
 - `heartbeat` mantiene ownership durante gates largos; no se roba una tarea activa.
 - Se edita y commitea solo en el worktree de la tarea. La rama primaria queda limpia.
 - `gate` se ejecuta en el worktree registrado, con el mismo agente que hizo claim.

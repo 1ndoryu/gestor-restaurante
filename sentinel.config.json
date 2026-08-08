@@ -29,6 +29,7 @@
         "includePatterns": [
           "**/*.rs",
           "frontend/**/*.ts",
+          "frontend/**/*.tsx",
           "frontend/**/*.css",
           "scripts/**/*.mjs",
           "scripts/**/*.ps1"
@@ -40,6 +41,8 @@
           "**/target/**",
           "**/.quality-tools/**",
           "**/.quality-reports/**",
+          "**/.sentinel/**",
+          "gate-hardening/**",
           "tools/sentinel/**",
           "frontend/src/api/generated/**",
           "frontend/src/utils/dom.ts"

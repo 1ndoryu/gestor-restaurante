@@ -4,7 +4,8 @@
   ],
   "includePatterns": [
     "frontend/src/**/*.css",
-    "frontend/src/**/*.ts"
+    "frontend/src/**/*.ts",
+    "frontend/src/**/*.tsx"
   ],
   "excludePatterns": [
     "**/node_modules/**",
@@ -12,6 +13,8 @@
     "**/build/**",
     "**/.quality-tools/**",
     "**/.quality-reports/**",
+    "**/.sentinel/**",
+    "gate-hardening/**",
     "frontend/src/api/generated/**"
   ],
   "scanAllFiles": false,
