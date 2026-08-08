@@ -1,5 +1,7 @@
 # Plan de corrección de auditoría Sentinel — 2026-08-08
 
+**Tarea activa:** `048A-22`
+
 ## Objetivo
 
 Dejar `glory-rust-template` en un estado reproducible y seguro para coordinar tareas, sin perder cambios locales del submódulo ni borrar recursos de otros checkouts. El trabajo se divide entre recuperación operativa, alcance del gate y mejoras de lifecycle.
@@ -24,6 +26,14 @@ Dejar `glory-rust-template` en un estado reproducible y seguro para coordinar ta
 - Existe una única política documentada para worktrees internos/externos.
 - No quedan recursos de la tarea propia sin owner; los recursos de otros checkouts quedan intactos y documentados.
 - `quality:lock --check`, doctor y gate del consumidor pasan o dejan un fallo concreto no relacionado con esta corrección.
+
+## Checklist de cierre
+
+- [x] Identificar la divergencia entre gitlink, manifiesto y lock del consumidor.
+- [x] Corregir y publicar las regresiones reproducibles de Sentinel encontradas durante el setup.
+- [x] Repinear el consumidor al commit publicado y regenerar el lock.
+- [x] Ejecutar el gate coordinado y registrar el resultado real: el transporte ya alcanza las etapas; el gate full conserva deuda preexistente del producto y contratos cruzados pendientes, sin degradarlos a warning.
+- [ ] Integrar, limpiar worktree/metadata y liberar ambos mecanismos de ownership.
 
 ## No hacer
 

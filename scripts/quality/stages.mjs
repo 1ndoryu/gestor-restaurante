@@ -8,6 +8,7 @@ import { detectScope, manifestToScope } from './scope.mjs';
 import { readAdapterManifest, adapterStageNames, adapterEnvironmentAllowlist, assertImplementedStages, assertStageParity, materializeTransportArguments, resolveWorkspacePath, assertTaskId } from './adapter-manifest.mjs';
 import { stageDefinitions } from './stage-definitions.mjs';
 import { DEFAULT_ENV_ALLOWLIST } from './runner.mjs';
+import { sentinelStageDeclaration } from './sentinel-stage-contract.mjs';
 
 function parseArgs(argv) {
   const parsed = { taskId: null, output: null, full: false, ci: false, profile: null, reportRoot: null, scopeManifest: null };
@@ -47,7 +48,10 @@ async function main() {
   const declarations = stageNames.map(name => {
     const reportPath = resolveWorkspacePath(projectRoot, path.join(reportRoot, `${name}.json`), `report ${name}`, { allowReportRoot: true });
     const adapterArgs = materializeTransportArguments(adapter, { stage: name, reportPath, taskId: args.taskId });
-    return { name, executable: process.execPath, args: [wrapper, ...adapterArgs, ...scopeArgsForStage], expectedSchemaVersion: String(adapter.adapter.output.schemaVersion), timeoutMs: adapter.stages[name].timeoutMs, envAllowlist: context.adapterEnvironmentAllowlist, reportPath };
+    /* Sentinel es dueño del entorno seguro de las etapas. Su manifest v1 no
+     * admite una allowlist por etapa; declararla aquí rompe task gate antes
+     * de ejecutar. El adapter conserva su allowlist para procesos internos. */
+    return sentinelStageDeclaration({ name, executable: process.execPath, args: [wrapper, ...adapterArgs, ...scopeArgsForStage], expectedSchemaVersion: String(adapter.adapter.output.schemaVersion), timeoutMs: adapter.stages[name].timeoutMs, reportPath });
   });
   const outputPath = resolveWorkspacePath(projectRoot, args.output ?? path.join(reportRoot, 'stages.json'), '--output', { allowReportRoot: true });
   await mkdir(path.dirname(outputPath), { recursive: true });

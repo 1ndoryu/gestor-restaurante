@@ -10,6 +10,7 @@ import { preflight, projectRoot } from './preflight.mjs';
 import { detectScope, manifestToScope } from './scope.mjs';
 import { readAdapterManifest, adapterStageNames, manifestStageNames, adapterEnvironmentAllowlist, resolveWorkspacePath, assertTaskId } from './adapter-manifest.mjs';
 import { DEFAULT_ENV_ALLOWLIST } from './runner.mjs';
+import { sentinelTransportExitCode } from './sentinel-stage-contract.mjs';
 
 function parseArgs(argv) {
   const parsed = { reportPath: null, taskId: null, stage: null, full: false, ci: false, profile: null, scopeManifest: null };
@@ -79,11 +80,7 @@ async function main() {
   };
   await mkdir(reportRoot, { recursive: true });
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-  process.exitCode = result.status === 'error'
-    ? adapter.adapter.output.exitCodes.toolError
-    : result.status === 'fail'
-      ? adapter.adapter.output.exitCodes.findings
-      : adapter.adapter.output.exitCodes.pass;
+  process.exitCode = sentinelTransportExitCode();
 }
 
 try {
