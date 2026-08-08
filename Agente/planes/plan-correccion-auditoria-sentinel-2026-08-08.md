@@ -2,7 +2,7 @@
 
 **Tarea de planificación:** `048A-22`
 **Fecha:** 2026-08-08
-**Estado:** plan listo; implementación pendiente por fases
+**Estado:** plan activo; hotfix `00fe0c7` publicado y repin verificado, fases estructurales pendientes
 
 ## Objetivo
 
@@ -23,6 +23,27 @@ Este plan no oculta el gate rojo actual del producto ni mezcla su deuda funciona
 Sentinel.
 
 ## Evidencia confirmada el 2026-08-08
+
+### Adopción verificada de `00fe0c7`
+
+- `origin/main` de Glory Sentinel apunta a `00fe0c7e6b2ade865c7156546d0d858e34214f95`.
+- El setup aislado compiló Sentinel y obtuvo `523 passing, 1 pending`; VarSense compiló y pasó su smoke LSP.
+- El primer setup ejecutó ambas suites y provisionó artefactos, pero terminó en error porque el inspector
+  exige que el nuevo gitlink ya exista en `HEAD`. El repin actual no es atómico: necesita un commit
+  intermedio antes de poder completar setup/lock/doctor.
+- Con ese prerrequisito satisfecho, `quality:setup`, `quality:lock -- --check` y el doctor del CLI
+  provisionado pasaron. Manifest, gitlink, checkout y lock coinciden en `00fe0c7`; el release es alcanzable,
+  existe evidencia de staging limpio, no faltan capacidades y `ready` es `true`.
+- `quality:setup` captura la salida completa de suites de varios minutos y no muestra progreso durante la
+  ejecución. Debe emitir heartbeat, fase actual, tiempo restante y ruta de log para no parecer bloqueado.
+- `sentinel task gate 048A-22` volvió a fallar antes de ejecutar etapas porque invoca `check` sin
+  `--stages`; el hotfix de timeout no corrige este contrato P0.
+- El wrapper canónico del consumidor sí ejecutó el gate: Sentinel pasó con cero findings y docs conservó
+  siete findings base ajenos al repin. El reporte también recomendó tomar `048A-22` aunque la toma propia
+  estaba activa, confirmando la discrepancia de ownership entre repo raíz y worktree.
+- Al repetir el gate sobre el commit limpio, un scope de cero archivos se convirtió en `full (automatic)` y
+  ejecutó toda la deuda base de Sentinel, VarSense, Rust, frontend y docs. Esto reproduce el defecto de
+  selección de scope sin atribuir ese baseline rojo al repin.
 
 ### P0 — Contratos que pueden corromper o aceptar un cierre inválido
 
