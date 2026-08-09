@@ -29,8 +29,16 @@ export function safeEnvironment(extra = {}, allowlist = DEFAULT_ENV_ALLOWLIST) {
 
 function terminateTree(child) {
   if (!child.pid) return;
-  if (process.platform === 'win32') spawn('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], { shell: false, stdio: 'ignore', windowsHide: true });
-  else child.kill('SIGTERM');
+  if (process.platform === 'win32') {
+    /* La guarda real es child.kill(): TerminateProcess del hijo directo cierra
+     * sus pipes y resuelve `close`. taskkill /t complementa matando el árbol
+     * (shims .cmd/.bat). Antes solo se usaba taskkill, que puede no matar al
+     * hijo y deja el runner esperando los pipes para siempre. */
+    try { child.kill(); } catch { /* el hijo ya pudo cerrar */ }
+    spawn('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], { shell: false, stdio: 'ignore', windowsHide: true }).on('error', () => {});
+  } else {
+    child.kill('SIGTERM');
+  }
 }
 export function cancelAll() { for (const child of activeChildren) terminateTree(child); }
 
