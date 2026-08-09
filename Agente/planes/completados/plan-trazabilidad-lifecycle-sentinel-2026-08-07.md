@@ -200,7 +200,18 @@ El trabajo se considera completo cuando un task-id terminado puede reconstruirse
 
 **Fuera de este bloque:** UI gráfica, sincronización con Linear/Jira y limpieza automática de worktrees de otros repositorios. Se dejan como fases posteriores porque requieren contratos externos y más superficie de permisos.
 
+## 12. Verificación de cierre (2026-08-09)
+
+Verificado contra la implementación real del consumidor `glory-rs-rest`, no solo contra la documentación:
+
+- `npm run quality:lock -- --check` → `pass: match` (el lock del consumidor reproduce el manifest y el estado de los submódulos).
+- `sentinel doctor --json` → `ready: true`, sin issues; `releaseEvidencePresent: true`, checkout limpio, lock y gitlink alineados en `00fe0c7e6b2ade865c7156546d0d858e34214f95`.
+- `sentinel task status --all --json` → cero tareas activas, cero huérfanos (ramas, worktrees, físicos) y 3 entradas de historial inmutable (`048A-22` RELEASED, `048A-22` CLEANED y `066A-01` RELEASED) bajo `.sentinel/history/7a415955a7c3d121/`.
+- El gate del consumidor (repin + lock + commit + publicación) quedó completado: gitlink en `tools/sentinel` al commit local publicado y el consumidor sincronizado con `origin/glory-rs-rest`.
+
+Todas las metas del plan quedan cumplidas y verificadas; no queda trabajo dentro del alcance salvo publicar el commit documental correspondiente (requiere autorización explícita).
+
 ## Checklist de cierre
 
 - [x] Trazabilidad implementada como extensión local y validada (Mocha 519 passing / 1 pending).
-- [ ] Repin, lock, commit y publicación del gate del consumidor pendientes de aprobación (plan 048A-22).
+- [x] Repin, lock, commit y publicación del gate del consumidor verificados (2026-08-09): pin `00fe0c7`, lock match, `sentinel doctor` ready y zero recursos activos/huérfanos en `task status --all --json`.
