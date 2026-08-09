@@ -85,7 +85,14 @@ export function BdpPurchaseSyncControls({
   return (
     <div className="flex w-full flex-col gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">{count} albaranes</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm text-muted-foreground">{count} albaranes</p>
+          {purchaseProfileId && (
+            <p className="text-xs text-muted-foreground">
+              Perfil de exportación BDP: <span className="font-mono font-medium">{purchaseProfileId}</span>
+            </p>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <BdpDemoToggle demoMode={demoMode} onToggle={onToggleDemo} />
           <TooltipButton
@@ -103,9 +110,9 @@ export function BdpPurchaseSyncControls({
       </div>
       {requiresConfiguration && (
         <BdpRequiredSetting
-          title="Configura la plantilla de Compras"
-          description={profileProblem || 'BDP necesita el código de la plantilla ExportPurchaseNotes creada para albaranes. Se guarda en la Aplicación Web y esta consulta no modifica BDP.'}
-          label="Código de plantilla ExportPurchaseNotes"
+          title="Falta el perfil de exportación BDP (Compras)"
+          description={profileProblem || 'El «Perfil» que ves en BDP al exportar albaranes es el código de la plantilla ExportPurchaseNotes. Indícalo aquí; se guarda en la Aplicación Web y esta consulta no modifica BDP.'}
+          label="Perfil de exportación BDP (código de plantilla)"
           value={profileCode}
           saving={syncMutation.isPending || isSaving}
           onChange={setProfileCode}

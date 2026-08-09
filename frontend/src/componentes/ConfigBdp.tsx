@@ -7,8 +7,9 @@
  *          directamente. Selector de modo autorización integrado. */
 
 import { useState } from 'react';
-import { Activity, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Loader2, XCircle, BookOpen, Settings, Radio, Shield, ToggleLeft } from 'lucide-react';
+import { Activity, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Loader2, XCircle, BookOpen, Settings, Radio, Shield, ToggleLeft, Info } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { TooltipButton } from '@/components/ui/tooltip-button';
 import axios from '@/api/axios-instance';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -264,11 +265,13 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
           >
             {mostrarMapeos ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
             <Settings className="size-4" />
-            Correspondencias Aplicación Web ↔ BDP (solo soporte)
+            Correspondencias Glory ↔ BDP (solo soporte)
           </button>
           {!mostrarMapeos && (
             <p className="mt-1 text-xs text-muted-foreground">
-              Formas de pago, canales, artículo por defecto, cliente por defecto y exigir cliente confirmado. No debe modificarse sin verificar los valores con el restaurante.
+              Formas de pago, canales, artículo por defecto, cliente por defecto y exigir cliente confirmado.
+              Ejemplo: «efectivo» → 1, «comedor» → 1; deben coincidir con el BDP real del restaurante.
+              No debe modificarse sin verificar antes.
             </p>
           )}
           {mostrarMapeos && (
@@ -428,6 +431,14 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
             <div className="flex items-center gap-2">
               <Label htmlFor="ff-cancel-order">Cancelar comandas</Label>
               <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700">Bloqueado por BDP</Badge>
+              <TooltipButton
+                variant="ghost"
+                size="icon"
+                className="size-5"
+                tooltip="El endpoint de cancelación responde «Subscripción no activada». El módulo se habilita solo cuando BDP lo active y se compruebe con una instalación real; mientras tanto el interruptor permanece bloqueado."
+              >
+                <Info className="size-3.5 text-muted-foreground" />
+              </TooltipButton>
             </div>
             <p className="text-xs text-muted-foreground">Permitiría cancelar comandas directamente en BDP. El endpoint devuelve "Subscripción no activada" — activar solo cuando BDP habilite el módulo.</p>
           </div>

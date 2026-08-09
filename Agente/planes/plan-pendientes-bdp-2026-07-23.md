@@ -897,3 +897,8 @@ Cuando se implementen `C1`, `D4`, `D5` o cualquier feature D2, actualizar tambi�
 | `Agente/documentacion/api/bdp-integration-status-2026-06-07.md` | Estado de integración completo |
 | `Agente/usuario/auditoria-adversarial-bdp-2026-07-22.md` | Auditoría de seguridad |
 | `Agente/documentacion/bdp/riesgos-produccion-bdp-2026-07-24.md` | Evaluación de riesgos en producción tras fix ON CONFLICT |
+
+## Checklist de cierre
+
+- [x] Mitigaciones críticas R1, R5 y R14 implementadas y documentadas (247A-7).
+- [ ] Pendientes de decisión del cliente: Compras (D2), pagos parciales (D4), CancelOrder (D5, pendiente módulo BDP); reflejar en roadmap cuando se resuelvan.

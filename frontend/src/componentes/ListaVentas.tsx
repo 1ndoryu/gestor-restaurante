@@ -20,6 +20,7 @@ import VentaTableBody from '@/components/venta-table-body';
 import FormularioVenta from './FormularioVenta';
 import ReservaViewer from './ReservaViewer';
 import ColumnFilterHeader from '@/components/column-filter-header';
+import { useNavigate } from 'react-router-dom';
 
 /* [147A-F5.2] Opciones de filtro extraídas a nivel módulo para reducir line count del componente. */
 const OPCIONES_TURNO = [
@@ -59,6 +60,7 @@ const OPCIONES_ESTADO_BDP = [
 ];
 
 function ListaVentas() {
+  const navigate = useNavigate();
   const {
     filtros,
     cambiarFiltro,
@@ -110,6 +112,21 @@ function ListaVentas() {
           <Button onClick={() => setModalAbierto(true)}>+ Nueva Venta</Button>
         </div>
       </div>
+
+      {!bdpSyncEnabled && (
+        <p className="rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          Integración BDP desactivada: las columnas y acciones de BDP no se muestran.
+          El envío de comandas a BDP es automático al guardar; el botón «Reintentar» solo aparece si la
+          sincronización falla.
+          <Button
+            variant="link"
+            className="ml-1 h-auto p-0 text-xs"
+            onClick={() => navigate('/configuracion', { state: { bdpSection: 'bdp' } })}
+          >
+            Ir a Configuración BDP
+          </Button>
+        </p>
+      )}
 
       {/* [044A-9] Buscador + filtros de fecha */}
       <div className="flex flex-wrap gap-3 items-center">
@@ -293,7 +310,24 @@ function ListaVentas() {
           </div>
         </>
       ) : (
-        <p className="text-sm text-muted-foreground">No hay ventas registradas</p>
+        <div className="flex flex-col items-start gap-1.5 rounded-md border border-dashed p-4">
+          <p className="text-sm text-muted-foreground">No hay ventas registradas.</p>
+          <p className="text-xs text-muted-foreground">
+            Las comandas se crean en la Aplicación Web y se envían a BDP de forma automática. También puedes
+            usar «+ Nueva Venta» para registrar una manualmente o «Polling BDP» para traer comandas desde el
+            BDP cuando la integración esté activa.
+          </p>
+          {!bdpSyncEnabled && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-1"
+              onClick={() => navigate('/configuracion', { state: { bdpSection: 'bdp' } })}
+            >
+              Ir a Configuración BDP
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

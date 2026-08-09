@@ -168,7 +168,8 @@ Esto es lo que hay que explicarle al cliente en el borrador (sección 2) y es el
 
 1. **Roles confirmados por Wan (2026-08-08):** Wan redacta la respuesta; Guillermo es el cliente destinatario; Nakomi es el técnico que ejecutó las pruebas y revisa las dudas. El borrador (sección 2) va dirigido a Guillermo.
 2. **Envío:** asumo que el borrador + apéndice (secciones 2 y 3) se envían juntos a Guillermo tras aprobación; si se prefiere dividir en dos mensajes (respuesta ahora, respuestas a las dudas después), se ajusta.
-3. **Mejoras UI (sección 4):** asumo que este MD **planifica**; la implementación se hace en una tarea aparte (o se confirma para hacerla en esta).
+3. **Mejoras UI (sección 4):** este MD **planifica**; la implementación es parte de la ejecución del plan
+   y se hace al continuar, sin esperar confirmación ni abrir una tarea nueva para lo ya cubierto.
 4. **Deploy (sección 5):** asumo que **no se ejecuta ahora**; requiere autorización explícita, BDP online y gate `task:check` previo.
 5. **Suscripción:** confirmar quién la activa (dueño, Nakomi con el manual, o técnico BDP/WebLink) y si el dueño ya consiguió técnico.
 6. **Aviso de limpieza:** el borrador agradece a Guillermo haber avisado al dueño (hecho en el chat); confirmar si además nosotros avisamos directamente al dueño.

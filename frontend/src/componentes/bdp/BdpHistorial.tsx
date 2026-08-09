@@ -275,6 +275,11 @@ function BdpHistorial() {
             </div>
           </TabsContent>
           <TabsContent value="snapshots" className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Los snapshots son capturas de respaldo que la Aplicación Web guarda antes de cada operación
+              de escritura BDP (preparar comanda, pago, factura o cliente). Sirven para poder revisar o
+              restaurar el estado previo si algo falla.
+            </p>
             <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -289,7 +294,7 @@ function BdpHistorial() {
                   {snapshots.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
-                        No hay snapshots todavía.
+                        No hay snapshots todavía. Se crean automáticamente antes de cada operación de escritura BDP.
                       </TableCell>
                     </TableRow>
                   ) : (

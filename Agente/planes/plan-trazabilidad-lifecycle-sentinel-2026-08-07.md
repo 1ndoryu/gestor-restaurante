@@ -199,3 +199,8 @@ Validación local completada: `npm run compile`, `npm run check:core`, `npm run 
 El trabajo se considera completo cuando un task-id terminado puede reconstruirse sin consultar logs externos, `status --all` no oculta recursos coordinados huérfanos, cleanup normal deja cero recursos activos, recuperación falla cerrado ante ambigüedad y las pruebas demuestran que ninguna operación destructiva escapa del namespace autorizado.
 
 **Fuera de este bloque:** UI gráfica, sincronización con Linear/Jira y limpieza automática de worktrees de otros repositorios. Se dejan como fases posteriores porque requieren contratos externos y más superficie de permisos.
+
+## Checklist de cierre
+
+- [x] Trazabilidad implementada como extensión local y validada (Mocha 519 passing / 1 pending).
+- [ ] Repin, lock, commit y publicación del gate del consumidor pendientes de aprobación (plan 048A-22).

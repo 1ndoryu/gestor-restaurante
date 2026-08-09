@@ -199,7 +199,7 @@ function VentaRowActions({
           size="icon"
           onClick={() => onRetryBdp(v.id)}
           disabled={retryBdpPending}
-          tooltip="Reintentar sincronización BDP"
+          tooltip="El envío a BDP es automático. Este botón solo aparece si la sincronización falló; úsalo para reintentarla."
           tooltipSide="left"
         >
           <RefreshCw className={`size-4 text-blue-600 ${retryBdpPending ? 'animate-spin' : ''}`} />

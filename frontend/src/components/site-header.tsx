@@ -74,6 +74,9 @@ function BdpStatusIndicator() {
           <div className="px-2 py-1.5 text-sm font-medium">
             Integración BDP desactivada
           </div>
+          <p className="px-2 pb-1.5 text-xs text-muted-foreground">
+            Los datos y columnas de BDP no se muestran en la Aplicación Web hasta que se active la integración.
+          </p>
           <DropdownMenuSeparator />
           {credencialesOk ? (
             <DropdownMenuItem onClick={async () => {
@@ -146,6 +149,11 @@ function BdpStatusIndicator() {
         <div className="px-2 py-1.5 text-sm font-medium">
           Estado BDP: {isWrite ? 'Escritura temporal' : 'Solo lectura'}
         </div>
+        <p className="px-2 pb-1.5 text-xs text-muted-foreground">
+          {isWrite
+            ? 'Permiso temporal de escritura Aplicación Web → BDP. Tras operar, se vuelve solo a lectura sin pasos manuales.'
+            : 'Modo seguro: consultas e importaciones de BDP activas, sin escrituras.'}
+        </p>
         <DropdownMenuSeparator />
         {isWrite ? (
           <DropdownMenuItem onClick={desactivarEscritura} disabled={isChangingMode}>

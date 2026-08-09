@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { customInstance } from '@/api/axios-instance';
 import type { Cliente } from '@/api/generated';
+import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
 
 function ListaClientes() {
   const {
@@ -43,6 +44,12 @@ function ListaClientes() {
     setModalMerge,
     mergeMut,
   } = useListaClientes();
+
+  /* Estado de integración BDP para el aviso de «Importar BDP» (duda 3/8 de Guillermo). */
+  const { data: configData } = useObtenerConfiguracion();
+  const bdpSyncEnabled = configData?.status === 200
+    ? Boolean((configData.data as unknown as Record<string, unknown>).bdp_sync_enabled ?? false)
+    : false;
 
   /* [263A-26] En el diálogo de merge el usuario elige quién sobrevive (destino) */
   const [destinoId, setDestinoId] = useState<string | null>(null);
@@ -132,6 +139,14 @@ function ListaClientes() {
           <Button onClick={() => setModalCrear(true)}>+ Nuevo Cliente</Button>
         </div>
       </div>
+
+      {!bdpSyncEnabled && (
+        <p className="rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          Integración BDP desactivada: «Importar BDP» solo lee de BDP (no escribe clientes en BDP),
+          pero conviene activar la integración en Configuración para que los vínculos se mantengan
+          coherentes con el resto de la Aplicación Web.
+        </p>
+      )}
 
       <Input
         type="search"

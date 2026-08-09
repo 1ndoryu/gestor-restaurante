@@ -226,3 +226,8 @@ Fase 4 (Bloque D): D1 si se aprueba (~2-8h según opción)
 ✅ Fases 1, 2, 3 (C1 + C2 + XT1 + XT2) y 4 (stock) implementadas en 237A-3, 237A-4 y 247A-1.
 C1 (auto-arming), C2 (toggle navbar), XT1 (throttling) y XT2 (feature flags) ya están en el código.
 Pendientes de decisión del usuario: compras (D2), bidireccional (D4), pagos parciales (D5), CancelOrder (pendiente activación módulo BDP).
+
+## Checklist de cierre
+
+- [x] Bloque A (A1-A4), Bloque B (B1-B2), C1, C2, XT1 y XT2 implementados (237A-3/237A-4/247A-1/267A-4).
+- [ ] Pendientes de decisión del usuario: Compras (D2), bidireccional (D4), pagos parciales (D5) y CancelOrder.

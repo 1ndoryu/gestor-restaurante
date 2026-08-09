@@ -54,3 +54,8 @@ Hacer `.planoCanvasContent` **position: absolute**. Elementos absolute:
 4. CSS: `.planoOcupacionCanvas` → `position: relative; overflow: hidden;`
 5. JSX: Quitar `width` y `height` inline del content div (no necesitan constrainir nada, son absolute)
 6. Verificar que mesas absolute-in-absolute siguen funcionando
+
+## Checklist de cierre
+
+- [ ] Aplicar la solución definitiva (cambios CSS/JSX 1-6) y validar mesas y ocupación en local.
+- [x] Root cause documentado y causa de desbordamiento confirmada.

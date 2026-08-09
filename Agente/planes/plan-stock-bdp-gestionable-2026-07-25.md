@@ -134,3 +134,10 @@ Permitir actualizar stock en BDP vía `UpdateStock`/`Regularizations`.
 | Type-check, build y revisiones | ~1h |
 | Documentación del plan | ~30min |
 | **Total** | **~4.5h** |
+
+## Checklist de cierre
+
+- [x] Página `/bdp/stock` solo lectura con filtros, ordenación, paginación y CSV implementada.
+- [x] Type-check y build del frontend validados.
+- [x] Roadmap actualizado (UI4 y S2 a "Implementado (solo lectura)").
+- [ ] Opcional pendiente de cliente: Opción A (desglose por almacén) u Opción B (gestión con escritura).
