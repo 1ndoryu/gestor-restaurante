@@ -19,7 +19,7 @@ Rama: glory-rs-rest
 
 ## Notas de infraestructura
 
-- **Sentinel (2026-08-10)**: re-pinado a la release coordinada **0.7.0** (`a804c0d`, `main` + tag `v0.7.0`); lock regenerado, `quality:lock --check` y doctor PASS, suite 232 pass. La release integra la auditoría 108A-1 (contratos CLI, init, ADR 0001, seguridad/concurrencia) sobre 0.6.4. El stage `custom` local (15 reglas migradas al Core + 2 observe-only P1) sigue pendiente de retirada (guard de archivos del cliente).
+- **Sentinel (2026-08-10)**: re-pinado a la release coordinada **0.7.0** (`a804c0d`, `main` + tag `v0.7.0`); lock regenerado, `quality:lock --check` y doctor PASS, suite 232 pass. La release integra la auditoría 108A-1 (contratos CLI, init, ADR 0001, seguridad/concurrencia) sobre 0.6.4. El stage `custom` local fue retirado (commit `f13d0e16`): 15 reglas migradas al Core, 2 observe-only P1 con destino declarado en roadmap-sentinel.
 - **restaurante.wandori.us**: Coolify service `glory-rest`, UUID `b8s0cks444o0sogo8kg8wcgw`
 - **Deploy**: Siempre via coolify-manager-rs (`deploy --name glory-rest --update`), nunca desde Coolify UI
 - **Branch**: `glory-rs-rest`
