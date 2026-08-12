@@ -34,6 +34,7 @@
     "quality:install-guard": "node scripts/quality/install-global-runtime.mjs",
     "quality:uninstall-guard": "node scripts/quality/install-global-runtime.mjs --uninstall",
     "task:check": "node scripts/quality/task-check.mjs",
+    "gate:check": "node scripts/quality/gate-check.mjs",
     "quality:profile": "node scripts/quality/quality-profile.mjs",
     "quality:bench": "node scripts/quality/bench-baseline.mjs"
   },
