@@ -5,9 +5,10 @@ Rama: glory-rs-rest
 `2.2.1` (`88f281f9`) están publicados, fijados en `quality-tools.json` y verificados por
 `quality:lock --check` + `sentinel doctor --json`. `gate:check` es ahora el wrapper canónico
 que delega en `sentinel check --stages`; `task:check` queda como alias de compatibilidad. La
-primera comprobación docs de este checkout sigue mostrando 5 hallazgos preexistentes de
-`broadcast-mutex-riesgo-rs` en `src/`; se conserva como deuda funcional separada y no se
-oculta cambiando la severidad ni borrando la regla.
+primera comprobación docs de este checkout mostró 5 hallazgos preexistentes de
+`broadcast-mutex-riesgo-rs` en `src/`. El proyecto los mantiene como warning explícito porque
+`tokio::sync::broadcast` es la abstracción intencional para fanout SSE; los hallazgos siguen visibles
+en el reporte y la regla no se borra ni se desactiva.
 
 ## Stack
 

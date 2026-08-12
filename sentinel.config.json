@@ -102,6 +102,9 @@
           "axum-ruta-sintaxis-rs": {
             "severidad": "error"
           },
+          "broadcast-mutex-riesgo-rs": {
+            "severidad": "warning"
+          },
           "unsafe-process-shell": {
             "severidad": "error"
           },
