@@ -1,6 +1,14 @@
 ﻿Objetivo: Sistema de restaurante con integración BDP (WebLink). Backend Rust (Axum) + React SPA.
 Rama: glory-rs-rest
 
+**Seguimiento de quality gate (2026-08-12):** Sentinel `0.7.1` (`b22c8484`) y VarSense
+`2.2.1` (`88f281f9`) están publicados, fijados en `quality-tools.json` y verificados por
+`quality:lock --check` + `sentinel doctor --json`. `gate:check` es ahora el wrapper canónico
+que delega en `sentinel check --stages`; `task:check` queda como alias de compatibilidad. La
+primera comprobación docs de este checkout sigue mostrando 5 hallazgos preexistentes de
+`broadcast-mutex-riesgo-rs` en `src/`; se conserva como deuda funcional separada y no se
+oculta cambiando la severidad ni borrando la regla.
+
 ## Stack
 
 | Capa          | Herramienta                    |
