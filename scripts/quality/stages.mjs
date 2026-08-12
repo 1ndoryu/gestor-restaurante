@@ -44,7 +44,15 @@ async function main() {
   assertStageParity(stageNames, implementedNames);
   const reportRoot = resolveWorkspacePath(projectRoot, args.reportRoot ?? path.join(context.reportRoot, '..', 'check', 'stages'), '--report-root', { allowReportRoot: true });
   const wrapper = resolveWorkspacePath(projectRoot, adapter.transport.entrypoint, 'adapter.transport.entrypoint');
-  const scopeArgsForStage = scopeManifestPath ? ['--scope-manifest', scopeManifestPath] : [];
+  /* Keep the child's scope selector identical to the planner. An explicit
+   * profile must survive transport even when the changed files would not
+   * rediscover that profile during the incremental run. */
+  const scopeArgsForStage = [
+    ...(scopeManifestPath ? ['--scope-manifest', scopeManifestPath] : []),
+    ...(args.profile ? ['--profile', args.profile] : []),
+    ...(args.full ? ['--full'] : []),
+    ...(args.ci ? ['--ci'] : []),
+  ];
   const declarations = stageNames.map(name => {
     const reportPath = resolveWorkspacePath(projectRoot, path.join(reportRoot, `${name}.json`), `report ${name}`, { allowReportRoot: true });
     const adapterArgs = materializeTransportArguments(adapter, { stage: name, reportPath, taskId: args.taskId });
