@@ -184,5 +184,3 @@ const isEntryPoint = typeof process.argv[1] === 'string'
 if (isEntryPoint) {
   try { await main(); } catch (error) { process.stderr.write(`[gate:check] ERROR — ${error instanceof Error ? error.message : String(error)}\n`); process.exitCode = 2; }
 }
-
-
