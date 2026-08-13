@@ -3,7 +3,7 @@
  * [157A-7] F9.1: upsert_from_bdp() para sync enriquecida de catálogo. */
 
 use rust_decimal::Decimal;
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use tracing::warn;
 use uuid::Uuid;
 
@@ -395,6 +395,114 @@ impl BdpArticleMapRepository {
         .await?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    /* [128A-1/F3] Ajuste manual de stock local (entrada/salida) con auditoría.
+     * Fuente de verdad del stock local: `bdp_article_stock` (por almacén).
+     * `bdp_article_map.stock_actual` sigue siendo el snapshot BDP de solo
+     * lectura y NO se toca aquí.
+     *
+     * Idempotencia (decisión F3, patrón C1): si viene `idempotency_key`, el
+     * INSERT de auditoría usa ON CONFLICT ... DO NOTHING. Si ya existía una
+     * entrada con esa clave, se devuelve (fila_existente, resultado_previo)
+     * sin aplicar el delta de nuevo; el handler decide entre éxito idempotente
+     * (resultado == 'exito') o 409 Conflicto. Los delta e insert de stock se
+     * ejecutan SOLO cuando la auditoría se inserta por primera vez.
+     *
+     * Retorna (BdpArticleStock, audit_id, resultado_previo).
+     */
+    pub async fn ajustar_stock(
+        pool: &PgPool,
+        user_id: Uuid,
+        articulo_glory_codigo: &str,
+        delta: Decimal,
+        motivo: &str,
+        warehouse_id: Option<&str>,
+        idempotency_key: Option<&str>,
+    ) -> Result<(crate::models::BdpArticleStock, Uuid, Option<String>), sqlx::Error> {
+        let mut tx = pool.begin().await?;
+
+        let warehouse = warehouse_id.unwrap_or("0");
+        let audit_payload = serde_json::json!({
+            "articulo_glory_codigo": articulo_glory_codigo,
+            "delta": delta,
+            "motivo": motivo,
+            "warehouse_id": warehouse,
+        });
+
+        let maybe_audit_id: Option<Uuid> = sqlx::query_scalar(
+            r"INSERT INTO bdp_audit_log
+               (user_id, operacion, direccion, datos_enviados, resultado,
+                target_entity_type, target_entity_id, authorization_reason, idempotency_key)
+               VALUES ($1, 'stock_ajuste', 'internal', $2, 'exito', 'articulo', NULL, $3, $4)
+               ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+               RETURNING id",
+        )
+        .bind(user_id)
+        .bind(audit_payload)
+        .bind(format!(
+            "Ajuste manual de stock local ({motivo}) — operación interna, no requiere autorización BDP"
+        ))
+        .bind(idempotency_key)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let Some(audit_id) = maybe_audit_id else {
+            let (existing_id, resultado): (Uuid, String) = sqlx::query_as(
+                "SELECT id, resultado FROM bdp_audit_log WHERE user_id = $1 AND idempotency_key = $2",
+            )
+            .bind(user_id)
+            .bind(idempotency_key.unwrap_or_default())
+            .fetch_one(&mut *tx)
+            .await?;
+            let stock = Self::get_stock_tx(&mut tx, user_id, articulo_glory_codigo, warehouse)
+                .await?
+                .ok_or(sqlx::Error::RowNotFound)?;
+            return Ok((stock, existing_id, Some(resultado)));
+        };
+
+        /* INSERT ... ON CONFLICT DO UPDATE con EXCLUDED.delta como valor:
+         * en el ON CONFLICT de PostgreSQL no se puede referenciar la fila
+         * objetivo dentro de VALUES, así que se pasa el delta en la columna
+         * stock y la suma se hace contra la fila existente. */
+        let stock = sqlx::query_as::<_, crate::models::BdpArticleStock>(
+            "INSERT INTO bdp_article_stock \
+                (id, user_id, articulo_glory_codigo, warehouse_id, warehouse_name, stock, created_at, updated_at) \
+             VALUES ($1, $2, $3, $4, 'General', $5, NOW(), NOW()) \
+             ON CONFLICT (user_id, articulo_glory_codigo, warehouse_id) DO UPDATE SET \
+                stock = bdp_article_stock.stock + EXCLUDED.stock, \
+                warehouse_name = EXCLUDED.warehouse_name, \
+                updated_at = NOW() \
+             RETURNING *",
+        )
+        .bind(Uuid::new_v4())
+        .bind(user_id)
+        .bind(articulo_glory_codigo)
+        .bind(warehouse)
+        .bind(delta)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        Ok((stock, audit_id, None))
+    }
+
+    async fn get_stock_tx(
+        tx: &mut Transaction<'_, Postgres>,
+        user_id: Uuid,
+        articulo_glory_codigo: &str,
+        warehouse_id: &str,
+    ) -> Result<Option<crate::models::BdpArticleStock>, sqlx::Error> {
+        sqlx::query_as::<_, crate::models::BdpArticleStock>(
+            "SELECT * FROM bdp_article_stock \
+             WHERE user_id = $1 AND articulo_glory_codigo = $2 AND warehouse_id = $3",
+        )
+        .bind(user_id)
+        .bind(articulo_glory_codigo)
+        .bind(warehouse_id)
+        .fetch_optional(&mut **tx)
+        .await
     }
 }
 

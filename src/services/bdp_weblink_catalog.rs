@@ -12,6 +12,11 @@ pub const BDP_PATH_SERVICE_GET_VERSION: &str = "/Service/GetVersion";
 pub const BDP_PATH_AUTH_LOGIN: &str = "/Auth/Login";
 pub const BDP_PATH_EXPORT_ARTICLES: &str = "/API/Articles/Export";
 pub const BDP_PATH_GET_POS_ARTICLES: &str = "/API/Articles/GetPOSList";
+/* [128A-1/F3] N6: stock por artículo/almacén (path especulativo — el manual
+ * WEBLINK RESTAPI.md documenta /API/Warehouse/GetStock y GetListStock; se
+ * marcan como especulativos hasta contrastar contra un BDP real). */
+pub const BDP_PATH_GET_STOCK: &str = "/API/Warehouse/GetStock";
+pub const BDP_PATH_GET_LIST_STOCK: &str = "/API/Warehouse/GetListStock";
 pub const BDP_PATH_EXPORT_CUSTOMERS: &str = "/API/Customers/Export";
 pub const BDP_PATH_CREATE_CUSTOMER: &str = "/API/Customers/Create";
 pub const BDP_PATH_CREATE_ORDER: &str = "/API/Orders/Create";
@@ -204,6 +209,20 @@ pub const BDP_ENDPOINTS: &[BdpEndpointSpec] = &[
         area: BdpEndpointArea::Articulos,
         path: BDP_PATH_GET_PRICES_ARTICLES,
         purpose: "precios de venta de un articulo",
+    },
+    /* [128A-1/F3] N6: stock por artículo/almacén. Paths especulativos
+     * (documentados en WEBLINK RESTAPI.md) — sin UI ni bloqueo standalone. */
+    BdpEndpointSpec {
+        name: "GetStock",
+        area: BdpEndpointArea::Articulos,
+        path: BDP_PATH_GET_STOCK,
+        purpose: "stock de un articulo en un almacen",
+    },
+    BdpEndpointSpec {
+        name: "GetListStock",
+        area: BdpEndpointArea::Articulos,
+        path: BDP_PATH_GET_LIST_STOCK,
+        purpose: "stock de varios articulos en un almacen",
     },
     BdpEndpointSpec {
         name: "GetRoomTables",
@@ -741,6 +760,71 @@ pub struct BdpGetPricesArticlesResponse {
     pub prices: Vec<Decimal>,
     #[serde(default, alias = "Disconts")]
     pub discounts: Vec<Decimal>,
+    #[serde(default)]
+    pub error_message: String,
+}
+
+/* [128A-1/F3] N6: GetStock — stock de un artículo en un almacén.
+ * Path: POST /API/Warehouse/GetStock (especulativo, manual WEBLINK).
+ * Input: { "Article": 1001, "Altern": 0, "Store": 1 }
+ * Output: { "Stock": 0.0, "ErrorMessage": "" } */
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetStockRequest {
+    pub article: i64,
+    pub altern: i32,
+    pub store: i32,
+}
+
+/// Respuesta tipada de `POST /API/Warehouse/GetStock`.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetStockResponse {
+    #[serde(default)]
+    pub stock: Decimal,
+    #[serde(default)]
+    pub error_message: String,
+}
+
+/* [128A-1/F3] N6: GetListStock — stock de varios artículos en un almacén.
+ * Path: POST /API/Warehouse/GetListStock (especulativo, manual WEBLINK).
+ * Input: { "Store": 1, "Articles": [{ "Article": 1001, "Altern": 0 }, ...] }
+ * Output: { "Stock": [{ "Article": 1001, "Altern": 0, "Units": 0.0,
+ *           "ErrorMessage": "" }, ...], "ErrorMessage": "" } */
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetListStockRequest {
+    pub store: i32,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub articles: Vec<BdpListStockItemRequest>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpListStockItemRequest {
+    pub article: i64,
+    pub altern: i32,
+}
+
+/// Un artículo en la respuesta de `GetListStock`.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpListStockItemResponse {
+    pub article: i64,
+    #[serde(default)]
+    pub altern: i32,
+    #[serde(default)]
+    pub units: Decimal,
+    #[serde(default)]
+    pub error_message: String,
+}
+
+/// Respuesta tipada de `POST /API/Warehouse/GetListStock`.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetListStockResponse {
+    #[serde(default)]
+    pub stock: Vec<BdpListStockItemResponse>,
     #[serde(default)]
     pub error_message: String,
 }

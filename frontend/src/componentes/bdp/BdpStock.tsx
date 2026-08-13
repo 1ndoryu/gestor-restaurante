@@ -1,27 +1,37 @@
-/* [BDP-STOCK-03] Página de stock BDP — solo lectura.
+/* [BDP-STOCK-03] Página de stock BDP.
  * Estructura coherente con ListaVentas/ListaGastos/ListaReservas.
- * Añadido modo demo para visualizar datos de prueba sin conexión a BDP. */
+ * Añadido modo demo para visualizar datos de prueba sin conexión a BDP.
+ * [128A-1/F3] Stock local editable: merge de `stock_actual` (snapshot BDP,
+ * solo lectura) con `bdp_article_stock` (stock local por almacén, fuente de
+ * verdad editable). Botón "Ajustar" por fila → modal delta/motivo. */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Search,
   Package,
-  AlertCircle,
   ChevronDown,
   ChevronUp,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useListarArticleMaps } from '@/api/generated/bdp-mapeos/bdp-mapeos';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useBdpStockFilters } from '@/hooks/useBdpStockFilters';
 import { useBdpDemoMode } from '@/hooks/useBdpDemoMode';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { useBdpArticleStock, useAjustarBdpArticleStock } from '@/api/bdp';
 import { formatPrice, formatStock, formatDate, exportToCsv, PAGE_SIZES, type SortKey } from './bdp-stock-utils';
 import { mockArticleMaps } from './bdp-mocks';
 import { BdpStockActions } from './BdpStockActions';
+import type { BdpArticleMap } from '@/api/generated/gestionRestauranteAPI.schemas';
 
 function TableSkeleton() {
   return (
@@ -33,28 +43,132 @@ function TableSkeleton() {
   );
 }
 
-function ReadOnlyBanner() {
+/* [128A-1/F3] Modal de ajuste manual de stock local. */
+function AjustarStockDialog({
+  articulo,
+  open,
+  onOpenChange,
+  onGuardar,
+  pending,
+}: {
+  articulo: BdpArticleMap | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onGuardar: (delta: string, motivo: string) => void;
+  pending: boolean;
+}) {
+  const [delta, setDelta] = useState('');
+  const [motivo, setMotivo] = useState('');
+  const [ultimoArticuloKey, setUltimoArticuloKey] = useState<string | null>(null);
+
+  const deltaNum = Number(delta);
+  const deltaValido = delta.trim() !== '' && Number.isFinite(deltaNum) && deltaNum !== 0;
+
+  /* [128A-1/F3] Reset del formulario cuando cambia el artículo del modal. */
+  const articuloKey = articulo?.id ?? 'none';
+  if (ultimoArticuloKey !== articuloKey) {
+    setDelta('');
+    setMotivo('');
+    setUltimoArticuloKey(articuloKey);
+  }
+
   return (
-    <div className="rounded-lg border bg-muted/50 p-3 text-sm">
-      <div className="flex items-start gap-3">
-        <AlertCircle className="size-4 shrink-0 text-muted-foreground" />
-        <div>
-          <p className="text-muted-foreground">
-            Vista solo lectura del stock BDP. Para ajustar inventario, usa el TPV/BDP.
-          </p>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Ajustar stock de {articulo?.articulo_glory_codigo ?? ''}</DialogTitle>
+          <DialogDescription>
+            Entrada (delta positivo) o salida (delta negativo) de stock local.
+            El stock BDP (snapshot) no se modifica.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-2">
+          <div className="grid gap-2">
+            <Label htmlFor="ajuste-delta">Cantidad (delta)</Label>
+            <Input
+              id="ajuste-delta"
+              type="number"
+              step="any"
+              placeholder="Ej: 5 o -3"
+              value={delta}
+              onChange={(e) => setDelta(e.target.value)}
+            />
+            {!deltaValido && delta.trim() !== '' && (
+              <p className="text-xs text-destructive">El delta debe ser un número distinto de cero.</p>
+            )}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="ajuste-motivo">Motivo</Label>
+            <Textarea
+              id="ajuste-motivo"
+              placeholder="Ej: entrada de mercancía, merma, conteo..."
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              maxLength={255}
+            />
+          </div>
         </div>
-      </div>
-    </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">Cancelar</Button>
+          </DialogClose>
+          <Button
+            onClick={() => onGuardar(delta, motivo)}
+            disabled={pending || !deltaValido || motivo.trim() === ''}
+          >
+            Guardar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function BdpStock() {
+  const queryClient = useQueryClient();
   const { demoMode, setDemoMode } = useBdpDemoMode();
   const { data, isLoading, error: listError } = useListarArticleMaps({
     query: { enabled: !demoMode },
   });
+  const stockLocalQuery = useBdpArticleStock(!demoMode);
+  const ajustarMutation = useAjustarBdpArticleStock(queryClient);
   const apiRows = data?.status === 200 ? data.data : [];
   const mapeos = demoMode ? mockArticleMaps : apiRows;
+  const stockLocal = stockLocalQuery.data ?? [];
+
+  /* [128A-1/F3] Merge: el stock local (bdp_article_stock) manda sobre el
+   * snapshot BDP (stock_actual). El badge indica el origen del valor. */
+  const stockPorCodigo = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of stockLocal) {
+      map.set(s.articulo_glory_codigo, s.stock);
+    }
+    return map;
+  }, [stockLocal]);
+
+  const [ajustarArticulo, setAjustarArticulo] = useState<BdpArticleMap | null>(null);
+  const [ajusteOpen, setAjusteOpen] = useState(false);
+
+  function guardarAjuste(delta: string, motivo: string) {
+    if (!ajustarArticulo) return;
+    ajustarMutation.mutate(
+      {
+        articulo_glory_codigo: ajustarArticulo.articulo_glory_codigo,
+        delta,
+        motivo,
+        idempotency_key: `ajuste-${ajustarArticulo.id}-${Date.now()}`,
+      },
+      {
+        onSuccess: () => {
+          toast.success(`Stock ajustado para ${ajustarArticulo.articulo_glory_codigo}`);
+          setAjusteOpen(false);
+          setAjustarArticulo(null);
+        },
+        onError: () => toast.error('Error al ajustar el stock'),
+      },
+    );
+  }
+
   const lastSync = useMemo(() => {
     if (!mapeos.length) return null;
     const dates = mapeos.map((m) => m.ultima_sync_at).filter(Boolean) as string[];
@@ -119,7 +233,16 @@ function BdpStock() {
         onExport={handleExport}
       />
 
-      <ReadOnlyBanner />
+      <AjustarStockDialog
+        articulo={ajustarArticulo}
+        open={ajusteOpen}
+        onOpenChange={(open) => {
+          setAjusteOpen(open);
+          if (!open) setAjustarArticulo(null);
+        }}
+        onGuardar={guardarAjuste}
+        pending={ajustarMutation.isPending}
+      />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-wrap gap-3 items-center">
@@ -201,11 +324,14 @@ function BdpStock() {
                   <TableHead className="cursor-pointer" onClick={() => handleSort('stock_actual')}>
                     <span className="flex items-center gap-1">Stock <SortIcon column="stock_actual" /></span>
                   </TableHead>
+                  <TableHead>Ajustar</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginated.map((m) => {
-                  const stock = formatStock(m.stock_actual);
+                  const stockLocalVal = stockPorCodigo.get(m.articulo_glory_codigo);
+                  const origen = stockLocalVal !== undefined ? 'local' : 'bdp';
+                  const stock = formatStock(stockLocalVal ?? m.stock_actual);
                   return (
                     <TableRow key={m.id}>
                       <TableCell className="font-mono text-xs">{m.articulo_glory_codigo || '—'}</TableCell>
@@ -214,13 +340,31 @@ function BdpStock() {
                       <TableCell className="text-xs tabular-nums">{formatPrice(m.precio_tarifa1)}</TableCell>
                       <TableCell>
                         {stock.hasStock ? (
-                          <Badge variant="secondary" className="gap-1">
-                            <Package className="size-3" />
-                            {stock.text}
-                          </Badge>
+                          <span className="inline-flex items-center gap-1">
+                            <Badge variant={origen === 'local' ? 'secondary' : 'outline'} className="gap-1">
+                              <Package className="size-3" />
+                              {stock.text}
+                            </Badge>
+                            <Badge variant={origen === 'local' ? 'secondary' : 'outline'}>
+                              {origen}
+                            </Badge>
+                          </span>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setAjustarArticulo(m);
+                            setAjusteOpen(true);
+                          }}
+                        >
+                          <SlidersHorizontal className="size-3" />
+                          Ajustar
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );

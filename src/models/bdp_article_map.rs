@@ -89,6 +89,24 @@ pub struct BdpArticleStock {
     pub updated_at: DateTime<Utc>,
 }
 
+/* [128A-1/F3] Request para ajustar stock local de un artículo (entrada/salida).
+ * Fuente de verdad del stock local: `bdp_article_stock`. `stock_actual` de
+ * `bdp_article_map` es el snapshot BDP (solo lectura) y nunca se pisa.
+ * `delta` puede ser negativo (salida). La idempotency_key opcional deduplica
+ * reintentos del mismo ajuste (patrón C1: ON CONFLICT en bdp_audit_log). */
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct AjustarBdpArticleStockRequest {
+    #[validate(length(min = 1, max = 100, message = "Código Glory requerido (max 100)"))]
+    pub articulo_glory_codigo: String,
+    pub delta: Decimal,
+    #[validate(length(min = 1, max = 255, message = "Motivo requerido (max 255)"))]
+    pub motivo: String,
+    #[validate(length(max = 50, message = "warehouse_id max 50"))]
+    pub warehouse_id: Option<String>,
+    #[validate(length(max = 100, message = "idempotency_key max 100"))]
+    pub idempotency_key: Option<String>,
+}
+
 /// Request para actualizar un mapeo de artículo (PATCH parcial)
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct ActualizarBdpArticleMapRequest {

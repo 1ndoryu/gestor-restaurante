@@ -1,6 +1,7 @@
 /* [F1.5] Handlers CRUD para mapeos de artículos Glory → BDP.
  * GET    /api/bdp/article-maps              — listar todos los mapeos
  * POST   /api/bdp/article-maps              — crear/upsert un mapeo
+ * POST   /api/bdp/article-stock/ajustar      — ajuste manual de stock local (F3)
  * POST   /api/bdp/article-maps/import-catalog — importar catálogo desde BDP
  * POST   /api/bdp/article-maps/sync-catalog   — sync enriquecida F9.1
  * POST   /api/bdp/article-maps/sync-prices    — refresh precios F9.3
@@ -23,7 +24,8 @@ use validator::Validate;
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::models::{
-    ActualizarBdpArticleMapRequest, BdpArticleMap, BdpArticleStock, CrearBdpArticleMapRequest,
+    ActualizarBdpArticleMapRequest, AjustarBdpArticleStockRequest, BdpArticleMap, BdpArticleStock,
+    CrearBdpArticleMapRequest,
 };
 use crate::repositories::BdpArticleMapRepository;
 use crate::services::bdp_weblink_catalog::{
@@ -47,7 +49,10 @@ pub fn routes() -> Router<AppState> {
             "/bdp/article-maps",
             get(listar_article_maps).post(crear_article_map),
         )
-        .route("/bdp/article-stock", get(listar_article_stock))
+        .route(
+            "/bdp/article-stock",
+            get(listar_article_stock).post(ajustar_stock),
+        )
         .route(
             "/bdp/article-maps/import-catalog",
             axum::routing::post(importar_catalogo),
@@ -107,6 +112,61 @@ pub async fn listar_article_stock(
     auth: AuthUser,
 ) -> Result<Json<Vec<BdpArticleStock>>, AppError> {
     let stock = BdpArticleMapRepository::listar_stock(&state.pool, auth.user_id, None).await?;
+    Ok(Json(stock))
+}
+
+/* [128A-1/F3] Ajuste manual de stock local. Funciona sin BDP: escribe en
+ * `bdp_article_stock` (fuente de verdad local por almacén) y audita en
+ * `bdp_audit_log` (operacion='stock_ajuste', direccion='internal').
+ * `bdp_article_map.stock_actual` (snapshot BDP) nunca se pisa. */
+#[utoipa::path(
+    post,
+    path = "/api/bdp/article-stock/ajustar",
+    tag = "BDP Mapeos",
+    request_body = AjustarBdpArticleStockRequest,
+    responses(
+        (status = 200, description = "Stock ajustado", body = BdpArticleStock),
+        (status = 401, description = "No autorizado", body = ErrorResponse),
+        (status = 409, description = "Idempotency key ya usada con otro resultado", body = ErrorResponse),
+        (status = 422, description = "Error de validación", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn ajustar_stock(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(req): Json<AjustarBdpArticleStockRequest>,
+) -> Result<Json<BdpArticleStock>, AppError> {
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+    if req.delta == rust_decimal::Decimal::ZERO {
+        return Err(AppError::Validation(
+            "delta no puede ser cero (usa un valor positivo o negativo)".into(),
+        ));
+    }
+
+    let (stock, _audit_id, resultado_previo) = BdpArticleMapRepository::ajustar_stock(
+        &state.pool,
+        auth.user_id,
+        &req.articulo_glory_codigo,
+        req.delta,
+        &req.motivo,
+        req.warehouse_id.as_deref(),
+        req.idempotency_key.as_deref(),
+    )
+    .await?;
+
+    /* [128A-1/F3] Idempotencia: un reintento con la misma clave y resultado
+     * previo 'exito' es un éxito idempotente (patrón ventas.rs C1-6); si la
+     * clave ya se usó con otro resultado, es un conflicto. */
+    if let Some(resultado) = resultado_previo {
+        if resultado != "exito" {
+            return Err(AppError::Conflict(format!(
+                "idempotency_key ya usada (resultado previo: {resultado})"
+            )));
+        }
+    }
+
     Ok(Json(stock))
 }
 

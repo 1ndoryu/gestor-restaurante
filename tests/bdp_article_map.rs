@@ -9,6 +9,7 @@ use glory_backend::models::{ActualizarBdpArticleMapRequest, CrearBdpArticleMapRe
 use glory_backend::repositories::{
     BdpArticleMapRepository, BdpArticleUpsertData, BdpArticleUpsertStatus,
 };
+use glory_backend::services::BdpAuditEntry;
 use rust_decimal::Decimal;
 
 /* Helper: crea un usuario mínimo para satisfacer FK de bdp_article_map.user_id */
@@ -811,4 +812,148 @@ async fn test_upsert_stock_actualiza_stock_existente(pool: PgPool) {
         .unwrap();
     assert_eq!(stock.len(), 1);
     assert_eq!(stock[0].stock, Decimal::new(75, 2));
+}
+
+/* [128A-1/F3] Stock local editable: ajuste manual con auditoría. */
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_ajustar_stock_crea_fila_con_delta(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+
+    /* Sin fila previa: el ajuste crea la fila con el delta como stock inicial. */
+    let (stock, audit_id, resultado_previo) = BdpArticleMapRepository::ajustar_stock(
+        &pool,
+        user_id,
+        "AJ001",
+        Decimal::new(1200, 2),
+        "Entrada de mercancía",
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(stock.articulo_glory_codigo, "AJ001");
+    assert_eq!(stock.warehouse_id, "0");
+    assert_eq!(stock.warehouse_name, "General");
+    assert_eq!(stock.stock, Decimal::new(1200, 2));
+    assert!(
+        resultado_previo.is_none(),
+        "sin clave no hay duplicado previo"
+    );
+
+    /* La auditoría registró la operación interna. */
+    let audit: BdpAuditEntry = sqlx::query_as("SELECT * FROM bdp_audit_log WHERE id = $1")
+        .bind(audit_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(audit.operacion, "stock_ajuste");
+    assert_eq!(audit.direccion, "internal");
+    assert_eq!(audit.resultado, "exito");
+    assert_eq!(audit.target_entity_type.as_deref(), Some("articulo"));
+
+    /* stock_actual del catálogo (snapshot BDP) no se toca. */
+    let list = BdpArticleMapRepository::listar(&pool, user_id)
+        .await
+        .unwrap();
+    assert!(list.is_empty(), "el ajuste no crea mapeo de catálogo");
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_ajustar_stock_acumula_deltas(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+
+    BdpArticleMapRepository::ajustar_stock(
+        &pool,
+        user_id,
+        "AJ002",
+        Decimal::new(1000, 2),
+        "Entrada",
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    /* Salida negativa sobre la fila existente. */
+    let (stock, _, _) = BdpArticleMapRepository::ajustar_stock(
+        &pool,
+        user_id,
+        "AJ002",
+        Decimal::new(-300, 2),
+        "Merma",
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(stock.stock, Decimal::new(700, 2));
+
+    let lista = BdpArticleMapRepository::listar_stock(&pool, user_id, None)
+        .await
+        .unwrap();
+    assert_eq!(lista.len(), 1);
+    assert_eq!(lista[0].stock, Decimal::new(700, 2));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_ajustar_stock_aisla_usuarios(pool: PgPool) {
+    let user_a = create_test_user(&pool).await;
+    let user_b = create_test_user(&pool).await;
+
+    BdpArticleMapRepository::ajustar_stock(
+        &pool,
+        user_a,
+        "AJ003",
+        Decimal::new(500, 2),
+        "Entrada",
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let stock_b = BdpArticleMapRepository::listar_stock(&pool, user_b, None)
+        .await
+        .unwrap();
+    assert!(stock_b.is_empty(), "user_b no ve el stock de user_a");
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_ajustar_stock_idempotencia_reintento_exitoso(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let key = "ajuste-unica-1";
+
+    let (stock1, _, prev1) = BdpArticleMapRepository::ajustar_stock(
+        &pool,
+        user_id,
+        "AJ004",
+        Decimal::new(100, 2),
+        "Entrada",
+        None,
+        Some(key),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(stock1.stock, Decimal::new(100, 2));
+    assert!(prev1.is_none());
+
+    /* Reintento con la misma clave: no aplica el delta de nuevo. */
+    let (stock2, _, prev2) = BdpArticleMapRepository::ajustar_stock(
+        &pool,
+        user_id,
+        "AJ004",
+        Decimal::new(100, 2),
+        "Reintento",
+        None,
+        Some(key),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(stock2.stock, Decimal::new(100, 2), "sin doble aplicación");
+    assert_eq!(prev2.as_deref(), Some("exito"));
 }

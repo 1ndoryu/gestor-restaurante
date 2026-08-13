@@ -19,18 +19,18 @@ use crate::services::bdp_weblink_catalog::{
     BdpCreateOrderRequest, BdpDepartmentsExportFromProfileRequest, BdpEmptyRequest,
     BdpExportArticlesRequest, BdpExportCustomersRequest, BdpExportDepartmentsRequest,
     BdpExportPurchaseNotesRequest, BdpGetArticleRequest, BdpGetEmployeeRequest,
-    BdpGetEmployeesRequest, BdpGetFastfoodRequest, BdpGetMenuRequest, BdpGetOrderRequest,
-    BdpGetPackRequest, BdpGetPosArticlesRequest, BdpGetPosEmployeesRequest, BdpGetPosRequest,
-    BdpGetPosTendersRequest, BdpGetPricesArticlesRequest, BdpGetRoomTablesRequest,
-    BdpGetRoomsTablesRequest, BdpInvoiceOrderRequest, BDP_PATH_CANCEL_ORDER,
-    BDP_PATH_CREATE_CUSTOMER, BDP_PATH_CREATE_ORDER, BDP_PATH_EXPORT_ARTICLES,
-    BDP_PATH_EXPORT_CUSTOMERS, BDP_PATH_EXPORT_DEPARTMENTS,
+    BdpGetEmployeesRequest, BdpGetFastfoodRequest, BdpGetListStockRequest, BdpGetMenuRequest,
+    BdpGetOrderRequest, BdpGetPackRequest, BdpGetPosArticlesRequest, BdpGetPosEmployeesRequest,
+    BdpGetPosRequest, BdpGetPosTendersRequest, BdpGetPricesArticlesRequest,
+    BdpGetRoomTablesRequest, BdpGetRoomsTablesRequest, BdpGetStockRequest, BdpInvoiceOrderRequest,
+    BDP_PATH_CANCEL_ORDER, BDP_PATH_CREATE_CUSTOMER, BDP_PATH_CREATE_ORDER,
+    BDP_PATH_EXPORT_ARTICLES, BDP_PATH_EXPORT_CUSTOMERS, BDP_PATH_EXPORT_DEPARTMENTS,
     BDP_PATH_EXPORT_DEPARTMENTS_FROM_PROFILE, BDP_PATH_EXPORT_PURCHASE_NOTES, BDP_PATH_GET_ARTICLE,
-    BDP_PATH_GET_EMPLOYEE, BDP_PATH_GET_EMPLOYEES, BDP_PATH_GET_FASTFOOD, BDP_PATH_GET_MENU,
-    BDP_PATH_GET_ORDER, BDP_PATH_GET_PACK, BDP_PATH_GET_POS, BDP_PATH_GET_POSES,
+    BDP_PATH_GET_EMPLOYEE, BDP_PATH_GET_EMPLOYEES, BDP_PATH_GET_FASTFOOD, BDP_PATH_GET_LIST_STOCK,
+    BDP_PATH_GET_MENU, BDP_PATH_GET_ORDER, BDP_PATH_GET_PACK, BDP_PATH_GET_POS, BDP_PATH_GET_POSES,
     BDP_PATH_GET_POS_ARTICLES, BDP_PATH_GET_POS_EMPLOYEES, BDP_PATH_GET_POS_TENDERS,
     BDP_PATH_GET_PRICES_ARTICLES, BDP_PATH_GET_ROOMS_TABLES, BDP_PATH_GET_ROOM_TABLES,
-    BDP_PATH_GET_TENDERS, BDP_PATH_INVOICE_ORDER, BDP_PATH_ORDER_PAYMENT_ADD,
+    BDP_PATH_GET_STOCK, BDP_PATH_GET_TENDERS, BDP_PATH_INVOICE_ORDER, BDP_PATH_ORDER_PAYMENT_ADD,
 };
 
 const BDP_SESSION_MINUTES: u8 = 59;
@@ -373,6 +373,23 @@ impl<'a> BdpWeblinkClient<'a> {
         request: &BdpGetPricesArticlesRequest,
     ) -> Result<Value, BdpWeblinkError> {
         self.post_authenticated_json(BDP_PATH_GET_PRICES_ARTICLES, request)
+            .await
+    }
+
+    /* [128A-1/F3] N6: stock de un artículo en un almacén concreto.
+     * Path especulativo (/API/Warehouse/GetStock) — sin bloqueo standalone. */
+    pub async fn get_stock(&self, request: &BdpGetStockRequest) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_GET_STOCK, request)
+            .await
+    }
+
+    /* [128A-1/F3] N6: stock de varios artículos en un almacén concreto.
+     * Path especulativo (/API/Warehouse/GetListStock) — sin bloqueo standalone. */
+    pub async fn get_list_stock(
+        &self,
+        request: &BdpGetListStockRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_GET_LIST_STOCK, request)
             .await
     }
 
@@ -960,6 +977,89 @@ mod tests {
 
         assert!(response["DocumentsLists"].is_array());
         assert_eq!(response["DocumentsLists"].as_array().unwrap().len(), 1);
+    }
+
+    /* [128A-1/F3] N6: GetStock y GetListStock — paths especulativos del manual
+     * WEBLINK RESTAPI.md. Verifican transporte (POST autenticado) y parsing
+     * tolerante de la respuesta; no bloquean standalone. */
+    #[tokio::test]
+    async fn get_stock_posts_warehouse_path_and_parses_stock() {
+        use crate::services::bdp_weblink_catalog::{
+            BdpGetListStockRequest, BdpGetListStockResponse, BdpGetStockRequest,
+            BdpGetStockResponse, BdpListStockItemRequest,
+        };
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/Auth/Login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": "",
+                "AuthSession": {
+                    "Token": "token-bdp",
+                    "ExpiresIn_InSecconds": 3540
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        Mock::given(method("POST"))
+            .and(path("/API/Warehouse/GetStock"))
+            .and(header("authorization", "Bearer token-bdp"))
+            .and(body_json(serde_json::json!({
+                "Article": 1001,
+                "Altern": 0,
+                "Store": 1
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "Stock": 12.5,
+                "ErrorMessage": ""
+            })))
+            .mount(&server)
+            .await;
+
+        Mock::given(method("POST"))
+            .and(path("/API/Warehouse/GetListStock"))
+            .and(header("authorization", "Bearer token-bdp"))
+            .and(body_json(serde_json::json!({
+                "Store": 1,
+                "Articles": [{ "Article": 1001, "Altern": 0 }]
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "Stock": [{ "Article": 1001, "Altern": 0, "Units": 3.25, "ErrorMessage": "" }],
+                "ErrorMessage": ""
+            })))
+            .mount(&server)
+            .await;
+
+        let config = config(server.uri());
+        let client = BdpWeblinkClient::new(&config);
+
+        let stock = client
+            .get_stock(&BdpGetStockRequest {
+                article: 1001,
+                altern: 0,
+                store: 1,
+            })
+            .await
+            .unwrap();
+        let parsed: BdpGetStockResponse = serde_json::from_value(stock).unwrap();
+        assert_eq!(parsed.stock, Decimal::new(125, 1));
+        assert!(parsed.error_message.is_empty());
+
+        let list = client
+            .get_list_stock(&BdpGetListStockRequest {
+                store: 1,
+                articles: vec![BdpListStockItemRequest {
+                    article: 1001,
+                    altern: 0,
+                }],
+            })
+            .await
+            .unwrap();
+        let parsed_list: BdpGetListStockResponse = serde_json::from_value(list).unwrap();
+        assert_eq!(parsed_list.stock.len(), 1);
+        assert_eq!(parsed_list.stock[0].article, 1001);
+        assert_eq!(parsed_list.stock[0].units, Decimal::new(325, 2));
     }
 
     /* [S16-H3] Tests adicionales para ensure_target_allowed.

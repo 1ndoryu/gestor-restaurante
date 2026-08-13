@@ -3,7 +3,7 @@
 > **Fecha:** 2026-08-12 (revisión profunda 2026-08-12)
 > **Rama:** `glory-rs-rest`
 > **ID de bloque:** `128A-1`
-> **Estado:** Activo (planificación). Sin código ni deploys todavía.
+> **Estado:** Activo (en ejecución). F0–F3 completados; F4 en curso.
 > **Skills aplicadas:** `supervisor-thinking` (diseño y desafío) y `supervisor-review` (revisión dura) —
 > veredicto en el Anexo B.
 >
@@ -208,9 +208,10 @@ aceptación observable**. Los conflictos anticipados (M#) se detallan en §14.
   en `bdp_article_map` (migración 20260723000000); endpoint de ajuste sobre el almacén elegido;
   `get_stock`/`get_list_stock` en `bdp_weblink.rs` + structs en `bdp_weblink_catalog.rs` (patrón D1);
   handler `GET /api/bdp/stock` (Opción B de D1); UI en `BdpStock.tsx`.
-- **Decisión requerida F3 (auditoría):** fuente de verdad del stock local — ajuste sobre
-  `bdp_article_stock` (por almacén) vs columna `stock_actual` de `bdp_article_map`; elegir antes de
-  migrar y documentar la relación con `CurrentStock` de BDP.
+- **Decisión F3 (resuelta 2026-08-13):** fuente de verdad del stock local = `bdp_article_stock`
+  (por almacén, default `warehouse_id='0'`/"General"). `stock_actual` de `bdp_article_map` es un
+  snapshot de BDP que nunca se pisa. `CurrentStock` de BDP se consulta vía `GetStock`/`GetListStock`
+  (N6) y la UI muestra el origen (`local`/`bdp`) de cada valor.
 - **Aceptación:** ajustar stock sin BDP y verlo reflejado; con BDP, stock por almacén desde `GetListStock`
   sin pisar `stock_local`.
 
@@ -421,7 +422,7 @@ aceptación observable**. Los conflictos anticipados (M#) se detallan en §14.
 | **F0** | Auditoría del estado real: ¿se ejecutó el deploy 1e? ¿flags en producción? Estado de N1–N14; verificar que nada de la integración cambió | Inventario A/B actualizado con fecha y evidencia | — |
 | **F1** | Conmutador `modo_operacion` + invariantes (M1) + histéresis (M2) + invalidation (M3) + badge + degradación + avisos | Sin credenciales: app 100% operativa, badge "independiente"; BDP caído: degrada sin errores | F0 |
 | **F2** | Catálogo local: migración sobre `bdp_article_map`, repositorio, CRUD, fallback `resolve_article`, reglas import (M5/M6/M7) | CRUD local sin BDP; import no pisa ediciones ni reactiva desactivados | F1 |
-| **F3** | Stock local + `GetStock`/`GetListStock` (N6), `/api/bdp/stock`, UI con origen (D7) | Ajuste local sin BDP; con BDP stock por almacén sin pisar `stock_local` | F2 |
+| **F3** | Stock local + `GetStock`/`GetListStock` (N6), `POST /api/bdp/article-stock/ajustar`, UI con origen (D7) | Ajuste local sin BDP; con BDP stock por almacén sin pisar `stock_local` | F2 |
 | **F4** | Anulación local (modalidades D4), reglas M8–M11, desbloqueo delete (D5), auditoría | Anular sin BDP según modalidad; delete no bloqueado en caso seguro; "pendiente BDP" | F1 |
 | **F5** | Compras locales: CRUD albaranes + conciliación local (M18), flags solo bdp | Albarán local → conciliación con gasto sin BDP | F1 |
 | **F6** | Historial/auditoría local (`origen_operacion`) + pagos parciales locales (A8) + **factura local mínima** (A7/D9) | Operaciones locales visibles; pago parcial y factura local sin BDP | F4 |
@@ -430,9 +431,10 @@ aceptación observable**. Los conflictos anticipados (M#) se detallan en §14.
 | **F9** | Pruebas con/sin BDP: standalone completo, simulador, regresión del gate | Suites + `task:check` PASS con reporte | F1–F8 |
 | **F10** | Cierre documental: roadmap, completados, feature-flags, mapeo visual, plan a `planes/completados/` | Documentación actualizada y evidencia registrada | F9 |
 
-**SIGUIENTE ACCIÓN (verificable):** ejecutar **F0** (auditoría) y **F1** (conmutador + badge) en el ciclo
-local completo (editar → probar → gate → commit). Autorizado: todo el ciclo local. No autorizado sin
-usuario: deploy a producción, escrituras al BDP real, SSH (prohibido siempre).
+**SIGUIENTE ACCIÓN (verificable):** ejecutar **F4** (anulación local, modalidades D4, reglas M8–M11,
+desbloqueo delete D5, auditoría) en el ciclo local completo (editar → probar → gate → commit).
+Autorizado: todo el ciclo local. No autorizado sin usuario: deploy a producción, escrituras al BDP
+real, SSH (prohibido siempre).
 
 **Estado 2026-08-13:** F0/F1 **completados** en rama `glory-rs-rest` (commit
 `[128A-1] F0/F1 ...`). Evidencia: `cargo test` (unit + integración) PASS con
@@ -445,7 +447,15 @@ fallback `resolve_article` (M5), import que no pisa ediciones locales (M6) ni
 reactiva desactivados (M7), UI de catálogo con origen y edición inline.
 Evidencia: `task:check 128A-1 --allow-heavy` PASS (sentinel, varsense, rust,
 frontend type-check, docs), tests `bdp_article_map` 26/26 + integración 8/8.
-Siguiente acción: **F3** (stock local).
+
+**Estado 2026-08-13 (F3):** **completado** — stock local editable con
+auditoría (`bdp_article_stock` por almacén, `POST /api/bdp/article-stock/ajustar`
+con idempotencia vía `bdp_audit_log` y transacción con upsert), weblink N6
+especulativo `GetStock`/`GetListStock` con structs y tests wiremock, UI de stock
+con badge de origen (`local`/`bdp`) y diálogo de ajuste. Evidencia: tests
+`bdp_article_map` 30/30, `bdp_backup` 27/27, `--lib` 134/134, type-check
+frontend PASS, `task:check 128A-1` PASS. Siguiente acción: **F4** (anulación
+local).
 
 ---
 
@@ -601,7 +611,9 @@ cliente (no autorizada).
 - [x] F1: modo operativo + invariantes (M1) + histéresis (M2) + badge + degradación, probados
 - [x] F2: catálogo local (origen/local_dirty, CRUD sin BDP, resolve_article M5, import M6/M7), probado
       con gate PASS
-- [ ] F3–F8: stock, anulación, compras, historial/pagos parciales, menús y permisos operativos
+- [x] F3: stock local (ajuste manual con auditoría, GetStock/GetListStock N6, UI con origen),
+      probado con gate PASS
+- [ ] F4–F8: anulación, compras, historial/pagos parciales, menús y permisos operativos
       sin BDP (y conviviendo con BDP)
 - [ ] F9: pruebas con/sin BDP + simulador + gate `task:check` PASS con reporte reproducible
 - [ ] F10: roadmap actualizado (128A-1 cerrado), completados con evidencia, feature-flags/mapeo visual

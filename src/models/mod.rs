@@ -97,7 +97,8 @@ pub use resena::{
 };
 mod inactividad;
 pub use bdp_article_map::{
-    ActualizarBdpArticleMapRequest, BdpArticleMap, BdpArticleStock, CrearBdpArticleMapRequest,
+    ActualizarBdpArticleMapRequest, AjustarBdpArticleStockRequest, BdpArticleMap, BdpArticleStock,
+    CrearBdpArticleMapRequest,
 };
 pub use bdp_pago::BdpPago;
 pub use bdp_purchase_note::{

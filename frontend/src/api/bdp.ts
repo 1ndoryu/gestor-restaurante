@@ -93,6 +93,49 @@ export async function fetchBdpArticleMaps(): Promise<BdpArticleMapItem[]> {
   return resp.data;
 }
 
+/* [128A-1/F3] Stock local por almacén (fuente de verdad: bdp_article_stock).
+ * `stock_actual` de BdpArticleMap es el snapshot BDP de solo lectura; el
+ * ajuste manual escribe aquí y nunca pisa `stock_actual`. */
+export interface BdpArticleStockItem {
+  id: string;
+  user_id: string;
+  articulo_glory_codigo: string;
+  warehouse_id: string;
+  warehouse_name: string;
+  stock: string;
+  ultima_sync_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Request para ajustar stock local (entrada/salida). */
+export interface AjustarBdpArticleStockRequest {
+  articulo_glory_codigo: string;
+  delta: string;
+  motivo: string;
+  warehouse_id?: string;
+  idempotency_key?: string;
+}
+
+/** Listar el stock local por almacén (GET /api/bdp/article-stock). */
+export async function fetchBdpArticleStock(): Promise<BdpArticleStockItem[]> {
+  const resp = await customInstance('/api/bdp/article-stock', {
+    method: 'GET',
+  }) as { data: BdpArticleStockItem[] };
+  return resp.data;
+}
+
+/** Ajustar el stock local de un artículo (POST /api/bdp/article-stock/ajustar). */
+export async function ajustarBdpArticleStock(
+  req: AjustarBdpArticleStockRequest,
+): Promise<BdpArticleStockItem> {
+  const resp = await customInstance('/api/bdp/article-stock/ajustar', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  }) as { data: BdpArticleStockItem };
+  return resp.data;
+}
+
 /* ── Hooks ──────────────────────────────────────────────────────────── */
 
 /** Query hook: obtener estado BDP de una venta individual. */
@@ -122,6 +165,28 @@ export function useBdpArticleMaps(enabled = true) {
     queryFn: fetchBdpArticleMaps,
     enabled,
     staleTime: 5 * 60_000, /* 5 min — cambia poco */
+  });
+}
+
+/** Query hook: stock local por almacén. */
+export function useBdpArticleStock(enabled = true) {
+  return useQuery({
+    queryKey: ['bdp-article-stock'],
+    queryFn: fetchBdpArticleStock,
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+/** Mutation hook: ajuste manual de stock local.
+ * Invalida stock local y catálogo (el merge de BdpStock usa ambos). */
+export function useAjustarBdpArticleStock(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: ajustarBdpArticleStock,
+    onSuccess: () => {
+      queryClient?.invalidateQueries({ queryKey: ['bdp-article-stock'] });
+      queryClient?.invalidateQueries({ queryKey: ['/api/bdp/article-maps'] });
+    },
   });
 }
 
