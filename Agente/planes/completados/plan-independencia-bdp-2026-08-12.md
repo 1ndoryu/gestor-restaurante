@@ -3,7 +3,9 @@
 > **Fecha:** 2026-08-12 (revisión profunda 2026-08-12)
 > **Rama:** `glory-rs-rest`
 > **ID de bloque:** `128A-1`
-> **Estado:** Activo (en ejecución). F0–F9 completados; F10 en curso.
+> **Estado:** **Completado 2026-08-13.** F0–F10 implementados con gate PASS (F7/F8/F9);
+> plan archivado en `Agente/planes/completados/`. Pendiente de autorización del usuario:
+> deploy a producción y escrituras al BDP real (SSH prohibido siempre).
 > **Skills aplicadas:** `supervisor-thinking` (diseño y desafío) y `supervisor-review` (revisión dura) —
 > veredicto en el Anexo B.
 >
@@ -436,11 +438,9 @@ aceptación observable**. Los conflictos anticipados (M#) se detallan en §14.
 | **F9** | Pruebas con/sin BDP: standalone completo, simulador, regresión del gate | Suites + `task:check` PASS con reporte | F1–F8 |
 | **F10** | Cierre documental: roadmap, completados, feature-flags, mapeo visual, plan a `planes/completados/` | Documentación actualizada y evidencia registrada | F9 |
 
-**SIGUIENTE ACCIÓN (verificable):** ejecutar **F10** (cierre documental: roadmap con 128A-1
-cerrado, completados con evidencia, feature-flags/mapeo visual actualizados y plan movido a
-`planes/completados/`) en el ciclo local completo.
-Autorizado: todo el ciclo local. No autorizado sin usuario: deploy a producción, escrituras al BDP
-real, SSH (prohibido siempre).
+**SIGUIENTE ACCIÓN (verificable):** bloque **128A-1 cerrado** (F0–F10, gate PASS). Solo queda,
+con autorización explícita del usuario: deploy a producción y escrituras al BDP real (SSH
+prohibido siempre).
 
 **Estado 2026-08-13:** F0/F1 **completados** en rama `glory-rs-rest` (commit
 `[128A-1] F0/F1 ...`). Evidencia: `cargo test` (unit + integración) PASS con
@@ -719,7 +719,7 @@ cliente (no autorizada).
 - [x] F8: permisos operativos (D8/M17: catálogo, stock, albaranes, anulación) sin BDP,
       probado con gate PASS
 - [x] F9: pruebas con/sin BDP + simulador + gate `task:check` PASS con reporte reproducible
-- [ ] F10: roadmap actualizado (128A-1 cerrado), completados con evidencia, feature-flags/mapeo visual
+- [x] F10: roadmap actualizado (128A-1 cerrado), completados con evidencia, feature-flags/mapeo visual
       actualizados, plan movido a `planes/completados/`
 - [ ] Auditoría por funcionalidad (§15, A1–A14) aplicada en sus fases (A2/A3 reducen F2/F3; A6–A8 y
       A7/D9 en F6; A13 en F8; A10 en F5; A11 en F6)

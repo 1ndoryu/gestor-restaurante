@@ -30,7 +30,7 @@
     `bdp_simulator_integration` y la suite Python del simulador. Sin escrituras ni llamadas al
     BDP real.
 - **Archivos:** ninguno de código (fase de verificación). Actualiza
-  `Agente/planes/plan-independencia-bdp-2026-08-12.md` y este registro de completados.
+  `Agente/planes/completados/plan-independencia-bdp-2026-08-12.md` y este registro de completados.
 - **Sentinel:** gate PASS con 0 errores (364 warnings y 34 info preexistentes, sin regresión
   nueva).
 - **GLORY:** no aplica; rama `glory-rs-rest`.

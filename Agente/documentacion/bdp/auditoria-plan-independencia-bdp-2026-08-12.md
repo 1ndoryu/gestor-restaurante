@@ -1,7 +1,7 @@
 # Auditoría del plan «Independencia total del BDP» (128A-1) — 2026-08-12
 
 > Archivo vivo de hallazgos. Se actualiza durante la auditoría para no perder contexto al compactar.
-> Plan auditado: `Agente/planes/plan-independencia-bdp-2026-08-12.md`
+> Plan auditado: `Agente/planes/completados/plan-independencia-bdp-2026-08-12.md`
 > Repo: `RESTAURANTE` — rama `glory-rs-rest`
 
 ## Método y evidencia

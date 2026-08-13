@@ -8,7 +8,7 @@
 
 ## Resumen
 
-La integración BDP utiliza **6 feature flags** booleanos en la tabla `configuracion_restaurante`. Todos están **desactivados por defecto** (`false`) y deben activarse explícitamente por restaurante.
+La integración BDP utiliza **6 feature flags** booleanos en la tabla `configuracion_restaurante`. Todos están **desactivados por defecto** (`false`) y deben activarse explícitamente por restaurante. **Solo aplican en modo `bdp`** (M12): con `modo_operacion = standalone` estos flags quedan inactivos y ocultos, ya que sus funciones dependen de la conexión BDP (ver secciones «Modo de operación» y «Permisos operativos»).
 
 | # | Flag | Descripción | Default | Protege | Archivos clave |
 |---|------|-------------|---------|---------|----------------|
@@ -163,3 +163,37 @@ WHERE user_id = '<uuid>';
 - **Activar un flag no habilita escrituras por sí solo.** También se requiere: `bdp_sync_enabled=true`, allowlist de destinos, y (para escrituras) arming o auto-arming.
 - **Los flags no se exponen en logs ni en respuestas de error** al cliente. Solo son visibles en la respuesta de `GET /api/configuracion`.
 - **Cambiar un flag no requiere redeploy.** Se actualiza en caliente vía API.
+
+---
+
+## Modo de operación (`modo_operacion`) — 128A-1/F1
+
+Columna `modo_operacion` en `configuracion_restaurante` con valores `bdp` (default, integración
+activa) | `standalone` (independencia total). En `standalone`:
+
+- La app queda 100% operativa sin credenciales ni conexión BDP (catálogo local, stock local,
+  compras locales, anulación local, historial, menús/packs locales).
+- Los 6 feature flags booleanos y las funciones de sincronización quedan **inactivos y ocultos**
+  (M12); el poller de pedidos ya guarda con `bdp_sync_enabled` y solo corre en modo `bdp`.
+- El badge de la barra superior muestra «independiente» en lugar de «BDP: off/lectura/escritura».
+- Cambiar a `bdp` con credenciales válidas restaura el flujo de sincronización completo
+  (histéresis y degradación automática al caer BDP).
+
+## Permisos operativos por acción — 128A-1/F8 (D8, M17)
+
+Columnas `permisos_catalogo_edicion`, `permisos_stock_ajuste`, `permisos_albaranes_gestion`,
+`permisos_anulacion_ventas` en `configuracion_restaurante`, con valores `admin` (default) |
+`admin_trabajador` | `todos` y CHECK en BD. El enforcement es **backend** (M17): cada acción
+sensible consulta el nivel configurado y el rol efectivo del usuario (`effective_role`), devolviendo
+403 si no corresponde; la UI solo refleja el permiso.
+
+- `admin`: solo el propietario (rol Admin).
+- `admin_trabajador`: Admin y Trabajador (todo el staff autenticado).
+- `todos`: cualquier usuario autenticado.
+
+Acciones protegidas: CRUD de catálogo/mapeos (`CatalogoEdicion`), ajuste manual de stock
+(`StockAjuste`), gestión de albaranes de compra (`AlbaranesGestion`) y anulación local de ventas
+(`AnulacionVentas`). Se configuran desde Configuración → BDP → «Permisos operativos». Las
+escrituras/sincronizaciones BDP (sync-prices, sync-tables, bdp-payment, bdp-invoice, etc.) no se
+gatean con estos permisos porque siguen protegidas por los guards BDP existentes
+(`bdp_sync_enabled`, modo `bdp`, feature flags y `BdpWriteGuard`).

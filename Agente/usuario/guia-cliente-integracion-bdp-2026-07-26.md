@@ -459,6 +459,41 @@ No desde la Aplicación Web. Las facturas emitidas en BDP deben anularse desde e
 
 ---
 
+## 15. Modo independiente y permisos operativos
+
+### Modo independiente (funcionar sin BDP)
+
+Desde agosto de 2026, la Aplicación Web funciona **con o sin BDP**. Si la conexión BDP no está
+configurada o cae, la aplicación pasa automáticamente a **modo independiente** y todas las
+operaciones del restaurante siguen disponibles:
+
+- **Catálogo:** crear, editar y desactivar artículos localmente; los datos llevan origen
+  `Local` y los sincronizados desde BDP se marcan como `BDP`.
+- **Stock:** ajustes manuales de stock con registro en el historial.
+- **Ventas:** cobrar, pagar parcialmente, facturar y **anular** ventas localmente, incluso si la
+  venta quedó pendiente de BDP.
+- **Compras:** crear albaranes de compra locales y conciliarlos con gastos.
+- **Menús y packs:** crear y gestionar menús/packs locales desde el Explorador (origen `Local`).
+
+Al volver la conexión BDP, la aplicación recupera el flujo normal de sincronización. El indicador
+de la barra superior muestra «independiente» cuando se está en modo sin BDP.
+
+### Permisos operativos (quién puede hacer cada cosa)
+
+En Configuración → BDP → **Permisos operativos** se define quién puede ejecutar cada acción
+sensible: catálogo (crear/editar/eliminar artículos), ajuste de stock, gestión de albaranes de
+compra y anulación de ventas. Cada acción acepta tres niveles:
+
+- **Solo el administrador** (recomendado por defecto): solo la persona administradora.
+- **Administrador + personal:** todo el personal autorizado del restaurante.
+- **Todos los usuarios:** cualquier usuario con acceso a la aplicación.
+
+Estos permisos se aplican en el sistema (no solo en los botones): si el usuario no tiene el
+nivel necesario, la operación es rechazada con un aviso. La anulación de ventas y el ajuste de
+stock quedan restringidos al administrador por defecto.
+
+---
+
 ## Referencias
 
 - `Agente/documentacion/bdp/runbook-operativo-bdp-2026-07-26.md` — procedimientos ante incidentes.

@@ -3,7 +3,7 @@
 > **Fecha:** 2026-07-23 (actualizado 2026-07-26 — sesión completa de auditoría, testing y feature flags UI)
 > **Motivo:** El cliente ha revisado la guía de integración y señala que no ve la mayoría de las funcionalidades descritas en la web. Además tiene dudas sobre compras, stock, importación de catálogo y el flujo de autorización temporal.
 > **Objetivo:** Documentar dónde está realmente cada funcionalidad en el frontend, identificar inconsistencias entre lo planificado y el resultado final, y proponer soluciones.
-> **Changelog:** 2026-07-26 — actualizado con: feature flags configurables desde UI (267A-4), pagos parciales implementados, compras fases 1-3 implementadas, 219 tests pasando, auditoría completa de documentación.
+> **Changelog:** 2026-07-26 — actualizado con: feature flags configurables desde UI (267A-4), pagos parciales implementados, compras fases 1-3 implementadas, 219 tests pasando, auditoría completa de documentación. 2026-08-13 — actualizado con: modo independiente `standalone` (128A-1 F1), origen local en catálogo/stock/ventas, menús/packs locales y permisos operativos por acción con enforcement backend (128A-1 F2–F8).
 
 ---
 
@@ -526,3 +526,23 @@ Flujo actual (transparente):
 ### P10: "¿Qué pasa si hago una venta en Glory y otra en el TPV al mismo tiempo?"
 
 > No hay conflicto. Cada venta en Glory genera una comanda independiente en BDP con un identificador único (`MarketplaceOrderId`). BDP trata cada comanda como una orden separada. El advisory lock de PostgreSQL previene que la misma venta de Glory se envíe dos veces a BDP simultáneamente.
+
+---
+
+## 11. Modo independiente, origen y permisos (128A-1)
+
+Desde 2026-08-13, la Aplicación Web funciona **con o sin BDP** (bloque 128A-1, plan
+`Agente/planes/completados/plan-independencia-bdp-2026-08-12.md`). Sin credenciales BDP válidas el
+modo efectivo es `standalone` y todas las operaciones del restaurante siguen operativas; con
+credenciales y conexión el modo efectivo es `bdp` con el flujo completo.
+
+| Elemento visible | Ubicación | Qué hace realmente | Estado |
+| --- | --- | --- | --- |
+| Badge «independiente» | Barra superior (navbar) | Indica modo efectivo `standalone` (sin BDP) | ✅ Implementado (128A-1 F1) |
+| Origen `Local` / `BDP` | Catálogo, stock, ventas (Historial) | Badge/columna que distingue datos locales de los sincronizados | ✅ Implementado (128A-1 F2/F3/F6) |
+| Sección «Menús y packs locales» | Explorador → pestaña local | CRUD de menús/packs locales sobre catálogo, siempre disponible | ✅ Implementado (128A-1 F7) |
+| «Permisos operativos» | Configuración → BDP | 4 selects por acción (catálogo, stock, albaranes, anulación): `admin` / `admin_trabajador` / `todos` | ✅ Implementado (128A-1 F8) |
+
+Los permisos se aplican en **backend** (403 por rol/permiso), no solo en la UI. En modo
+`standalone` los 6 feature flags booleanos quedan inactivos y ocultos (M12); ver
+`Agente/documentacion/bdp/feature-flags-bdp-2026-07-26.md`.
