@@ -3,7 +3,7 @@
 > **Fecha:** 2026-08-12 (revisión profunda 2026-08-12)
 > **Rama:** `glory-rs-rest`
 > **ID de bloque:** `128A-1`
-> **Estado:** Activo (en ejecución). F0–F8 completados; F9 en curso.
+> **Estado:** Activo (en ejecución). F0–F9 completados; F10 en curso.
 > **Skills aplicadas:** `supervisor-thinking` (diseño y desafío) y `supervisor-review` (revisión dura) —
 > veredicto en el Anexo B.
 >
@@ -436,9 +436,9 @@ aceptación observable**. Los conflictos anticipados (M#) se detallan en §14.
 | **F9** | Pruebas con/sin BDP: standalone completo, simulador, regresión del gate | Suites + `task:check` PASS con reporte | F1–F8 |
 | **F10** | Cierre documental: roadmap, completados, feature-flags, mapeo visual, plan a `planes/completados/` | Documentación actualizada y evidencia registrada | F9 |
 
-**SIGUIENTE ACCIÓN (verificable):** ejecutar **F9** (pruebas con/sin BDP: standalone completo,
-simulador y regresión del gate) y cerrar con **F10** (roadmap/completados/feature-flags/mapeo
-visual y plan a `planes/completados/`) en el ciclo local completo.
+**SIGUIENTE ACCIÓN (verificable):** ejecutar **F10** (cierre documental: roadmap con 128A-1
+cerrado, completados con evidencia, feature-flags/mapeo visual actualizados y plan movido a
+`planes/completados/`) en el ciclo local completo.
 Autorizado: todo el ciclo local. No autorizado sin usuario: deploy a producción, escrituras al BDP
 real, SSH (prohibido siempre).
 
@@ -544,6 +544,14 @@ protegidos por guards BDP existentes (sync_enabled, modo bdp, feature flags, Bdp
 Evidencia: tests `bdp_f8_permisos` 13/13, suite completa en verde, clippy `-D warnings` PASS,
 type-check frontend PASS, `task:check 128A-1 --full` PASS. Siguiente acción: **F9** (pruebas
 con/sin BDP: standalone completo, simulador, regresión del gate).
+
+**Estado 2026-08-13 (F9):** **completado** — verificación integral F1–F8 con/sin BDP: suite
+standalone completa `run-with-db test` PASS (exit 0; `bdp_f8_permisos` 13/13, `bdp_f7_menus_locales`
+15/15, resto en verde); simulador BDP Python 92/92 OK; integración Rust contra simulador
+24/24 PASS (`--include-ignored`); regresión `task:check 128A-1 --full` PASS con reporte
+reproducible (`.quality-reports/branches/glory-rs-rest--f100af0a041e6e8a/128A-1/latest.md`).
+Siguiente acción: **F10** (cierre documental: roadmap, completados, feature-flags, mapeo visual,
+plan a `planes/completados/`).
 
 ---
 
@@ -710,7 +718,7 @@ cliente (no autorizada).
 - [x] F7: menús/packs locales (D2) sobre catálogo local + convivencia BDP, probado con gate PASS
 - [x] F8: permisos operativos (D8/M17: catálogo, stock, albaranes, anulación) sin BDP,
       probado con gate PASS
-- [ ] F9: pruebas con/sin BDP + simulador + gate `task:check` PASS con reporte reproducible
+- [x] F9: pruebas con/sin BDP + simulador + gate `task:check` PASS con reporte reproducible
 - [ ] F10: roadmap actualizado (128A-1 cerrado), completados con evidencia, feature-flags/mapeo visual
       actualizados, plan movido a `planes/completados/`
 - [ ] Auditoría por funcionalidad (§15, A1–A14) aplicada en sus fases (A2/A3 reducen F2/F3; A6–A8 y
