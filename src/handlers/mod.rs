@@ -6,8 +6,13 @@ mod auth;
 mod bdp_article_map;
 mod bdp_backup;
 mod bdp_customer_sync;
+mod bdp_menu_local;
 mod bdp_purchase_note;
 
+pub use bdp_menu_local::{
+    actualizar_menu_local, crear_menu_local, eliminar_menu_local, listar_menus_locales,
+    obtener_menu_local,
+};
 pub use bdp_purchase_note::{
     actualizar_purchase_note_local, conciliar_purchase_note, crear_purchase_note_local,
     eliminar_purchase_note_local, listar_purchase_notes, marcar_borrador_purchase_note,
@@ -217,6 +222,11 @@ impl utoipa::Modify for SecurityAddon {
         bdp_article_map::get_menu_definition,
         bdp_article_map::get_fastfood_definition,
         bdp_article_map::get_pack_definition,
+        bdp_menu_local::listar_menus_locales,
+        bdp_menu_local::crear_menu_local,
+        bdp_menu_local::obtener_menu_local,
+        bdp_menu_local::actualizar_menu_local,
+        bdp_menu_local::eliminar_menu_local,
         bdp_purchase_note::listar_purchase_notes,
         bdp_purchase_note::crear_purchase_note_local,
         bdp_purchase_note::sincronizar_purchase_notes,
@@ -395,6 +405,14 @@ impl utoipa::Modify for SecurityAddon {
         crate::models::CrearBdpArticleMapRequest,
         crate::models::ActualizarBdpArticleMapRequest,
         crate::models::AjustarBdpArticleStockRequest,
+        crate::models::ActualizarBdpMenuLocalRequest,
+        crate::models::BdpMenuLocal,
+        crate::models::BdpMenuLocalConLineas,
+        crate::models::BdpMenuLocalLinea,
+        crate::models::BdpMenuLocalLineaRequest,
+        crate::models::BdpMenuLocalListParams,
+        crate::models::BdpMenuLocalTipo,
+        crate::models::CrearBdpMenuLocalRequest,
         crate::models::BdpPurchaseNote,
         crate::models::BdpPurchaseNoteDraftRequest,
         crate::models::BdpPurchaseNoteEstado,
@@ -511,6 +529,7 @@ fn api_routes() -> Router<AppState> {
         .merge(bdp_article_map::routes())
         .merge(bdp_backup::routes())
         .merge(bdp_customer_sync::routes())
+        .merge(bdp_menu_local::routes())
         .merge(bdp_purchase_note::routes())
         .merge(campanas::routes())
         .merge(plantillas_whatsapp::routes())

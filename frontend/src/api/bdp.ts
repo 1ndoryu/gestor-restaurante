@@ -468,6 +468,176 @@ export function useRetryBdpSync(queryClient?: QueryClient) {
   };
 }
 
+/* [128A-1/F7] Menús/packs locales (D2, §4.10). CRUD local 100% operativo sin
+ * BDP sobre `bdp_menus_locales` + `bdp_menu_local_lineas`. */
+
+/** Tipo de agrupación local: 'menu' | 'pack'. */
+export type BdpMenuLocalTipo = 'menu' | 'pack';
+
+/** Línea de un menú/pack local (artículo del catálogo). */
+export interface BdpMenuLocalLinea {
+  id: string;
+  menu_id: string;
+  articulo_codigo: string | null;
+  descripcion: string;
+  cantidad: string;
+  precio_unitario: string;
+  created_at: string;
+}
+
+/** Menú/pack local con sus líneas cargadas. */
+export interface BdpMenuLocalConLineas {
+  id: string;
+  user_id: string;
+  tipo: BdpMenuLocalTipo;
+  nombre: string;
+  descripcion: string | null;
+  precio: string;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+  lineas: BdpMenuLocalLinea[];
+}
+
+/** Línea de menú/pack en las peticiones de creación/edición. */
+export interface BdpMenuLocalLineaRequest {
+  articulo_codigo?: string;
+  descripcion: string;
+  cantidad?: string;
+  precio_unitario?: string;
+}
+
+/** Request para crear un menú/pack local (F7). */
+export interface CrearBdpMenuLocalRequest {
+  tipo: BdpMenuLocalTipo;
+  nombre: string;
+  descripcion?: string;
+  precio?: string;
+  activo?: boolean;
+  lineas: BdpMenuLocalLineaRequest[];
+}
+
+/** Request para actualizar un menú/pack local (F7). */
+export interface ActualizarBdpMenuLocalRequest {
+  tipo?: BdpMenuLocalTipo;
+  nombre?: string;
+  descripcion?: string;
+  precio?: string;
+  activo?: boolean;
+  lineas?: BdpMenuLocalLineaRequest[];
+}
+
+/** Parámetros para listar menús/packs locales. */
+export interface BdpMenuLocalFilters {
+  tipo?: BdpMenuLocalTipo;
+  activo?: boolean;
+  busqueda?: string;
+}
+
+/** Listar menús/packs locales (GET /api/bdp/menus-locales). */
+export async function fetchBdpMenusLocales(
+  filters: BdpMenuLocalFilters = {},
+): Promise<BdpMenuLocalConLineas[]> {
+  const params = new URLSearchParams();
+  if (filters.tipo) params.set('tipo', filters.tipo);
+  if (filters.activo !== undefined) params.set('activo', String(filters.activo));
+  if (filters.busqueda) params.set('busqueda', filters.busqueda);
+  const query = params.toString();
+  const url = query ? `/api/bdp/menus-locales?${query}` : '/api/bdp/menus-locales';
+  const resp = await customInstance(url, { method: 'GET' }) as { data: BdpMenuLocalConLineas[] };
+  return resp.data;
+}
+
+/** Obtener un menú/pack local con sus líneas (GET /api/bdp/menus-locales/:id). */
+export async function fetchBdpMenuLocal(id: string): Promise<BdpMenuLocalConLineas> {
+  const resp = await customInstance(`/api/bdp/menus-locales/${id}`, {
+    method: 'GET',
+  }) as { data: BdpMenuLocalConLineas };
+  return resp.data;
+}
+
+/** Crear un menú/pack local (POST /api/bdp/menus-locales). */
+export async function crearBdpMenuLocal(
+  req: CrearBdpMenuLocalRequest,
+): Promise<BdpMenuLocalConLineas> {
+  const resp = await customInstance('/api/bdp/menus-locales', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  }) as { data: BdpMenuLocalConLineas };
+  return resp.data;
+}
+
+/** Actualizar un menú/pack local (PUT /api/bdp/menus-locales/:id). */
+export async function actualizarBdpMenuLocal(
+  id: string,
+  req: ActualizarBdpMenuLocalRequest,
+): Promise<BdpMenuLocalConLineas> {
+  const resp = await customInstance(`/api/bdp/menus-locales/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(req),
+  }) as { data: BdpMenuLocalConLineas };
+  return resp.data;
+}
+
+/** Eliminar un menú/pack local (DELETE /api/bdp/menus-locales/:id). */
+export async function eliminarBdpMenuLocal(id: string): Promise<{ mensaje: string }> {
+  const resp = await customInstance(`/api/bdp/menus-locales/${id}`, {
+    method: 'DELETE',
+  }) as { data: { mensaje: string } };
+  return resp.data;
+}
+
+/** Query hook: listar menús/packs locales. */
+export function useBdpMenusLocales(filters: BdpMenuLocalFilters = {}, enabled = true) {
+  return useQuery({
+    queryKey: ['bdp-menus-locales', filters],
+    queryFn: () => fetchBdpMenusLocales(filters),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+/** Query hook: detalle de un menú/pack local. */
+export function useBdpMenuLocal(id: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ['bdp-menus-locales', id],
+    queryFn: () => fetchBdpMenuLocal(id!),
+    enabled: !!id && enabled,
+    staleTime: 30_000,
+  });
+}
+
+/** Mutation hook: crear menú/pack local (F7). */
+export function useCrearBdpMenuLocal(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: crearBdpMenuLocal,
+    onSuccess: () => {
+      queryClient?.invalidateQueries({ queryKey: ['bdp-menus-locales'] });
+    },
+  });
+}
+
+/** Mutation hook: actualizar menú/pack local (F7). */
+export function useActualizarBdpMenuLocal(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: ({ id, req }: { id: string; req: ActualizarBdpMenuLocalRequest }) =>
+      actualizarBdpMenuLocal(id, req),
+    onSuccess: () => {
+      queryClient?.invalidateQueries({ queryKey: ['bdp-menus-locales'] });
+    },
+  });
+}
+
+/** Mutation hook: eliminar menú/pack local (F7). */
+export function useEliminarBdpMenuLocal(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: eliminarBdpMenuLocal,
+    onSuccess: () => {
+      queryClient?.invalidateQueries({ queryKey: ['bdp-menus-locales'] });
+    },
+  });
+}
+
 /** Mutation hook: anulación local de una venta (D4, C1 idempotencia). */
 export function useAnularVenta(queryClient?: QueryClient, options?: UseMutationOptions<AnularVentaResponse, unknown, { ventaId: string; req: { motivo?: string; idempotency_key?: string; anulacion_usuario?: string } }>) {
   return useMutation<AnularVentaResponse, unknown, { ventaId: string; req: { motivo?: string; idempotency_key?: string; anulacion_usuario?: string } }>({

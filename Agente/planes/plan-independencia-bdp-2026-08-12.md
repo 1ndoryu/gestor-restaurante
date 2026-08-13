@@ -3,7 +3,7 @@
 > **Fecha:** 2026-08-12 (revisión profunda 2026-08-12)
 > **Rama:** `glory-rs-rest`
 > **ID de bloque:** `128A-1`
-> **Estado:** Activo (en ejecución). F0–F6 completados; F7 en curso.
+> **Estado:** Activo (en ejecución). F0–F7 completados; F8 en curso.
 > **Skills aplicadas:** `supervisor-thinking` (diseño y desafío) y `supervisor-review` (revisión dura) —
 > veredicto en el Anexo B.
 >
@@ -436,8 +436,8 @@ aceptación observable**. Los conflictos anticipados (M#) se detallan en §14.
 | **F9** | Pruebas con/sin BDP: standalone completo, simulador, regresión del gate | Suites + `task:check` PASS con reporte | F1–F8 |
 | **F10** | Cierre documental: roadmap, completados, feature-flags, mapeo visual, plan a `planes/completados/` | Documentación actualizada y evidencia registrada | F9 |
 
-**SIGUIENTE ACCIÓN (verificable):** ejecutar **F6** (historial/auditoría local con `origen_operacion`,
-pagos parciales locales A8 y factura local mínima A7/D9) en el ciclo local completo
+**SIGUIENTE ACCIÓN (verificable):** ejecutar **F8** (permisos configurables D8/M17: catálogo, stock,
+albaranes y anulación de ventas) en el ciclo local completo
 (editar → probar → gate → commit).
 Autorizado: todo el ciclo local. No autorizado sin usuario: deploy a producción, escrituras al BDP
 real, SSH (prohibido siempre).
@@ -513,6 +513,21 @@ botones y diálogos de pago local (`PAGO LOCAL {id} {amount}`) y factura local
 Evidencia: tests `bdp_f6_local_pagos_factura` 11/11 (más `bdp_pagos`,
 `bdp_backup`, `bdp_service_integration`, `bdp_venta_lineas` en verde), clippy
 limpio, type-check frontend PASS. Siguiente acción: **F7** (menús/packs locales).
+
+**Estado 2026-08-13 (F7):** **completado** — menús/packs locales (D2, §4.10, A12/M12) con
+CRUD sobre catálogo local: migración `20260818000000_bdp_menu_local`
+(`bdp_menus_locales` con tipo CHECK `menu|pack`, UNIQUE `(user_id, tipo, nombre)` +
+`bdp_menu_local_lineas` con FK CASCADE y `orden` determinista), modelo con
+`BdpMenuLocalTipo`/`BdpMenuLocalConLineas`, repositorio dinámico (sin macro, sin cache `.sqlx/`):
+`listar` con filtros tipo/activo/búsqueda y líneas `ANY($1)`, `find_by_id`, `crear` (tx),
+`actualizar` (COALESCE, reemplazo de líneas y recálculo de precio), `eliminar`; handlers
+`GET/POST /bdp/menus-locales` y `GET/PUT/DELETE /bdp/menus-locales/:id` con validaciones y
+23505 → Conflict; frontend `BdpMenuLocalModal` (líneas con Select de artículos del catálogo
+`useBdpArticleMaps`) y sección «Menús y packs locales» en `BdpExplorador` con badge `Local`,
+siempre disponible en standalone (M12, sin gates de flags); Explorador BDP conservado.
+Evidencia: tests `bdp_f7_menus_locales` 15/15, `task:check 128A-1 --full` PASS (sentinel, varsense,
+rust, frontend type-check, docs), suite completa en verde. Siguiente acción: **F8** (permisos
+operativos configurables D8/M17).
 
 ---
 
@@ -676,8 +691,8 @@ cliente (no autorizada).
       IVA por línea A10), probado con gate PASS
 - [x] F6: historial/auditoría local (`origen_operacion` A11), pagos parciales locales (A8/M13)
       y factura local mínima (A7/D9), probado con gate PASS
-- [ ] F7–F8: menús/packs locales (D2) y permisos operativos (D8/M17) sin BDP
-      (y conviviendo con BDP)
+- [x] F7: menús/packs locales (D2) sobre catálogo local + convivencia BDP, probado con gate PASS
+- [ ] F8: permisos operativos (D8/M17: catálogo, stock, albaranes, anulación) sin BDP
 - [ ] F9: pruebas con/sin BDP + simulador + gate `task:check` PASS con reporte reproducible
 - [ ] F10: roadmap actualizado (128A-1 cerrado), completados con evidencia, feature-flags/mapeo visual
       actualizados, plan movido a `planes/completados/`

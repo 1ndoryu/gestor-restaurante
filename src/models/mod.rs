@@ -1,5 +1,6 @@
 mod api_key;
 mod bdp_article_map;
+mod bdp_menu_local;
 pub mod bdp_pago;
 mod bdp_purchase_note;
 mod campana;
@@ -99,6 +100,10 @@ mod inactividad;
 pub use bdp_article_map::{
     ActualizarBdpArticleMapRequest, AjustarBdpArticleStockRequest, BdpArticleMap, BdpArticleStock,
     CrearBdpArticleMapRequest,
+};
+pub use bdp_menu_local::{
+    ActualizarBdpMenuLocalRequest, BdpMenuLocal, BdpMenuLocalConLineas, BdpMenuLocalLinea,
+    BdpMenuLocalLineaRequest, BdpMenuLocalListParams, BdpMenuLocalTipo, CrearBdpMenuLocalRequest,
 };
 pub use bdp_pago::BdpPago;
 pub use bdp_purchase_note::{

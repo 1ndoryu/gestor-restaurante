@@ -1,5 +1,6 @@
 pub mod api_key;
 pub mod bdp_article_map;
+pub mod bdp_menu_local;
 pub mod bdp_pago;
 pub mod bdp_purchase_note;
 pub mod campana;
@@ -43,6 +44,7 @@ pub mod inactividad;
 pub use bdp_article_map::BdpArticleMapRepository;
 pub use bdp_article_map::BdpArticleUpsertData;
 pub use bdp_article_map::BdpArticleUpsertStatus;
+pub use bdp_menu_local::BdpMenuLocalRepository;
 pub use bdp_pago::BdpPagoRepository;
 pub use bdp_purchase_note::BdpPurchaseNoteRepository;
 pub use inactividad::InactividadRepository;

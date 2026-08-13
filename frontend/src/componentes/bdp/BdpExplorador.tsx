@@ -4,22 +4,35 @@
  * Modo demo muestra una tabla con datos de ejemplo. */
 
 import { useMemo, useState } from 'react';
-import { Search, Loader2, Eye } from 'lucide-react';
+import { Search, Loader2, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import { ErrorResponse } from '@/api/generated/gestionRestauranteAPI.schemas';
 import {
   useGetMenuDefinition,
   useGetFastfoodDefinition,
   useGetPackDefinition,
 } from '@/api/generated/bdp-mapeos/bdp-mapeos';
+import {
+  useBdpMenusLocales,
+  useCrearBdpMenuLocal,
+  useActualizarBdpMenuLocal,
+  useEliminarBdpMenuLocal,
+} from '@/api/bdp';
+import type {
+  ActualizarBdpMenuLocalRequest,
+  BdpMenuLocalConLineas,
+  CrearBdpMenuLocalRequest,
+} from '@/api/bdp';
 import { useBdpDemoMode } from '@/hooks/useBdpDemoMode';
 import { mockExplorerItems, type BdpExplorerItem } from './bdp-mocks';
 import { BdpDemoToggle } from './BdpDemoToggle';
+import { BdpMenuLocalModal } from './BdpMenuLocalModal';
 import {
   Dialog,
   DialogContent,
@@ -99,12 +112,21 @@ function DefinitionDetail({ data }: { data: BdpExplorerItem }) {
 }
 
 function BdpExplorador() {
+  const queryClient = useQueryClient();
   const { demoMode, setDemoMode } = useBdpDemoMode();
   const [tipo, setTipo] = useState<ExploreType>('all');
   const [busqueda, setBusqueda] = useState('');
   const [identificador, setIdentificador] = useState('');
   const [buscado, setBuscado] = useState(false);
   const [seleccionado, setSeleccionado] = useState<BdpExplorerItem | null>(null);
+  const [localModalOpen, setLocalModalOpen] = useState(false);
+  const [localModalMenu, setLocalModalMenu] = useState<BdpMenuLocalConLineas | null>(null);
+
+  /* [128A-1/F7] Menús/packs locales: CRUD local, siempre disponible sin BDP. */
+  const { data: menusLocales, isLoading: isLoadingMenus } = useBdpMenusLocales();
+  const crearMutation = useCrearBdpMenuLocal(queryClient);
+  const actualizarMutation = useActualizarBdpMenuLocal(queryClient);
+  const eliminarMutation = useEliminarBdpMenuLocal(queryClient);
 
   const idNum = Number(identificador);
   const idValido = Number.isInteger(idNum) && idNum > 0;
@@ -168,8 +190,145 @@ function BdpExplorador() {
     setBuscado(true);
   }
 
+  function formatPrecio(value: string) {
+    const n = Number(value);
+    if (Number.isNaN(n)) return value;
+    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
+  }
+
+  function abrirNuevo() {
+    setLocalModalMenu(null);
+    setLocalModalOpen(true);
+  }
+
+  function abrirEdicion(menu: BdpMenuLocalConLineas) {
+    setLocalModalMenu(menu);
+    setLocalModalOpen(true);
+  }
+
+  function handleMenuSubmit(req: CrearBdpMenuLocalRequest | ActualizarBdpMenuLocalRequest) {
+    if (localModalMenu) {
+      actualizarMutation.mutate(
+        { id: localModalMenu.id, req },
+        {
+          onSuccess: () => {
+            toast.success('Menú/pack actualizado');
+            setLocalModalOpen(false);
+          },
+          onError: () => toast.error('No se pudo actualizar el menú/pack'),
+        },
+      );
+    } else {
+      crearMutation.mutate(req as CrearBdpMenuLocalRequest, {
+        onSuccess: () => {
+          toast.success('Menú/pack creado');
+          setLocalModalOpen(false);
+        },
+        onError: () => toast.error('No se pudo crear el menú/pack'),
+      });
+    }
+  }
+
+  function handleEliminar(menu: BdpMenuLocalConLineas) {
+    if (demoMode) {
+      toast.info('En modo demo no se borran datos reales');
+      return;
+    }
+    if (!window.confirm(`¿Eliminar «${menu.nombre}»?`)) return;
+    eliminarMutation.mutate(menu.id, {
+      onSuccess: () => toast.success('Menú/pack eliminado'),
+      onError: () => toast.error('No se pudo eliminar el menú/pack'),
+    });
+  }
+
   return (
     <div className="flex flex-col gap-4">
+      {/* [128A-1/F7] Sección de menús/packs locales — funciona sin BDP. */}
+      <div className="rounded-md border overflow-x-auto">
+        <div className="flex items-center justify-between px-4 py-3 border-b">
+          <div>
+            <h3 className="text-sm font-medium">Menús y packs locales</h3>
+            <p className="text-xs text-muted-foreground">
+              Agrupaciones del catálogo local. Funcionan sin conexión a BDP.
+            </p>
+          </div>
+          <Button size="sm" onClick={abrirNuevo}>
+            <Plus className="mr-1 size-3.5" />
+            Nuevo menú/pack
+          </Button>
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead className="text-right">Precio</TableHead>
+              <TableHead className="text-right">Artículos</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead>Origen</TableHead>
+              <TableHead className="w-24"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoadingMenus ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin inline mr-1" />
+                  Cargando menús locales...
+                </TableCell>
+              </TableRow>
+            ) : (menusLocales ?? []).length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                  No hay menús/packs locales. Crea el primero con «Nuevo menú/pack».
+                </TableCell>
+              </TableRow>
+            ) : (
+              (menusLocales ?? []).map((menu) => (
+                <TableRow key={menu.id}>
+                  <TableCell className="text-sm font-medium">{menu.nombre}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{menu.tipo === 'menu' ? 'Menú' : 'Pack'}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right text-sm">{formatPrecio(menu.precio)}</TableCell>
+                  <TableCell className="text-right text-sm">{menu.lineas.length}</TableCell>
+                  <TableCell>
+                    {menu.activo ? (
+                      <Badge variant="secondary">Activo</Badge>
+                    ) : (
+                      <Badge variant="outline">Inactivo</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge>Local</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => abrirEdicion(menu)}
+                        aria-label={`Editar ${menu.nombre}`}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEliminar(menu)}
+                        aria-label={`Eliminar ${menu.nombre}`}
+                      >
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {demoMode ? `${items.length} definiciones` : 'Consulta una definición de BDP por código'}
@@ -359,6 +518,14 @@ function BdpExplorador() {
           {seleccionado && <DefinitionDetail data={seleccionado} />}
         </DialogContent>
       </Dialog>
+
+      <BdpMenuLocalModal
+        open={localModalOpen}
+        menu={localModalMenu}
+        isSubmitting={crearMutation.isPending || actualizarMutation.isPending}
+        onClose={() => setLocalModalOpen(false)}
+        onSubmit={handleMenuSubmit}
+      />
     </div>
   );
 }
