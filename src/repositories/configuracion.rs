@@ -38,7 +38,8 @@ const UPDATE_CONFIG_SQL: &str = "UPDATE configuracion_restaurante SET \
     ff_bdp_purchase_notes_read = COALESCE($44, ff_bdp_purchase_notes_read), ff_bdp_purchase_notes_draft = COALESCE($45, ff_bdp_purchase_notes_draft), \
     ff_bdp_purchase_notes_receive = COALESCE($46, ff_bdp_purchase_notes_receive), bdp_catalog_price_type = COALESCE($47, bdp_catalog_price_type), \
     bdp_purchase_notes_profile_id = COALESCE($48, bdp_purchase_notes_profile_id), \
-    modo_operacion = COALESCE($49, modo_operacion), updated_at = NOW() \
+    modo_operacion = COALESCE($49, modo_operacion), \
+    anulacion_modalidad = COALESCE($50, anulacion_modalidad), updated_at = NOW() \
     WHERE user_id = $1 RETURNING *";
 
 pub struct ConfiguracionRepository;
@@ -127,6 +128,7 @@ impl ConfiguracionRepository {
             .bind(req.bdp_catalog_price_type)
             .bind(req.bdp_purchase_notes_profile_id)
             .bind(req.modo_operacion.as_deref())
+            .bind(req.anulacion_modalidad.as_deref())
             .fetch_one(pool)
             .await
     }

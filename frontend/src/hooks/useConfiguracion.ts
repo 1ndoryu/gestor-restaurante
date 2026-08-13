@@ -81,6 +81,8 @@ export function useConfiguracion() {
       ff_bdp_purchase_notes_read: config.ff_bdp_purchase_notes_read,
       ff_bdp_purchase_notes_draft: config.ff_bdp_purchase_notes_draft,
       ff_bdp_purchase_notes_receive: config.ff_bdp_purchase_notes_receive,
+      /* [128A-1/F4] Modalidad de anulación local de ventas */
+      anulacion_modalidad: config.anulacion_modalidad,
       google_review_url: config.google_review_url || undefined,
       telefono_restaurante: config.telefono_restaurante || undefined,
       url_reservas: config.url_reservas || undefined,

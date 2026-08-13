@@ -204,6 +204,7 @@ async fn seed_config(pool: &PgPool, user_id: Uuid) -> ConfiguracionRestaurante {
         ff_bdp_purchase_notes_draft: false,
         ff_bdp_purchase_notes_receive: false,
         modo_operacion: "auto".to_string(),
+        anulacion_modalidad: "credito_completo".to_string(),
         google_review_url: String::new(),
         telefono_restaurante: String::new(),
         url_reservas: String::new(),
@@ -256,6 +257,10 @@ async fn seed_venta(pool: &PgPool, user_id: Uuid) -> Venta {
         bdp_order_id: None,
         bdp_order_status: None,
         bdp_invoiced: false,
+        anulada: false,
+        anulada_at: None,
+        anulacion_motivo: None,
+        anulacion_usuario: None,
     }
 }
 
@@ -534,6 +539,10 @@ async fn svc_add_payment_full_flow(pool: PgPool) {
         bdp_order_id: Some(order_id),
         bdp_order_status: None,
         bdp_invoiced: false,
+        anulada: false,
+        anulada_at: None,
+        anulacion_motivo: None,
+        anulacion_usuario: None,
     };
 
     seed_arming(&pool, &config, venta_id, "add_payment").await;
@@ -633,6 +642,10 @@ async fn svc_invoice_order_full_flow(pool: PgPool) {
         bdp_order_id: Some(order_id),
         bdp_order_status: None,
         bdp_invoiced: false,
+        anulada: false,
+        anulada_at: None,
+        anulacion_motivo: None,
+        anulacion_usuario: None,
     };
 
     seed_arming(&pool, &config, venta_id, "invoice").await;

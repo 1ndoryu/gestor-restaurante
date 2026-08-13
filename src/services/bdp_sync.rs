@@ -130,6 +130,17 @@ impl BdpSyncService {
         };
         let _sync_lock_guard = SyncLockGuard::new(venta.id);
 
+        /* [128A-1/F4/M8] Venta anulada localmente: no se sincroniza ni se
+         * reintenta hacia BDP (la anulación es local; C3=b no llama CancelOrder). */
+        if venta.anulada {
+            info!(
+                "[128A-1/F4] Venta {} anulada localmente; sync BDP omitida",
+                venta.id
+            );
+            Self::cleanup_lock(venta.id);
+            return;
+        }
+
         /* Guard: si ya sincronizada y es create (no update), saltar */
         if !is_update {
             match VentaRepository::find_by_id(pool, venta.id, venta.user_id).await {
@@ -2422,6 +2433,10 @@ mod tests {
             bdp_order_id: None,
             bdp_order_status: None,
             bdp_invoiced: false,
+            anulada: false,
+            anulada_at: None,
+            anulacion_motivo: None,
+            anulacion_usuario: None,
         }
     }
 

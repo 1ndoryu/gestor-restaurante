@@ -70,8 +70,8 @@ pub use user::{
     ResetPasswordRequest, User, UserResponse, UserRole,
 };
 pub use venta::{
-    ActualizarVentaRequest, CanalVenta, CrearVentaRequest, MetodoPago, Turno, Venta,
-    VentaConCliente, VentasPaginadas, VentasQuery,
+    ActualizarVentaRequest, AnularVentaRequest, CanalVenta, CrearVentaRequest, MetodoPago, Turno,
+    Venta, VentaConCliente, VentasPaginadas, VentasQuery,
 };
 mod recordatorio;
 pub use api_key::{

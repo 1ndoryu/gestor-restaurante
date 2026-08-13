@@ -3,16 +3,18 @@
  * [147A-F5.4] Añadido botón retry BDP.
  * [223A-1] Tooltips con TooltipButton en vez de title HTML nativo.
  * [237A-3] Añadido botón "Consultar estado BDP" por venta individual.
- * [247A-9] Diálogo de pagos parciales BDP con historial, saldo e idempotencia. */
+ * [247A-9] Diálogo de pagos parciales BDP con historial, saldo e idempotencia.
+ * [128A-1/F4] Anulación local de ventas (D4) con modalidad configurable. */
 
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Button } from '@/components/ui/button';
-import { Trash2, Pencil, Eye, RefreshCw, CreditCard, ReceiptText, Search, AlertTriangle } from 'lucide-react';
+import { Trash2, Pencil, Eye, RefreshCw, CreditCard, ReceiptText, Search, AlertTriangle, Ban } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import instance from '@/api/axios-instance';
@@ -30,6 +32,9 @@ interface VentaRowActionsProps {
   onEliminar: (id: string) => void;
   onRetrySync: (id: string) => void;
   onRetryBdp?: (id: string) => void;
+  onAnular?: (ventaId: string, motivo: string) => void;
+  anulacionModalidad?: string;
+  anularPending?: boolean;
   eliminarPending: boolean;
   retryPending: boolean;
   retryBdpPending?: boolean;
@@ -67,6 +72,9 @@ function VentaRowActions({
   onEliminar,
   onRetrySync,
   onRetryBdp,
+  onAnular,
+  anulacionModalidad = 'credito_completo',
+  anularPending = false,
   eliminarPending,
   retryPending,
   retryBdpPending,
@@ -83,6 +91,9 @@ function VentaRowActions({
   const [consultandoEstado, setConsultandoEstado] = useState(false);
   const [pagos, setPagos] = useState<BdpPaymentsResponse | null>(null);
   const [cargandoPagos, setCargandoPagos] = useState(false);
+  /* [128A-1/F4] Anulación local */
+  const [anularAbierto, setAnularAbierto] = useState(false);
+  const [motivo, setMotivo] = useState('');
 
   const hayAmbiguo = useMemo(() => pagos?.pagos.some((p) => p.resultado === 'ambiguo') ?? false, [pagos]);
   const pendiente = useMemo(() => Number(pagos?.pendiente ?? totalVenta), [pagos, totalVenta]);
@@ -144,7 +155,20 @@ function VentaRowActions({
     }
   };
 
-  const puedePagar = bdpSyncEnabled && bdp.bdp_synced && bdp.bdp_order_id && !bdp.bdp_invoiced && bdp.bdp_order_status !== 'cancelled' && bdp.bdp_order_status !== 'invoiced';
+  const puedePagar = !v.anulada && bdpSyncEnabled && bdp.bdp_synced && bdp.bdp_order_id && !bdp.bdp_invoiced && bdp.bdp_order_status !== 'cancelled' && bdp.bdp_order_status !== 'invoiced';
+  const motivoObligatorio = anulacionModalidad === 'credito_completo';
+  const anulacionPendienteBdp = v.anulada && bdp.bdp_synced && bdp.bdp_order_status !== 'cancelled' && bdp.bdp_order_status !== 'invoiced';
+
+  const cerrarAnulacion = () => {
+    setAnularAbierto(false);
+    setMotivo('');
+  };
+
+  const ejecutarAnulacion = () => {
+    if (!onAnular) return;
+    onAnular(v.id, motivo.trim());
+    cerrarAnulacion();
+  };
 
   return (
     <>
@@ -215,10 +239,22 @@ function VentaRowActions({
           <ReceiptText className="size-4 text-violet-700" />
         </TooltipButton>
       )}
+      {!v.anulada && onAnular && (
+        <TooltipButton
+          variant="ghost"
+          size="icon"
+          onClick={() => { setMotivo(''); setAnularAbierto(true); }}
+          disabled={anularPending}
+          tooltip="Anular venta"
+          tooltipSide="left"
+        >
+          <Ban className="size-4 text-destructive" />
+        </TooltipButton>
+      )}
       <TooltipButton variant="ghost" size="icon" onClick={() => onEditar(v)} tooltip="Editar" tooltipSide="left">
         <Pencil className="size-4" />
       </TooltipButton>
-      {!haddockSyncEnabled && (
+      {!haddockSyncEnabled && !v.anulada && !bdp.bdp_synced && !bdp.bdp_order_id && (
         <TooltipButton
           variant="ghost"
           size="icon"
@@ -323,6 +359,44 @@ function VentaRowActions({
         )}
         <div><Label htmlFor={`confirmar-factura-${v.id}`}>Escribe FACTURAR {v.id}</Label><Input id={`confirmar-factura-${v.id}`} value={confirmacion} onChange={(e) => setConfirmacion(e.target.value)} /></div>
         <DialogFooter><Button variant="outline" onClick={cerrar}>Cancelar</Button><Button disabled={enviando || pendiente > 0.01 || confirmacion !== `FACTURAR ${v.id}`} onClick={ejecutarBdp}>{enviando ? 'Verificando…' : 'Verificar y facturar'}</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+    <Dialog open={anularAbierto} onOpenChange={(open: boolean) => { if (!open) cerrarAnulacion(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Anular venta</DialogTitle>
+          <DialogDescription>
+            Marca la venta como anulada. {motivoObligatorio ? 'El motivo es obligatorio y la venta se excluye del resumen diario.' : 'Solo se cambia el estado, sin exigir motivo.'}
+          </DialogDescription>
+        </DialogHeader>
+        {motivoObligatorio && (
+          <div>
+            <Label htmlFor={`motivo-anulacion-${v.id}`}>Motivo de anulación</Label>
+            <Textarea
+              id={`motivo-anulacion-${v.id}`}
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Ej.: comanda incorrecta, cliente no recogió el pedido…"
+            />
+          </div>
+        )}
+        {anulacionPendienteBdp && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <span>Pendiente de anular en BDP: la venta sigue abierta allí y podría volver a sincronizarse. La anulación local la excluye del resumen hasta gestionarla en BDP.</span>
+          </div>
+        )}
+        <div><Label htmlFor={`confirmar-anular-${v.id}`}>Escribe ANULAR {v.id}</Label><Input id={`confirmar-anular-${v.id}`} value={confirmacion} onChange={(e) => setConfirmacion(e.target.value)} /></div>
+        <DialogFooter>
+          <Button variant="outline" onClick={cerrarAnulacion}>Cancelar</Button>
+          <Button
+            variant="destructive"
+            disabled={anularPending || confirmacion !== `ANULAR ${v.id}` || (motivoObligatorio && motivo.trim().length === 0)}
+            onClick={ejecutarAnulacion}
+          >
+            {anularPending ? 'Anulando…' : 'Anular venta'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
     </>

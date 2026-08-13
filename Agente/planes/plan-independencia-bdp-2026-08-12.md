@@ -3,7 +3,7 @@
 > **Fecha:** 2026-08-12 (revisión profunda 2026-08-12)
 > **Rama:** `glory-rs-rest`
 > **ID de bloque:** `128A-1`
-> **Estado:** Activo (en ejecución). F0–F3 completados; F4 en curso.
+> **Estado:** Activo (en ejecución). F0–F4 completados; F5 en curso.
 > **Skills aplicadas:** `supervisor-thinking` (diseño y desafío) y `supervisor-review` (revisión dura) —
 > veredicto en el Anexo B.
 >
@@ -270,7 +270,12 @@ aceptación observable**. Los conflictos anticipados (M#) se detallan en §14.
   - **C3/M8:** decidir en F4 la vía de cancelación BDP: (a) `CancelOrder` requiere ampliar scopes/arming
     y el CHECK de `bdp_write_arming` (hoy `cancel_order` no está contemplado; alinear §6 y U6), o
     (b) estado `anulada_local_pendiente_bdp` sin llamada API + reintento manual/poller cuando haya
-    suscripción. Nunca fingir éxito BDP.
+    suscripción. Nunca fingir éxito BDP. **DECISIÓN F4: opción (b).** `VALID_BDP_WRITE_SCOPES`
+    (`src/services/bdp_write_guard.rs:10`) no incluye `cancel_order` y el CHECK
+    `bdp_write_arming_scopes_safe` tampoco; no se amplían scopes/arming en F4. El estado
+    "pendiente BDP" se deriva: `anulada=true AND bdp_synced=true AND bdp_order_status NOT IN
+    ('cancelled','invoiced')`. El poller excluye esas ventas (M8) y el reintento vía `CancelOrder`
+    queda condicionado a una fase futura con scopes/arming ampliados.
   - **C5:** `bdp_pagos` tiene `ON DELETE CASCADE` sobre `ventas` → al desbloquear `venta::delete`,
     documentar y probar la semántica (historial de pagos de ventas borradas).
 - **Aceptación:** anular sin BDP en cada modalidad; delete no bloqueado en caso seguro; venta sincronizada
@@ -431,8 +436,8 @@ aceptación observable**. Los conflictos anticipados (M#) se detallan en §14.
 | **F9** | Pruebas con/sin BDP: standalone completo, simulador, regresión del gate | Suites + `task:check` PASS con reporte | F1–F8 |
 | **F10** | Cierre documental: roadmap, completados, feature-flags, mapeo visual, plan a `planes/completados/` | Documentación actualizada y evidencia registrada | F9 |
 
-**SIGUIENTE ACCIÓN (verificable):** ejecutar **F4** (anulación local, modalidades D4, reglas M8–M11,
-desbloqueo delete D5, auditoría) en el ciclo local completo (editar → probar → gate → commit).
+**SIGUIENTE ACCIÓN (verificable):** ejecutar **F5** (compras locales, M18, CRUD + conciliación local,
+flags solo bdp) en el ciclo local completo (editar → probar → gate → commit).
 Autorizado: todo el ciclo local. No autorizado sin usuario: deploy a producción, escrituras al BDP
 real, SSH (prohibido siempre).
 
@@ -456,6 +461,21 @@ con badge de origen (`local`/`bdp`) y diálogo de ajuste. Evidencia: tests
 `bdp_article_map` 30/30, `bdp_backup` 27/27, `--lib` 134/134, type-check
 frontend PASS, `task:check 128A-1` PASS. Siguiente acción: **F4** (anulación
 local).
+
+**Estado 2026-08-13 (F4):** **completado** — anulación local de ventas con
+modalidades (D4): migración `20260815000000_venta_anulacion`
+(`anulada`, `anulada_at`, `anulacion_motivo`, `anulacion_usuario`;
+`anulacion_modalidad` en config, `credito_completo` default), `VentaService::anular`
+(motivo obligatorio en crédito completo, bloqueo de facturadas M9, guard de
+transición única + idempotencia C1 vía `bdp_audit_log`), `total_periodo` excluye
+anuladas (reversión de IVA idempotente M10), poller BDP excluye
+anuladas-pendientes (M8, C3=b sin `CancelOrder`), liberación de mesa solo si es
+la ocupante actual (M11), delete desbloqueado solo para ventas no sincronizadas
+y no anuladas (D5, las anuladas nunca se borran), UI: botón Anular con
+confirmación `ANULAR {id}` + motivo en `venta-row-actions.tsx`, badge «Anulada»,
+selector de modalidad en Configuración BDP. Evidencia: `task:check 128A-1` PASS
+(sentinel, varsense, rust, frontend type-check, docs). Siguiente acción: **F5**
+(compras locales).
 
 ---
 
@@ -509,7 +529,7 @@ se registra aquí con fecha.
 | **M5** | **`bdp_article_map` es tabla de mapeo, no catálogo**: reutilizarla como catálogo mezcla dos responsabilidades | Acoplamiento y confusión semántica; columnas que no existen | Ampliar la misma tabla (ya tiene nombre/stock) con las columnas del catálogo y **documentar la semántica** ("artículos del catálogo + mapeo Glory↔BDP"); `UNIQUE(user_id, articulo_glory_codigo)` se mantiene como identidad local; no crear tabla paralela (opción C rechazada) |
 | **M6** | **Import BDP pisa ediciones locales** | Pérdida silenciosa de cambios del dueño | `local_dirty=true` al editar localmente; upsert del import **no sobrescribe** filas dirty (mantiene versión local y registra el conflicto en el reporte de import, visible en UI) |
 | **M7** | **Artículos desactivados localmente reaparecen** en cada import | El dueño "oculta" un artículo y el sync lo reactiva | `activo=false` es local y el import no lo reactiva; el import reporta "N artículos desactivados localmente" |
-| **M8** | **Anulación local vs poller de reconciliación**: venta anulada localmente pero abierta en BDP podría marcarse `ambiguo` otra vez | Falsos positivos, ruido en auditoría | Estado explícito `anulada_local_pendiente_bdp`; el poller lo **excluye** de la reconciliación y, cuando la suscripción exista, intenta `CancelOrder`. El reintento vía `CancelOrder` queda condicionado a la decisión F4/C3 (§4.7): ampliar scopes/arming y el CHECK `bdp_write_arming_scopes_safe`; sin esa decisión, solo estado local sin llamada API |
+| **M8** | **Anulación local vs poller de reconciliación**: venta anulada localmente pero abierta en BDP podría marcarse `ambiguo` otra vez | Falsos positivos, ruido en auditoría | Estado explícito `anulada_local_pendiente_bdp`; el poller lo **excluye** de la reconciliación y, cuando la suscripción exista, intenta `CancelOrder`. **DECISIÓN F4 (C3=b):** solo estado local sin llamada API; `cancel_order` no está en `VALID_BDP_WRITE_SCOPES` ni en el CHECK `bdp_write_arming_scopes_safe`, y no se amplían scopes/arming en F4. Reintento vía `CancelOrder` condicionado a fase futura (§6/U6) |
 | **M9** | **Anular una venta facturada** | Descuadre contable (factura emitida) | Regla: solo se anulan ventas **no facturadas**; facturadas → flujo de nota de crédito fiscal aparte (documentado, no en F4) |
 | **M10** | **Reversión de IVA duplicada o mal aplicada** (doble anulación, ediciones concurrentes) | Caja descuadrada | Transición de estado única y guardada (pendiente/pagada → anulada) con idempotencia por petición; en `credito_completo` el resumen diario excluye/revierte la venta exactamente una vez |
 | **M11** | **Liberación de mesa equivocada** (la mesa la ocupa otra venta/comanda) | Plano de sala inconsistente | Solo se libera si la venta anulada es la ocupante actual de la mesa; si no, se avisa y no se toca el plano |
@@ -613,7 +633,9 @@ cliente (no autorizada).
       con gate PASS
 - [x] F3: stock local (ajuste manual con auditoría, GetStock/GetListStock N6, UI con origen),
       probado con gate PASS
-- [ ] F4–F8: anulación, compras, historial/pagos parciales, menús y permisos operativos
+- [x] F4: anulación local (modalidades D4), reglas M8–M11, desbloqueo delete (D5), auditoría,
+      probado con gate PASS
+- [ ] F5–F8: compras, historial/pagos parciales, menús y permisos operativos
       sin BDP (y conviviendo con BDP)
 - [ ] F9: pruebas con/sin BDP + simulador + gate `task:check` PASS con reporte reproducible
 - [ ] F10: roadmap actualizado (128A-1 cerrado), completados con evidencia, feature-flags/mapeo visual

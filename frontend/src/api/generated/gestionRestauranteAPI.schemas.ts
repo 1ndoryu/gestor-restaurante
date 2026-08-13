@@ -89,6 +89,8 @@ export interface ActualizarClienteRequest {
  */
 export interface ActualizarConfiguracionRequest {
   /** @nullable */
+  anulacion_modalidad?: string | null;
+  /** @nullable */
   auto_venta_reserva?: boolean | null;
   /** @nullable */
   bdp_auto_backup_before_write?: boolean | null;
@@ -1225,6 +1227,8 @@ export interface CombinacionExport {
  * Configuración almacenada del restaurante
  */
 export interface ConfiguracionRestaurante {
+  /* [128A-1/F4] Modalidad de anulación local (credito_completo | estado_solo) */
+  anulacion_modalidad: string;
   auto_venta_reserva: boolean;
   bdp_auto_backup_before_write: boolean;
   bdp_auto_sync_customers: boolean;
@@ -2281,6 +2285,14 @@ export interface TrabajadorResponse {
  * Venta registrada en el restaurante
  */
 export interface Venta {
+  /* [128A-1/F4] Anulación local de ventas */
+  anulada: boolean;
+  /** @nullable */
+  anulada_at?: string | null;
+  /** @nullable */
+  anulacion_motivo?: string | null;
+  /** @nullable */
+  anulacion_usuario?: string | null;
   bdp_invoiced: boolean;
   /** @nullable */
   bdp_order_id?: number | null;
@@ -2317,6 +2329,14 @@ export interface Venta {
 }
 
 export interface VentaConCliente {
+  /* [128A-1/F4] Anulación local de ventas */
+  anulada: boolean;
+  /** @nullable */
+  anulada_at?: string | null;
+  /** @nullable */
+  anulacion_motivo?: string | null;
+  /** @nullable */
+  anulacion_usuario?: string | null;
   bdp_invoiced: boolean;
   /** @nullable */
   bdp_order_id?: number | null;
@@ -2764,4 +2784,3 @@ sort_by?: string | null;
  */
 sort_order?: string | null;
 };
-

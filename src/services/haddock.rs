@@ -118,6 +118,17 @@ impl HaddockService {
             return;
         };
 
+        /* [128A-1/F4] Venta anulada localmente: no se sincroniza con Haddock
+         * (una venta anulada no debe generar comanda externa). */
+        if venta.anulada {
+            info!(
+                "[128A-1/F4] Venta {} anulada localmente; sync Haddock omitida",
+                venta.id
+            );
+            Self::cleanup_lock(venta.id);
+            return;
+        }
+
         /* [064A-7] Guard de duplicados en creación: re-leer venta de BD para verificar
          * si otro sync ya la marcó como sincronizada mientras esperábamos. */
         if !is_update {
@@ -424,6 +435,10 @@ mod tests {
             /* [276A-4.1] Estado BDP polling */
             bdp_order_status: None,
             bdp_invoiced: false,
+            anulada: false,
+            anulada_at: None,
+            anulacion_motivo: None,
+            anulacion_usuario: None,
         }
     }
 
@@ -479,6 +494,7 @@ mod tests {
             ff_bdp_purchase_notes_draft: false,
             ff_bdp_purchase_notes_receive: false,
             modo_operacion: "auto".to_string(),
+            anulacion_modalidad: "credito_completo".to_string(),
             google_review_url: String::new(),
             telefono_restaurante: String::new(),
             url_reservas: String::new(),
@@ -1248,6 +1264,7 @@ mod tests {
             ff_bdp_purchase_notes_draft: None,
             ff_bdp_purchase_notes_receive: None,
             modo_operacion: None,
+            anulacion_modalidad: None,
         };
         ConfiguracionRepository::actualizar(pool, user_id, &req)
             .await

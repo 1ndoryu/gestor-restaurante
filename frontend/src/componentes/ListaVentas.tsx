@@ -83,6 +83,8 @@ function ListaVentas() {
     bdpSyncEnabled,
     bdpPollMutation,
     retryBdpMutation,
+    anularMutation,
+    anulacionModalidad,
     cerrarModalYRefrescar,
     cerrarEdicionYRefrescar,
     reservaIdViewer,
@@ -295,6 +297,9 @@ function ListaVentas() {
                   onEliminar={(id) => eliminarMutation.mutate({ id })}
                   onRetryHaddock={(id) => retryHaddockMutation.mutate({ id })}
                   onRetryBdp={(id) => retryBdpMutation.mutateAsync(id)}
+                  onAnular={(id, motivo) => anularMutation.mutate({ ventaId: id, req: { motivo, idempotency_key: crypto.randomUUID() } })}
+                  anulacionModalidad={anulacionModalidad}
+                  anularPending={anularMutation.isPending}
                   eliminarPending={eliminarMutation.isPending}
                   retryHaddockPending={retryHaddockMutation.isPending}
                   retryBdpPending={retryBdpMutation.isPending}

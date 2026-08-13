@@ -5,6 +5,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import HaddockSyncBadge from '@/components/haddock-sync-badge';
 import BdpSyncBadge from '@/components/bdp-sync-badge';
 import VentaRowActions from '@/components/venta-row-actions';
+import { Badge } from '@/components/ui/badge';
 import type { VentaConCliente } from '../api/generated';
 import type { VentaConClienteBdp } from '../api/bdp';
 
@@ -28,6 +29,9 @@ interface VentaTableBodyProps {
   onEliminar: (id: string) => void;
   onRetryHaddock: (id: string) => void;
   onRetryBdp?: (id: string) => void;
+  onAnular: (ventaId: string, motivo: string) => void;
+  anulacionModalidad: string;
+  anularPending: boolean;
   eliminarPending: boolean;
   retryHaddockPending: boolean;
   retryBdpPending?: boolean;
@@ -42,6 +46,9 @@ function VentaTableBody({
   onEliminar,
   onRetryHaddock,
   onRetryBdp,
+  onAnular,
+  anulacionModalidad,
+  anularPending,
   eliminarPending,
   retryHaddockPending,
   retryBdpPending,
@@ -51,7 +58,12 @@ function VentaTableBody({
       {ventas.map((v) => (
         <TableRow key={v.id}>
           <TableCell>{v.fecha}</TableCell>
-          <TableCell>{v.nombre_cliente ?? '—'}</TableCell>
+          <TableCell>
+            <div className="flex items-center gap-1.5">
+              <span>{v.nombre_cliente ?? '—'}</span>
+              {v.anulada && <Badge variant="destructive" className="text-[10px]">Anulada</Badge>}
+            </div>
+          </TableCell>
           <TableCell>{ETIQUETAS_TURNO[v.turno] ?? v.turno}</TableCell>
           <TableCell className="capitalize">{v.canal}</TableCell>
           <TableCell className="capitalize">{v.metodo_pago}</TableCell>
@@ -87,6 +99,9 @@ function VentaTableBody({
               onEliminar={onEliminar}
               onRetrySync={onRetryHaddock}
               onRetryBdp={onRetryBdp}
+              onAnular={onAnular}
+              anulacionModalidad={anulacionModalidad}
+              anularPending={anularPending}
               eliminarPending={eliminarPending}
               retryPending={retryHaddockPending}
               retryBdpPending={retryBdpPending}

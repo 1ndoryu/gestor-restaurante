@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import type { EstadoConfiguracion } from '../hooks/useConfiguracion';
@@ -447,6 +448,28 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
             checked={config.ff_bdp_cancel_order}
             onCheckedChange={(checked: boolean) => cambiarCampo('ff_bdp_cancel_order', checked)}
           />
+        </div>
+        {/* [128A-1/F4] Modalidad de anulación local de ventas */}
+        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+          <div>
+            <Label htmlFor="anulacion-modalidad">Modalidad de anulación</Label>
+            <p className="text-xs text-muted-foreground">
+              «Crédito completo» exige motivo y revierte la venta en el resumen diario;
+              «Solo estado» marca la venta como anulada sin exigir motivo.
+            </p>
+          </div>
+          <Select
+            value={config.anulacion_modalidad}
+            onValueChange={(v) => cambiarCampo('anulacion_modalidad', v)}
+          >
+            <SelectTrigger id="anulacion-modalidad" className="w-52">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="credito_completo">Crédito completo</SelectItem>
+              <SelectItem value="estado_solo">Solo estado</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="border-t pt-3">
           <p className="text-xs font-medium text-muted-foreground mb-3">Compras (albaranes de proveedores BDP)</p>

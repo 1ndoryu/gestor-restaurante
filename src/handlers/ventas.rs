@@ -10,7 +10,8 @@ use validator::Validate;
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::models::{
-    ActualizarVentaRequest, CrearVentaRequest, Venta, VentaLinea, VentasPaginadas, VentasQuery,
+    ActualizarVentaRequest, AnularVentaRequest, CrearVentaRequest, Venta, VentaLinea,
+    VentasPaginadas, VentasQuery,
 };
 use crate::services::{BdpOrderPollerService, BdpSyncService, VentaService};
 use crate::AppState;
@@ -167,6 +168,44 @@ pub async fn eliminar_venta(
 ) -> Result<StatusCode, AppError> {
     VentaService::delete(&state.pool, id, auth.user_id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/* [128A-1/F4] POST /api/ventas/:id/anular — Anulación local de ventas (D4).
+ * Modalidades configuradas en `anulacion_modalidad` (credito_completo default |
+ * estado_solo). Confirmación dinámica `ANULAR {id}` (patrón PAGAR/FACTURAR).
+ * M9: solo ventas no facturadas. C3=b: sin llamada CancelOrder. */
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct AnularVentaResponse {
+    pub venta: Venta,
+    pub anulada: bool,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/ventas/{id}/anular",
+    tag = "Ventas",
+    params(("id" = Uuid, Path, description = "ID de la venta")),
+    request_body = AnularVentaRequest,
+    responses(
+        (status = 200, description = "Venta anulada", body = AnularVentaResponse),
+        (status = 404, description = "Venta no encontrada", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse),
+        (status = 409, description = "Venta facturada o idempotency_key ya usada con otro resultado", body = ErrorResponse),
+        (status = 422, description = "Motivo obligatorio en credito_completo", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn anular_venta(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(req): Json<AnularVentaRequest>,
+) -> Result<Json<AnularVentaResponse>, AppError> {
+    let venta = VentaService::anular(&state.pool, id, auth.user_id, req).await?;
+    Ok(Json(AnularVentaResponse {
+        anulada: venta.anulada,
+        venta,
+    }))
 }
 
 /// Reintentar sincronización con Haddock
@@ -644,6 +683,7 @@ pub fn routes() -> Router<AppState> {
         .route("/ventas/:id/lineas", get(obtener_lineas_venta))
         .route("/ventas/:id/bdp-payment", post(bdp_payment))
         .route("/ventas/:id/bdp-invoice", post(bdp_invoice))
+        .route("/ventas/:id/anular", post(anular_venta))
         .route("/ventas/:id/bdp-payments", get(listar_bdp_payments))
         .route("/ventas/bdp-poll", post(bdp_poll))
 }

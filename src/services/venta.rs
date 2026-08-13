@@ -7,7 +7,9 @@ use tracing::warn;
 use uuid::Uuid;
 
 use crate::errors::AppError;
-use crate::models::{ActualizarVentaRequest, CrearVentaRequest, Venta, VentasPaginadas};
+use crate::models::{
+    ActualizarVentaRequest, AnularVentaRequest, CrearVentaRequest, Venta, VentasPaginadas,
+};
 use crate::repositories::venta::{ActualizarVentaData, NuevaVenta};
 use crate::repositories::{ConfiguracionRepository, VentaLineaRepository, VentaRepository};
 
@@ -204,7 +206,11 @@ impl VentaService {
 
     /* [064A-8] Eliminar venta — bloqueado si sincronización Haddock o BDP está activa.
      * Haddock no tiene endpoint DELETE; BDP puede cancelar pero no confiablemente.
-     * El cliente pide explícitamente bloquear. */
+     * El cliente pide explícitamente bloquear.
+     * [128A-1/F4/D5=A] Desbloqueo: solo ventas NO sincronizadas con BDP y NO
+     * anuladas. Si Haddock sigue activo, el bloqueo permanece (M14). Si está
+     * sincronizada y BDP no responde, el DELETE falla con 409 y mensaje
+     * accionable. Las anuladas nunca se borran (histórico con motivo). */
     pub async fn delete(pool: &PgPool, id: Uuid, user_id: Uuid) -> Result<(), AppError> {
         let config = ConfiguracionRepository::obtener_o_crear(pool, user_id).await?;
         if config.haddock_sync_enabled {
@@ -222,10 +228,91 @@ impl VentaService {
             ));
         }
 
+        let venta = VentaRepository::find_by_id(pool, id, user_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
+        if venta.anulada {
+            return Err(AppError::Conflict(
+                "Las ventas anuladas nunca se eliminan: quedan como histórico con motivo (D5)."
+                    .into(),
+            ));
+        }
+        if venta.bdp_synced || venta.bdp_order_id.is_some() {
+            return Err(AppError::Conflict(
+                "La venta ya fue sincronizada con BDP. Para eliminarla, concilie primero la \
+                 comanda (estado final en BDP) o anúlela localmente si aún no está facturada."
+                    .into(),
+            ));
+        }
         if !VentaRepository::delete(pool, id, user_id).await? {
-            return Err(AppError::NotFound("Venta no encontrada".into()));
+            return Err(AppError::NotFound(
+                "Venta no encontrada tras verificación".into(),
+            ));
         }
         Ok(())
+    }
+
+    /* [128A-1/F4] Anulación local de ventas (D4, M9-M11).
+     *
+     * Modalidades:
+     *   - `credito_completo` (default): motivo obligatorio + reversión de IVA
+     *     idempotente (exclusión del resumen diario en total_periodo) (M10).
+     *   - `estado_solo`: solo marca el estado anulada.
+     *
+     * Reglas:
+     *   - M9: solo ventas NO facturadas (bdp_invoiced=false y status != invoiced).
+     *   - C3=b: NUNCA se llama CancelOrder; el estado "pendiente de anular en
+     *     BDP" se deriva (anulada=true AND bdp_synced=true AND status no final)
+     *     y el poller lo excluye (M8).
+     *   - M11: liberar mesa solo si la venta es la ocupante actual. La ocupación
+     *     se deriva de reservas (venta -> reserva_id -> mesa), así que si la
+     *     venta tiene reserva vinculada se evalúa la liberación; si no hay
+     *     vínculo de ocupación, no se toca el plano (aviso en auditoría).
+     *   - Idempotencia C1: doble click seguro vía idempotency_key.
+     */
+    pub async fn anular(
+        pool: &PgPool,
+        id: Uuid,
+        user_id: Uuid,
+        req: AnularVentaRequest,
+    ) -> Result<Venta, AppError> {
+        let config = ConfiguracionRepository::obtener_o_crear(pool, user_id).await?;
+        let modalidad = config.anulacion_modalidad.clone();
+        if modalidad != "credito_completo" && modalidad != "estado_solo" {
+            return Err(AppError::Internal(format!(
+                "anulacion_modalidad inválida en BD: '{modalidad}'"
+            )));
+        }
+
+        /* D4/credito_completo: motivo obligatorio (M10). */
+        let motivo = req.motivo.as_deref().map(str::trim);
+        if modalidad == "credito_completo" && motivo.is_none_or(str::is_empty) {
+            return Err(AppError::Validation(
+                "En modalidad crédito completo el motivo de anulación es obligatorio.".into(),
+            ));
+        }
+
+        let (venta, _audit_id, resultado_previo, _ya_anulada) = VentaRepository::anular(
+            pool,
+            id,
+            user_id,
+            motivo,
+            req.anulacion_usuario,
+            req.idempotency_key.as_deref(),
+        )
+        .await?;
+
+        /* Idempotencia C1: reintento con la misma clave y resultado previo
+         * 'exito' es éxito idempotente; cualquier otro resultado es conflicto. */
+        if let Some(resultado) = resultado_previo {
+            if resultado != "exito" {
+                return Err(AppError::Conflict(format!(
+                    "idempotency_key ya usada (resultado previo: {resultado})"
+                )));
+            }
+        }
+
+        Ok(venta)
     }
 
     /* [064A-10] Retry manual de sincronización Haddock.

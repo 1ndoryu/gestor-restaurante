@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListarVentas, useEliminarVenta, useObtenerReserva, useReintentarSyncHaddock } from '../api/generated';
 import { useObtenerConfiguracion } from '../api/generated/configuracion/configuracion';
-import { useBdpPoll, useRetryBdpSync } from '../api/bdp';
+import { useBdpPoll, useRetryBdpSync, useAnularVenta } from '../api/bdp';
 import { useVentasFiltros } from './useVentasFiltros';
 import { useVentasEdicion } from './useVentasEdicion';
 
@@ -54,6 +54,10 @@ function useListaVentas() {
   const bdpSyncEnabled = configData?.status === 200
     ? Boolean((configData.data as unknown as Record<string, unknown>).bdp_sync_enabled ?? false)
     : false;
+  /* [128A-1/F4] Modalidad de anulación local de ventas */
+  const anulacionModalidad = configData?.status === 200
+    ? String((configData.data as unknown as Record<string, unknown>).anulacion_modalidad ?? 'credito_completo')
+    : 'credito_completo';
 
   /* Sub-hook de edición — depende de haddockSyncEnabled */
   const edicion = useVentasEdicion(haddockSyncEnabled, bdpSyncEnabled);
@@ -68,6 +72,22 @@ function useListaVentas() {
   const queryClient = useQueryClient();
   const bdpPollMutation = useBdpPoll(queryClient);
   const retryBdpMutation = useRetryBdpSync(queryClient);
+  /* [128A-1/F4] Anulación local (D4) — bloqueos 409/422 con mensaje accionable */
+  const anularMutation = useAnularVenta(queryClient, {
+    onSuccess: () => { refetch(); },
+    onError: (err: unknown) => {
+      const status = (err as { status?: number })?.status
+        ?? (err as { response?: { status?: number } })?.response?.status;
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      if (status === 409) {
+        toast.error('Anulación bloqueada', { description: message ?? 'La venta ya está anulada, sincronizada con BDP o facturada.' });
+      } else if (status === 422) {
+        toast.error('Motivo obligatorio', { description: message ?? 'En modalidad «Crédito completo» el motivo de anulación es obligatorio.' });
+      } else {
+        toast.error('Error al anular la venta');
+      }
+    },
+  });
 
   const ventas = data?.status === 200 ? data.data : null;
 
@@ -99,6 +119,8 @@ function useListaVentas() {
     bdpSyncEnabled,
     bdpPollMutation,
     retryBdpMutation,
+    anularMutation,
+    anulacionModalidad,
     cerrarModalYRefrescar,
     cerrarEdicionYRefrescar,
     reservaIdViewer,

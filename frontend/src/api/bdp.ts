@@ -9,7 +9,7 @@
  */
 
 import { useMutation, useQuery } from '@tanstack/react-query';
-import type { QueryClient } from '@tanstack/react-query';
+import type { QueryClient, UseMutationOptions } from '@tanstack/react-query';
 import { customInstance } from './axios-instance';
 import { useReintentarSyncBdp } from './generated/ventas/ventas';
 
@@ -18,11 +18,25 @@ import { useReintentarSyncBdp } from './generated/ventas/ventas';
 /** Extensión manual de VentaConCliente con campos BDP.
  *  Cuando Orval codegen se regenere, estos campos vendrán del schema generado. */
 export interface VentaConClienteBdp {
+  /* [128A-1/F4] Anulación local de ventas */
+  anulada?: boolean;
+  /** @nullable */
+  anulada_at?: string | null;
+  /** @nullable */
+  anulacion_motivo?: string | null;
+  /** @nullable */
+  anulacion_usuario?: string | null;
   bdp_synced?: boolean;
   bdp_order_id?: string | null;
   bdp_sync_error?: string | null;
   bdp_order_status?: string | null;
   bdp_invoiced?: boolean;
+}
+
+/** Response de anulación local de venta (POST /api/ventas/:id/anular). */
+export interface AnularVentaResponse {
+  venta: Record<string, unknown>;
+  anulada: boolean;
 }
 
 export interface BdpOrderStatusResponse {
@@ -133,6 +147,19 @@ export async function ajustarBdpArticleStock(
     method: 'POST',
     body: JSON.stringify(req),
   }) as { data: BdpArticleStockItem };
+  return resp.data;
+}
+
+/* [128A-1/F4] Anular localmente una venta (D4). El motivo es obligatorio en
+ * modalidad credito_completo. Idempotency key protege el doble click (C1). */
+export async function anularVenta(
+  ventaId: string,
+  req: { motivo?: string; idempotency_key?: string; anulacion_usuario?: string },
+): Promise<AnularVentaResponse> {
+  const resp = await customInstance(`/api/ventas/${ventaId}/anular`, {
+    method: 'POST',
+    body: JSON.stringify(req),
+  }) as { data: AnularVentaResponse };
   return resp.data;
 }
 
@@ -340,4 +367,19 @@ export function useRetryBdpSync(queryClient?: QueryClient) {
       return result;
     },
   };
+}
+
+/** Mutation hook: anulación local de una venta (D4, C1 idempotencia). */
+export function useAnularVenta(queryClient?: QueryClient, options?: UseMutationOptions<AnularVentaResponse, unknown, { ventaId: string; req: { motivo?: string; idempotency_key?: string; anulacion_usuario?: string } }>) {
+  return useMutation<AnularVentaResponse, unknown, { ventaId: string; req: { motivo?: string; idempotency_key?: string; anulacion_usuario?: string } }>({
+    ...options,
+    mutationFn: ({ ventaId, req }) => anularVenta(ventaId, req),
+    onSuccess: (data, variables, onMutateResult, context) => {
+      options?.onSuccess?.(data, variables, onMutateResult, context);
+      queryClient?.invalidateQueries({ queryKey: ['listarVentas'] });
+    },
+    onError: (error, variables, onMutateResult, context) => {
+      options?.onError?.(error, variables, onMutateResult, context);
+    },
+  });
 }

@@ -46,6 +46,7 @@ pub use super::common::MetodoPago;
 
 /// Venta registrada en el restaurante
 #[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Venta {
     pub id: Uuid,
     pub user_id: Uuid,
@@ -76,6 +77,15 @@ pub struct Venta {
     pub bdp_order_status: Option<String>,
     /* [F8.4] Indica si la venta fue facturada en BDP (InvoiceOrder exitoso). */
     pub bdp_invoiced: bool,
+    /* [128A-1/F4] Anulación local de ventas (D4, M9-M11).
+     * `anulada=true` es un estado final: las ventas anuladas nunca se borran
+     * físicamente (histórico con motivo, D5) y se excluyen del resumen diario
+     * en modalidad `credito_completo` (M10). La transición única
+     * pendiente/pagada -> anulada la garantiza el UPDATE con guard en el repo. */
+    pub anulada: bool,
+    pub anulada_at: Option<DateTime<Utc>>,
+    pub anulacion_motivo: Option<String>,
+    pub anulacion_usuario: Option<Uuid>,
 }
 
 /// Request para crear una venta
@@ -129,6 +139,7 @@ pub struct VentasPaginadas {
 /* [034A-5] Venta enriquecida con nombre del cliente para listados.
  * Evita que el frontend haga un request por cada venta para resolver el nombre. */
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, ToSchema)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct VentaConCliente {
     pub id: Uuid,
     pub user_id: Uuid,
@@ -159,6 +170,30 @@ pub struct VentaConCliente {
     pub bdp_order_status: Option<String>,
     /* [F8.4] Indica si la venta fue facturada en BDP */
     pub bdp_invoiced: bool,
+    /* [128A-1/F4] Anulación local de ventas — mismos campos que `Venta`. */
+    pub anulada: bool,
+    pub anulada_at: Option<DateTime<Utc>>,
+    pub anulacion_motivo: Option<String>,
+    pub anulacion_usuario: Option<Uuid>,
+}
+
+/* [128A-1/F4] Request de anulación local de ventas.
+ * - `motivo`: obligatorio en modalidad `credito_completo` (M10).
+ * - `idempotency_key`: doble click seguro (guard C1); si se reenvía la misma
+ *   clave tras un éxito previo, la operación es idempotente.
+ * - `anulacion_usuario`: si viene, se audita como usuario que anuló. */
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct AnularVentaRequest {
+    #[validate(length(
+        min = 1,
+        max = 500,
+        message = "El motivo de anulación es obligatorio y no debe exceder 500 caracteres"
+    ))]
+    pub motivo: Option<String>,
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
+    #[serde(default)]
+    pub anulacion_usuario: Option<Uuid>,
 }
 
 /// Query params para listar ventas con filtro por fecha

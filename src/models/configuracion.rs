@@ -95,6 +95,11 @@ pub struct ConfiguracionRestaurante {
     /* [128A-1/F1] Conmutador de modo operativo BDP:
      * 'auto' (default) | 'standalone' | 'bdp'. Switch maestro (M1). */
     pub modo_operacion: String,
+    /* [128A-1/F4/D4] Modalidad de anulación de ventas:
+     * 'credito_completo' (default): estado anulada + motivo obligatorio +
+     * reversión de IVA idempotente + exclusión del resumen diario (M10).
+     * 'estado_solo': solo marca el estado anulada (sin reversión contable). */
+    pub anulacion_modalidad: String,
     /* [094A-4] URL de Google Business para redirigir reseñas positivas */
     pub google_review_url: String,
     /* [094A-6] Datos para botones CTA en mensajes WhatsApp */
@@ -192,6 +197,9 @@ pub struct ActualizarConfiguracionRequest {
     pub ff_bdp_purchase_notes_receive: Option<bool>,
     /* [128A-1/F1] Modo operativo BDP: 'auto' | 'standalone' | 'bdp'. */
     pub modo_operacion: Option<String>,
+    /* [128A-1/F4/D4] Modalidad de anulación: 'credito_completo' | 'estado_solo'. */
+    #[validate(length(max = 20))]
+    pub anulacion_modalidad: Option<String>,
 }
 
 fn validar_iva(valor: &rust_decimal::Decimal) -> Result<(), validator::ValidationError> {

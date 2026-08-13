@@ -51,6 +51,17 @@ impl ConfiguracionService {
             }
         }
 
+        /* [128A-1/F4/D4] Validar anulacion_modalidad si se proporciona. */
+        if let Some(ref modalidad) = req.anulacion_modalidad {
+            let valid_modalidades = ["credito_completo", "estado_solo"];
+            if !valid_modalidades.contains(&modalidad.as_str()) {
+                return Err(AppError::Validation(format!(
+                    "anulacion_modalidad inválida: '{modalidad}'. Valores permitidos: {}",
+                    valid_modalidades.join(", ")
+                )));
+            }
+        }
+
         /* Asegurar que existe antes de actualizar */
         Repo::obtener_o_crear(pool, user_id).await?;
         let config = Repo::actualizar(pool, user_id, req).await?;
