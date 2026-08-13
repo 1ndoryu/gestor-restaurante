@@ -102,9 +102,10 @@ pub use bdp_article_map::{
 };
 pub use bdp_pago::BdpPago;
 pub use bdp_purchase_note::{
-    BdpPurchaseNote, BdpPurchaseNoteDraftRequest, BdpPurchaseNoteEstado, BdpPurchaseNoteListParams,
+    ActualizarBdpPurchaseNoteRequest, BdpPurchaseNote, BdpPurchaseNoteDraftRequest,
+    BdpPurchaseNoteEstado, BdpPurchaseNoteLineaLocal, BdpPurchaseNoteListParams,
     BdpPurchaseNoteReconcileRequest, BdpPurchaseNoteReconcileResult, BdpPurchaseNoteSyncRequest,
-    BdpPurchaseNoteSyncResult,
+    BdpPurchaseNoteSyncResult, CrearBdpPurchaseNoteRequest,
 };
 pub use inactividad::{
     ActualizarReglaInactividadRequest, CrearReglaInactividadRequest, ReglaInactividad,

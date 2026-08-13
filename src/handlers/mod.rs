@@ -9,7 +9,8 @@ mod bdp_customer_sync;
 mod bdp_purchase_note;
 
 pub use bdp_purchase_note::{
-    conciliar_purchase_note, listar_purchase_notes, marcar_borrador_purchase_note,
+    actualizar_purchase_note_local, conciliar_purchase_note, crear_purchase_note_local,
+    eliminar_purchase_note_local, listar_purchase_notes, marcar_borrador_purchase_note,
     sincronizar_purchase_notes,
 };
 mod campanas;
@@ -214,7 +215,10 @@ impl utoipa::Modify for SecurityAddon {
         bdp_article_map::get_fastfood_definition,
         bdp_article_map::get_pack_definition,
         bdp_purchase_note::listar_purchase_notes,
+        bdp_purchase_note::crear_purchase_note_local,
         bdp_purchase_note::sincronizar_purchase_notes,
+        bdp_purchase_note::actualizar_purchase_note_local,
+        bdp_purchase_note::eliminar_purchase_note_local,
         bdp_purchase_note::marcar_borrador_purchase_note,
         bdp_purchase_note::conciliar_purchase_note,
         bdp_customer_sync::importar_clientes_bdp,

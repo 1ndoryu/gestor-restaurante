@@ -4,15 +4,15 @@
  * La funcionalidad está protegida por el feature flag ff_bdp_purchase_notes_read. */
 
 use axum::extract::{Path, Query, State};
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::{Json, Router};
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::models::{
-    BdpPurchaseNote, BdpPurchaseNoteDraftRequest, BdpPurchaseNoteListParams,
-    BdpPurchaseNoteReconcileRequest, BdpPurchaseNoteReconcileResult, BdpPurchaseNoteSyncRequest,
-    BdpPurchaseNoteSyncResult,
+    ActualizarBdpPurchaseNoteRequest, BdpPurchaseNote, BdpPurchaseNoteDraftRequest,
+    BdpPurchaseNoteListParams, BdpPurchaseNoteReconcileRequest, BdpPurchaseNoteReconcileResult,
+    BdpPurchaseNoteSyncRequest, BdpPurchaseNoteSyncResult, CrearBdpPurchaseNoteRequest,
 };
 use crate::repositories::gasto::NuevoGasto;
 use crate::repositories::{BdpPurchaseNoteRepository, GastoRepository};
@@ -20,14 +20,23 @@ use crate::services::bdp_weblink::BdpWeblinkError;
 use crate::services::bdp_weblink_catalog::{
     BdpExportPurchaseNotesRequest, BdpExportPurchaseNotesResponse,
 };
-use crate::services::{BdpWeblinkClient, ConfiguracionService};
+use crate::services::{
+    BdpWeblinkClient, ConfiguracionService, ModoEfectivo, ServicioModoOperacion,
+};
 use crate::AppState;
 use uuid::Uuid;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/bdp/purchase-notes", get(listar_purchase_notes))
+        .route(
+            "/bdp/purchase-notes",
+            get(listar_purchase_notes).post(crear_purchase_note_local),
+        )
         .route("/bdp/purchase-notes/sync", post(sincronizar_purchase_notes))
+        .route(
+            "/bdp/purchase-notes/:id",
+            put(actualizar_purchase_note_local).delete(eliminar_purchase_note_local),
+        )
         .route(
             "/bdp/purchase-notes/:id/draft",
             post(marcar_borrador_purchase_note),
@@ -61,13 +70,150 @@ pub async fn listar_purchase_notes(
     Query(params): Query<BdpPurchaseNoteListParams>,
 ) -> Result<Json<Vec<BdpPurchaseNote>>, AppError> {
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
-    if !config.ff_bdp_purchase_notes_read {
+    /* [128A-1/F5][M12] Los flags BDP solo gatean en modo efectivo `bdp`;
+     * en `standalone` el CRUD local siempre está disponible. */
+    let modo = ServicioModoOperacion::modo_efectivo_desde_config(&config);
+    if modo == ModoEfectivo::Bdp && !config.ff_bdp_purchase_notes_read {
         return Err(AppError::Validation(
             "La lectura de albaranes de compra BDP no está activada".into(),
         ));
     }
     let notes = BdpPurchaseNoteRepository::listar(&state.pool, auth.user_id, &params).await?;
     Ok(Json(notes))
+}
+
+/// Crear un albarán de compra local (F5, M18). Funciona sin BDP y sin gate de
+/// flags: es CRUD local sobre `bdp_purchase_notes` con `origen='local'`.
+#[utoipa::path(
+    post,
+    path = "/api/bdp/purchase-notes",
+    tag = "BDP Compras",
+    request_body = CrearBdpPurchaseNoteRequest,
+    responses(
+        (status = 200, description = "Albarán local creado", body = BdpPurchaseNote),
+        (status = 400, description = "Validación fallida", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn crear_purchase_note_local(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(req): Json<CrearBdpPurchaseNoteRequest>,
+) -> Result<Json<BdpPurchaseNote>, AppError> {
+    if req.nombre_proveedor.is_none() && req.codigo_proveedor.is_none() {
+        return Err(AppError::Validation(
+            "Debes indicar el proveedor (nombre o código)".into(),
+        ));
+    }
+    if req.total.is_none() && req.lineas.as_ref().is_none_or(Vec::is_empty) {
+        return Err(AppError::Validation(
+            "Debes indicar un total o al menos una línea".into(),
+        ));
+    }
+
+    let note = BdpPurchaseNoteRepository::crear_local(&state.pool, auth.user_id, &req).await?;
+    tracing::info!(
+        "[128A-1/F5] Albarán local {} ({}-{}) creado por usuario {}",
+        note.id,
+        note.serie,
+        note.numero,
+        auth.user_id
+    );
+    Ok(Json(note))
+}
+
+/// Actualizar un albarán de compra local (F5). Solo `origen='local'`; los
+/// albaranes importados de BDP no se editan localmente.
+#[utoipa::path(
+    put,
+    path = "/api/bdp/purchase-notes/{id}",
+    tag = "BDP Compras",
+    request_body = ActualizarBdpPurchaseNoteRequest,
+    params(("id" = Uuid, Path, description = "ID del albarán")),
+    responses(
+        (status = 200, description = "Albarán actualizado", body = BdpPurchaseNote),
+        (status = 400, description = "El albarán no es local", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse),
+        (status = 404, description = "Albarán no encontrado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn actualizar_purchase_note_local(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(req): Json<ActualizarBdpPurchaseNoteRequest>,
+) -> Result<Json<BdpPurchaseNote>, AppError> {
+    let note = BdpPurchaseNoteRepository::find_by_id(&state.pool, id, auth.user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Albarán no encontrado".into()))?;
+    if note.origen != "local" {
+        return Err(AppError::Validation(
+            "Solo se pueden editar albaranes de origen local".into(),
+        ));
+    }
+
+    let ok =
+        BdpPurchaseNoteRepository::actualizar_local(&state.pool, id, auth.user_id, &req).await?;
+    if !ok {
+        return Err(AppError::NotFound("Albarán local no encontrado".into()));
+    }
+
+    let updated = BdpPurchaseNoteRepository::find_by_id(&state.pool, id, auth.user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Albarán no encontrado".into()))?;
+    tracing::info!(
+        "[128A-1/F5] Albarán local {} actualizado por usuario {}",
+        id,
+        auth.user_id
+    );
+    Ok(Json(updated))
+}
+
+/// Eliminar un albarán de compra local (F5). Solo `pendiente`/`borrador`; los
+/// conciliados no se borran (D5) y los importados de BDP no se tocan.
+#[utoipa::path(
+    delete,
+    path = "/api/bdp/purchase-notes/{id}",
+    tag = "BDP Compras",
+    params(("id" = Uuid, Path, description = "ID del albarán")),
+    responses(
+        (status = 200, description = "Albarán eliminado", body = serde_json::Value),
+        (status = 400, description = "No se puede eliminar (no local o conciliado)", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse),
+        (status = 404, description = "Albarán no encontrado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn eliminar_purchase_note_local(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let ok = BdpPurchaseNoteRepository::eliminar_local(&state.pool, id, auth.user_id).await?;
+    if !ok {
+        /* Distinguir el motivo para dar una respuesta útil. */
+        let note = BdpPurchaseNoteRepository::find_by_id(&state.pool, id, auth.user_id).await?;
+        return match note {
+            Some(n) if n.origen != "local" => Err(AppError::Validation(
+                "Solo se pueden eliminar albaranes de origen local".into(),
+            )),
+            Some(n) if matches!(n.estado, crate::models::BdpPurchaseNoteEstado::Conciliado) => Err(
+                AppError::Validation("Un albarán conciliado no se puede eliminar".into()),
+            ),
+            Some(_) => Err(AppError::Validation(
+                "No se pudo eliminar el albarán (estado no permitido)".into(),
+            )),
+            None => Err(AppError::NotFound("Albarán no encontrado".into())),
+        };
+    }
+    tracing::info!(
+        "[128A-1/F5] Albarán local {} eliminado por usuario {}",
+        id,
+        auth.user_id
+    );
+    Ok(Json(serde_json::json!({ "mensaje": "Albarán eliminado" })))
 }
 
 /// Sincroniza albaranes de compra desde BDP (`ExportPurchaseNotes`).
@@ -90,6 +236,14 @@ pub async fn sincronizar_purchase_notes(
     Json(req): Json<BdpPurchaseNoteSyncRequest>,
 ) -> Result<Json<BdpPurchaseNoteSyncResult>, AppError> {
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    /* [128A-1/F5][M12] En modo efectivo `standalone` la sincronización con BDP
+     * está desactivada por diseño (cero llamadas a BDP). */
+    let modo = ServicioModoOperacion::modo_efectivo_desde_config(&config);
+    if modo == ModoEfectivo::Standalone {
+        return Err(AppError::Validation(
+            "Modo independiente: la sincronización con BDP está desactivada".into(),
+        ));
+    }
     if !config.ff_bdp_purchase_notes_read {
         return Err(AppError::Validation(
             "La sincronización de albaranes BDP no está activada".into(),
@@ -186,7 +340,9 @@ pub async fn marcar_borrador_purchase_note(
     Json(_req): Json<BdpPurchaseNoteDraftRequest>,
 ) -> Result<Json<BdpPurchaseNote>, AppError> {
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
-    if !config.ff_bdp_purchase_notes_draft {
+    /* [128A-1/F5][M12] En `standalone` el ciclo de vida local no consulta flags. */
+    let modo = ServicioModoOperacion::modo_efectivo_desde_config(&config);
+    if modo == ModoEfectivo::Bdp && !config.ff_bdp_purchase_notes_draft {
         return Err(AppError::Validation(
             "La creación de borradores de compra BDP no está activada".into(),
         ));
@@ -234,7 +390,9 @@ pub async fn conciliar_purchase_note(
     Json(req): Json<BdpPurchaseNoteReconcileRequest>,
 ) -> Result<Json<BdpPurchaseNoteReconcileResult>, AppError> {
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
-    if !config.ff_bdp_purchase_notes_receive {
+    /* [128A-1/F5][M12] En `standalone` la conciliación local no consulta flags. */
+    let modo = ServicioModoOperacion::modo_efectivo_desde_config(&config);
+    if modo == ModoEfectivo::Bdp && !config.ff_bdp_purchase_notes_receive {
         return Err(AppError::Validation(
             "La conciliación de compras BDP no está activada".into(),
         ));
@@ -264,11 +422,12 @@ pub async fn conciliar_purchase_note(
         let fecha = note
             .fecha
             .unwrap_or_else(|| chrono::Utc::now().date_naive());
-        let cero = rust_decimal::Decimal::ZERO;
-        /* [247A-12] El albarán de BDP solo nos da el total. Como no tenemos
-         * desglose de IVA, registramos el importe completo en importe_base y 0
-         * en importe_iva. Si en el futuro BDP exporta el desglose fiscal, se
-         * podrá fraccionar aquí. */
+        /* [128A-1/F5][A10] Los albaranes locales guardan IVA por línea en
+         * `datos_bdp.lineas`; la conciliación usa ese desglose. Los albaranes
+         * importados de BDP (sin desglose) registran el total como base. */
+        let (importe_base, importe_iva) =
+            BdpPurchaseNoteRepository::desglose_desde_datos(&note.datos_bdp)
+                .unwrap_or((total, rust_decimal::Decimal::ZERO));
         let nuevo = NuevoGasto {
             user_id: auth.user_id,
             fecha,
@@ -278,8 +437,8 @@ pub async fn conciliar_purchase_note(
             metodo_pago: "",
             numero_documento: &numero_documento,
             recurrente: false,
-            importe_base: total,
-            importe_iva: cero,
+            importe_base,
+            importe_iva,
         };
         let gasto = GastoRepository::create(&mut *tx, &nuevo).await?;
         gasto.id

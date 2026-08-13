@@ -227,12 +227,43 @@ export interface BdpPurchaseNote {
   codigo_proveedor: string | null;
   nombre_proveedor: string | null;
   total: string | null;
+  /* [128A-1/F5] Procedencia: 'bdp' (importado) | 'local' (creado en la app). */
+  origen: 'local' | 'bdp';
   estado: 'pendiente' | 'borrador' | 'conciliado';
   gasto_id: string | null;
   datos_bdp: Record<string, unknown>;
   ultima_sync_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Línea de un albarán local (IVA por línea — A10). */
+export interface BdpPurchaseNoteLineaLocal {
+  descripcion: string;
+  cantidad: string;
+  precio_unitario: string;
+  iva_pct: string;
+}
+
+/** Request para crear un albarán de compra local (F5, M18). */
+export interface CrearBdpPurchaseNoteRequest {
+  serie?: string;
+  numero?: string;
+  fecha?: string;
+  codigo_proveedor?: string;
+  nombre_proveedor?: string;
+  total?: string;
+  lineas?: BdpPurchaseNoteLineaLocal[];
+}
+
+/** Request para actualizar un albarán de compra local (F5). */
+export interface ActualizarBdpPurchaseNoteRequest {
+  numero?: string;
+  fecha?: string;
+  codigo_proveedor?: string;
+  nombre_proveedor?: string;
+  total?: string;
+  lineas?: BdpPurchaseNoteLineaLocal[];
 }
 
 /** Parámetros para listar albaranes. */
@@ -271,6 +302,37 @@ export async function fetchBdpPurchaseNotes(filters: BdpPurchaseNoteFilters = {}
   return resp.data;
 }
 
+/** Crear un albarán de compra local (F5). */
+export async function crearBdpPurchaseNote(
+  req: CrearBdpPurchaseNoteRequest,
+): Promise<BdpPurchaseNote> {
+  const resp = await customInstance('/api/bdp/purchase-notes', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  }) as { data: BdpPurchaseNote };
+  return resp.data;
+}
+
+/** Actualizar un albarán de compra local (F5). */
+export async function actualizarBdpPurchaseNote(
+  id: string,
+  req: ActualizarBdpPurchaseNoteRequest,
+): Promise<BdpPurchaseNote> {
+  const resp = await customInstance(`/api/bdp/purchase-notes/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(req),
+  }) as { data: BdpPurchaseNote };
+  return resp.data;
+}
+
+/** Eliminar un albarán de compra local (F5). */
+export async function eliminarBdpPurchaseNote(id: string): Promise<{ mensaje: string }> {
+  const resp = await customInstance(`/api/bdp/purchase-notes/${id}`, {
+    method: 'DELETE',
+  }) as { data: { mensaje: string } };
+  return resp.data;
+}
+
 /** Sincronizar albaranes de compra desde BDP. */
 export async function syncBdpPurchaseNotes(req: BdpPurchaseNoteSyncRequest): Promise<BdpPurchaseNoteSyncResult> {
   const resp = await customInstance('/api/bdp/purchase-notes/sync', {
@@ -294,6 +356,37 @@ export function useBdpPurchaseNotes(filters: BdpPurchaseNoteFilters = {}, enable
 export function useSyncBdpPurchaseNotes(queryClient?: QueryClient) {
   return useMutation({
     mutationFn: syncBdpPurchaseNotes,
+    onSuccess: () => {
+      queryClient?.invalidateQueries({ queryKey: ['bdp-purchase-notes'] });
+    },
+  });
+}
+
+/** Mutation hook: crear albarán de compra local (F5). */
+export function useCrearBdpPurchaseNote(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: crearBdpPurchaseNote,
+    onSuccess: () => {
+      queryClient?.invalidateQueries({ queryKey: ['bdp-purchase-notes'] });
+    },
+  });
+}
+
+/** Mutation hook: actualizar albarán de compra local (F5). */
+export function useActualizarBdpPurchaseNote(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: ({ id, req }: { id: string; req: ActualizarBdpPurchaseNoteRequest }) =>
+      actualizarBdpPurchaseNote(id, req),
+    onSuccess: () => {
+      queryClient?.invalidateQueries({ queryKey: ['bdp-purchase-notes'] });
+    },
+  });
+}
+
+/** Mutation hook: eliminar albarán de compra local (F5). */
+export function useEliminarBdpPurchaseNote(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: eliminarBdpPurchaseNote,
     onSuccess: () => {
       queryClient?.invalidateQueries({ queryKey: ['bdp-purchase-notes'] });
     },

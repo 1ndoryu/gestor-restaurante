@@ -2,16 +2,20 @@
  * No contactan con BDP real; validan el flujo local: pendiente → borrador → conciliado.
  * Usan #[sqlx::test] para crear una BD temporal por test con migraciones aplicadas. */
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::Json;
 use chrono::NaiveDate;
 use glory_backend::config::AppConfig;
 use glory_backend::errors::AppError;
-use glory_backend::handlers::{conciliar_purchase_note, marcar_borrador_purchase_note};
+use glory_backend::handlers::{
+    actualizar_purchase_note_local, conciliar_purchase_note, crear_purchase_note_local,
+    eliminar_purchase_note_local, listar_purchase_notes, marcar_borrador_purchase_note,
+};
 use glory_backend::middleware::AuthUser;
 use glory_backend::models::{
-    BdpPurchaseNoteDraftRequest, BdpPurchaseNoteEstado, BdpPurchaseNoteListParams,
-    BdpPurchaseNoteReconcileRequest, NotificacionEvent, UserRole,
+    ActualizarBdpPurchaseNoteRequest, BdpPurchaseNoteDraftRequest, BdpPurchaseNoteEstado,
+    BdpPurchaseNoteLineaLocal, BdpPurchaseNoteListParams, BdpPurchaseNoteReconcileRequest,
+    CrearBdpPurchaseNoteRequest, NotificacionEvent, UserRole,
 };
 use glory_backend::repositories::gasto::NuevoGasto;
 use glory_backend::repositories::{
@@ -386,9 +390,11 @@ fn make_auth(user_id: Uuid) -> AuthUser {
 /* ── Tests de handlers ───────────────────────────────────────────────── */
 
 #[sqlx::test(migrations = "./migrations")]
-async fn handler_borrador_rechaza_flag_desactivado(pool: PgPool) {
+async fn handler_borrador_sin_flags_funciona_en_standalone(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
-    /* Configuración por defecto: todos los flags de compras BDP desactivados */
+    /* [128A-1/F5][M12] Configuración por defecto (modo 'auto' sin BDP
+     * configurado) = modo efectivo standalone: el ciclo de vida local NO
+     * consulta los feature flags BDP. */
     ConfiguracionRepository::obtener_o_crear(&pool, user_id)
         .await
         .expect("crear configuración por defecto");
@@ -416,8 +422,51 @@ async fn handler_borrador_rechaza_flag_desactivado(pool: PgPool) {
     .await;
 
     assert!(
+        result.is_ok(),
+        "en modo standalone el borrador local no debe depender del flag"
+    );
+    let Json(note) = result.unwrap();
+    assert!(matches!(note.estado, BdpPurchaseNoteEstado::Borrador));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn handler_borrador_flag_off_bloquea_en_modo_bdp(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    /* [128A-1/F5][M12] En modo efectivo bdp los flags sí gatean. */
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración por defecto");
+    sqlx::query("UPDATE configuracion_restaurante SET modo_operacion = 'bdp' WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    BdpPurchaseNoteRepository::upsert_from_bdp(
+        &pool,
+        user_id,
+        &sample_purchase_note_data("A", "650", Decimal::from_str("10.00").ok()),
+    )
+    .await
+    .unwrap();
+    let note_id = BdpPurchaseNoteRepository::listar(&pool, user_id, &default_filters())
+        .await
+        .unwrap()[0]
+        .id;
+
+    let state = make_app_state(pool);
+    let auth = make_auth(user_id);
+    let result = marcar_borrador_purchase_note(
+        State(state),
+        auth,
+        Path(note_id),
+        Json(BdpPurchaseNoteDraftRequest {}),
+    )
+    .await;
+
+    assert!(
         result.is_err(),
-        "debe fallar cuando el feature flag está desactivado"
+        "en modo bdp debe fallar cuando el feature flag está desactivado"
     );
     match result.unwrap_err() {
         AppError::Validation(msg) => assert!(msg.contains("borradores de compra BDP")),
@@ -426,11 +475,16 @@ async fn handler_borrador_rechaza_flag_desactivado(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "./migrations")]
-async fn handler_conciliar_rechaza_flag_desactivado(pool: PgPool) {
+async fn handler_conciliar_flag_off_bloquea_en_modo_bdp(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     ConfiguracionRepository::obtener_o_crear(&pool, user_id)
         .await
         .expect("crear configuración por defecto");
+    sqlx::query("UPDATE configuracion_restaurante SET modo_operacion = 'bdp' WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .unwrap();
 
     BdpPurchaseNoteRepository::upsert_from_bdp(
         &pool,
@@ -454,7 +508,7 @@ async fn handler_conciliar_rechaza_flag_desactivado(pool: PgPool) {
 
     assert!(
         result.is_err(),
-        "debe fallar cuando el feature flag está desactivado"
+        "en modo bdp debe fallar cuando el feature flag está desactivado"
     );
     match result.unwrap_err() {
         AppError::Validation(msg) => assert!(msg.contains("conciliación de compras BDP")),
@@ -590,4 +644,373 @@ async fn handler_conciliar_vincula_gasto_existente(pool: PgPool) {
         .expect("albarán conciliado");
     assert!(matches!(note.estado, BdpPurchaseNoteEstado::Conciliado));
     assert_eq!(note.gasto_id, Some(gasto_existente.id));
+}
+
+/* ── Tests F5: CRUD de albaranes locales (M18) ──────────────────────── */
+
+fn crear_request_local(
+    nombre_proveedor: &str,
+    total: Option<Decimal>,
+    lineas: Option<Vec<BdpPurchaseNoteLineaLocal>>,
+) -> CrearBdpPurchaseNoteRequest {
+    CrearBdpPurchaseNoteRequest {
+        serie: None,
+        numero: None,
+        fecha: Some("2026-08-01".to_string()),
+        codigo_proveedor: None,
+        nombre_proveedor: Some(nombre_proveedor.to_string()),
+        total,
+        lineas,
+    }
+}
+
+fn linea_local(
+    descripcion: &str,
+    cantidad: &str,
+    precio: &str,
+    iva: &str,
+) -> BdpPurchaseNoteLineaLocal {
+    BdpPurchaseNoteLineaLocal {
+        descripcion: descripcion.to_string(),
+        cantidad: Decimal::from_str(cantidad).unwrap(),
+        precio_unitario: Decimal::from_str(precio).unwrap(),
+        iva_pct: Decimal::from_str(iva).unwrap(),
+    }
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn crear_local_asigna_serie_l_y_secuencial(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración por defecto");
+
+    let req = crear_request_local(
+        "Proveedor Local",
+        Some(Decimal::from_str("100.00").unwrap()),
+        None,
+    );
+    let primera = BdpPurchaseNoteRepository::crear_local(&pool, user_id, &req)
+        .await
+        .expect("crear primer albarán local");
+    assert_eq!(primera.serie, "L");
+    assert_eq!(primera.numero, "1");
+    assert_eq!(primera.origen, "local");
+    assert!(matches!(primera.estado, BdpPurchaseNoteEstado::Pendiente));
+    assert_eq!(primera.total, Decimal::from_str("100.00").ok());
+
+    let segunda = BdpPurchaseNoteRepository::crear_local(&pool, user_id, &req)
+        .await
+        .expect("crear segundo albarán local");
+    assert_eq!(segunda.serie, "L");
+    assert_eq!(segunda.numero, "2");
+
+    /* El secuencial es por usuario: otro usuario empieza en 1. */
+    let user_b = create_test_user(&pool).await;
+    let del_otro = BdpPurchaseNoteRepository::crear_local(&pool, user_b, &req)
+        .await
+        .expect("crear albarán local de otro usuario");
+    assert_eq!(del_otro.numero, "1");
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn crear_local_calcula_total_y_desglose_por_linea(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración por defecto");
+
+    let req = crear_request_local(
+        "Proveedor Local",
+        None,
+        Some(vec![
+            linea_local("Tomate", "2", "10.00", "10"),
+            linea_local("Pan", "3", "2.00", "21"),
+        ]),
+    );
+    let note = BdpPurchaseNoteRepository::crear_local(&pool, user_id, &req)
+        .await
+        .expect("crear albarán local con líneas");
+    /* base = 20 + 6 = 26; iva = 2 + 1.26 = 3.26; total = 29.26 */
+    assert_eq!(note.total, Decimal::from_str("29.26").ok());
+    assert_eq!(
+        note.datos_bdp["importe_base"],
+        serde_json::json!(Decimal::from_str("26.00").unwrap())
+    );
+    assert_eq!(
+        note.datos_bdp["importe_iva"],
+        serde_json::json!(Decimal::from_str("3.26").unwrap())
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn actualizar_local_edita_solo_origen_local(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración por defecto");
+
+    let req = crear_request_local(
+        "Proveedor Local",
+        Some(Decimal::from_str("100.00").unwrap()),
+        None,
+    );
+    let local = BdpPurchaseNoteRepository::crear_local(&pool, user_id, &req)
+        .await
+        .unwrap();
+
+    let update = ActualizarBdpPurchaseNoteRequest {
+        numero: None,
+        fecha: Some("2026-08-02".to_string()),
+        codigo_proveedor: Some("LOC-1".to_string()),
+        nombre_proveedor: Some("Proveedor Editado".to_string()),
+        total: Some(Decimal::from_str("120.00").unwrap()),
+        lineas: None,
+    };
+    let ok = BdpPurchaseNoteRepository::actualizar_local(&pool, local.id, user_id, &update)
+        .await
+        .unwrap();
+    assert!(ok, "actualizar albarán local debe funcionar");
+    let updated = BdpPurchaseNoteRepository::find_by_id(&pool, local.id, user_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        updated.nombre_proveedor.as_deref(),
+        Some("Proveedor Editado")
+    );
+    assert_eq!(updated.total, Decimal::from_str("120.00").ok());
+
+    /* Un albarán importado de BDP no se puede editar (solo local). */
+    BdpPurchaseNoteRepository::upsert_from_bdp(
+        &pool,
+        user_id,
+        &sample_purchase_note_data("A", "1100", Decimal::from_str("5.00").ok()),
+    )
+    .await
+    .unwrap();
+    let bdp_note_id = BdpPurchaseNoteRepository::listar(&pool, user_id, &default_filters())
+        .await
+        .unwrap()
+        .iter()
+        .find(|n| n.serie == "A")
+        .unwrap()
+        .id;
+    let ok = BdpPurchaseNoteRepository::actualizar_local(&pool, bdp_note_id, user_id, &update)
+        .await
+        .unwrap();
+    assert!(!ok, "no se puede actualizar un albarán de origen bdp");
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn eliminar_local_solo_pendiente_o_borrador(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración por defecto");
+
+    let req = crear_request_local(
+        "Proveedor Local",
+        Some(Decimal::from_str("50.00").unwrap()),
+        None,
+    );
+    let pendiente = BdpPurchaseNoteRepository::crear_local(&pool, user_id, &req)
+        .await
+        .unwrap();
+    assert!(
+        BdpPurchaseNoteRepository::eliminar_local(&pool, pendiente.id, user_id)
+            .await
+            .unwrap(),
+        "un albarán pendiente se puede eliminar"
+    );
+
+    /* Conciliado no se borra (D5). */
+    let conciliable = BdpPurchaseNoteRepository::crear_local(&pool, user_id, &req)
+        .await
+        .unwrap();
+    BdpPurchaseNoteRepository::marcar_borrador(&pool, conciliable.id, user_id)
+        .await
+        .unwrap();
+    let gasto = create_test_gasto(&pool, user_id, Decimal::from_str("50.00").unwrap()).await;
+    BdpPurchaseNoteRepository::vincular_gasto(&pool, conciliable.id, user_id, gasto.id)
+        .await
+        .unwrap();
+    assert!(
+        !BdpPurchaseNoteRepository::eliminar_local(&pool, conciliable.id, user_id)
+            .await
+            .unwrap(),
+        "un albarán conciliado no se puede eliminar"
+    );
+
+    /* Un albarán de origen bdp no se puede eliminar. */
+    BdpPurchaseNoteRepository::upsert_from_bdp(
+        &pool,
+        user_id,
+        &sample_purchase_note_data("A", "1200", Decimal::from_str("5.00").ok()),
+    )
+    .await
+    .unwrap();
+    let bdp_note_id = BdpPurchaseNoteRepository::listar(&pool, user_id, &default_filters())
+        .await
+        .unwrap()
+        .iter()
+        .find(|n| n.serie == "A")
+        .unwrap()
+        .id;
+    assert!(
+        !BdpPurchaseNoteRepository::eliminar_local(&pool, bdp_note_id, user_id)
+            .await
+            .unwrap(),
+        "un albarán de origen bdp no se puede eliminar"
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn handler_crear_local_standalone_sin_flags(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración por defecto");
+
+    let state = make_app_state(pool.clone());
+    let auth = make_auth(user_id);
+    let req = crear_request_local(
+        "Proveedor Local",
+        Some(Decimal::from_str("30.00").unwrap()),
+        None,
+    );
+    let result = crear_purchase_note_local(State(state), auth, Json(req)).await;
+    assert!(
+        result.is_ok(),
+        "crear local debe funcionar sin flags en standalone"
+    );
+    let Json(note) = result.unwrap();
+    assert_eq!(note.origen, "local");
+    assert_eq!(note.serie, "L");
+
+    /* Sin proveedor ni total → validación. */
+    let state2 = make_app_state(pool);
+    let auth2 = make_auth(user_id);
+    let req_invalido = CrearBdpPurchaseNoteRequest {
+        serie: None,
+        numero: None,
+        fecha: None,
+        codigo_proveedor: None,
+        nombre_proveedor: None,
+        total: None,
+        lineas: None,
+    };
+    let result = crear_purchase_note_local(State(state2), auth2, Json(req_invalido)).await;
+    assert!(matches!(result, Err(AppError::Validation(_))));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn handler_actualizar_eliminar_local_via_handlers(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración por defecto");
+
+    let req = crear_request_local(
+        "Proveedor Local",
+        Some(Decimal::from_str("40.00").unwrap()),
+        None,
+    );
+    let note = BdpPurchaseNoteRepository::crear_local(&pool, user_id, &req)
+        .await
+        .unwrap();
+
+    /* PUT edita el albarán local. */
+    let state = make_app_state(pool.clone());
+    let auth = make_auth(user_id);
+    let update = ActualizarBdpPurchaseNoteRequest {
+        numero: None,
+        fecha: None,
+        codigo_proveedor: None,
+        nombre_proveedor: Some("Proveedor Editado".to_string()),
+        total: None,
+        lineas: None,
+    };
+    let result =
+        actualizar_purchase_note_local(State(state), auth, Path(note.id), Json(update.clone()))
+            .await;
+    assert!(
+        result.is_ok(),
+        "actualizar local vía handler debe funcionar"
+    );
+    let Json(updated) = result.unwrap();
+    assert_eq!(
+        updated.nombre_proveedor.as_deref(),
+        Some("Proveedor Editado")
+    );
+
+    /* DELETE elimina el albarán local pendiente. */
+    let state2 = make_app_state(pool.clone());
+    let auth2 = make_auth(user_id);
+    let result = eliminar_purchase_note_local(State(state2), auth2, Path(note.id)).await;
+    assert!(
+        result.is_ok(),
+        "eliminar local pendiente vía handler debe funcionar"
+    );
+    assert!(
+        BdpPurchaseNoteRepository::find_by_id(&pool, note.id, user_id)
+            .await
+            .unwrap()
+            .is_none(),
+        "el albarán local debe haber desaparecido"
+    );
+
+    /* Editar/eliminar un albarán BDP → 400. */
+    BdpPurchaseNoteRepository::upsert_from_bdp(
+        &pool,
+        user_id,
+        &sample_purchase_note_data("A", "1300", Decimal::from_str("5.00").ok()),
+    )
+    .await
+    .unwrap();
+    let bdp_note_id = BdpPurchaseNoteRepository::listar(&pool, user_id, &default_filters())
+        .await
+        .unwrap()
+        .iter()
+        .find(|n| n.serie == "A")
+        .unwrap()
+        .id;
+    let state3 = make_app_state(pool.clone());
+    let auth3 = make_auth(user_id);
+    let result =
+        actualizar_purchase_note_local(State(state3), auth3, Path(bdp_note_id), Json(update)).await;
+    assert!(matches!(result, Err(AppError::Validation(_))));
+
+    let state4 = make_app_state(pool);
+    let auth4 = make_auth(user_id);
+    let result = eliminar_purchase_note_local(State(state4), auth4, Path(bdp_note_id)).await;
+    assert!(matches!(result, Err(AppError::Validation(_))));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn handler_listar_standalone_sin_flags_devuelve_locales_y_bdp(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración por defecto");
+
+    let req = crear_request_local(
+        "Proveedor Local",
+        Some(Decimal::from_str("10.00").unwrap()),
+        None,
+    );
+    BdpPurchaseNoteRepository::crear_local(&pool, user_id, &req)
+        .await
+        .unwrap();
+
+    let state = make_app_state(pool);
+    let auth = make_auth(user_id);
+    let result = listar_purchase_notes(State(state), auth, Query(default_filters())).await;
+    assert!(
+        result.is_ok(),
+        "listar debe funcionar sin flags en standalone"
+    );
+    let Json(notes) = result.unwrap();
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0].origen, "local");
 }

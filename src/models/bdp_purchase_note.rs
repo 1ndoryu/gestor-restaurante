@@ -55,7 +55,7 @@ impl From<&str> for BdpPurchaseNoteEstado {
     }
 }
 
-/// Registro de albarán de compra importado desde BDP.
+/// Registro de albarán de compra (importado de BDP o creado localmente).
 #[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
 pub struct BdpPurchaseNote {
     pub id: Uuid,
@@ -67,11 +67,50 @@ pub struct BdpPurchaseNote {
     pub nombre_proveedor: Option<String>,
     pub total: Option<Decimal>,
     pub datos_bdp: serde_json::Value,
+    /* [128A-1/F5] Procedencia del albarán: 'bdp' (importado) | 'local'. */
+    pub origen: String,
     pub estado: BdpPurchaseNoteEstado,
     pub gasto_id: Option<Uuid>,
     pub ultima_sync_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// Línea de un albarán local (IVA por línea — A10).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct BdpPurchaseNoteLineaLocal {
+    pub descripcion: String,
+    pub cantidad: Decimal,
+    pub precio_unitario: Decimal,
+    pub iva_pct: Decimal,
+}
+
+/// Request para crear un albarán de compra local (F5, M18).
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct CrearBdpPurchaseNoteRequest {
+    /// Serie local. Si se omite, se usa la serie reservada `L` (M18).
+    pub serie: Option<String>,
+    /// Número local. Si se omite, se asigna el siguiente secuencial de la serie.
+    pub numero: Option<String>,
+    /// Fecha del albarán (YYYY-MM-DD).
+    pub fecha: Option<String>,
+    pub codigo_proveedor: Option<String>,
+    pub nombre_proveedor: Option<String>,
+    /// Total del documento. Si se omite y hay líneas, se calcula (base + IVA).
+    pub total: Option<Decimal>,
+    /// Líneas del albarán local (guardadas en `datos_bdp.lineas`).
+    pub lineas: Option<Vec<BdpPurchaseNoteLineaLocal>>,
+}
+
+/// Request para actualizar un albarán de compra local (F5).
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct ActualizarBdpPurchaseNoteRequest {
+    pub numero: Option<String>,
+    pub fecha: Option<String>,
+    pub codigo_proveedor: Option<String>,
+    pub nombre_proveedor: Option<String>,
+    pub total: Option<Decimal>,
+    pub lineas: Option<Vec<BdpPurchaseNoteLineaLocal>>,
 }
 
 /// Parámetros de consulta para listar albaranes.

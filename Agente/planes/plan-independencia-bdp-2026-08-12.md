@@ -3,7 +3,7 @@
 > **Fecha:** 2026-08-12 (revisión profunda 2026-08-12)
 > **Rama:** `glory-rs-rest`
 > **ID de bloque:** `128A-1`
-> **Estado:** Activo (en ejecución). F0–F4 completados; F5 en curso.
+> **Estado:** Activo (en ejecución). F0–F5 completados; F6 en curso.
 > **Skills aplicadas:** `supervisor-thinking` (diseño y desafío) y `supervisor-review` (revisión dura) —
 > veredicto en el Anexo B.
 >
@@ -436,8 +436,9 @@ aceptación observable**. Los conflictos anticipados (M#) se detallan en §14.
 | **F9** | Pruebas con/sin BDP: standalone completo, simulador, regresión del gate | Suites + `task:check` PASS con reporte | F1–F8 |
 | **F10** | Cierre documental: roadmap, completados, feature-flags, mapeo visual, plan a `planes/completados/` | Documentación actualizada y evidencia registrada | F9 |
 
-**SIGUIENTE ACCIÓN (verificable):** ejecutar **F5** (compras locales, M18, CRUD + conciliación local,
-flags solo bdp) en el ciclo local completo (editar → probar → gate → commit).
+**SIGUIENTE ACCIÓN (verificable):** ejecutar **F6** (historial/auditoría local con `origen_operacion`,
+pagos parciales locales A8 y factura local mínima A7/D9) en el ciclo local completo
+(editar → probar → gate → commit).
 Autorizado: todo el ciclo local. No autorizado sin usuario: deploy a producción, escrituras al BDP
 real, SSH (prohibido siempre).
 
@@ -476,6 +477,22 @@ confirmación `ANULAR {id}` + motivo en `venta-row-actions.tsx`, badge «Anulada
 selector de modalidad en Configuración BDP. Evidencia: `task:check 128A-1` PASS
 (sentinel, varsense, rust, frontend type-check, docs). Siguiente acción: **F5**
 (compras locales).
+
+**Estado 2026-08-13 (F5):** **completado** — compras locales (M18, M12): migración
+`20260816000000_bdp_purchase_notes_local` (`origen` con CHECK `local|bdp`, default `bdp`,
+índice `idx_bdp_purchase_notes_user_origen`), modelo `BdpPurchaseNote` con `origen`,
+structs `BdpPurchaseNoteLineaLocal`/`CrearBdpPurchaseNoteRequest`/`ActualizarBdpPurchaseNoteRequest`,
+repositorio `crear_local` (serie `L`, secuencial por usuario `COUNT(*) origen='local'`),
+`actualizar_local` (COALESCE por campo, recalcula `datos_bdp` con líneas), `eliminar_local`
+(solo `pendiente`/`borrador`), handlers POST/GET `/bdp/purchase-notes` y PUT/DELETE
+`/bdp/purchase-notes/:id` con gates de flags condicionales al modo efectivo bdp (M12) y
+conciliación con IVA por línea (A10). Frontend: tipos + hooks CRUD en `api/bdp.ts`,
+`BdpComprasLocalModal` (serie/proveedor/fecha/total/líneas con IVA por línea),
+`BdpCompras` con badge de origen (`local`/`bdp`), botón «Nuevo albarán», editar/eliminar
+solo origen local y `purchaseFeatureEnabled` según modo efectivo (standalone sin flags).
+Evidencia: tests `bdp_purchase_notes_lifecycle` 18/18, `task:check 128A-1 --full` PASS
+(sentinel, varsense, rust, frontend type-check, docs). Siguiente acción: **F6**
+(historial/auditoría local, pagos parciales y factura local mínima).
 
 ---
 
@@ -635,7 +652,9 @@ cliente (no autorizada).
       probado con gate PASS
 - [x] F4: anulación local (modalidades D4), reglas M8–M11, desbloqueo delete (D5), auditoría,
       probado con gate PASS
-- [ ] F5–F8: compras, historial/pagos parciales, menús y permisos operativos
+- [x] F5: compras locales (CRUD albaranes + conciliación local M18, flags solo bdp M12,
+      IVA por línea A10), probado con gate PASS
+- [ ] F6–F8: historial/pagos parciales/factura local, menús y permisos operativos
       sin BDP (y conviviendo con BDP)
 - [ ] F9: pruebas con/sin BDP + simulador + gate `task:check` PASS con reporte reproducible
 - [ ] F10: roadmap actualizado (128A-1 cerrado), completados con evidencia, feature-flags/mapeo visual
