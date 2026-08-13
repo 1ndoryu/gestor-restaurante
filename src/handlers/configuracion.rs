@@ -20,7 +20,7 @@ use crate::models::{
 use crate::services::bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
 use crate::services::{
     BdpBackupService, BdpSyncDryRunResponse, BdpSyncPreflightService, ConfiguracionService,
-    IntegracionMarketingService,
+    IntegracionMarketingService, ServicioModoOperacion,
 };
 use crate::AppState;
 
@@ -29,6 +29,7 @@ use crate::AppState;
 pub struct BdpDiagnosticoResponse {
     pub configurado: bool,
     pub sync_habilitado: bool,
+    pub modo_operacion: String,
     pub health_ok: bool,
     pub login_ok: bool,
     pub session_expires_in_seconds: Option<i64>,
@@ -90,6 +91,7 @@ impl BdpDiagnosticoResponse {
         Self {
             configurado,
             sync_habilitado,
+            modo_operacion: "auto".to_string(),
             health_ok: false,
             login_ok: false,
             session_expires_in_seconds: None,
@@ -231,6 +233,11 @@ pub async fn actualizar_configuracion(
             AppError::Internal(format!("No se pudo confirmar desarmado BDP: {error}"))
         })?;
         config.bdp_sync_mode = "read_only".to_string();
+    }
+
+    /* [128A-1/F1/M3] El switch maestro cambió: invalidar la cache de modo. */
+    if req.modo_operacion.is_some() || invalida_armado_bdp {
+        state.modo_operacion.invalidar(auth.user_id);
     }
     Ok(Json(config))
 }
@@ -432,6 +439,8 @@ pub async fn cambiar_bdp_sync_mode(
         ..Default::default()
     };
     let config = ConfiguracionService::actualizar(&state.pool, auth.user_id, &update).await?;
+    /* [128A-1/F1/M3] El cambio de sync-mode puede alterar el modo efectivo. */
+    state.modo_operacion.invalidar(auth.user_id);
     Ok(Json(config))
 }
 
@@ -473,37 +482,44 @@ pub async fn diagnosticar_bdp(
 ) -> Result<Json<BdpDiagnosticoResponse>, AppError> {
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     let configurado = bdp_configurado(&config);
+    let modo = ServicioModoOperacion::modo_efectivo_desde_config(&config).as_str();
 
     if !configurado {
-        return Ok(Json(BdpDiagnosticoResponse::sin_configurar(
-            config.bdp_sync_enabled,
-        )));
+        let mut response = BdpDiagnosticoResponse::sin_configurar(config.bdp_sync_enabled);
+        response.modo_operacion = modo.to_string();
+        return Ok(Json(response));
     }
 
     let client = BdpWeblinkClient::new(&config);
     match client.health().await {
         Ok(health) if health.is_alive => {}
         Ok(_) => {
-            return Ok(Json(BdpDiagnosticoResponse::health_error(
+            let mut response = BdpDiagnosticoResponse::health_error(
                 config.bdp_sync_enabled,
                 "BDP respondio Health pero IsAlive=false",
-            )));
+            );
+            response.modo_operacion = modo.to_string();
+            return Ok(Json(response));
         }
         Err(error) => {
-            return Ok(Json(BdpDiagnosticoResponse::health_error(
+            let mut response = BdpDiagnosticoResponse::health_error(
                 config.bdp_sync_enabled,
                 format!("No se pudo contactar BDP Health: {error}"),
-            )));
+            );
+            response.modo_operacion = modo.to_string();
+            return Ok(Json(response));
         }
     }
 
     let session = match client.login().await {
         Ok(session) => session,
         Err(error) => {
-            return Ok(Json(BdpDiagnosticoResponse::login_error(
+            let mut response = BdpDiagnosticoResponse::login_error(
                 config.bdp_sync_enabled,
                 format!("BDP Health OK, Login fallo: {error}"),
-            )));
+            );
+            response.modo_operacion = modo.to_string();
+            return Ok(Json(response));
         }
     };
 
@@ -517,27 +533,35 @@ pub async fn diagnosticar_bdp(
 
     match version {
         Ok(version) if version.error_message.trim().is_empty() => {
-            Ok(Json(BdpDiagnosticoResponse::version_ok(
+            let mut response = BdpDiagnosticoResponse::version_ok(
                 config.bdp_sync_enabled,
                 session.expires_in_seconds,
                 version,
-            )))
+            );
+            response.modo_operacion = modo.to_string();
+            Ok(Json(response))
         }
-        Ok(version) => Ok(Json(BdpDiagnosticoResponse {
-            ..BdpDiagnosticoResponse::version_error(
+        Ok(version) => {
+            let mut response = BdpDiagnosticoResponse::version_error(
                 config.bdp_sync_enabled,
                 session.expires_in_seconds,
                 format!(
                     "Login OK, GetVersion devolvio error: {}",
                     version.error_message
                 ),
-            )
-        })),
-        Err(error) => Ok(Json(BdpDiagnosticoResponse::version_error(
-            config.bdp_sync_enabled,
-            session.expires_in_seconds,
-            format!("Login OK, GetVersion fallo: {error}"),
-        ))),
+            );
+            response.modo_operacion = modo.to_string();
+            Ok(Json(response))
+        }
+        Err(error) => {
+            let mut response = BdpDiagnosticoResponse::version_error(
+                config.bdp_sync_enabled,
+                session.expires_in_seconds,
+                format!("Login OK, GetVersion fallo: {error}"),
+            );
+            response.modo_operacion = modo.to_string();
+            Ok(Json(response))
+        }
     }
 }
 

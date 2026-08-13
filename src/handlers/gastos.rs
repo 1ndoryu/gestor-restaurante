@@ -152,6 +152,7 @@ pub async fn eliminar_gasto(
     get,
     path = "/api/gastos/categorias",
     tag = "Gastos",
+    operation_id = "listar_categorias_gasto",
     responses(
         (status = 200, description = "Lista de categorías", body = Vec<CategoriaGasto>)
     )

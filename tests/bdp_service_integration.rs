@@ -203,6 +203,7 @@ async fn seed_config(pool: &PgPool, user_id: Uuid) -> ConfiguracionRestaurante {
         ff_bdp_purchase_notes_read: false,
         ff_bdp_purchase_notes_draft: false,
         ff_bdp_purchase_notes_receive: false,
+        modo_operacion: "auto".to_string(),
         google_review_url: String::new(),
         telefono_restaurante: String::new(),
         url_reservas: String::new(),

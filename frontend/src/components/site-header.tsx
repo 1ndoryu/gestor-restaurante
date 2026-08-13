@@ -20,6 +20,7 @@ import { useSetSyncMode } from "@/api/bdp-backup"
 import { toast } from "sonner"
 import axios from "@/api/axios-instance"
 import { useQueryClient } from "@tanstack/react-query"
+import { useConfiguracionSync } from "@/hooks/useConfiguracionSync"
 
 const titulos: Record<string, string> = {
   "/": "Dashboard",
@@ -45,40 +46,69 @@ const titulos: Record<string, string> = {
 
 function BdpStatusIndicator() {
   const { data: config } = useObtenerConfiguracion()
+  const { config: configSync } = useConfiguracionSync(
+    config
+      ? { status: config.status, data: config.data as unknown as Record<string, string | number | boolean> }
+      : undefined
+  )
   const { mutate: setSyncMode, isPending: isChangingMode } = useSetSyncMode()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const cfg = config?.status === 200 ? (config.data as unknown as Record<string, unknown>) : null
   if (!cfg) return null
 
-  const syncEnabled = Boolean(cfg.bdp_sync_enabled)
-  const syncMode = String(cfg.bdp_sync_mode ?? 'read_only')
+  const syncEnabled = Boolean(cfg?.bdp_sync_enabled ?? configSync?.bdp_sync_enabled)
+  const syncMode = String(cfg?.bdp_sync_mode ?? configSync?.bdp_sync_mode ?? 'read_only')
+  const modoOperacion = String(cfg?.modo_operacion ?? configSync?.modo_operacion ?? 'auto')
 
   const credencialesOk =
-    Boolean(cfg.bdp_base_url) &&
-    Boolean(cfg.bdp_login) &&
-    Boolean(cfg.bdp_password) &&
-    Boolean(cfg.bdp_integrator_code)
+    Boolean(cfg?.bdp_base_url ?? configSync?.bdp_base_url) &&
+    Boolean(cfg?.bdp_login ?? configSync?.bdp_login) &&
+    Boolean(cfg?.bdp_password ?? configSync?.bdp_password) &&
+    Boolean(cfg?.bdp_integrator_code ?? configSync?.bdp_integrator_code)
 
-  if (!syncEnabled) {
+  /* [128A-1/F1/M1] 'standalone' es el switch maestro: aunque bdp_sync_enabled
+   * siga activo por compatibilidad, se trata como inactivo y el badge muestra
+   * el modo independiente. */
+  const modoIndependiente = modoOperacion === 'standalone'
+
+  if (modoIndependiente || !syncEnabled) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button type="button" className="focus:outline-none">
             <Badge variant="outline" className="text-xs gap-1 cursor-pointer hover:bg-muted">
-              BDP: off
+              {modoIndependiente ? 'Modo independiente' : 'BDP: off'}
             </Badge>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
           <div className="px-2 py-1.5 text-sm font-medium">
-            Integración BDP desactivada
+            {modoIndependiente
+              ? 'Modo independiente (sin BDP)'
+              : 'Integración BDP desactivada'}
           </div>
           <p className="px-2 pb-1.5 text-xs text-muted-foreground">
-            Los datos y columnas de BDP no se muestran en la Aplicación Web hasta que se active la integración.
+            {modoIndependiente
+              ? 'Todas las operaciones del restaurante funcionan con datos locales; el BDP no se usa.'
+              : 'Los datos y columnas de BDP no se muestran en la Aplicación Web hasta que se active la integración.'}
           </p>
           <DropdownMenuSeparator />
-          {credencialesOk ? (
+          {modoIndependiente ? (
+            <DropdownMenuItem onClick={async () => {
+              try {
+                await axios.patch('/api/configuracion/modo', { modo: 'auto' })
+                await queryClient.invalidateQueries({ queryKey: ['configuracion'] })
+                toast.success('Modo automático activado', {
+                  description: 'El sistema usará BDP si está configurado y disponible.',
+                })
+              } catch {
+                toast.error('No se pudo cambiar el modo')
+              }
+            }}>
+              Volver a modo automático
+            </DropdownMenuItem>
+          ) : credencialesOk ? (
             <DropdownMenuItem onClick={async () => {
               try {
                 await axios.patch('/api/configuracion', { bdp_sync_enabled: true })
@@ -96,7 +126,11 @@ function BdpStatusIndicator() {
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={() => navigate('/configuracion', { state: { bdpSection: 'bdp' } })}>
-            {credencialesOk ? 'Configuración BDP' : 'Configurar credenciales BDP'}
+            {modoIndependiente
+              ? 'Configuración'
+              : credencialesOk
+                ? 'Configuración BDP'
+                : 'Configurar credenciales BDP'}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -104,7 +138,7 @@ function BdpStatusIndicator() {
   }
 
   const isWrite = syncMode === 'unidirectional'
-  const bdpBaseUrl = String(cfg?.bdp_base_url ?? '')
+  const bdpBaseUrl = String(cfg?.bdp_base_url ?? configSync?.bdp_base_url ?? '')
 
   function desactivarEscritura() {
     if (isChangingMode) return

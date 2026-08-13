@@ -23,6 +23,7 @@ mod etiquetas;
 mod gastos;
 mod health;
 mod inactividad;
+mod modo_operacion;
 mod notificaciones;
 mod plano_sala;
 mod plantillas_whatsapp;
@@ -97,6 +98,8 @@ impl utoipa::Modify for SecurityAddon {
         ventas::bdp_invoice,
         ventas::bdp_payment,
         ventas::listar_bdp_payments,
+        modo_operacion::obtener_modo_operacion,
+        modo_operacion::cambiar_modo_operacion,
         gastos::crear_gasto,
         gastos::obtener_gasto,
         gastos::listar_gastos,
@@ -319,6 +322,8 @@ impl utoipa::Modify for SecurityAddon {
         crate::models::ActualizarConfiguracionRequest,
         configuracion::BdpDiagnosticoResponse,
         configuracion::CambiarBdpSyncModeRequest,
+        modo_operacion::ModoOperacionResponse,
+        modo_operacion::CambiarModoOperacionRequest,
         crate::services::BdpSyncDryRunResponse,
         crate::services::BdpSyncDryRunCheck,
         crate::models::IntegracionMarketingPublica,
@@ -397,9 +402,13 @@ impl utoipa::Modify for SecurityAddon {
         crate::services::BdpSnapshot,
         crate::services::BdpAuditEntry,
         crate::services::RestoreResult,
+        bdp_backup::SnapshotParcialRequest,
+        bdp_backup::SnapshotGloryRequest,
+        bdp_backup::RestoreGloryRequest,
         crate::models::VentaLinea,
         crate::models::CrearVentaLineaRequest,
         ventas::BdpOrderStatusResponse,
+        ventas::ReintentarBdpSyncRequest,
         ventas::BdpInvoiceRequest,
         ventas::BdpPaymentRequest,
         ventas::BdpPaymentResponse,
@@ -431,6 +440,7 @@ pub fn create_router(pool: sqlx::PgPool, config: crate::config::AppConfig) -> Ro
         jwt_secret: config.jwt_secret.clone(),
         config,
         notif_tx,
+        modo_operacion: crate::services::ServicioModoOperacion::new(),
     };
 
     /* [303A-2] CORS: restringir orígenes en producción.
@@ -483,6 +493,7 @@ fn api_routes() -> Router<AppState> {
         .merge(dashboard::routes())
         .merge(plano_sala::routes())
         .merge(configuracion::routes())
+        .merge(modo_operacion::routes())
         .merge(bdp_article_map::routes())
         .merge(bdp_backup::routes())
         .merge(bdp_customer_sync::routes())

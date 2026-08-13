@@ -24,6 +24,7 @@ mod gasto;
 mod haddock;
 mod integracion_marketing;
 mod meta_whatsapp;
+mod modo_operacion;
 mod notificacion;
 mod plano_sala;
 mod plantilla_whatsapp;
@@ -64,6 +65,9 @@ pub use gasto::GastoService;
 pub use haddock::HaddockService;
 pub use integracion_marketing::IntegracionMarketingService;
 pub use meta_whatsapp::MetaWhatsappService;
+pub use modo_operacion::{
+    ModoEfectivo, ServicioModoOperacion, MODO_AUTO, MODO_BDP, MODO_STANDALONE,
+};
 pub use notificacion::NotificacionService;
 pub use plano_sala::PlanoSalaService;
 pub use plantilla_whatsapp::PlantillaService;

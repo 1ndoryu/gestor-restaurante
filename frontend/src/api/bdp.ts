@@ -270,7 +270,7 @@ export function useRetryBdpSync(queryClient?: QueryClient) {
   return {
     ...generated,
     mutateAsync: async (ventaId: string) => {
-      const result = await generated.mutateAsync({ id: ventaId });
+      const result = await generated.mutateAsync({ id: ventaId, data: {} });
       queryClient?.invalidateQueries({ queryKey: ['listarVentas'] });
       return result;
     },

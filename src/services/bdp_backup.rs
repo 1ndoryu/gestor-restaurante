@@ -144,9 +144,7 @@ impl BdpBackupService {
 
         /* [048A-7] Traza en metadata si salones vino ausente (subscripción BDP no
          * activada): se guarda [] y queda documentado para el arming/auditoría. */
-        let salones_ausentes = datos["salones"]
-            .as_array()
-            .is_some_and(|arr| arr.is_empty());
+        let salones_ausentes = datos["salones"].as_array().is_some_and(Vec::is_empty);
         let metadata = serde_json::json!({
             "endpoints": ["ExportArticles", "ExportCustomers", "ExportDepartments", "GetRoomsTables", "GetEmployees"],
             "salones_ausentes": salones_ausentes,
@@ -1005,6 +1003,7 @@ mod tests {
             ff_bdp_purchase_notes_read: false,
             ff_bdp_purchase_notes_draft: false,
             ff_bdp_purchase_notes_receive: false,
+            modo_operacion: "auto".to_string(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

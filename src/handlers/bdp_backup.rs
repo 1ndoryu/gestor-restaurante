@@ -62,13 +62,13 @@ pub async fn explorar_bdp(
     Ok(Json(resultado))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub(crate) struct SnapshotParcialRequest {
     tipos: Vec<String>,
     notas: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub(crate) struct SnapshotGloryRequest {
     tipos: Vec<String>,
     notas: Option<String>,
@@ -316,7 +316,7 @@ pub async fn restaurar_glory(
     Ok(Json(result))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub(crate) struct RestoreGloryRequest {
     /// Debe ser exactamente "RESTAURAR {uuid}".
     pub confirmacion: String,

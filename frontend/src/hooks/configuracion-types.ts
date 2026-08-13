@@ -41,6 +41,8 @@ export interface EstadoConfiguracion {
   ff_bdp_purchase_notes_read: boolean;
   ff_bdp_purchase_notes_draft: boolean;
   ff_bdp_purchase_notes_receive: boolean;
+  /* [128A-1/F1] Conmutador de modo operativo BDP */
+  modo_operacion: string;
   /* [BKP-005] Configuración de backup BDP */
   bdp_sync_mode: string;
   bdp_backup_retention_days: number;
@@ -90,6 +92,7 @@ export const DEFAULTS: EstadoConfiguracion = {
   ff_bdp_purchase_notes_read: false,
   ff_bdp_purchase_notes_draft: false,
   ff_bdp_purchase_notes_receive: false,
+  modo_operacion: 'auto',
   bdp_sync_mode: 'read_only',
   bdp_backup_retention_days: 30,
   bdp_auto_backup_before_write: true,

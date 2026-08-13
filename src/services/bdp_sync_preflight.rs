@@ -758,6 +758,7 @@ mod tests {
             ff_bdp_purchase_notes_read: false,
             ff_bdp_purchase_notes_draft: false,
             ff_bdp_purchase_notes_receive: false,
+            modo_operacion: "auto".to_string(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

@@ -66,6 +66,7 @@ pub async fn restaurante_info(
     post,
     path = "/api/chatbot/reservas",
     tag = "Chatbot",
+    operation_id = "crear_reserva_chatbot",
     request_body = ChatbotCrearReservaRequest,
     responses(
         (status = 201, description = "Reserva creada", body = ChatbotReservaResponse),
@@ -118,6 +119,7 @@ pub async fn crear_reserva(
     get,
     path = "/api/chatbot/reservas",
     tag = "Chatbot",
+    operation_id = "buscar_reservas_chatbot",
     params(
         ("telefono" = Option<String>, Query, description = "Filtrar por teléfono"),
         ("nombre" = Option<String>, Query, description = "Filtrar por nombre/apellidos"),
@@ -149,6 +151,7 @@ pub async fn buscar_reservas(
     get,
     path = "/api/chatbot/reservas/{id}",
     tag = "Chatbot",
+    operation_id = "obtener_reserva_chatbot",
     params(("id" = Uuid, Path, description = "ID de la reserva")),
     responses(
         (status = 200, description = "Detalle de la reserva", body = ChatbotReservaResponse),
@@ -170,6 +173,7 @@ pub async fn obtener_reserva(
     delete,
     path = "/api/chatbot/reservas/{id}",
     tag = "Chatbot",
+    operation_id = "cancelar_reserva_chatbot",
     params(("id" = Uuid, Path, description = "ID de la reserva a cancelar")),
     responses(
         (status = 200, description = "Reserva cancelada"),

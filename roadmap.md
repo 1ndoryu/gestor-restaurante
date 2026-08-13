@@ -1,4 +1,4 @@
-﻿Objetivo: Sistema de restaurante con integración BDP (WebLink). Backend Rust (Axum) + React SPA.
+Objetivo: Sistema de restaurante con integración BDP (WebLink). Backend Rust (Axum) + React SPA.
 Rama: glory-rs-rest
 
 **Seguimiento de quality gate (2026-08-12):** Sentinel `0.7.1` (`b22c8484`) y VarSense
@@ -139,6 +139,13 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 ---
 
 ## Tareas pendientes
+
+- **128A-1 — Independencia total del BDP (funcionar con o sin BDP)**: plan activo
+  `Agente/planes/plan-independencia-bdp-2026-08-12.md`. Auditar lo no completado de la integración BDP
+  (N1–N14), inventariar las dependencias del BDP y planificar modo `standalone` para catálogo, stock,
+  compras, anulación de ventas, historial y explorador, con conmutador `standalone`/`bdp` y degradación
+  automática. F0 (auditoría) y F1 (conmutador de modo + badge) **completados** con gate PASS
+  (2026-08-13). En curso — siguiente bloque: **F2** (catálogo local).
 
 - Automatizar la detección de credenciales literales en documentación según `Agente/prevencion/prevencion-secretos-documentacion-bdp-2026-07-28.md`.
 - Automatizar la inmutabilidad de migraciones aplicadas según `Agente/prevencion/prevencion-inmutabilidad-migraciones-2026-07-28.md`.

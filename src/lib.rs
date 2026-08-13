@@ -17,6 +17,7 @@ use tokio::sync::broadcast;
 
 use crate::config::AppConfig;
 use crate::models::NotificacionEvent;
+use crate::services::ServicioModoOperacion;
 
 /// Estado compartido de la aplicación — accesible desde handlers y middleware
 #[derive(Clone)]
@@ -26,4 +27,6 @@ pub struct AppState {
     pub config: AppConfig,
     /// Canal broadcast para notificaciones SSE en tiempo real
     pub notif_tx: broadcast::Sender<NotificacionEvent>,
+    /// [128A-1/F1] Conmutador de modo operativo BDP (cache TTL por proceso).
+    pub modo_operacion: ServicioModoOperacion,
 }

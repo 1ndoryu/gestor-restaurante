@@ -1,6 +1,6 @@
 {
   "variableFiles": [
-    "frontend/src/styles/variables.css"
+    "frontend/src/index.css"
   ],
   "includePatterns": [
     "frontend/src/**/*.css",

@@ -369,6 +369,7 @@ fn make_app_state(pool: PgPool) -> AppState {
             error_report_email: None,
         },
         notif_tx,
+        modo_operacion: glory_backend::services::ServicioModoOperacion::default(),
     }
 }
 

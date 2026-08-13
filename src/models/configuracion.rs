@@ -92,6 +92,9 @@ pub struct ConfiguracionRestaurante {
     pub ff_bdp_purchase_notes_read: bool,
     pub ff_bdp_purchase_notes_draft: bool,
     pub ff_bdp_purchase_notes_receive: bool,
+    /* [128A-1/F1] Conmutador de modo operativo BDP:
+     * 'auto' (default) | 'standalone' | 'bdp'. Switch maestro (M1). */
+    pub modo_operacion: String,
     /* [094A-4] URL de Google Business para redirigir reseñas positivas */
     pub google_review_url: String,
     /* [094A-6] Datos para botones CTA en mensajes WhatsApp */
@@ -187,6 +190,8 @@ pub struct ActualizarConfiguracionRequest {
     pub ff_bdp_purchase_notes_read: Option<bool>,
     pub ff_bdp_purchase_notes_draft: Option<bool>,
     pub ff_bdp_purchase_notes_receive: Option<bool>,
+    /* [128A-1/F1] Modo operativo BDP: 'auto' | 'standalone' | 'bdp'. */
+    pub modo_operacion: Option<String>,
 }
 
 fn validar_iva(valor: &rust_decimal::Decimal) -> Result<(), validator::ValidationError> {
