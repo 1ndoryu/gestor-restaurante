@@ -100,6 +100,14 @@ pub struct ConfiguracionRestaurante {
      * reversión de IVA idempotente + exclusión del resumen diario (M10).
      * 'estado_solo': solo marca el estado anulada (sin reversión contable). */
     pub anulacion_modalidad: String,
+    /* [128A-1/F8/D8] Permisos operativos por acción (M17).
+     * Niveles: 'admin' (default) | 'admin_trabajador' | 'todos'.
+     * El enforcement vive en el backend (verificar_permiso); la UI solo
+     * refleja el permiso. La BD los valida con CHECK. */
+    pub permisos_catalogo_edicion: String,
+    pub permisos_stock_ajuste: String,
+    pub permisos_albaranes_gestion: String,
+    pub permisos_anulacion_ventas: String,
     /* [094A-4] URL de Google Business para redirigir reseñas positivas */
     pub google_review_url: String,
     /* [094A-6] Datos para botones CTA en mensajes WhatsApp */
@@ -200,6 +208,15 @@ pub struct ActualizarConfiguracionRequest {
     /* [128A-1/F4/D4] Modalidad de anulación: 'credito_completo' | 'estado_solo'. */
     #[validate(length(max = 20))]
     pub anulacion_modalidad: Option<String>,
+    /* [128A-1/F8/D8] Permisos operativos por acción (M17). */
+    #[validate(length(max = 20))]
+    pub permisos_catalogo_edicion: Option<String>,
+    #[validate(length(max = 20))]
+    pub permisos_stock_ajuste: Option<String>,
+    #[validate(length(max = 20))]
+    pub permisos_albaranes_gestion: Option<String>,
+    #[validate(length(max = 20))]
+    pub permisos_anulacion_ventas: Option<String>,
 }
 
 fn validar_iva(valor: &rust_decimal::Decimal) -> Result<(), validator::ValidationError> {

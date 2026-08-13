@@ -21,7 +21,8 @@ use crate::services::bdp_weblink_catalog::{
     BdpExportPurchaseNotesRequest, BdpExportPurchaseNotesResponse,
 };
 use crate::services::{
-    BdpWeblinkClient, ConfiguracionService, ModoEfectivo, ServicioModoOperacion,
+    verificar_permiso, AccionPermiso, BdpWeblinkClient, ConfiguracionService, ModoEfectivo,
+    ServicioModoOperacion,
 };
 use crate::AppState;
 use uuid::Uuid;
@@ -101,6 +102,8 @@ pub async fn crear_purchase_note_local(
     auth: AuthUser,
     Json(req): Json<CrearBdpPurchaseNoteRequest>,
 ) -> Result<Json<BdpPurchaseNote>, AppError> {
+    /* [128A-1/F8] Permiso por acción: gestión de albaranes (D8/M17). */
+    verificar_permiso(&state.pool, AccionPermiso::AlbaranesGestion, &auth).await?;
     if req.nombre_proveedor.is_none() && req.codigo_proveedor.is_none() {
         return Err(AppError::Validation(
             "Debes indicar el proveedor (nombre o código)".into(),
@@ -145,6 +148,8 @@ pub async fn actualizar_purchase_note_local(
     Path(id): Path<Uuid>,
     Json(req): Json<ActualizarBdpPurchaseNoteRequest>,
 ) -> Result<Json<BdpPurchaseNote>, AppError> {
+    /* [128A-1/F8] Permiso por acción: gestión de albaranes (D8/M17). */
+    verificar_permiso(&state.pool, AccionPermiso::AlbaranesGestion, &auth).await?;
     let note = BdpPurchaseNoteRepository::find_by_id(&state.pool, id, auth.user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Albarán no encontrado".into()))?;
@@ -191,6 +196,8 @@ pub async fn eliminar_purchase_note_local(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    /* [128A-1/F8] Permiso por acción: gestión de albaranes (D8/M17). */
+    verificar_permiso(&state.pool, AccionPermiso::AlbaranesGestion, &auth).await?;
     let ok = BdpPurchaseNoteRepository::eliminar_local(&state.pool, id, auth.user_id).await?;
     if !ok {
         /* Distinguir el motivo para dar una respuesta útil. */
@@ -339,6 +346,8 @@ pub async fn marcar_borrador_purchase_note(
     Path(id): Path<Uuid>,
     Json(_req): Json<BdpPurchaseNoteDraftRequest>,
 ) -> Result<Json<BdpPurchaseNote>, AppError> {
+    /* [128A-1/F8] Permiso por acción: gestión de albaranes (D8/M17). */
+    verificar_permiso(&state.pool, AccionPermiso::AlbaranesGestion, &auth).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     /* [128A-1/F5][M12] En `standalone` el ciclo de vida local no consulta flags. */
     let modo = ServicioModoOperacion::modo_efectivo_desde_config(&config);
@@ -389,6 +398,8 @@ pub async fn conciliar_purchase_note(
     Path(id): Path<Uuid>,
     Json(req): Json<BdpPurchaseNoteReconcileRequest>,
 ) -> Result<Json<BdpPurchaseNoteReconcileResult>, AppError> {
+    /* [128A-1/F8] Permiso por acción: gestión de albaranes (D8/M17). */
+    verificar_permiso(&state.pool, AccionPermiso::AlbaranesGestion, &auth).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     /* [128A-1/F5][M12] En `standalone` la conciliación local no consulta flags. */
     let modo = ServicioModoOperacion::modo_efectivo_desde_config(&config);

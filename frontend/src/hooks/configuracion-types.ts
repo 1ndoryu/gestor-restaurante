@@ -45,6 +45,11 @@ export interface EstadoConfiguracion {
   modo_operacion: string;
   /* [128A-1/F4] Modalidad de anulación local de ventas */
   anulacion_modalidad: string;
+  /* [128A-1/F8] Permisos operativos por acción (D8/M17) */
+  permisos_catalogo_edicion: string;
+  permisos_stock_ajuste: string;
+  permisos_albaranes_gestion: string;
+  permisos_anulacion_ventas: string;
   /* [BKP-005] Configuración de backup BDP */
   bdp_sync_mode: string;
   bdp_backup_retention_days: number;
@@ -96,6 +101,10 @@ export const DEFAULTS: EstadoConfiguracion = {
   ff_bdp_purchase_notes_receive: false,
   modo_operacion: 'auto',
   anulacion_modalidad: 'credito_completo',
+  permisos_catalogo_edicion: 'admin',
+  permisos_stock_ajuste: 'admin',
+  permisos_albaranes_gestion: 'admin',
+  permisos_anulacion_ventas: 'admin',
   bdp_sync_mode: 'read_only',
   bdp_backup_retention_days: 30,
   bdp_auto_backup_before_write: true,

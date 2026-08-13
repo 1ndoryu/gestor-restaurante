@@ -691,6 +691,10 @@ mod tests {
             ff_bdp_purchase_notes_receive: false,
             modo_operacion: "auto".to_string(),
             anulacion_modalidad: "credito_completo".to_string(),
+            permisos_catalogo_edicion: "admin".to_string(),
+            permisos_stock_ajuste: "admin".to_string(),
+            permisos_albaranes_gestion: "admin".to_string(),
+            permisos_anulacion_ventas: "admin".to_string(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

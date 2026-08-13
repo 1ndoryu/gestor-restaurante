@@ -83,6 +83,11 @@ export function useConfiguracion() {
       ff_bdp_purchase_notes_receive: config.ff_bdp_purchase_notes_receive,
       /* [128A-1/F4] Modalidad de anulación local de ventas */
       anulacion_modalidad: config.anulacion_modalidad,
+      /* [128A-1/F8] Permisos operativos por acción (D8/M17) */
+      permisos_catalogo_edicion: config.permisos_catalogo_edicion,
+      permisos_stock_ajuste: config.permisos_stock_ajuste,
+      permisos_albaranes_gestion: config.permisos_albaranes_gestion,
+      permisos_anulacion_ventas: config.permisos_anulacion_ventas,
       google_review_url: config.google_review_url || undefined,
       telefono_restaurante: config.telefono_restaurante || undefined,
       url_reservas: config.url_reservas || undefined,

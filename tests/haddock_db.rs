@@ -300,6 +300,10 @@ async fn test_configuracion_actualizar_haddock_fields(pool: PgPool) {
         ff_bdp_purchase_notes_receive: None,
         modo_operacion: None,
         anulacion_modalidad: None,
+        permisos_catalogo_edicion: None,
+        permisos_stock_ajuste: None,
+        permisos_albaranes_gestion: None,
+        permisos_anulacion_ventas: None,
     };
 
     let updated = ConfiguracionRepository::actualizar(&pool, user_id, &req)

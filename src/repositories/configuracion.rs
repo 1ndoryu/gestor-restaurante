@@ -39,7 +39,11 @@ const UPDATE_CONFIG_SQL: &str = "UPDATE configuracion_restaurante SET \
     ff_bdp_purchase_notes_receive = COALESCE($46, ff_bdp_purchase_notes_receive), bdp_catalog_price_type = COALESCE($47, bdp_catalog_price_type), \
     bdp_purchase_notes_profile_id = COALESCE($48, bdp_purchase_notes_profile_id), \
     modo_operacion = COALESCE($49, modo_operacion), \
-    anulacion_modalidad = COALESCE($50, anulacion_modalidad), updated_at = NOW() \
+    anulacion_modalidad = COALESCE($50, anulacion_modalidad), \
+    permisos_catalogo_edicion = COALESCE($51, permisos_catalogo_edicion), \
+    permisos_stock_ajuste = COALESCE($52, permisos_stock_ajuste), \
+    permisos_albaranes_gestion = COALESCE($53, permisos_albaranes_gestion), \
+    permisos_anulacion_ventas = COALESCE($54, permisos_anulacion_ventas), updated_at = NOW() \
     WHERE user_id = $1 RETURNING *";
 
 pub struct ConfiguracionRepository;
@@ -129,6 +133,10 @@ impl ConfiguracionRepository {
             .bind(req.bdp_purchase_notes_profile_id)
             .bind(req.modo_operacion.as_deref())
             .bind(req.anulacion_modalidad.as_deref())
+            .bind(req.permisos_catalogo_edicion.as_deref())
+            .bind(req.permisos_stock_ajuste.as_deref())
+            .bind(req.permisos_albaranes_gestion.as_deref())
+            .bind(req.permisos_anulacion_ventas.as_deref())
             .fetch_one(pool)
             .await
     }

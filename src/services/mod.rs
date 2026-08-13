@@ -26,6 +26,7 @@ mod integracion_marketing;
 mod meta_whatsapp;
 mod modo_operacion;
 mod notificacion;
+mod permisos;
 mod plano_sala;
 mod plantilla_whatsapp;
 mod recordatorio;
@@ -69,6 +70,7 @@ pub use modo_operacion::{
     ModoEfectivo, ServicioModoOperacion, MODO_AUTO, MODO_BDP, MODO_STANDALONE,
 };
 pub use notificacion::NotificacionService;
+pub use permisos::{permiso_habilitado, verificar_permiso, AccionPermiso, NivelPermiso};
 pub use plano_sala::PlanoSalaService;
 pub use plantilla_whatsapp::PlantillaService;
 pub use recordatorio::RecordatorioService;

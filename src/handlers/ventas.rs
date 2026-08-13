@@ -13,7 +13,9 @@ use crate::models::{
     ActualizarVentaRequest, AnularVentaRequest, CrearVentaRequest, Venta, VentaLinea,
     VentasPaginadas, VentasQuery,
 };
-use crate::services::{BdpOrderPollerService, BdpSyncService, VentaService};
+use crate::services::{
+    verificar_permiso, AccionPermiso, BdpOrderPollerService, BdpSyncService, VentaService,
+};
 use crate::AppState;
 
 /// Crear una venta
@@ -201,6 +203,8 @@ pub async fn anular_venta(
     Path(id): Path<Uuid>,
     Json(req): Json<AnularVentaRequest>,
 ) -> Result<Json<AnularVentaResponse>, AppError> {
+    /* [128A-1/F8] Permiso por acción: anulación de ventas (D8/M17). */
+    verificar_permiso(&state.pool, AccionPermiso::AnulacionVentas, &auth).await?;
     let venta = VentaService::anular(&state.pool, id, auth.user_id, req).await?;
     Ok(Json(AnularVentaResponse {
         anulada: venta.anulada,

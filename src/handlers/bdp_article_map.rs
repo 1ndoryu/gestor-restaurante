@@ -32,7 +32,8 @@ use crate::services::bdp_weblink_catalog::{
     BdpGetFastfoodRequest, BdpGetMenuRequest, BdpGetPackRequest,
 };
 use crate::services::{
-    BdpCatalogSyncResult, BdpSyncService, BdpWeblinkClient, ConfiguracionService, SyncTablesResult,
+    verificar_permiso, AccionPermiso, BdpCatalogSyncResult, BdpSyncService, BdpWeblinkClient,
+    ConfiguracionService, SyncTablesResult,
 };
 use crate::AppState;
 
@@ -137,6 +138,8 @@ pub async fn ajustar_stock(
     auth: AuthUser,
     Json(req): Json<AjustarBdpArticleStockRequest>,
 ) -> Result<Json<BdpArticleStock>, AppError> {
+    /* [128A-1/F8] Permiso por acción: ajuste de stock (D8/M17). */
+    verificar_permiso(&state.pool, AccionPermiso::StockAjuste, &auth).await?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     if req.delta == rust_decimal::Decimal::ZERO {
@@ -188,6 +191,8 @@ pub async fn crear_article_map(
     auth: AuthUser,
     Json(req): Json<CrearBdpArticleMapRequest>,
 ) -> Result<Json<BdpArticleMap>, AppError> {
+    /* [128A-1/F8] Permiso por acción: edición de catálogo (D8/M17). */
+    verificar_permiso(&state.pool, AccionPermiso::CatalogoEdicion, &auth).await?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let map = BdpArticleMapRepository::crear(&state.pool, auth.user_id, &req).await?;
@@ -214,6 +219,8 @@ pub async fn actualizar_article_map(
     Path(id): Path<Uuid>,
     Json(req): Json<ActualizarBdpArticleMapRequest>,
 ) -> Result<Json<BdpArticleMap>, AppError> {
+    /* [128A-1/F8] Permiso por acción: edición de catálogo (D8/M17). */
+    verificar_permiso(&state.pool, AccionPermiso::CatalogoEdicion, &auth).await?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let map = BdpArticleMapRepository::actualizar(&state.pool, id, auth.user_id, &req)
@@ -240,6 +247,8 @@ pub async fn eliminar_article_map(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    /* [128A-1/F8] Permiso por acción: edición de catálogo (D8/M17). */
+    verificar_permiso(&state.pool, AccionPermiso::CatalogoEdicion, &auth).await?;
     let eliminado = BdpArticleMapRepository::eliminar(&state.pool, id, auth.user_id).await?;
     if eliminado {
         Ok(Json(serde_json::json!({ "mensaje": "Mapeo eliminado" })))

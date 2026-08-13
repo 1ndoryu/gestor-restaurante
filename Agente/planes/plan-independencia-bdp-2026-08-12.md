@@ -3,7 +3,7 @@
 > **Fecha:** 2026-08-12 (revisión profunda 2026-08-12)
 > **Rama:** `glory-rs-rest`
 > **ID de bloque:** `128A-1`
-> **Estado:** Activo (en ejecución). F0–F7 completados; F8 en curso.
+> **Estado:** Activo (en ejecución). F0–F8 completados; F9 en curso.
 > **Skills aplicadas:** `supervisor-thinking` (diseño y desafío) y `supervisor-review` (revisión dura) —
 > veredicto en el Anexo B.
 >
@@ -436,9 +436,9 @@ aceptación observable**. Los conflictos anticipados (M#) se detallan en §14.
 | **F9** | Pruebas con/sin BDP: standalone completo, simulador, regresión del gate | Suites + `task:check` PASS con reporte | F1–F8 |
 | **F10** | Cierre documental: roadmap, completados, feature-flags, mapeo visual, plan a `planes/completados/` | Documentación actualizada y evidencia registrada | F9 |
 
-**SIGUIENTE ACCIÓN (verificable):** ejecutar **F8** (permisos configurables D8/M17: catálogo, stock,
-albaranes y anulación de ventas) en el ciclo local completo
-(editar → probar → gate → commit).
+**SIGUIENTE ACCIÓN (verificable):** ejecutar **F9** (pruebas con/sin BDP: standalone completo,
+simulador y regresión del gate) y cerrar con **F10** (roadmap/completados/feature-flags/mapeo
+visual y plan a `planes/completados/`) en el ciclo local completo.
 Autorizado: todo el ciclo local. No autorizado sin usuario: deploy a producción, escrituras al BDP
 real, SSH (prohibido siempre).
 
@@ -528,6 +528,22 @@ siempre disponible en standalone (M12, sin gates de flags); Explorador BDP conse
 Evidencia: tests `bdp_f7_menus_locales` 15/15, `task:check 128A-1 --full` PASS (sentinel, varsense,
 rust, frontend type-check, docs), suite completa en verde. Siguiente acción: **F8** (permisos
 operativos configurables D8/M17).
+
+**Estado 2026-08-13 (F8):** **completado** — permisos operativos configurables (D8, §4.11, M17):
+4 columnas `permisos_*` (`catalogo_edicion`, `stock_ajuste`, `albaranes_gestion`,
+`anulacion_ventas`) `VARCHAR(20) NOT NULL DEFAULT 'admin'` con CHECK en
+`configuracion_restaurante` (migración `20260819000000_bdp_permisos_operativos`, aditiva M15);
+servicio `src/services/permisos.rs` con `AccionPermiso`/`NivelPermiso`
+(`admin|admin_trabajador|todos`, `desde_valor` fail-closed → Admin),
+`permiso_habilitado` sobre `effective_role` y guard `verificar_permiso` (403); enforcement en
+`bdp_article_map` (catálogo/stock), `bdp_purchase_note` (albaranes) y `anular_venta`
+(anulación); validación de valores en PATCH + CHECK en BD; UI «Permisos operativos» en
+`ConfigBdp.tsx` con 4 selects y sync server→local con default `'admin'`. Alcance: se gatean las
+acciones locales del bloque; sync-prices/sync-tables/bdp-payment/bdp-invoice/etc. siguen
+protegidos por guards BDP existentes (sync_enabled, modo bdp, feature flags, BdpWriteGuard).
+Evidencia: tests `bdp_f8_permisos` 13/13, suite completa en verde, clippy `-D warnings` PASS,
+type-check frontend PASS, `task:check 128A-1 --full` PASS. Siguiente acción: **F9** (pruebas
+con/sin BDP: standalone completo, simulador, regresión del gate).
 
 ---
 
@@ -692,7 +708,8 @@ cliente (no autorizada).
 - [x] F6: historial/auditoría local (`origen_operacion` A11), pagos parciales locales (A8/M13)
       y factura local mínima (A7/D9), probado con gate PASS
 - [x] F7: menús/packs locales (D2) sobre catálogo local + convivencia BDP, probado con gate PASS
-- [ ] F8: permisos operativos (D8/M17: catálogo, stock, albaranes, anulación) sin BDP
+- [x] F8: permisos operativos (D8/M17: catálogo, stock, albaranes, anulación) sin BDP,
+      probado con gate PASS
 - [ ] F9: pruebas con/sin BDP + simulador + gate `task:check` PASS con reporte reproducible
 - [ ] F10: roadmap actualizado (128A-1 cerrado), completados con evidencia, feature-flags/mapeo visual
       actualizados, plan movido a `planes/completados/`

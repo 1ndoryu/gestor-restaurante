@@ -170,6 +170,15 @@ export interface ActualizarConfiguracionRequest {
   modo_operacion?: string | null;
   /** @nullable */
   nombre_restaurante?: string | null;
+  /* [128A-1/F8] Permisos operativos por acción (D8/M17) */
+  /** @nullable */
+  permisos_albaranes_gestion?: string | null;
+  /** @nullable */
+  permisos_anulacion_ventas?: string | null;
+  /** @nullable */
+  permisos_catalogo_edicion?: string | null;
+  /** @nullable */
+  permisos_stock_ajuste?: string | null;
   /** @nullable */
   reserva_apellidos_obligatorio?: boolean | null;
   /** @nullable */
@@ -1271,6 +1280,11 @@ export interface ConfiguracionRestaurante {
   iva_por_defecto: string;
   modo_operacion: string;
   nombre_restaurante: string;
+  /* [128A-1/F8] Permisos operativos por acción (D8/M17) */
+  permisos_albaranes_gestion: string;
+  permisos_anulacion_ventas: string;
+  permisos_catalogo_edicion: string;
+  permisos_stock_ajuste: string;
   reserva_apellidos_obligatorio: boolean;
   reserva_email_obligatorio: boolean;
   reserva_nombre_obligatorio: boolean;

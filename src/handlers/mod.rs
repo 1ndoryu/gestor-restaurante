@@ -18,6 +18,11 @@ pub use bdp_purchase_note::{
     eliminar_purchase_note_local, listar_purchase_notes, marcar_borrador_purchase_note,
     sincronizar_purchase_notes,
 };
+/* [128A-1/F8] Exposición para tests de integración de permisos (D8/M17). */
+pub use bdp_article_map::{
+    actualizar_article_map, ajustar_stock, crear_article_map, eliminar_article_map,
+};
+pub use ventas::anular_venta;
 mod campanas;
 mod canales_reserva;
 mod chatbot;

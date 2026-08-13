@@ -471,6 +471,92 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
             </SelectContent>
           </Select>
         </div>
+        {/* [128A-1/F8] Permisos operativos por acción (D8/M17) */}
+        <div className="border-t pt-3">
+          <p className="text-xs font-medium text-muted-foreground mb-3">Permisos operativos</p>
+          <p className="text-xs text-muted-foreground mb-3">
+            Quién puede ejecutar cada acción sensible. El backend aplica el permiso en cada
+            operación; la UI solo refleja la configuración.
+          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+              <div>
+                <Label htmlFor="permisos-catalogo-edicion">Catálogo</Label>
+                <p className="text-xs text-muted-foreground">Crear/editar/eliminar artículos y mapeos.</p>
+              </div>
+              <Select
+                value={config.permisos_catalogo_edicion}
+                onValueChange={(v) => cambiarCampo('permisos_catalogo_edicion', v)}
+              >
+                <SelectTrigger id="permisos-catalogo-edicion" className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Solo admin</SelectItem>
+                  <SelectItem value="admin_trabajador">Admin y trabajadores</SelectItem>
+                  <SelectItem value="todos">Todos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+              <div>
+                <Label htmlFor="permisos-stock-ajuste">Ajuste de stock</Label>
+                <p className="text-xs text-muted-foreground">Ajustes manuales de stock local.</p>
+              </div>
+              <Select
+                value={config.permisos_stock_ajuste}
+                onValueChange={(v) => cambiarCampo('permisos_stock_ajuste', v)}
+              >
+                <SelectTrigger id="permisos-stock-ajuste" className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Solo admin</SelectItem>
+                  <SelectItem value="admin_trabajador">Admin y trabajadores</SelectItem>
+                  <SelectItem value="todos">Todos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+              <div>
+                <Label htmlFor="permisos-albaranes-gestion">Albaranes de compra</Label>
+                <p className="text-xs text-muted-foreground">Crear, editar, borrar, borrador y conciliar.</p>
+              </div>
+              <Select
+                value={config.permisos_albaranes_gestion}
+                onValueChange={(v) => cambiarCampo('permisos_albaranes_gestion', v)}
+              >
+                <SelectTrigger id="permisos-albaranes-gestion" className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Solo admin</SelectItem>
+                  <SelectItem value="admin_trabajador">Admin y trabajadores</SelectItem>
+                  <SelectItem value="todos">Todos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+              <div>
+                <Label htmlFor="permisos-anulacion-ventas">Anulación de ventas</Label>
+                <p className="text-xs text-muted-foreground">Anular ventas locales.</p>
+              </div>
+              <Select
+                value={config.permisos_anulacion_ventas}
+                onValueChange={(v) => cambiarCampo('permisos_anulacion_ventas', v)}
+              >
+                <SelectTrigger id="permisos-anulacion-ventas" className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Solo admin</SelectItem>
+                  <SelectItem value="admin_trabajador">Admin y trabajadores</SelectItem>
+                  <SelectItem value="todos">Todos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
         <div className="border-t pt-3">
           <p className="text-xs font-medium text-muted-foreground mb-3">Compras (albaranes de proveedores BDP)</p>
           <div className="grid gap-3 md:grid-cols-3">

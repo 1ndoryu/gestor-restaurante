@@ -62,6 +62,35 @@ impl ConfiguracionService {
             }
         }
 
+        /* [128A-1/F8/D8] Validar permisos operativos si se proporcionan. */
+        for (campo, valor) in [
+            (
+                "permisos_catalogo_edicion",
+                req.permisos_catalogo_edicion.as_deref(),
+            ),
+            (
+                "permisos_stock_ajuste",
+                req.permisos_stock_ajuste.as_deref(),
+            ),
+            (
+                "permisos_albaranes_gestion",
+                req.permisos_albaranes_gestion.as_deref(),
+            ),
+            (
+                "permisos_anulacion_ventas",
+                req.permisos_anulacion_ventas.as_deref(),
+            ),
+        ] {
+            if let Some(valor) = valor {
+                if !crate::services::NivelPermiso::VALORES.contains(&valor) {
+                    return Err(AppError::Validation(format!(
+                        "{campo} inválido: '{valor}'. Valores permitidos: {}",
+                        crate::services::NivelPermiso::VALORES.join(", ")
+                    )));
+                }
+            }
+        }
+
         /* Asegurar que existe antes de actualizar */
         Repo::obtener_o_crear(pool, user_id).await?;
         let config = Repo::actualizar(pool, user_id, req).await?;

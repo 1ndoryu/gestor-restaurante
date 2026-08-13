@@ -63,6 +63,11 @@ export function useConfiguracionSync(datos: ConfigServerData | undefined) {
       ff_bdp_purchase_notes_receive: Boolean(d.ff_bdp_purchase_notes_receive ?? false),
       modo_operacion: String(d.modo_operacion ?? 'auto'),
       anulacion_modalidad: String(d.anulacion_modalidad ?? 'credito_completo'),
+      /* [128A-1/F8] Permisos operativos por acción (D8/M17) */
+      permisos_catalogo_edicion: String(d.permisos_catalogo_edicion ?? 'admin'),
+      permisos_stock_ajuste: String(d.permisos_stock_ajuste ?? 'admin'),
+      permisos_albaranes_gestion: String(d.permisos_albaranes_gestion ?? 'admin'),
+      permisos_anulacion_ventas: String(d.permisos_anulacion_ventas ?? 'admin'),
       bdp_sync_mode: String(d.bdp_sync_mode ?? 'read_only'),
       bdp_backup_retention_days: Number(d.bdp_backup_retention_days ?? 30),
       bdp_auto_backup_before_write: Boolean(d.bdp_auto_backup_before_write ?? false),
