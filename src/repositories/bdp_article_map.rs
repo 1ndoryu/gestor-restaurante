@@ -9,6 +9,37 @@ use uuid::Uuid;
 
 use crate::models::{ActualizarBdpArticleMapRequest, BdpArticleMap, CrearBdpArticleMapRequest};
 
+/* [128A-1/F2] Resultado del upsert del import BDP (M6/M7).
+ * - `Creado`: la fila no existía y se insertó.
+ * - `Actualizado`: la fila existía y cambió.
+ * - `SinCambios`: la fila existía y era idéntica.
+ * - `OmitidoLocalDirty`: la fila tiene ediciones locales (`local_dirty`); el
+ *   import NO la sobrescribe y el conflicto se reporta en el resultado.
+ * - `OmitidoDesactivado`: la fila está desactivada localmente (`activo=false`
+ *   local) y BDP la trae activa; el import NO la reactiva (M7). */
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BdpArticleUpsertStatus {
+    Creado,
+    Actualizado,
+    SinCambios,
+    OmitidoLocalDirty,
+    OmitidoDesactivado,
+}
+
+impl BdpArticleUpsertStatus {
+    /// True si el import cambió o creó la fila (para stock y contadores).
+    #[must_use]
+    pub fn es_cambio(self) -> bool {
+        matches!(self, Self::Creado | Self::Actualizado)
+    }
+
+    /// True si el import dejó la fila intacta por una regla local (M6/M7).
+    #[must_use]
+    pub fn es_omitido(self) -> bool {
+        matches!(self, Self::OmitidoLocalDirty | Self::OmitidoDesactivado)
+    }
+}
+
 pub struct BdpArticleMapRepository;
 
 impl BdpArticleMapRepository {
@@ -53,41 +84,132 @@ impl BdpArticleMapRepository {
     }
 
     /// Crea un nuevo mapeo (upsert: si ya existe el código Glory, actualiza)
+    /// [128A-1/F2] Si llegan campos locales, el registro pasa a `origen='local'`;
+    /// si la fila existía como BDP, se marca `local_dirty` (edición local de un
+    /// artículo importado — M6). Si no llegan campos locales, conserva el
+    /// comportamiento clásico de mapeo (`origen`/`local_dirty` intactos).
     pub async fn crear(
         pool: &PgPool,
         user_id: Uuid,
         req: &CrearBdpArticleMapRequest,
     ) -> Result<BdpArticleMap, sqlx::Error> {
         let id = Uuid::new_v4();
+        let tiene_campos_locales = req.descripcion.is_some()
+            || req.precio_tarifa1.is_some()
+            || req.iva_pct.is_some()
+            || req.departamento.is_some()
+            || req.familia.is_some()
+            || req.subfamilia.is_some()
+            || req.activo.is_some()
+            || req.barcode.is_some();
+        /* [128A-1/F2][M7] El toggle de `activo` es estado de disponibilidad
+         * local, no edición de datos: cambia `origen` pero NO marca
+         * `local_dirty` para que el import siga sincronizando precios/datos y
+         * solo respete la desactivación (M7). */
+        let marca_dirty = req.descripcion.is_some()
+            || req.precio_tarifa1.is_some()
+            || req.iva_pct.is_some()
+            || req.departamento.is_some()
+            || req.familia.is_some()
+            || req.subfamilia.is_some()
+            || req.barcode.is_some();
+        let bdp_codigo = req.articulo_bdp_codigo.as_deref().unwrap_or("");
+        let descripcion = req.descripcion.as_deref().unwrap_or("");
+        let precio = req.precio_tarifa1.unwrap_or(Decimal::ZERO);
+        let iva = req.iva_pct.unwrap_or(Decimal::ZERO);
+        let departamento = req.departamento.unwrap_or(0);
+        let familia = req.familia.unwrap_or(0);
+        let subfamilia = req.subfamilia.unwrap_or(0);
+        let activo = req.activo.unwrap_or(true);
+        let barcode = req.barcode.as_deref().unwrap_or("");
         sqlx::query_as::<_, BdpArticleMap>(
-            "INSERT INTO bdp_article_map (id, user_id, articulo_glory_codigo, articulo_bdp_codigo, articulo_bdp_nombre) \
-             VALUES ($1, $2, $3, $4, $5) \
+            "INSERT INTO bdp_article_map \
+                (id, user_id, articulo_glory_codigo, articulo_bdp_codigo, articulo_bdp_nombre, \
+                 descripcion, precio_tarifa1, iva_pct, departamento, familia, subfamilia, \
+                 activo, barcode, origen, local_dirty) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, false) \
              ON CONFLICT (user_id, articulo_glory_codigo) DO UPDATE SET \
                 articulo_bdp_codigo = EXCLUDED.articulo_bdp_codigo, \
                 articulo_bdp_nombre = EXCLUDED.articulo_bdp_nombre, \
+                descripcion = COALESCE(EXCLUDED.descripcion, bdp_article_map.descripcion), \
+                precio_tarifa1 = COALESCE(EXCLUDED.precio_tarifa1, bdp_article_map.precio_tarifa1), \
+                iva_pct = COALESCE(EXCLUDED.iva_pct, bdp_article_map.iva_pct), \
+                departamento = COALESCE(EXCLUDED.departamento, bdp_article_map.departamento), \
+                familia = COALESCE(EXCLUDED.familia, bdp_article_map.familia), \
+                subfamilia = COALESCE(EXCLUDED.subfamilia, bdp_article_map.subfamilia), \
+                activo = COALESCE(EXCLUDED.activo, bdp_article_map.activo), \
+                barcode = COALESCE(EXCLUDED.barcode, bdp_article_map.barcode), \
+                origen = CASE WHEN $15 THEN 'local' ELSE bdp_article_map.origen END, \
+                local_dirty = CASE \
+                    WHEN $16 AND bdp_article_map.origen = 'bdp' THEN true \
+                    ELSE bdp_article_map.local_dirty \
+                END, \
                 updated_at = NOW() \
              RETURNING *",
         )
         .bind(id)
         .bind(user_id)
         .bind(&req.articulo_glory_codigo)
-        .bind(&req.articulo_bdp_codigo)
+        .bind(bdp_codigo)
         .bind(req.articulo_bdp_nombre.as_deref().unwrap_or(""))
+        .bind(descripcion)
+        .bind(precio)
+        .bind(iva)
+        .bind(departamento)
+        .bind(familia)
+        .bind(subfamilia)
+        .bind(activo)
+        .bind(barcode)
+        .bind(if tiene_campos_locales { "local" } else { "bdp" })
+        .bind(tiene_campos_locales)
+        .bind(marca_dirty)
         .fetch_one(pool)
         .await
     }
 
     /// Actualiza parcialmente un mapeo existente
+    /// [128A-1/F2] Al editar campos locales, el registro pasa a `origen='local'`
+    /// y se marca `local_dirty=true` (M6). Un PATCH que solo toca códigos BDP
+    /// (mapeo) o solo `activo` (M7) no marca dirty.
     pub async fn actualizar(
         pool: &PgPool,
         id: Uuid,
         user_id: Uuid,
         req: &ActualizarBdpArticleMapRequest,
     ) -> Result<Option<BdpArticleMap>, sqlx::Error> {
+        let tiene_campos_locales = req.descripcion.is_some()
+            || req.precio_tarifa1.is_some()
+            || req.iva_pct.is_some()
+            || req.departamento.is_some()
+            || req.familia.is_some()
+            || req.subfamilia.is_some()
+            || req.activo.is_some()
+            || req.barcode.is_some();
+        /* [128A-1/F2][M7] Igual que en `crear`: `activo` no marca dirty. */
+        let marca_dirty = req.descripcion.is_some()
+            || req.precio_tarifa1.is_some()
+            || req.iva_pct.is_some()
+            || req.departamento.is_some()
+            || req.familia.is_some()
+            || req.subfamilia.is_some()
+            || req.barcode.is_some();
         sqlx::query_as::<_, BdpArticleMap>(
             "UPDATE bdp_article_map SET \
                 articulo_bdp_codigo = COALESCE($3, articulo_bdp_codigo), \
                 articulo_bdp_nombre = COALESCE($4, articulo_bdp_nombre), \
+                descripcion = COALESCE($5, descripcion), \
+                precio_tarifa1 = COALESCE($6, precio_tarifa1), \
+                iva_pct = COALESCE($7, iva_pct), \
+                departamento = COALESCE($8, departamento), \
+                familia = COALESCE($9, familia), \
+                subfamilia = COALESCE($10, subfamilia), \
+                activo = COALESCE($11, activo), \
+                barcode = COALESCE($12, barcode), \
+                origen = CASE WHEN $13 THEN 'local' ELSE origen END, \
+                local_dirty = CASE \
+                    WHEN $14 AND origen = 'bdp' THEN true \
+                    ELSE local_dirty \
+                END, \
                 updated_at = NOW() \
              WHERE id = $1 AND user_id = $2 \
              RETURNING *",
@@ -96,6 +218,16 @@ impl BdpArticleMapRepository {
         .bind(user_id)
         .bind(req.articulo_bdp_codigo.as_deref())
         .bind(req.articulo_bdp_nombre.as_deref())
+        .bind(req.descripcion.as_deref())
+        .bind(req.precio_tarifa1)
+        .bind(req.iva_pct)
+        .bind(req.departamento)
+        .bind(req.familia)
+        .bind(req.subfamilia)
+        .bind(req.activo)
+        .bind(req.barcode.as_deref())
+        .bind(tiene_campos_locales)
+        .bind(marca_dirty)
         .fetch_optional(pool)
         .await
     }
@@ -112,20 +244,44 @@ impl BdpArticleMapRepository {
     }
 
     /* [157A-7] F9.1: upsert desde datos BDP con campos enriquecidos.
-     * Usado por BdpSyncService::sync_catalog() para sincronizar catálogo completo.
-     * Upsert por (user_id, articulo_glory_codigo) que es el código BDP string.
-     * Devuelve true si se creó o actualizó, false si no hubo cambios. */
+     * [128A-1/F2] Reglas M6/M7: si la fila existe con `local_dirty=true`, el
+     * import NO la sobrescribe (OmitidoLocalDirty); si está desactivada
+     * localmente y BDP la trae activa, tampoco se reactiva (OmitidoDesactivado).
+     * Devuelve el estado del upsert (ver `BdpArticleUpsertStatus`). */
     pub async fn upsert_from_bdp(
         pool: &PgPool,
         user_id: Uuid,
         data: &BdpArticleUpsertData<'_>,
-    ) -> Result<bool, sqlx::Error> {
+    ) -> Result<BdpArticleUpsertStatus, sqlx::Error> {
+        /* Chequeo barato previo: omitir filas con ediciones locales o
+         * desactivadas localmente sin pisar su versión local. */
+        let existing: Option<(bool, bool)> = sqlx::query_as(
+            "SELECT local_dirty, activo FROM bdp_article_map \
+             WHERE user_id = $1 AND articulo_glory_codigo = $2",
+        )
+        .bind(user_id)
+        .bind(data.bdp_code)
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some((local_dirty, _)) = existing {
+            if local_dirty {
+                return Ok(BdpArticleUpsertStatus::OmitidoLocalDirty);
+            }
+        }
+        if let Some((_, activo_local)) = existing {
+            if !activo_local && data.activo {
+                return Ok(BdpArticleUpsertStatus::OmitidoDesactivado);
+            }
+        }
+        let existia = existing.is_some();
+
         let result = sqlx::query(
             "INSERT INTO bdp_article_map \
                 (id, user_id, articulo_glory_codigo, articulo_bdp_codigo, articulo_bdp_nombre, \
                  descripcion, precio_tarifa1, iva_pct, departamento, familia, subfamilia, \
-                 activo, barcode, stock_actual, ultima_sync_at, created_at, updated_at) \
-             VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW(), NOW()) \
+                 activo, barcode, stock_actual, origen, local_dirty, ultima_sync_at, created_at, updated_at) \
+             VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'bdp', false, NOW(), NOW(), NOW()) \
              ON CONFLICT (user_id, articulo_glory_codigo) DO UPDATE SET \
                 articulo_bdp_nombre = EXCLUDED.articulo_bdp_nombre, \
                 descripcion = EXCLUDED.descripcion, \
@@ -173,7 +329,17 @@ impl BdpArticleMapRepository {
             );
         }
 
-        Ok(result.rows_affected() > 0)
+        /* El upsert nunca toca filas local_dirty (ya retornamos antes). El
+         * INSERT de una fila nueva siempre afecta 1 fila → Creado; si existía
+         * y cambió → Actualizado; si existía y era idéntica, el WHERE del
+         * UPDATE evita el cambio → SinCambios. */
+        Ok(if result.rows_affected() == 0 {
+            BdpArticleUpsertStatus::SinCambios
+        } else if existia {
+            BdpArticleUpsertStatus::Actualizado
+        } else {
+            BdpArticleUpsertStatus::Creado
+        })
     }
 
     /// Lista el stock de un usuario opcionalmente filtrado por almacén.

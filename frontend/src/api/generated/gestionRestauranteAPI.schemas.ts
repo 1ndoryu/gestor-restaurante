@@ -10,9 +10,25 @@
  */
 export interface ActualizarBdpArticleMapRequest {
   /** @nullable */
+  activo?: boolean | null;
+  /** @nullable */
   articulo_bdp_codigo?: string | null;
   /** @nullable */
   articulo_bdp_nombre?: string | null;
+  /** @nullable */
+  barcode?: string | null;
+  /** @nullable */
+  departamento?: number | null;
+  /** @nullable */
+  descripcion?: string | null;
+  /** @nullable */
+  familia?: number | null;
+  /** @nullable */
+  iva_pct?: string | null;
+  /** @nullable */
+  precio_tarifa1?: string | null;
+  /** @nullable */
+  subfamilia?: number | null;
 }
 
 export interface ActualizarCampanaRequest {
@@ -611,6 +627,8 @@ export interface BdpArticleMap {
   familia: number;
   id: string;
   iva_pct: string;
+  local_dirty: boolean;
+  origen: string;
   precio_tarifa1: string;
   stock_actual: string;
   subfamilia: number;
@@ -667,6 +685,9 @@ export interface BdpAuditEntry {
 
 /**
  * Resultado del sync de catálogo BDP → Glory (F9.1).
+ * [128A-1/F2] Contadores de reglas locales del import (M6/M7): artículos con
+ * ediciones locales que el import no sobrescribe y artículos desactivados
+ * localmente que el import no reactiva. Visibles en la UI del reporte.
  */
 export interface BdpCatalogSyncResult {
   /** @minimum 0 */
@@ -674,7 +695,11 @@ export interface BdpCatalogSyncResult {
   /** @minimum 0 */
   creados: number;
   /** @minimum 0 */
+  desactivados_localmente: number;
+  /** @minimum 0 */
   errores: number;
+  /** @minimum 0 */
+  omitidos_ediciones_locales: number;
   /** @minimum 0 */
   sin_cambios: number;
   /** @minimum 0 */
@@ -1268,10 +1293,27 @@ export interface CrearApiKeyRequest {
  * Request para crear un mapeo de artículo
  */
 export interface CrearBdpArticleMapRequest {
-  articulo_bdp_codigo: string;
+  /** @nullable */
+  activo?: boolean | null;
+  /** @nullable */
+  articulo_bdp_codigo?: string | null;
   /** @nullable */
   articulo_bdp_nombre?: string | null;
   articulo_glory_codigo: string;
+  /** @nullable */
+  barcode?: string | null;
+  /** @nullable */
+  departamento?: number | null;
+  /** @nullable */
+  descripcion?: string | null;
+  /** @nullable */
+  familia?: number | null;
+  /** @nullable */
+  iva_pct?: string | null;
+  /** @nullable */
+  precio_tarifa1?: string | null;
+  /** @nullable */
+  subfamilia?: number | null;
 }
 
 export interface CrearCampanaRequest {

@@ -29,7 +29,12 @@ export function BdpArticleCatalogActions() {
           return;
         }
         setRequiresConfiguration(false);
-        toast.success(`Sync completado: ${result.creados} nuevos, ${result.actualizados} actualizados`);
+        const omitidos = result.omitidos_ediciones_locales;
+        const desactivados = result.desactivados_localmente;
+        const extras = [omitidos > 0 && `${omitidos} omitidos (edición local)`, desactivados > 0 && `${desactivados} desactivados localmente`]
+          .filter(Boolean)
+          .join(', ');
+        toast.success(`Sync completado: ${result.creados} nuevos, ${result.actualizados} actualizados${extras ? ` — ${extras}` : ''}`);
         queryClient.invalidateQueries({ queryKey: ['/api/bdp/article-maps'] });
       },
       onError: () => toast.error('Error al sincronizar catálogo BDP'),

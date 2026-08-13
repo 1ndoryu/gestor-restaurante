@@ -434,11 +434,18 @@ aceptación observable**. Los conflictos anticipados (M#) se detallan en §14.
 local completo (editar → probar → gate → commit). Autorizado: todo el ciclo local. No autorizado sin
 usuario: deploy a producción, escrituras al BDP real, SSH (prohibido siempre).
 
-**Estado 2026-08-13:** F0 y F1 **completados** en rama `glory-rs-rest` (commit
+**Estado 2026-08-13:** F0/F1 **completados** en rama `glory-rs-rest` (commit
 `[128A-1] F0/F1 ...`). Evidencia: `cargo test` (unit + integración) PASS con
 `CARGO_BUILD_JOBS=2` y `GLORY_CARGO_MIN_FREE_MB=1024` (evita E0786 ambiental),
-`task:check 128A-1 --allow-heavy` PASS, type-check frontend PASS. Checklist de
-cierre F0/F1 marcado abajo. Siguiente acción: **F2** (catálogo local).
+`task:check 128A-1 --allow-heavy` PASS, type-check frontend PASS. F2
+**completado** (commit `[128A-1] F2: catálogo local ...`): migración
+`20260814000000_bdp_article_map_catalogo_local`, modelo con `origen`/
+`local_dirty`/`omitidos_ediciones_locales`/`desactivados_localmente`, CRUD y
+fallback `resolve_article` (M5), import que no pisa ediciones locales (M6) ni
+reactiva desactivados (M7), UI de catálogo con origen y edición inline.
+Evidencia: `task:check 128A-1 --allow-heavy` PASS (sentinel, varsense, rust,
+frontend type-check, docs), tests `bdp_article_map` 26/26 + integración 8/8.
+Siguiente acción: **F3** (stock local).
 
 ---
 
@@ -592,7 +599,9 @@ cliente (no autorizada).
 
 - [ ] F0: inventario A/B verificado contra el estado real con evidencia
 - [x] F1: modo operativo + invariantes (M1) + histéresis (M2) + badge + degradación, probados
-- [ ] F2–F8: catálogo, stock, anulación, compras, historial/pagos parciales, menús y permisos operativos
+- [x] F2: catálogo local (origen/local_dirty, CRUD sin BDP, resolve_article M5, import M6/M7), probado
+      con gate PASS
+- [ ] F3–F8: stock, anulación, compras, historial/pagos parciales, menús y permisos operativos
       sin BDP (y conviviendo con BDP)
 - [ ] F9: pruebas con/sin BDP + simulador + gate `task:check` PASS con reporte reproducible
 - [ ] F10: roadmap actualizado (128A-1 cerrado), completados con evidencia, feature-flags/mapeo visual

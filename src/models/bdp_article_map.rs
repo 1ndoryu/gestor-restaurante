@@ -1,5 +1,8 @@
 /* [F1.3] Modelo de mapeo artículos Glory → BDP.
- * Permite al usuario vincular códigos de artículo del POS BDP con conceptos Glory.
+ * [128A-1/F2] Semántica (M5): la tabla es "artículos del catálogo + mapeo
+ * Glory↔BDP". `origen` distingue artículos creados/editados localmente
+ * ('local') de los importados de BDP ('bdp'); `local_dirty` marca ediciones
+ * locales que el import BDP no debe sobrescribir (M6/M7).
  * Usado por bdp_sync::resolve_article() para encontrar el código BDP correcto.
  * [157A-7] F9.1: campos enriquecidos para sync completa de catálogo. */
 
@@ -22,6 +25,10 @@ pub struct BdpArticleMap {
     pub articulo_glory_codigo: String,
     pub articulo_bdp_codigo: String,
     pub articulo_bdp_nombre: String,
+    /* [128A-1/F2] Procedencia del registro: 'local' | 'bdp' */
+    pub origen: String,
+    /* [128A-1/F2] Edición local pendiente de reconciliación con BDP */
+    pub local_dirty: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     /* [157A-7] Campos enriquecidos — F9.1 sync-catalog */
@@ -43,10 +50,27 @@ pub struct BdpArticleMap {
 pub struct CrearBdpArticleMapRequest {
     #[validate(length(min = 1, max = 100, message = "Código Glory requerido (max 100)"))]
     pub articulo_glory_codigo: String,
-    #[validate(length(min = 1, max = 100, message = "Código BDP requerido (max 100)"))]
-    pub articulo_bdp_codigo: String,
+    /* [128A-1/F2] Catálogo local: si vienen campos locales, el código BDP
+     * puede quedar vacío (artículo local puro). Si no hay campos locales,
+     * sigue siendo obligatorio (mapeo BDP clásico). */
+    #[validate(length(max = 100, message = "Código BDP requerido (max 100)"))]
+    pub articulo_bdp_codigo: Option<String>,
     #[validate(length(max = 255))]
     pub articulo_bdp_nombre: Option<String>,
+    /* [128A-1/F2] Campos del catálogo local (opcionales en alta) */
+    #[validate(length(max = 255))]
+    pub descripcion: Option<String>,
+    pub precio_tarifa1: Option<Decimal>,
+    pub iva_pct: Option<Decimal>,
+    #[validate(range(min = 0, max = 999_999))]
+    pub departamento: Option<i32>,
+    #[validate(range(min = 0, max = 999_999))]
+    pub familia: Option<i32>,
+    #[validate(range(min = 0, max = 999_999))]
+    pub subfamilia: Option<i32>,
+    pub activo: Option<bool>,
+    #[validate(length(max = 100))]
+    pub barcode: Option<String>,
 }
 
 /// Registro de stock de un artículo por almacén.
@@ -68,8 +92,23 @@ pub struct BdpArticleStock {
 /// Request para actualizar un mapeo de artículo (PATCH parcial)
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct ActualizarBdpArticleMapRequest {
-    #[validate(length(min = 1, max = 100))]
+    /* [128A-1/F2] El código BDP es opcional también en PATCH (artículo local). */
+    #[validate(length(max = 100))]
     pub articulo_bdp_codigo: Option<String>,
     #[validate(length(max = 255))]
     pub articulo_bdp_nombre: Option<String>,
+    /* [128A-1/F2] Campos del catálogo local editables (PATCH parcial) */
+    #[validate(length(max = 255))]
+    pub descripcion: Option<String>,
+    pub precio_tarifa1: Option<Decimal>,
+    pub iva_pct: Option<Decimal>,
+    #[validate(range(min = 0, max = 999_999))]
+    pub departamento: Option<i32>,
+    #[validate(range(min = 0, max = 999_999))]
+    pub familia: Option<i32>,
+    #[validate(range(min = 0, max = 999_999))]
+    pub subfamilia: Option<i32>,
+    pub activo: Option<bool>,
+    #[validate(length(max = 100))]
+    pub barcode: Option<String>,
 }

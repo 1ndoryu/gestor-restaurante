@@ -235,6 +235,8 @@ pub async fn importar_catalogo(
     Ok(Json(serde_json::json!({
         "imported": result.creados + result.actualizados,
         "unchanged": result.sin_cambios,
+        "omitidos_ediciones_locales": result.omitidos_ediciones_locales,
+        "desactivados_localmente": result.desactivados_localmente,
         "errors": result.errores,
         "total": result.total_bdp,
         "compatibility_endpoint": true

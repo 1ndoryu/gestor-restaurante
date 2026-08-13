@@ -144,8 +144,9 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
   `Agente/planes/plan-independencia-bdp-2026-08-12.md`. Auditar lo no completado de la integración BDP
   (N1–N14), inventariar las dependencias del BDP y planificar modo `standalone` para catálogo, stock,
   compras, anulación de ventas, historial y explorador, con conmutador `standalone`/`bdp` y degradación
-  automática. F0 (auditoría) y F1 (conmutador de modo + badge) **completados** con gate PASS
-  (2026-08-13). En curso — siguiente bloque: **F2** (catálogo local).
+  automática. F0 (auditoría), F1 (conmutador de modo + badge) y F2 (catálogo local:
+  origen/local_dirty, CRUD sin BDP, resolve_article M5, import M6/M7) **completados**
+  con gate PASS (2026-08-13). En curso — siguiente bloque: **F3** (stock local).
 
 - Automatizar la detección de credenciales literales en documentación según `Agente/prevencion/prevencion-secretos-documentacion-bdp-2026-07-28.md`.
 - Automatizar la inmutabilidad de migraciones aplicadas según `Agente/prevencion/prevencion-inmutabilidad-migraciones-2026-07-28.md`.

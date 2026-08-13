@@ -415,11 +415,18 @@ where
 }
 
 /// Resultado del sync de catálogo BDP → Glory (F9.1).
+/// [128A-1/F2] Contadores de reglas locales del import (M6/M7): artículos con
+/// ediciones locales que el import no sobrescribe y artículos desactivados
+/// localmente que el import no reactiva. Visibles en la UI del reporte.
 #[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct BdpCatalogSyncResult {
     pub creados: u32,
     pub actualizados: u32,
     pub sin_cambios: u32,
+    /* [128A-1/F2] M6: filas con ediciones locales no sobrescritas por el import */
+    pub omitidos_ediciones_locales: u32,
+    /* [128A-1/F2] M7: artículos desactivados localmente que el import no reactiva */
+    pub desactivados_localmente: u32,
     pub errores: u32,
     pub total_bdp: usize,
 }

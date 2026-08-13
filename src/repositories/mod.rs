@@ -42,6 +42,7 @@ pub use resena::ResenaRepository;
 pub mod inactividad;
 pub use bdp_article_map::BdpArticleMapRepository;
 pub use bdp_article_map::BdpArticleUpsertData;
+pub use bdp_article_map::BdpArticleUpsertStatus;
 pub use bdp_pago::BdpPagoRepository;
 pub use bdp_purchase_note::BdpPurchaseNoteRepository;
 pub use inactividad::InactividadRepository;

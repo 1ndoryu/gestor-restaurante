@@ -35,8 +35,8 @@ use uuid::Uuid;
 
 use crate::models::{ConfiguracionRestaurante, Venta, VentaLinea};
 use crate::repositories::{
-    BdpArticleMapRepository, BdpPagoRepository, ClienteRepository, VentaLineaRepository,
-    VentaRepository,
+    BdpArticleMapRepository, BdpArticleUpsertStatus, BdpPagoRepository, ClienteRepository,
+    VentaLineaRepository, VentaRepository,
 };
 use crate::services::bdp_weblink::BdpWeblinkClient;
 use crate::services::bdp_weblink_catalog::{
@@ -707,9 +707,13 @@ impl BdpSyncService {
     /// Resuelve qué artículo BDP usar. Intenta:
     /// 1. Si `bdp_default_article_code` es numérico, enriquecer con `GetArticle`
     /// 2. Si no, buscar el primer artículo del perfil
-    /// 3. Fallback: artículo genérico con código 0
+    /// 3. [128A-1/F2] Resolver desde el catálogo local (`bdp_article_map`) antes
+    ///    del fallback genérico: si existe mapeo local, usar sus datos
+    ///    (descripción, precio, IVA) en vez del artículo genérico con código 0.
     async fn resolve_article(
         client: &BdpWeblinkClient<'_>,
+        pool: &PgPool,
+        user_id: uuid::Uuid,
         config: &ConfiguracionRestaurante,
     ) -> ResolvedArticle {
         /* Intento 1: código configurado como número → intentar GetArticle para datos reales */
@@ -776,6 +780,11 @@ impl BdpSyncService {
             }
         }
 
+        /* Intento 3: [128A-1/F2] catálogo local. */
+        if let Some(resolved) = Self::resolve_article_local(pool, user_id, config).await {
+            return resolved;
+        }
+
         /* Fallback: genérico */
         ResolvedArticle {
             id: 0,
@@ -784,6 +793,60 @@ impl BdpSyncService {
             /* [R12] Usar iva_por_defecto de config en vez de 10.0 hardcodeado */
             vat_pct: Self::decimal_to_f64(&config.iva_por_defecto),
         }
+    }
+
+    /// [128A-1/F2] Intento 3 de `resolve_article`: si
+    /// `bdp_default_article_code` es numérico, busca el mapeo local con ese
+    /// código Glory y usa sus datos (descripción, precio, IVA) en vez del
+    /// fallback genérico. Respeta `activo`: un mapeo desactivado no se vende.
+    async fn resolve_article_local(
+        pool: &PgPool,
+        user_id: uuid::Uuid,
+        config: &ConfiguracionRestaurante,
+    ) -> Option<ResolvedArticle> {
+        let Ok(code) = config.bdp_default_article_code.trim().parse::<i64>() else {
+            return None;
+        };
+        if code <= 0 {
+            return None;
+        }
+        let map = match crate::repositories::BdpArticleMapRepository::buscar_por_codigo(
+            pool,
+            user_id,
+            &code.to_string(),
+        )
+        .await
+        {
+            Ok(Some(map)) => map,
+            Ok(None) => return None,
+            Err(e) => {
+                warn!("[128A-1/F2] Error resolviendo artículo local {code}: {e}");
+                return None;
+            }
+        };
+        if !map.activo {
+            /* Mapeo local existe pero está desactivado → usar fallback
+             * genérico (el artículo no se vende). */
+            return None;
+        }
+        let name = if map.descripcion.is_empty() {
+            map.articulo_bdp_nombre.clone()
+        } else {
+            map.descripcion.clone()
+        };
+        let default_iva = Self::decimal_to_f64(&config.iva_por_defecto);
+        let iva_pct = if map.iva_pct > rust_decimal::Decimal::ZERO {
+            Self::decimal_to_f64(&map.iva_pct)
+        } else {
+            default_iva
+        };
+        let price = Self::decimal_to_f64(&map.precio_tarifa1);
+        Some(ResolvedArticle {
+            id: code,
+            name,
+            price,
+            vat_pct: iva_pct,
+        })
     }
 
     /// [F2.8] Resuelve el artículo BDP para cada línea de venta consultando `bdp_article_map`.
@@ -1028,7 +1091,7 @@ impl BdpSyncService {
         config: &ConfiguracionRestaurante,
     ) -> Result<i64, OrderSendFailure> {
         let client = BdpWeblinkClient::new(config);
-        let article = Self::resolve_article(&client, config).await;
+        let article = Self::resolve_article(&client, pool, venta.user_id, config).await;
 
         /* [F7.5] Si la política exige cliente BDP, la comanda solo continúa
          * cuando el cliente ya tiene un código local confirmado. */
@@ -1909,13 +1972,45 @@ impl BdpSyncService {
      * Llama a ExportArticles, parsea respuesta tipada, hace upsert enriquecido
      * en bdp_article_map. Devuelve resumen de creados/actualizados/sin_cambios/errores.
      * NO requiere auth BDP en modo mock — se puede testear sin conexión. */
+    /// [128A-1/F2] Aplica un upsert BDP a `bdp_article_map` respetando las
+    /// reglas M6/M7 y propaga el stock al almacén por defecto. Devuelve el
+    /// estado del upsert para que `sync_catalog` lo contabilice.
+    async fn aplicar_upsert(
+        pool: &PgPool,
+        user_id: Uuid,
+        code: &str,
+        upsert_data: &crate::repositories::BdpArticleUpsertData<'_>,
+    ) -> Result<crate::repositories::BdpArticleUpsertStatus, String> {
+        let status = crate::repositories::BdpArticleMapRepository::upsert_from_bdp(
+            pool,
+            user_id,
+            upsert_data,
+        )
+        .await
+        .map_err(|e| format!("[157A-7] Error upsert artículo BDP {code}: {e}"))?;
+
+        /* [247A-10/S2] Guardar también el stock por almacén (General por
+         * defecto). Se hace como operación separada; si falla no debe romper
+         * el sync del artículo, pero se loguea. */
+        if let Err(e) = crate::repositories::BdpArticleMapRepository::upsert_stock(
+            pool,
+            user_id,
+            code,
+            upsert_data.stock_actual,
+        )
+        .await
+        {
+            warn!("[247A-10/S2] Error upsert stock por almacén {code}: {e}");
+        }
+        Ok(status)
+    }
+
     pub async fn sync_catalog(
         client: &BdpWeblinkClient<'_>,
         pool: &PgPool,
         user_id: Uuid,
         type_price: i32,
     ) -> Result<crate::services::bdp_weblink_catalog::BdpCatalogSyncResult, String> {
-        use crate::repositories::BdpArticleMapRepository;
         use crate::services::bdp_weblink_catalog::{
             BdpCatalogSyncResult, BdpExportArticlesRequest, BdpExportArticlesResponse,
         };
@@ -1932,8 +2027,11 @@ impl BdpSyncService {
 
         let articles = response.articles;
         let total_bdp = articles.len();
+        let mut creados: u32 = 0;
         let mut actualizados: u32 = 0;
         let mut sin_cambios: u32 = 0;
+        let mut omitidos_ediciones_locales: u32 = 0;
+        let mut desactivados_localmente: u32 = 0;
         let mut errores: u32 = 0;
 
         /* 3. Upsert cada artículo */
@@ -1967,44 +2065,21 @@ impl BdpSyncService {
                 stock_actual: art.effective_stock().unwrap_or(Decimal::ZERO),
             };
 
-            match BdpArticleMapRepository::upsert_from_bdp(pool, user_id, &upsert_data).await {
-                Ok(true) => {
-                    /* upsert_from_bdp returns true when row was created or changed */
-                    /* Heuristic: if the row didn't exist before, it's "creado".
-                     * We can't distinguish created vs updated from the SQL result alone,
-                     * so we count all changes as "actualizados" (upsert semantics). */
-                    actualizados += 1;
-                    /* [247A-10/S2] Guardar también el stock por almacén (General por defecto).
-                     * Se hace como operación separada; si falla no debe romper el sync
-                     * del artículo, pero se loguea. */
-                    if let Err(e) = BdpArticleMapRepository::upsert_stock(
-                        pool,
-                        user_id,
-                        code,
-                        upsert_data.stock_actual,
-                    )
-                    .await
-                    {
-                        warn!("[247A-10/S2] Error upsert stock por almacén {code}: {e}");
-                    }
+            match Self::aplicar_upsert(pool, user_id, code, &upsert_data).await {
+                Ok(BdpArticleUpsertStatus::Creado) => creados += 1,
+                Ok(BdpArticleUpsertStatus::Actualizado) => actualizados += 1,
+                Ok(BdpArticleUpsertStatus::SinCambios) => sin_cambios += 1,
+                /* [128A-1/F2][M6] El import no pisa ediciones locales. */
+                Ok(BdpArticleUpsertStatus::OmitidoLocalDirty) => {
+                    omitidos_ediciones_locales += 1;
                 }
-                Ok(false) => {
-                    sin_cambios += 1;
-                    /* Aunque el artículo no haya cambiado, sincronizamos el stock
-                     * para asegurar que existe la fila de almacén por defecto. */
-                    if let Err(e) = BdpArticleMapRepository::upsert_stock(
-                        pool,
-                        user_id,
-                        code,
-                        upsert_data.stock_actual,
-                    )
-                    .await
-                    {
-                        warn!("[247A-10/S2] Error upsert stock por almacén {code}: {e}");
-                    }
+                /* [128A-1/F2][M7] El import no reactiva artículos
+                 * desactivados localmente. */
+                Ok(BdpArticleUpsertStatus::OmitidoDesactivado) => {
+                    desactivados_localmente += 1;
                 }
                 Err(e) => {
-                    warn!("[157A-7] Error upsert artículo BDP {code}: {e}");
+                    warn!("{e}");
                     errores += 1;
                 }
             }
@@ -2023,14 +2098,16 @@ impl BdpSyncService {
         }
 
         info!(
-            "[157A-7] sync_catalog completado: {} artículos BDP → {actualizados} cambios, {sin_cambios} sin cambios, {errores} errores, stock_disponible={stock_populado}",
+            "[157A-7] sync_catalog completado: {} artículos BDP → {creados} creados, {actualizados} actualizados, {sin_cambios} sin cambios, {omitidos_ediciones_locales} omitidos por edición local, {desactivados_localmente} desactivados localmente, {errores} errores, stock_disponible={stock_populado}",
             total_bdp
         );
 
         Ok(BdpCatalogSyncResult {
-            creados: 0,
+            creados,
             actualizados,
             sin_cambios,
+            omitidos_ediciones_locales,
+            desactivados_localmente,
             errores,
             total_bdp,
         })
@@ -2051,9 +2128,21 @@ impl BdpSyncService {
         let total_bdp = maps.len();
         let mut actualizados: u32 = 0;
         let mut sin_cambios: u32 = 0;
+        let mut omitidos_ediciones_locales: u32 = 0;
+        let mut desactivados_localmente: u32 = 0;
         let mut errores: u32 = 0;
 
         for map in &maps {
+            /* [128A-1/F2][M6/M7] sync_prices tampoco debe pisar ediciones
+             * locales ni reactivar artículos desactivados localmente. */
+            if map.local_dirty {
+                omitidos_ediciones_locales += 1;
+                continue;
+            }
+            if !map.activo {
+                desactivados_localmente += 1;
+                continue;
+            }
             let code: i64 = if let Ok(c) = map.articulo_bdp_codigo.parse() {
                 c
             } else {
@@ -2124,13 +2213,15 @@ impl BdpSyncService {
         }
 
         info!(
-            "[157A-9] sync_prices completado: {total_bdp} artículos → {actualizados} precios actualizados, {sin_cambios} sin cambios, {errores} errores"
+            "[157A-9] sync_prices completado: {total_bdp} artículos → {actualizados} precios actualizados, {sin_cambios} sin cambios, {omitidos_ediciones_locales} omitidos por edición local, {desactivados_localmente} desactivados localmente, {errores} errores"
         );
 
         Ok(BdpCatalogSyncResult {
             creados: 0,
             actualizados,
             sin_cambios,
+            omitidos_ediciones_locales,
+            desactivados_localmente,
             errores,
             total_bdp,
         })

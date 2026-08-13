@@ -6,7 +6,10 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use glory_backend::models::{ActualizarBdpArticleMapRequest, CrearBdpArticleMapRequest};
-use glory_backend::repositories::{BdpArticleMapRepository, BdpArticleUpsertData};
+use glory_backend::repositories::{
+    BdpArticleMapRepository, BdpArticleUpsertData, BdpArticleUpsertStatus,
+};
+use rust_decimal::Decimal;
 
 /* Helper: crea un usuario mínimo para satisfacer FK de bdp_article_map.user_id */
 async fn create_test_user(pool: &PgPool) -> Uuid {
@@ -22,16 +25,50 @@ async fn create_test_user(pool: &PgPool) -> Uuid {
     id
 }
 
+/* Helper: request clásico de mapeo BDP (sin campos locales) */
+fn req_bdp(codigo: &str, bdp: &str, nombre: Option<&str>) -> CrearBdpArticleMapRequest {
+    CrearBdpArticleMapRequest {
+        articulo_glory_codigo: codigo.into(),
+        articulo_bdp_codigo: Some(bdp.into()),
+        articulo_bdp_nombre: nombre.map(str::to_string),
+        descripcion: None,
+        precio_tarifa1: None,
+        iva_pct: None,
+        departamento: None,
+        familia: None,
+        subfamilia: None,
+        activo: None,
+        barcode: None,
+    }
+}
+
+/* Helper: upsert BDP con valores por defecto razonables */
+fn bdp_data<'a>(
+    codigo: &'a str,
+    descripcion: &'a str,
+    precio: Decimal,
+    activo: bool,
+) -> BdpArticleUpsertData<'a> {
+    BdpArticleUpsertData {
+        bdp_code: codigo,
+        descripcion,
+        precio_tarifa1: precio,
+        iva_pct: Decimal::new(1000, 2),
+        departamento: 1,
+        familia: 1,
+        subfamilia: 1,
+        activo,
+        barcode: "",
+        stock_actual: Decimal::ZERO,
+    }
+}
+
 /* ── CRUD roundtrip ──────────────────────────────────────────── */
 
 #[sqlx::test(migrations = "./migrations")]
 async fn test_crear_y_listar_article_map(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
-    let req = CrearBdpArticleMapRequest {
-        articulo_glory_codigo: "CAFE001".into(),
-        articulo_bdp_codigo: "1001".into(),
-        articulo_bdp_nombre: Some("CAFE BOMBON".into()),
-    };
+    let req = req_bdp("CAFE001", "1001", Some("CAFE BOMBON"));
 
     let created = BdpArticleMapRepository::crear(&pool, user_id, &req)
         .await
@@ -52,11 +89,7 @@ async fn test_crear_y_listar_article_map(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn test_obtener_por_id(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
-    let req = CrearBdpArticleMapRequest {
-        articulo_glory_codigo: "TOST01".into(),
-        articulo_bdp_codigo: "2001".into(),
-        articulo_bdp_nombre: Some("TOSTADA".into()),
-    };
+    let req = req_bdp("TOST01", "2001", Some("TOSTADA"));
 
     let created = BdpArticleMapRepository::crear(&pool, user_id, &req)
         .await
@@ -75,11 +108,7 @@ async fn test_obtener_por_id(pool: PgPool) {
 async fn test_obtener_wrong_user_returns_none(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     let other_user = create_test_user(&pool).await;
-    let req = CrearBdpArticleMapRequest {
-        articulo_glory_codigo: "SEC01".into(),
-        articulo_bdp_codigo: "3001".into(),
-        articulo_bdp_nombre: None,
-    };
+    let req = req_bdp("SEC01", "3001", None);
 
     let created = BdpArticleMapRepository::crear(&pool, user_id, &req)
         .await
@@ -96,22 +125,14 @@ async fn test_obtener_wrong_user_returns_none(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn test_upsert_actualiza_codigo_bdp(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
-    let req1 = CrearBdpArticleMapRequest {
-        articulo_glory_codigo: "ZUMO01".into(),
-        articulo_bdp_codigo: "5001".into(),
-        articulo_bdp_nombre: Some("Zumo viejo".into()),
-    };
+    let req1 = req_bdp("ZUMO01", "5001", Some("Zumo viejo"));
 
     let first = BdpArticleMapRepository::crear(&pool, user_id, &req1)
         .await
         .unwrap();
 
     /* Mismo articulo_glory_codigo → UPSERT */
-    let req2 = CrearBdpArticleMapRequest {
-        articulo_glory_codigo: "ZUMO01".into(),
-        articulo_bdp_codigo: "5002".into(),
-        articulo_bdp_nombre: Some("Zumo nuevo".into()),
-    };
+    let req2 = req_bdp("ZUMO01", "5002", Some("Zumo nuevo"));
 
     let second = BdpArticleMapRepository::crear(&pool, user_id, &req2)
         .await
@@ -134,11 +155,7 @@ async fn test_upsert_actualiza_codigo_bdp(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn test_buscar_por_codigo(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
-    let req = CrearBdpArticleMapRequest {
-        articulo_glory_codigo: "ENSALADA01".into(),
-        articulo_bdp_codigo: "7001".into(),
-        articulo_bdp_nombre: Some("Ensalada César".into()),
-    };
+    let req = req_bdp("ENSALADA01", "7001", Some("Ensalada César"));
     BdpArticleMapRepository::crear(&pool, user_id, &req)
         .await
         .unwrap();
@@ -167,11 +184,7 @@ async fn test_buscar_por_codigo_inexistente(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn test_actualizar_parcial(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
-    let req = CrearBdpArticleMapRequest {
-        articulo_glory_codigo: "UPD01".into(),
-        articulo_bdp_codigo: "8001".into(),
-        articulo_bdp_nombre: Some("Original".into()),
-    };
+    let req = req_bdp("UPD01", "8001", Some("Original"));
     let created = BdpArticleMapRepository::crear(&pool, user_id, &req)
         .await
         .unwrap();
@@ -179,6 +192,14 @@ async fn test_actualizar_parcial(pool: PgPool) {
     let patch = ActualizarBdpArticleMapRequest {
         articulo_bdp_codigo: Some("8002".into()),
         articulo_bdp_nombre: Some("Actualizado".into()),
+        descripcion: None,
+        precio_tarifa1: None,
+        iva_pct: None,
+        departamento: None,
+        familia: None,
+        subfamilia: None,
+        activo: None,
+        barcode: None,
     };
     let updated = BdpArticleMapRepository::actualizar(&pool, created.id, user_id, &patch)
         .await
@@ -195,11 +216,7 @@ async fn test_actualizar_parcial(pool: PgPool) {
 async fn test_actualizar_wrong_user_returns_none(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     let other_user = create_test_user(&pool).await;
-    let req = CrearBdpArticleMapRequest {
-        articulo_glory_codigo: "UPD02".into(),
-        articulo_bdp_codigo: "8101".into(),
-        articulo_bdp_nombre: None,
-    };
+    let req = req_bdp("UPD02", "8101", None);
     let created = BdpArticleMapRepository::crear(&pool, user_id, &req)
         .await
         .unwrap();
@@ -207,6 +224,14 @@ async fn test_actualizar_wrong_user_returns_none(pool: PgPool) {
     let patch = ActualizarBdpArticleMapRequest {
         articulo_bdp_codigo: Some("HACK".into()),
         articulo_bdp_nombre: None,
+        descripcion: None,
+        precio_tarifa1: None,
+        iva_pct: None,
+        departamento: None,
+        familia: None,
+        subfamilia: None,
+        activo: None,
+        barcode: None,
     };
     let result = BdpArticleMapRepository::actualizar(&pool, created.id, other_user, &patch)
         .await
@@ -219,11 +244,7 @@ async fn test_actualizar_wrong_user_returns_none(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn test_eliminar_article_map(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
-    let req = CrearBdpArticleMapRequest {
-        articulo_glory_codigo: "DEL01".into(),
-        articulo_bdp_codigo: "9001".into(),
-        articulo_bdp_nombre: None,
-    };
+    let req = req_bdp("DEL01", "9001", None);
     let created = BdpArticleMapRepository::crear(&pool, user_id, &req)
         .await
         .unwrap();
@@ -243,11 +264,7 @@ async fn test_eliminar_article_map(pool: PgPool) {
 async fn test_eliminar_wrong_user_returns_false(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     let other_user = create_test_user(&pool).await;
-    let req = CrearBdpArticleMapRequest {
-        articulo_glory_codigo: "DEL02".into(),
-        articulo_bdp_codigo: "9101".into(),
-        articulo_bdp_nombre: None,
-    };
+    let req = req_bdp("DEL02", "9101", None);
     let created = BdpArticleMapRepository::crear(&pool, user_id, &req)
         .await
         .unwrap();
@@ -271,11 +288,7 @@ async fn test_listar_ordenado_por_codigo(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
 
     for (codigo, bdp_codigo) in [("ZZZ", "3"), ("AAA", "1"), ("MMM", "2")] {
-        let req = CrearBdpArticleMapRequest {
-            articulo_glory_codigo: codigo.into(),
-            articulo_bdp_codigo: bdp_codigo.into(),
-            articulo_bdp_nombre: None,
-        };
+        let req = req_bdp(codigo, bdp_codigo, None);
         BdpArticleMapRepository::crear(&pool, user_id, &req)
             .await
             .unwrap();
@@ -298,16 +311,8 @@ async fn test_aislamiento_entre_usuarios(pool: PgPool) {
     let user_a = create_test_user(&pool).await;
     let user_b = create_test_user(&pool).await;
 
-    let req_a = CrearBdpArticleMapRequest {
-        articulo_glory_codigo: "SHARED_CODE".into(),
-        articulo_bdp_codigo: "A001".into(),
-        articulo_bdp_nombre: Some("Artículo A".into()),
-    };
-    let req_b = CrearBdpArticleMapRequest {
-        articulo_glory_codigo: "SHARED_CODE".into(),
-        articulo_bdp_codigo: "B001".into(),
-        articulo_bdp_nombre: Some("Artículo B".into()),
-    };
+    let req_a = req_bdp("SHARED_CODE", "A001", Some("Artículo A"));
+    let req_b = req_bdp("SHARED_CODE", "B001", Some("Artículo B"));
 
     BdpArticleMapRepository::crear(&pool, user_a, &req_a)
         .await
@@ -329,29 +334,300 @@ async fn test_aislamiento_entre_usuarios(pool: PgPool) {
     assert_eq!(list_b[0].articulo_bdp_codigo, "B001");
 }
 
+/* ── [128A-1/F2] Catálogo local: origen / local_dirty (M5) ──── */
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_crear_local_marca_origen_local(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let req = CrearBdpArticleMapRequest {
+        articulo_glory_codigo: "LOCAL001".into(),
+        articulo_bdp_codigo: None,
+        articulo_bdp_nombre: None,
+        descripcion: Some("Hamburguesa local".into()),
+        precio_tarifa1: Some(Decimal::new(500, 2)),
+        iva_pct: Some(Decimal::new(1600, 2)),
+        departamento: Some(5),
+        familia: None,
+        subfamilia: None,
+        activo: Some(true),
+        barcode: None,
+    };
+
+    let created = BdpArticleMapRepository::crear(&pool, user_id, &req)
+        .await
+        .expect("crear should succeed");
+
+    assert_eq!(created.origen, "local");
+    assert!(!created.local_dirty, "alta nueva local no es dirty");
+    assert_eq!(created.descripcion, "Hamburguesa local");
+    assert_eq!(created.precio_tarifa1, Decimal::new(500, 2));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_crear_bdp_sobre_existente_marca_local_dirty(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+
+    /* Fila importada de BDP → origen='bdp', no dirty */
+    BdpArticleMapRepository::upsert_from_bdp(
+        &pool,
+        user_id,
+        &bdp_data("DIRTY01", "ARTICULO BDP", Decimal::new(100, 2), true),
+    )
+    .await
+    .unwrap();
+
+    /* Edición local (crear/upsert con campos locales) sobre la fila BDP */
+    let req = CrearBdpArticleMapRequest {
+        articulo_glory_codigo: "DIRTY01".into(),
+        articulo_bdp_codigo: Some("DIRTY01".into()),
+        articulo_bdp_nombre: Some("ARTICULO BDP".into()),
+        descripcion: Some("Descripción editada localmente".into()),
+        precio_tarifa1: None,
+        iva_pct: None,
+        departamento: None,
+        familia: None,
+        subfamilia: None,
+        activo: None,
+        barcode: None,
+    };
+    let updated = BdpArticleMapRepository::crear(&pool, user_id, &req)
+        .await
+        .unwrap();
+
+    assert_eq!(updated.origen, "local");
+    assert!(updated.local_dirty, "edición local marca dirty (M6)");
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_actualizar_campos_locales_marca_dirty(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    BdpArticleMapRepository::upsert_from_bdp(
+        &pool,
+        user_id,
+        &bdp_data("PATCH01", "ORIGINAL BDP", Decimal::new(100, 2), true),
+    )
+    .await
+    .unwrap();
+
+    let map = BdpArticleMapRepository::buscar_por_codigo(&pool, user_id, "PATCH01")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(map.origen, "bdp");
+    assert!(!map.local_dirty);
+
+    /* PATCH que toca solo el precio → local + dirty */
+    let patch = ActualizarBdpArticleMapRequest {
+        articulo_bdp_codigo: None,
+        articulo_bdp_nombre: None,
+        descripcion: None,
+        precio_tarifa1: Some(Decimal::new(999, 2)),
+        iva_pct: None,
+        departamento: None,
+        familia: None,
+        subfamilia: None,
+        activo: None,
+        barcode: None,
+    };
+    let updated = BdpArticleMapRepository::actualizar(&pool, map.id, user_id, &patch)
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(updated.origen, "local");
+    assert!(updated.local_dirty);
+    assert_eq!(updated.precio_tarifa1, Decimal::new(999, 2));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_actualizar_solo_mapeo_no_marca_dirty(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    BdpArticleMapRepository::upsert_from_bdp(
+        &pool,
+        user_id,
+        &bdp_data("MAP01", "SIN EDITAR", Decimal::new(100, 2), true),
+    )
+    .await
+    .unwrap();
+
+    let map = BdpArticleMapRepository::buscar_por_codigo(&pool, user_id, "MAP01")
+        .await
+        .unwrap()
+        .unwrap();
+
+    /* PATCH que solo cambia el código BDP (mapeo) → no dirty */
+    let patch = ActualizarBdpArticleMapRequest {
+        articulo_bdp_codigo: Some("MAP99".into()),
+        articulo_bdp_nombre: None,
+        descripcion: None,
+        precio_tarifa1: None,
+        iva_pct: None,
+        departamento: None,
+        familia: None,
+        subfamilia: None,
+        activo: None,
+        barcode: None,
+    };
+    let updated = BdpArticleMapRepository::actualizar(&pool, map.id, user_id, &patch)
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(updated.articulo_bdp_codigo, "MAP99");
+    assert_eq!(updated.origen, "bdp");
+    assert!(!updated.local_dirty, "cambio de mapeo puro no marca dirty");
+}
+
+/* ── [128A-1/F2] M6/M7: el import respeta ediciones locales ── */
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_upsert_bdp_omite_fila_dirty(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    BdpArticleMapRepository::upsert_from_bdp(
+        &pool,
+        user_id,
+        &bdp_data("M6-01", "VERSIÓN BDP", Decimal::new(100, 2), true),
+    )
+    .await
+    .unwrap();
+
+    /* Edición local */
+    let map = BdpArticleMapRepository::buscar_por_codigo(&pool, user_id, "M6-01")
+        .await
+        .unwrap()
+        .unwrap();
+    let patch = ActualizarBdpArticleMapRequest {
+        articulo_bdp_codigo: None,
+        articulo_bdp_nombre: None,
+        descripcion: None,
+        precio_tarifa1: Some(Decimal::new(999, 2)),
+        iva_pct: None,
+        departamento: None,
+        familia: None,
+        subfamilia: None,
+        activo: None,
+        barcode: None,
+    };
+    BdpArticleMapRepository::actualizar(&pool, map.id, user_id, &patch)
+        .await
+        .unwrap();
+
+    /* El import trae otro precio, pero la fila está dirty → se omite */
+    let status = BdpArticleMapRepository::upsert_from_bdp(
+        &pool,
+        user_id,
+        &bdp_data("M6-01", "VERSIÓN BDP NUEVA", Decimal::new(50, 2), true),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(status, BdpArticleUpsertStatus::OmitidoLocalDirty);
+    assert!(status.es_omitido());
+
+    let after = BdpArticleMapRepository::buscar_por_codigo(&pool, user_id, "M6-01")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        after.precio_tarifa1,
+        Decimal::new(999, 2),
+        "versión local intacta"
+    );
+    assert_eq!(after.descripcion, "VERSIÓN BDP", "versión local intacta");
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_upsert_bdp_no_reactiva_desactivado_local(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    BdpArticleMapRepository::upsert_from_bdp(
+        &pool,
+        user_id,
+        &bdp_data("M7-01", "PLATO RETIRADO", Decimal::new(100, 2), true),
+    )
+    .await
+    .unwrap();
+
+    /* Desactivación local vía PATCH (no marca dirty: solo activo=false;
+     * no es edición de datos, es estado de disponibilidad) */
+    let map = BdpArticleMapRepository::buscar_por_codigo(&pool, user_id, "M7-01")
+        .await
+        .unwrap()
+        .unwrap();
+    let patch = ActualizarBdpArticleMapRequest {
+        articulo_bdp_codigo: None,
+        articulo_bdp_nombre: None,
+        descripcion: None,
+        precio_tarifa1: None,
+        iva_pct: None,
+        departamento: None,
+        familia: None,
+        subfamilia: None,
+        activo: Some(false),
+        barcode: None,
+    };
+    BdpArticleMapRepository::actualizar(&pool, map.id, user_id, &patch)
+        .await
+        .unwrap();
+
+    /* BDP la trae activa de nuevo → no se reactiva (M7) */
+    let status = BdpArticleMapRepository::upsert_from_bdp(
+        &pool,
+        user_id,
+        &bdp_data("M7-01", "PLATO RETIRADO", Decimal::new(100, 2), true),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(status, BdpArticleUpsertStatus::OmitidoDesactivado);
+    assert!(status.es_omitido());
+
+    let after = BdpArticleMapRepository::buscar_por_codigo(&pool, user_id, "M7-01")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(!after.activo, "el import no reactiva artículos locales");
+}
+
+/* ── [128A-1/F2] Defaults de la migración ────────────────────── */
+
+#[sqlx::test(migrations = "./migrations")]
+async fn test_migracion_defaults_origen_bdp(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+
+    /* Import BDP → defaults de la columna: origen='bdp', local_dirty=false */
+    BdpArticleMapRepository::upsert_from_bdp(
+        &pool,
+        user_id,
+        &bdp_data("DEF01", "POR DEFECTO", Decimal::new(100, 2), true),
+    )
+    .await
+    .unwrap();
+
+    let map = BdpArticleMapRepository::buscar_por_codigo(&pool, user_id, "DEF01")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(map.origen, "bdp");
+    assert!(!map.local_dirty);
+}
+
 /* ── upsert_from_bdp (F9.1) ──────────────────────────────────── */
 
 #[sqlx::test(migrations = "./migrations")]
 async fn test_upsert_from_bdp_crea_nuevo(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     let data = BdpArticleUpsertData {
-        bdp_code: "1001",
-        descripcion: "CAFE BOMBON",
-        precio_tarifa1: rust_decimal::Decimal::new(250, 2),
-        iva_pct: rust_decimal::Decimal::new(1000, 2),
-        departamento: 1,
-        familia: 1,
-        subfamilia: 1,
-        activo: true,
         barcode: "8412345678901",
-        stock_actual: rust_decimal::Decimal::new(100, 2),
+        stock_actual: Decimal::new(100, 2),
+        ..bdp_data("1001", "CAFE BOMBON", Decimal::new(250, 2), true)
     };
 
-    let changed = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data)
+    let status = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data)
         .await
         .expect("upsert should succeed");
 
-    assert!(changed, "new article should return true (created)");
+    assert_eq!(status, BdpArticleUpsertStatus::Creado);
+    assert!(status.es_cambio());
 
     let list = BdpArticleMapRepository::listar(&pool, user_id)
         .await
@@ -360,22 +636,18 @@ async fn test_upsert_from_bdp_crea_nuevo(pool: PgPool) {
     assert_eq!(list[0].articulo_glory_codigo, "1001");
     assert_eq!(list[0].descripcion, "CAFE BOMBON");
     assert_eq!(list[0].articulo_bdp_codigo, "1001");
+    /* [128A-1/F2] Los imports BDP nunca marcan la fila como local. */
+    assert_eq!(list[0].origen, "bdp");
+    assert!(!list[0].local_dirty);
 }
 
 #[sqlx::test(migrations = "./migrations")]
 async fn test_upsert_from_bdp_actualiza_existente(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     let data1 = BdpArticleUpsertData {
-        bdp_code: "2001",
-        descripcion: "TOSTADA",
-        precio_tarifa1: rust_decimal::Decimal::new(350, 2),
-        iva_pct: rust_decimal::Decimal::new(1000, 2),
-        departamento: 1,
         familia: 2,
-        subfamilia: 1,
-        activo: true,
-        barcode: "",
-        stock_actual: rust_decimal::Decimal::new(50, 2),
+        stock_actual: Decimal::new(50, 2),
+        ..bdp_data("2001", "TOSTADA", Decimal::new(350, 2), true)
     };
 
     BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data1)
@@ -384,45 +656,30 @@ async fn test_upsert_from_bdp_actualiza_existente(pool: PgPool) {
 
     /* Segundo upsert con precio cambiado */
     let data2 = BdpArticleUpsertData {
-        bdp_code: "2001",
-        descripcion: "TOSTADA",
-        precio_tarifa1: rust_decimal::Decimal::new(400, 2), /* precio cambió */
-        iva_pct: rust_decimal::Decimal::new(1000, 2),
-        departamento: 1,
-        familia: 2,
-        subfamilia: 1,
-        activo: true,
-        barcode: "",
-        stock_actual: rust_decimal::Decimal::new(50, 2),
+        precio_tarifa1: Decimal::new(400, 2), /* precio cambió */
+        ..data1
     };
 
-    let changed = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data2)
+    let status = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data2)
         .await
         .unwrap();
 
-    assert!(changed, "updated price should return true");
+    assert_eq!(status, BdpArticleUpsertStatus::Actualizado);
 
     let list = BdpArticleMapRepository::listar(&pool, user_id)
         .await
         .unwrap();
     assert_eq!(list.len(), 1);
-    assert_eq!(list[0].precio_tarifa1, rust_decimal::Decimal::new(400, 2));
+    assert_eq!(list[0].precio_tarifa1, Decimal::new(400, 2));
 }
 
 #[sqlx::test(migrations = "./migrations")]
 async fn test_upsert_from_bdp_sin_cambios(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     let data = BdpArticleUpsertData {
-        bdp_code: "3001",
         descripcion: "AGUA",
-        precio_tarifa1: rust_decimal::Decimal::new(100, 2),
-        iva_pct: rust_decimal::Decimal::new(1000, 2),
-        departamento: 1,
-        familia: 1,
-        subfamilia: 1,
-        activo: true,
-        barcode: "",
-        stock_actual: rust_decimal::Decimal::new(100, 2),
+        stock_actual: Decimal::new(100, 2),
+        ..bdp_data("3001", "", Decimal::new(100, 2), true)
     };
 
     BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data)
@@ -430,30 +687,26 @@ async fn test_upsert_from_bdp_sin_cambios(pool: PgPool) {
         .unwrap();
 
     /* Mismo upsert idéntico — no debería reportar cambio */
-    let changed = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data)
+    let status = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data)
         .await
         .unwrap();
 
-    assert!(
-        !changed,
-        "identical upsert should return false (no changes)"
-    );
+    assert_eq!(status, BdpArticleUpsertStatus::SinCambios);
+    assert!(!status.es_cambio());
 }
 
 #[sqlx::test(migrations = "./migrations")]
 async fn test_upsert_from_bdp_desactiva_articulo(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     let data_active = BdpArticleUpsertData {
-        bdp_code: "4001",
         descripcion: "VINO",
-        precio_tarifa1: rust_decimal::Decimal::new(800, 2),
-        iva_pct: rust_decimal::Decimal::new(2100, 2),
+        precio_tarifa1: Decimal::new(800, 2),
+        iva_pct: Decimal::new(2100, 2),
         departamento: 2,
         familia: 3,
-        subfamilia: 1,
-        activo: true,
         barcode: "123456789",
-        stock_actual: rust_decimal::Decimal::new(20, 2),
+        stock_actual: Decimal::new(20, 2),
+        ..bdp_data("4001", "", Decimal::ZERO, true)
     };
 
     BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data_active)
@@ -465,11 +718,11 @@ async fn test_upsert_from_bdp_desactiva_articulo(pool: PgPool) {
         ..data_active
     };
 
-    let changed = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data_inactive)
+    let status = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data_inactive)
         .await
         .unwrap();
 
-    assert!(changed, "deactivating should return true");
+    assert_eq!(status, BdpArticleUpsertStatus::Actualizado);
 
     let list = BdpArticleMapRepository::listar(&pool, user_id)
         .await
@@ -484,16 +737,9 @@ async fn test_upsert_from_bdp_aisla_usuarios(pool: PgPool) {
     let user_b = create_test_user(&pool).await;
 
     let data_a = BdpArticleUpsertData {
-        bdp_code: "5001",
         descripcion: "ARTICULO A",
-        precio_tarifa1: rust_decimal::Decimal::new(100, 2),
-        iva_pct: rust_decimal::Decimal::new(1000, 2),
-        departamento: 1,
-        familia: 1,
-        subfamilia: 1,
-        activo: true,
-        barcode: "",
-        stock_actual: rust_decimal::Decimal::new(30, 2),
+        stock_actual: Decimal::new(30, 2),
+        ..bdp_data("5001", "", Decimal::new(100, 2), true)
     };
 
     BdpArticleMapRepository::upsert_from_bdp(&pool, user_a, &data_a)
@@ -519,16 +765,9 @@ async fn test_upsert_stock_crea_almacen_general(pool: PgPool) {
 
     /* upsert_from_bdp debe propagar el stock a bdp_article_stock */
     let data = BdpArticleUpsertData {
-        bdp_code: "STOCK01",
         descripcion: "ARTÍCULO STOCK",
-        precio_tarifa1: rust_decimal::Decimal::new(100, 2),
-        iva_pct: rust_decimal::Decimal::new(1000, 2),
-        departamento: 1,
-        familia: 1,
-        subfamilia: 1,
-        activo: true,
-        barcode: "",
-        stock_actual: rust_decimal::Decimal::new(12345, 2),
+        stock_actual: Decimal::new(12345, 2),
+        ..bdp_data("STOCK01", "", Decimal::new(100, 2), true)
     };
 
     BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data)
@@ -543,7 +782,7 @@ async fn test_upsert_stock_crea_almacen_general(pool: PgPool) {
     assert_eq!(stock[0].articulo_glory_codigo, "STOCK01");
     assert_eq!(stock[0].warehouse_id, "0");
     assert_eq!(stock[0].warehouse_name, "General");
-    assert_eq!(stock[0].stock, rust_decimal::Decimal::new(12345, 2));
+    assert_eq!(stock[0].stock, Decimal::new(12345, 2));
 }
 
 #[sqlx::test(migrations = "./migrations")]
@@ -551,19 +790,12 @@ async fn test_upsert_stock_actualiza_stock_existente(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
 
     let data1 = BdpArticleUpsertData {
-        bdp_code: "STOCK02",
         descripcion: "ARTÍCULO",
-        precio_tarifa1: rust_decimal::Decimal::new(100, 2),
-        iva_pct: rust_decimal::Decimal::new(1000, 2),
-        departamento: 1,
-        familia: 1,
-        subfamilia: 1,
-        activo: true,
-        barcode: "",
-        stock_actual: rust_decimal::Decimal::new(50, 2),
+        stock_actual: Decimal::new(50, 2),
+        ..bdp_data("STOCK02", "", Decimal::new(100, 2), true)
     };
     let data2 = BdpArticleUpsertData {
-        stock_actual: rust_decimal::Decimal::new(75, 2),
+        stock_actual: Decimal::new(75, 2),
         ..data1
     };
 
@@ -578,5 +810,5 @@ async fn test_upsert_stock_actualiza_stock_existente(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(stock.len(), 1);
-    assert_eq!(stock[0].stock, rust_decimal::Decimal::new(75, 2));
+    assert_eq!(stock[0].stock, Decimal::new(75, 2));
 }
