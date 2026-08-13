@@ -432,9 +432,9 @@ impl BdpArticleMapRepository {
 
         let maybe_audit_id: Option<Uuid> = sqlx::query_scalar(
             r"INSERT INTO bdp_audit_log
-               (user_id, operacion, direccion, datos_enviados, resultado,
+               (user_id, operacion, direccion, datos_enviados, resultado, origen_operacion,
                 target_entity_type, target_entity_id, authorization_reason, idempotency_key)
-               VALUES ($1, 'stock_ajuste', 'internal', $2, 'exito', 'articulo', NULL, $3, $4)
+               VALUES ($1, 'stock_ajuste', 'internal', $2, 'exito', 'local', 'articulo', NULL, $3, $4)
                ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
                RETURNING id",
         )

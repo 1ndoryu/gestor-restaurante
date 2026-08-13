@@ -31,6 +31,12 @@ export interface VentaConClienteBdp {
   bdp_sync_error?: string | null;
   bdp_order_status?: string | null;
   bdp_invoiced?: boolean;
+  /* [128A-1/F6] Factura local mínima (A7/D9) */
+  facturada_local?: boolean;
+  /** @nullable */
+  factura_numero?: string | null;
+  /** @nullable */
+  factura_fecha?: string | null;
 }
 
 /** Response de anulación local de venta (POST /api/ventas/:id/anular). */

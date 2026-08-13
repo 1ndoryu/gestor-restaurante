@@ -8,10 +8,12 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::models::{
-    ActualizarVentaRequest, AnularVentaRequest, CrearVentaRequest, Venta, VentasPaginadas,
+    ActualizarVentaRequest, AnularVentaRequest, BdpPago, CrearVentaRequest, Venta, VentasPaginadas,
 };
 use crate::repositories::venta::{ActualizarVentaData, NuevaVenta};
-use crate::repositories::{ConfiguracionRepository, VentaLineaRepository, VentaRepository};
+use crate::repositories::{
+    BdpPagoRepository, ConfiguracionRepository, VentaLineaRepository, VentaRepository,
+};
 
 use super::{BdpSyncService, HaddockService};
 
@@ -300,7 +302,8 @@ impl VentaService {
             req.anulacion_usuario,
             req.idempotency_key.as_deref(),
         )
-        .await?;
+        .await
+        .map_err(Self::map_anular_error)?;
 
         /* Idempotencia C1: reintento con la misma clave y resultado previo
          * 'exito' es éxito idempotente; cualquier otro resultado es conflicto. */
@@ -313,6 +316,105 @@ impl VentaService {
         }
 
         Ok(venta)
+    }
+
+    /* [128A-1/F6] Pago parcial local (A8/M13).
+     * Escribe sobre el ledger existente `bdp_pagos` (fila local sin
+     * `bdp_order_id`). El repo aplica guards (anulada/facturada), saldo
+     * pendiente e idempotencia dentro de una transacción con lock de venta.
+     * Un reintento con la misma clave es éxito idempotente solo si la fila
+     * previa pertenece a la misma venta con el mismo importe. */
+    pub async fn pago_parcial_local(
+        pool: &PgPool,
+        user_id: Uuid,
+        venta_id: Uuid,
+        amount: rust_decimal::Decimal,
+        tender_id: i32,
+        idempotency_key: Option<&str>,
+    ) -> Result<(BdpPago, Option<Uuid>), AppError> {
+        let key = idempotency_key.unwrap_or_default();
+        let (pago, audit_id) =
+            BdpPagoRepository::insertar_local(pool, user_id, venta_id, amount, tender_id, key)
+                .await?;
+
+        if audit_id.is_none() {
+            /* Reintento idempotente: la clave ya se usó. */
+            if pago.venta_id != venta_id {
+                return Err(AppError::Conflict(
+                    "idempotency_key ya usada para otra venta".into(),
+                ));
+            }
+            if pago.amount != amount {
+                return Err(AppError::Conflict(
+                    "idempotency_key ya usada con otro importe".into(),
+                ));
+            }
+        }
+
+        Ok((pago, audit_id))
+    }
+
+    /* [128A-1/F6] Factura local mínima (A7/D9): numeración local secuencial +
+     * estado `facturada` + auditoría. Reintenta ante colisión de número
+     * (carrera concurrente, unique violation 23505) y mapea los guards M9 a
+     * códigos HTTP adecuados. */
+    pub async fn facturar_local(
+        pool: &PgPool,
+        id: Uuid,
+        user_id: Uuid,
+        idempotency_key: Option<&str>,
+    ) -> Result<Venta, AppError> {
+        let mut intentos = 0;
+        loop {
+            intentos += 1;
+            match VentaRepository::facturar_local(pool, id, user_id, idempotency_key).await {
+                Ok((venta, _audit_id, resultado_previo, _ya_facturada)) => {
+                    if let Some(resultado) = resultado_previo {
+                        if resultado != "exito" {
+                            return Err(AppError::Conflict(format!(
+                                "idempotency_key ya usada (resultado previo: {resultado})"
+                            )));
+                        }
+                    }
+                    return Ok(venta);
+                }
+                Err(sqlx::Error::Database(ref db)) if db.is_unique_violation() && intentos < 3 => {
+                    /* Carrera de numeración: reintenta con el siguiente número. */
+                }
+                Err(e) => return Err(Self::map_factura_local_error(e)),
+            }
+        }
+    }
+
+    fn map_anular_error(err: sqlx::Error) -> AppError {
+        match &err {
+            sqlx::Error::RowNotFound => AppError::NotFound("Venta no encontrada".into()),
+            sqlx::Error::Protocol(msg) => match msg.as_str() {
+                "venta_facturada_no_anulable" => {
+                    AppError::Conflict("La venta está facturada y no se puede anular.".into())
+                }
+                "venta_ya_anulada" => AppError::Conflict("La venta ya está anulada.".into()),
+                _ => AppError::Conflict(msg.clone()),
+            },
+            _ => AppError::Database(err),
+        }
+    }
+
+    fn map_factura_local_error(err: sqlx::Error) -> AppError {
+        match &err {
+            sqlx::Error::RowNotFound => AppError::NotFound("Venta no encontrada".into()),
+            sqlx::Error::Protocol(msg) => match msg.as_str() {
+                "venta_anulada_no_facturable" => {
+                    AppError::Conflict("La venta está anulada y no se puede facturar.".into())
+                }
+                "venta_ya_facturada" => AppError::Conflict("La venta ya está facturada.".into()),
+                "venta_con_pagos_pendientes" => AppError::Validation(
+                    "Quedan pagos parciales pendientes; regístralos antes de facturar.".into(),
+                ),
+                _ => AppError::Conflict(msg.clone()),
+            },
+            _ => AppError::Database(err),
+        }
     }
 
     /* [064A-10] Retry manual de sincronización Haddock.

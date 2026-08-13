@@ -4,7 +4,10 @@
  * [223A-1] Tooltips con TooltipButton en vez de title HTML nativo.
  * [237A-3] Añadido botón "Consultar estado BDP" por venta individual.
  * [247A-9] Diálogo de pagos parciales BDP con historial, saldo e idempotencia.
- * [128A-1/F4] Anulación local de ventas (D4) con modalidad configurable. */
+ * [128A-1/F4] Anulación local de ventas (D4) con modalidad configurable.
+ * [128A-1/F6] Pago parcial local (A8/M13) y factura local mínima (A7/D9):
+ * botones visibles cuando no aplican los de BDP y la venta no está anulada
+ * ni facturada. */
 
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Button } from '@/components/ui/button';
@@ -83,7 +86,7 @@ function VentaRowActions({
   const totalVenta = Number(v.importe_base) + Number(v.importe_iva);
   const total = totalVenta.toFixed(2);
   const queryClient = useQueryClient();
-  const [accion, setAccion] = useState<'pago' | 'factura' | null>(null);
+  const [accion, setAccion] = useState<'pago' | 'factura' | 'pagoLocal' | 'facturaLocal' | null>(null);
   const [tenderId, setTenderId] = useState('');
   const [importe, setImporte] = useState(total);
   const [confirmacion, setConfirmacion] = useState('');
@@ -100,7 +103,7 @@ function VentaRowActions({
   const pagado = useMemo(() => Number(pagos?.pagado ?? 0), [pagos]);
 
   useEffect(() => {
-    if (accion === 'pago') {
+    if (accion === 'pago' || accion === 'pagoLocal' || accion === 'facturaLocal') {
       setCargandoPagos(true);
       instance.get<BdpPaymentsResponse>(`/api/ventas/${v.id}/bdp-payments`)
         .then((r) => setPagos(r.data))
@@ -110,7 +113,7 @@ function VentaRowActions({
   }, [accion, v.id]);
 
   useEffect(() => {
-    if (accion === 'pago') {
+    if (accion === 'pago' || accion === 'pagoLocal') {
       setImporte(pendiente.toFixed(2));
     }
   }, [accion, pendiente]);
@@ -124,7 +127,7 @@ function VentaRowActions({
   };
 
   const ejecutarBdp = async () => {
-    if (!accion) return;
+    if (accion !== 'pago' && accion !== 'factura') return;
     const importeCanonico = Number(importe).toFixed(2);
     setEnviando(true);
     try {
@@ -155,7 +158,41 @@ function VentaRowActions({
     }
   };
 
+  /* [128A-1/F6] Pago parcial local y factura local mínima. */
+  const ejecutarLocal = async () => {
+    if (accion !== 'pagoLocal' && accion !== 'facturaLocal') return;
+    const importeCanonico = Number(importe).toFixed(2);
+    setEnviando(true);
+    try {
+      if (accion === 'pagoLocal') {
+        await instance.post(`/api/ventas/${v.id}/pagos-locales`, {
+          amount: Number(importeCanonico),
+          tender_id: Number(tenderId),
+          confirmacion,
+          idempotency_key: crypto.randomUUID(),
+        });
+        toast.success(`Pago local registrado (${importeCanonico} €)`);
+      } else {
+        await instance.post(`/api/ventas/${v.id}/factura-local`, {
+          confirmacion,
+          idempotency_key: crypto.randomUUID(),
+        });
+        toast.success('Venta facturada localmente');
+      }
+      cerrar();
+      queryClient.invalidateQueries({ queryKey: ['listarVentas'] });
+    } catch (error) {
+      const message = (error as { response?: { data?: { message?: string } } }).response?.data?.message;
+      toast.error('Operación local bloqueada', { description: message ?? 'Revisa el estado de la venta y reintenta.' });
+    } finally {
+      setEnviando(false);
+    }
+  };
+
   const puedePagar = !v.anulada && bdpSyncEnabled && bdp.bdp_synced && bdp.bdp_order_id && !bdp.bdp_invoiced && bdp.bdp_order_status !== 'cancelled' && bdp.bdp_order_status !== 'invoiced';
+  const esFacturada = Boolean(bdp.facturada_local || bdp.bdp_invoiced || bdp.bdp_order_status === 'invoiced');
+  const puedePagoLocal = !v.anulada && !esFacturada && !puedePagar;
+  const puedeFacturaLocal = !v.anulada && !esFacturada && !puedePagar;
   const motivoObligatorio = anulacionModalidad === 'credito_completo';
   const anulacionPendienteBdp = v.anulada && bdp.bdp_synced && bdp.bdp_order_status !== 'cancelled' && bdp.bdp_order_status !== 'invoiced';
 
@@ -236,6 +273,16 @@ function VentaRowActions({
       )}
       {puedePagar && (
         <TooltipButton variant="ghost" size="icon" onClick={() => { setAccion('factura'); setConfirmacion(''); }} tooltip="Facturar orden en BDP" tooltipSide="left">
+          <ReceiptText className="size-4 text-violet-700" />
+        </TooltipButton>
+      )}
+      {puedePagoLocal && (
+        <TooltipButton variant="ghost" size="icon" onClick={() => { setAccion('pagoLocal'); setConfirmacion(''); }} tooltip="Registrar pago local" tooltipSide="left">
+          <CreditCard className="size-4 text-emerald-700" />
+        </TooltipButton>
+      )}
+      {puedeFacturaLocal && (
+        <TooltipButton variant="ghost" size="icon" onClick={() => { setAccion('facturaLocal'); setConfirmacion(''); }} tooltip="Facturar localmente" tooltipSide="left">
           <ReceiptText className="size-4 text-violet-700" />
         </TooltipButton>
       )}
@@ -359,6 +406,103 @@ function VentaRowActions({
         )}
         <div><Label htmlFor={`confirmar-factura-${v.id}`}>Escribe FACTURAR {v.id}</Label><Input id={`confirmar-factura-${v.id}`} value={confirmacion} onChange={(e) => setConfirmacion(e.target.value)} /></div>
         <DialogFooter><Button variant="outline" onClick={cerrar}>Cancelar</Button><Button disabled={enviando || pendiente > 0.01 || confirmacion !== `FACTURAR ${v.id}`} onClick={ejecutarBdp}>{enviando ? 'Verificando…' : 'Verificar y facturar'}</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+    <Dialog open={accion === 'pagoLocal'} onOpenChange={(open: boolean) => { if (!open) cerrar(); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Registrar pago local</DialogTitle>
+          <DialogDescription>Permite cobrar el saldo total o parcial de la venta sin depender del BDP. Cada intento lleva una clave de idempotencia única.</DialogDescription>
+        </DialogHeader>
+        {cargandoPagos ? (
+          <p className="text-sm text-muted-foreground">Cargando historial de pagos…</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-2 text-sm">
+              <div className="rounded border bg-muted/30 p-2 text-center">
+                <div className="text-muted-foreground">Total</div>
+                <div className="font-semibold">{formatCurrency(pagos?.total ?? totalVenta)}</div>
+              </div>
+              <div className="rounded border bg-muted/30 p-2 text-center">
+                <div className="text-muted-foreground">Pagado</div>
+                <div className="font-semibold text-emerald-700">{formatCurrency(pagado)}</div>
+              </div>
+              <div className="rounded border bg-muted/30 p-2 text-center">
+                <div className="text-muted-foreground">Pendiente</div>
+                <div className="font-semibold text-amber-700">{formatCurrency(pendiente)}</div>
+              </div>
+            </div>
+            {hayAmbiguo && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <span>Existe un pago pendiente de confirmación. No se deben añadir más pagos hasta que se reconcilie.</span>
+              </div>
+            )}
+            {pagos && pagos.pagos.length > 0 && (
+              <>
+                <Separator className="my-2" />
+                <div className="max-h-40 overflow-auto rounded border">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="p-2 text-left font-medium">Fecha</th>
+                        <th className="p-2 text-right font-medium">Importe</th>
+                        <th className="p-2 text-left font-medium">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagos.pagos.map((p) => (
+                        <tr key={p.id} className="border-t">
+                          <td className="p-2 text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString('es-ES')}</td>
+                          <td className="p-2 text-right tabular-nums">{formatCurrency(p.amount)}</td>
+                          <td className="p-2">
+                            {p.resultado === 'exito' && <Badge variant="default" className="bg-emerald-600">Éxito</Badge>}
+                            {p.resultado === 'ambiguo' && <Badge variant="outline" className="border-amber-500 text-amber-700">Ambiguo</Badge>}
+                            {p.resultado === 'error' && <Badge variant="destructive">Error</Badge>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+            <div className="flex flex-col gap-3">
+              <div><Label htmlFor={`importe-local-${v.id}`}>Importe a cobrar</Label><Input id={`importe-local-${v.id}`} type="number" min="0.01" step="0.01" max={pendiente.toFixed(2)} value={importe} onChange={(e) => setImporte(e.target.value)} /></div>
+              <div><Label htmlFor={`tender-local-${v.id}`}>Tender ID</Label><Input id={`tender-local-${v.id}`} type="number" min="1" value={tenderId} onChange={(e) => setTenderId(e.target.value)} /></div>
+              <div><Label htmlFor={`confirmar-pago-local-${v.id}`}>Escribe PAGO LOCAL {v.id} {Number(importe || 0).toFixed(2)}</Label><Input id={`confirmar-pago-local-${v.id}`} value={confirmacion} onChange={(e) => setConfirmacion(e.target.value)} /></div>
+            </div>
+          </>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={cerrar}>Cancelar</Button>
+          <Button
+            disabled={enviando || cargandoPagos || !tenderId || Number(importe) <= 0 || Number(importe) > pendiente + 0.001 || hayAmbiguo || confirmacion !== `PAGO LOCAL ${v.id} ${Number(importe || 0).toFixed(2)}`}
+            onClick={ejecutarLocal}
+          >
+            {enviando ? 'Verificando…' : 'Registrar pago local'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    <Dialog open={accion === 'facturaLocal'} onOpenChange={(open: boolean) => { if (!open) cerrar(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Facturar venta localmente</DialogTitle><DialogDescription>Genera la factura local (número F-año-000N) sin depender del BDP. Si hay pagos parciales, deben cubrir el total.</DialogDescription></DialogHeader>
+        <div className="rounded border bg-muted/30 p-3 text-sm">
+          <div className="flex justify-between"><span>Total</span><span className="font-semibold">{formatCurrency(pagos?.total ?? totalVenta)}</span></div>
+          <div className="flex justify-between"><span>Pendiente</span><span className={`font-semibold ${pendiente > 0.01 ? 'text-amber-700' : 'text-emerald-700'}`}>{formatCurrency(pendiente)}</span></div>
+          {bdp.factura_numero && (
+            <div className="flex justify-between"><span>Nº factura</span><span className="font-semibold">{bdp.factura_numero}</span></div>
+          )}
+        </div>
+        {pagos && pagos.pagos.length > 0 && pendiente > 0.01 && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <span>Queda saldo pendiente. Registra un pago por el importe restante antes de facturar.</span>
+          </div>
+        )}
+        <div><Label htmlFor={`confirmar-factura-local-${v.id}`}>Escribe FACTURA LOCAL {v.id}</Label><Input id={`confirmar-factura-local-${v.id}`} value={confirmacion} onChange={(e) => setConfirmacion(e.target.value)} /></div>
+        <DialogFooter><Button variant="outline" onClick={cerrar}>Cancelar</Button><Button disabled={enviando || (pagos !== null && pagos.pagos.length > 0 && pendiente > 0.01) || confirmacion !== `FACTURA LOCAL ${v.id}`} onClick={ejecutarLocal}>{enviando ? 'Verificando…' : 'Facturar localmente'}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
     <Dialog open={anularAbierto} onOpenChange={(open: boolean) => { if (!open) cerrarAnulacion(); }}>

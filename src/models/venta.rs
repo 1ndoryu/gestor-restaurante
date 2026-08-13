@@ -86,6 +86,13 @@ pub struct Venta {
     pub anulada_at: Option<DateTime<Utc>>,
     pub anulacion_motivo: Option<String>,
     pub anulacion_usuario: Option<Uuid>,
+    /* [128A-1/F6] Factura local mínima (A7/D9): numeración local secuencial +
+     * estado `facturada`. `facturada_local=true` es final (doble facturación
+     * bloqueada M9); las ventas facturadas no se pueden anular. Con BDP,
+     * `InvoiceOrder` sigue el flujo actual (`bdp_invoiced`). */
+    pub facturada_local: bool,
+    pub factura_numero: Option<String>,
+    pub factura_fecha: Option<DateTime<Utc>>,
 }
 
 /// Request para crear una venta
@@ -175,6 +182,10 @@ pub struct VentaConCliente {
     pub anulada_at: Option<DateTime<Utc>>,
     pub anulacion_motivo: Option<String>,
     pub anulacion_usuario: Option<Uuid>,
+    /* [128A-1/F6] Factura local mínima — mismos campos que `Venta`. */
+    pub facturada_local: bool,
+    pub factura_numero: Option<String>,
+    pub factura_fecha: Option<DateTime<Utc>>,
 }
 
 /* [128A-1/F4] Request de anulación local de ventas.

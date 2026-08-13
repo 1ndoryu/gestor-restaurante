@@ -62,6 +62,12 @@ function VentaTableBody({
             <div className="flex items-center gap-1.5">
               <span>{v.nombre_cliente ?? '—'}</span>
               {v.anulada && <Badge variant="destructive" className="text-[10px]">Anulada</Badge>}
+              {/* [128A-1/F6] Factura local mínima (A7/D9): badge de estado. */}
+              {(v as unknown as VentaConClienteBdp).facturada_local && (
+                <Badge className="bg-violet-600 hover:bg-violet-600 text-[10px]">
+                  Facturada{(v as unknown as VentaConClienteBdp).factura_numero ? ` ${(v as unknown as VentaConClienteBdp).factura_numero}` : ''}
+                </Badge>
+              )}
             </div>
           </TableCell>
           <TableCell>{ETIQUETAS_TURNO[v.turno] ?? v.turno}</TableCell>

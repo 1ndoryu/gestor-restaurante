@@ -2437,6 +2437,9 @@ mod tests {
             anulada_at: None,
             anulacion_motivo: None,
             anulacion_usuario: None,
+            facturada_local: false,
+            factura_numero: None,
+            factura_fecha: None,
         }
     }
 

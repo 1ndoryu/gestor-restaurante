@@ -50,6 +50,10 @@ pub struct BdpAuditEntry {
     pub target_entity_type: Option<String>,
     pub target_entity_id: Option<Uuid>,
     pub authorization_reason: Option<String>,
+    /* [128A-1/F6] Origen de la operación: 'local' (operaciones locales puras)
+     * o 'bdp' (default — implican al BDP). Permite que Historial muestre
+     * anulaciones, ajustes de stock, pagos y facturas locales sin BDP. */
+    pub origen_operacion: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -532,7 +536,7 @@ impl BdpBackupService {
             r"SELECT id, user_id, operacion, direccion, snapshot_pre_id,
                       datos_enviados, resultado, datos_respuesta, error_mensaje,
                       target_base_url, target_entity_type, target_entity_id,
-                      authorization_reason, created_at, updated_at
+                      authorization_reason, origen_operacion, created_at, updated_at
             FROM bdp_audit_log
             WHERE user_id = $1
             ORDER BY created_at DESC

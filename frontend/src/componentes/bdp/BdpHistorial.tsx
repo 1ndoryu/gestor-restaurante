@@ -60,6 +60,15 @@ function direccionLabel(direccion: string): string {
   return direccion;
 }
 
+/* [128A-1/F6] Origen de la operación: 'local' (anulaciones, ajustes de stock,
+ * pagos y facturas locales) o 'bdp' (default — implican al BDP). */
+function origenBadge(origen: string) {
+  if (origen === 'local') {
+    return <Badge className="bg-sky-600 hover:bg-sky-600">Local</Badge>;
+  }
+  return <Badge variant="secondary">BDP</Badge>;
+}
+
 function AuditDetail({ entry }: { entry: BdpAuditEntry }) {
   return (
     <div className="space-y-3 text-sm">
@@ -75,6 +84,10 @@ function AuditDetail({ entry }: { entry: BdpAuditEntry }) {
         <div>
           <p className="text-xs text-muted-foreground">Dirección</p>
           <p>{direccionLabel(entry.direccion)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Origen</p>
+          {origenBadge(entry.origen_operacion)}
         </div>
         <div>
           <p className="text-xs text-muted-foreground">Fecha</p>
@@ -153,6 +166,7 @@ function SnapshotDetail({ snapshot }: { snapshot: BdpSnapshot }) {
 function BdpHistorial() {
   const { demoMode, setDemoMode } = useBdpDemoMode();
   const [filtro, setFiltro] = useState('');
+  const [filtroOrigen, setFiltroOrigen] = useState<'todos' | 'local' | 'bdp'>('todos');
   const [entrySeleccionado, setEntrySeleccionado] = useState<BdpAuditEntry | null>(null);
   const [snapshotSeleccionado, setSnapshotSeleccionado] = useState<BdpSnapshot | null>(null);
   const [dialogAbierto, setDialogAbierto] = useState(false);
@@ -181,11 +195,12 @@ function BdpHistorial() {
     const q = filtro.trim().toLowerCase();
     return auditEntries.filter(
       (e) =>
-        operacionLabel(e.operacion).toLowerCase().includes(q) ||
-        e.resultado.toLowerCase().includes(q) ||
-        e.error_mensaje?.toLowerCase().includes(q),
+        (filtroOrigen === 'todos' || e.origen_operacion === filtroOrigen) &&
+        (operacionLabel(e.operacion).toLowerCase().includes(q) ||
+          e.resultado.toLowerCase().includes(q) ||
+          e.error_mensaje?.toLowerCase().includes(q)),
     );
-  }, [auditEntries, filtro]);
+  }, [auditEntries, filtro, filtroOrigen]);
 
   const isLoading = !demoMode && (loadingAudit || loadingSnapshots);
   const hasError = !demoMode && (auditError || snapshotsError);
@@ -204,11 +219,24 @@ function BdpHistorial() {
           <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Filtrar operación, resultado, error..."
+            placeholder="Filtrar operación, resultado, error u origen..."
             value={filtro}
             onChange={(e) => setFiltro(e.target.value)}
             className="pl-9 max-w-xs"
           />
+        </div>
+        <div className="flex gap-1">
+          {(['todos', 'local', 'bdp'] as const).map((origen) => (
+            <Button
+              key={origen}
+              type="button"
+              variant={filtroOrigen === origen ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setFiltroOrigen(origen)}
+            >
+              {origen === 'todos' ? 'Todos' : origen === 'local' ? 'Local' : 'BDP'}
+            </Button>
+          ))}
         </div>
       </div>
 
@@ -234,6 +262,7 @@ function BdpHistorial() {
                     <TableHead>Fecha</TableHead>
                     <TableHead>Operación</TableHead>
                     <TableHead>Dirección</TableHead>
+                    <TableHead>Origen</TableHead>
                     <TableHead>Resultado</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
@@ -241,7 +270,7 @@ function BdpHistorial() {
                 <TableBody>
                   {auditFiltrado.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
                         Sin registros de auditoría.
                       </TableCell>
                     </TableRow>
@@ -253,6 +282,7 @@ function BdpHistorial() {
                           <Badge variant="outline">{operacionLabel(entry.operacion)}</Badge>
                         </TableCell>
                         <TableCell className="text-xs">{direccionLabel(entry.direccion)}</TableCell>
+                        <TableCell>{origenBadge(entry.origen_operacion)}</TableCell>
                         <TableCell>{resultadoBadge(entry.resultado)}</TableCell>
                         <TableCell>
                           <Button

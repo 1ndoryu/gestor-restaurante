@@ -185,4 +185,149 @@ impl BdpPagoRepository {
 
         Ok(())
     }
+
+    /* [128A-1/F6] Pago parcial local (A8/M13) — escritura sobre el ledger
+     * existente `bdp_pagos` sin renombrar (compatibilidad). Inserta una fila
+     * local (`bdp_order_id`/`bdp_payment_id` NULL) con:
+     *   - guards: venta no anulada ni facturada (local o BDP); importe dentro
+     *     del saldo pendiente (total - pagos exitosos).
+     *   - idempotencia: `UNIQUE(idempotency_key)` + `ON CONFLICT DO NOTHING`;
+     *     si la clave ya existe devuelve la fila previa y `audit_id = None`.
+     *   - auditoría obligatoria `pago_parcial_local` con `origen_operacion='local'`.
+     *
+     * El lock `FOR UPDATE` sobre la venta serializa pagos concurrentes de la
+     * misma venta (evita sobrepago por carrera).
+     *
+     * Retorna (BdpPago, audit_id: Option<Uuid>).
+     */
+    #[allow(clippy::too_many_lines)]
+    pub async fn insertar_local(
+        pool: &PgPool,
+        user_id: Uuid,
+        venta_id: Uuid,
+        amount: Decimal,
+        tender_id: i32,
+        idempotency_key: &str,
+    ) -> Result<(BdpPago, Option<Uuid>), AppError> {
+        let mut tx = pool.begin().await.map_err(AppError::from)?;
+
+        /* Clave de idempotencia: si la petición no trae una, se genera una
+         * única. El ledger exige `idempotency_key NOT NULL UNIQUE`; usar ""
+         * como clave colapsaría pagos distintos de la misma venta en uno solo
+         * (el segundo haría ON CONFLICT y se devolvería el primero). */
+        let key = if idempotency_key.is_empty() {
+            format!("local-{venta_id}-{}", Uuid::new_v4())
+        } else {
+            idempotency_key.to_string()
+        };
+
+        /* Lock de la venta para serializar pagos de la misma venta. */
+        let venta: crate::models::Venta =
+            sqlx::query_as("SELECT * FROM ventas WHERE id = $1 AND user_id = $2 FOR UPDATE")
+                .bind(venta_id)
+                .bind(user_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(AppError::from)?
+                .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
+
+        /* Guards M9: no pagar anuladas ni facturadas. */
+        if venta.anulada {
+            return Err(AppError::Conflict(
+                "La venta está anulada y no admite pagos.".into(),
+            ));
+        }
+        if venta.facturada_local
+            || venta.bdp_invoiced
+            || venta.bdp_order_status.as_deref() == Some("invoiced")
+        {
+            return Err(AppError::Conflict(
+                "La venta está facturada y no admite más pagos.".into(),
+            ));
+        }
+
+        /* Saldo pendiente = total - pagos exitosos del ledger. */
+        let pagado: Decimal = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(amount), 0) FROM bdp_pagos \
+             WHERE venta_id = $1 AND resultado = 'exito'",
+        )
+        .bind(venta_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(AppError::from)?;
+        let total = venta.importe_base + venta.importe_iva;
+        let pendiente = total - pagado;
+        if amount > pendiente + Decimal::new(1, 3) {
+            return Err(AppError::Validation(format!(
+                "El importe {amount:.2} excede el saldo pendiente {pendiente:.2}"
+            )));
+        }
+
+        let fila = sqlx::query(
+            r"INSERT INTO bdp_pagos
+                 (venta_id, amount, tender_id, idempotency_key, bdp_order_id, bdp_payment_id, datos_respuesta)
+               VALUES ($1, $2, $3, $4, NULL, NULL, $5)
+               ON CONFLICT (idempotency_key) DO NOTHING
+               RETURNING id, venta_id, amount, tender_id, idempotency_key, bdp_order_id,
+                         bdp_payment_id, resultado, datos_respuesta, error_mensaje, created_at, updated_at",
+        )
+        .bind(venta_id)
+        .bind(amount)
+        .bind(tender_id)
+        .bind(&key)
+        .bind(serde_json::json!({ "origen": "local", "pendiente_previo": pendiente }))
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(AppError::from)?;
+
+        let pago = if let Some(row) = fila {
+            Self::row_to_bdp_pago(&row)
+        } else {
+            /* Idempotencia: la clave ya existe en el ledger (puede ser otra
+             * venta); el handler decide según la venta de la fila previa. */
+            let row = sqlx::query(
+                r"SELECT id, venta_id, amount, tender_id, idempotency_key, bdp_order_id,
+                          bdp_payment_id, resultado, datos_respuesta, error_mensaje,
+                          created_at, updated_at
+                   FROM bdp_pagos WHERE idempotency_key = $1",
+            )
+            .bind(&key)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(AppError::from)?;
+            tx.commit().await.map_err(AppError::from)?;
+            return Ok((Self::row_to_bdp_pago(&row), None));
+        };
+
+        /* Auditoría local obligatoria. */
+        let audit_payload = serde_json::json!({
+            "venta_id": venta_id,
+            "amount": amount,
+            "tender_id": tender_id,
+            "saldo_pendiente": pendiente,
+        });
+        let audit_id: Uuid = sqlx::query_scalar(
+            r"INSERT INTO bdp_audit_log
+                 (user_id, operacion, direccion, datos_enviados, resultado, origen_operacion,
+                  target_entity_type, target_entity_id, authorization_reason, idempotency_key)
+               VALUES ($1, 'pago_parcial_local', 'internal', $2, 'exito', 'local', 'venta', $3, $4, $5)
+               ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+               RETURNING id",
+        )
+        .bind(venta.user_id)
+        .bind(audit_payload)
+        .bind(venta_id)
+        .bind(format!(
+            "Pago parcial local de {amount:.2} sobre la venta {venta_id} — operación interna, no requiere autorización BDP"
+        ))
+        .bind(&key)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::Internal("No se pudo auditar el pago local".into()))?;
+
+        tx.commit().await.map_err(AppError::from)?;
+
+        Ok((pago, Some(audit_id)))
+    }
 }

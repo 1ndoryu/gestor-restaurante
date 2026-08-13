@@ -5,7 +5,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { customInstance } from '@/api/axios-instance';
 
-/* ========== Tipos ========== */
+/* Tipos */
 
 export interface BdpSnapshot {
   id: string;
@@ -36,6 +36,9 @@ export interface BdpAuditEntry {
   target_entity_type: string | null;
   target_entity_id: string | null;
   authorization_reason: string | null;
+  /* [128A-1/F6] Origen de la operación: 'local' (operaciones locales puras)
+   * o 'bdp' (default — implican al BDP). */
+  origen_operacion: string;
   created_at: string;
   updated_at: string;
 }
@@ -50,7 +53,7 @@ export interface RestoreResult {
 
 export type SyncMode = 'read_only' | 'unidirectional';
 
-/* ========== Fetchers ========== */
+/* Fetchers */
 
 async function fetchSnapshots(limit = 50): Promise<BdpSnapshot[]> {
   const res = await customInstance<{ data: BdpSnapshot[] }>(`/api/bdp/backup/snapshots?limit=${limit}`, {
@@ -139,7 +142,7 @@ async function setSyncMode(input: SetSyncModeInput): Promise<unknown> {
   });
 }
 
-/* ========== React Query hooks ========== */
+/* React Query hooks */
 
 export function useBdpSnapshots(limit = 50, enabled = true) {
   return useQuery({

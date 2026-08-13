@@ -439,6 +439,10 @@ mod tests {
             anulada_at: None,
             anulacion_motivo: None,
             anulacion_usuario: None,
+            /* [128A-1/F6] Factura local mínima (A7/D9) */
+            facturada_local: false,
+            factura_numero: None,
+            factura_fecha: None,
         }
     }
 

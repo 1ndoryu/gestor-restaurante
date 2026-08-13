@@ -3,7 +3,7 @@
 > **Fecha:** 2026-08-12 (revisión profunda 2026-08-12)
 > **Rama:** `glory-rs-rest`
 > **ID de bloque:** `128A-1`
-> **Estado:** Activo (en ejecución). F0–F5 completados; F6 en curso.
+> **Estado:** Activo (en ejecución). F0–F6 completados; F7 en curso.
 > **Skills aplicadas:** `supervisor-thinking` (diseño y desafío) y `supervisor-review` (revisión dura) —
 > veredicto en el Anexo B.
 >
@@ -494,6 +494,26 @@ Evidencia: tests `bdp_purchase_notes_lifecycle` 18/18, `task:check 128A-1 --full
 (sentinel, varsense, rust, frontend type-check, docs). Siguiente acción: **F6**
 (historial/auditoría local, pagos parciales y factura local mínima).
 
+**Estado 2026-08-13 (F6):** **completado** — historial/auditoría local (A11),
+pagos parciales locales (A8/M13) y factura local mínima (A7/D9): migración
+`20260817000000_bdp_audit_origen_local` (`bdp_audit_log.origen_operacion`
+`local|bdp` default `bdp` + índice por usuario/origen; `ventas.facturada_local`,
+`factura_numero`, `factura_fecha` + UNIQUE parcial `(user_id, factura_numero)`).
+Auditoría local en anular, ajuste de stock, `pago_parcial_local` y
+`factura_local` con `origen_operacion='local'` (Historial visible sin BDP).
+`POST /api/ventas/:id/pagos-locales` (ledger `bdp_pagos` sin renombrar, saldo
+pendiente, idempotencia por clave con normalización de claves vacías) y
+`POST /api/ventas/:id/factura-local` (numeración `F-{año}-{n:04}` por usuario,
+guards M9: no anuladas, sin doble facturación local/BDP, pagos parciales que
+cubran el total; retry ante colisión de número). M9 extendido: anular bloquea
+`facturada_local`; `bdp_invoice` rechaza ventas facturadas localmente. Frontend:
+badge de origen en Historial con filtro, tipos `origen_operacion`/factura local,
+botones y diálogos de pago local (`PAGO LOCAL {id} {amount}`) y factura local
+(`FACTURA LOCAL {id}`) cuando no aplican los botones BDP, badge «Facturada».
+Evidencia: tests `bdp_f6_local_pagos_factura` 11/11 (más `bdp_pagos`,
+`bdp_backup`, `bdp_service_integration`, `bdp_venta_lineas` en verde), clippy
+limpio, type-check frontend PASS. Siguiente acción: **F7** (menús/packs locales).
+
 ---
 
 ## 12. Criterios de aceptación globales (Definition of Done)
@@ -525,7 +545,7 @@ Evidencia: tests `bdp_purchase_notes_lifecycle` 18/18, `task:check 128A-1 --full
 | D6 | Fases: **orden natural** F0→F10 | ✅ Resuelta |
 | D7 | Stock: **B — lo más completo** (`CurrentStock` + `GetStock`/`GetListStock` + `stock_local`) | ✅ Resuelta |
 | D8 | Permisos: **configurables por acción** en Configuración (default admin) | ✅ Resuelta |
-| D9 | Factura local: ¿implementar **factura local mínima** (numeración local + estado) en F6? | ⏳ **Pendiente — decisión requerida antes de F6** (default: sí, mínima; A7 confirma que no existe hoy); F6 depende de ella |
+| D9 | Factura local: ¿implementar **factura local mínima** (numeración local + estado) en F6? | ✅ **Resuelta (default: sí, mínima)** — implementada en F6 (`facturada_local` + `F-{año}-{n:04}` + auditoría local); con BDP `InvoiceOrder` sigue intacto |
 
 **Sin decisiones pendientes bloqueantes salvo D9 (requerida antes de F6).** Cualquier ajuste posterior
 se registra aquí con fecha.
@@ -654,8 +674,10 @@ cliente (no autorizada).
       probado con gate PASS
 - [x] F5: compras locales (CRUD albaranes + conciliación local M18, flags solo bdp M12,
       IVA por línea A10), probado con gate PASS
-- [ ] F6–F8: historial/pagos parciales/factura local, menús y permisos operativos
-      sin BDP (y conviviendo con BDP)
+- [x] F6: historial/auditoría local (`origen_operacion` A11), pagos parciales locales (A8/M13)
+      y factura local mínima (A7/D9), probado con gate PASS
+- [ ] F7–F8: menús/packs locales (D2) y permisos operativos (D8/M17) sin BDP
+      (y conviviendo con BDP)
 - [ ] F9: pruebas con/sin BDP + simulador + gate `task:check` PASS con reporte reproducible
 - [ ] F10: roadmap actualizado (128A-1 cerrado), completados con evidencia, feature-flags/mapeo visual
       actualizados, plan movido a `planes/completados/`
