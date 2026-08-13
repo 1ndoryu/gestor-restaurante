@@ -37,3 +37,44 @@
   `tareas-*.md`.
 * **Sentinel:** gate PASS con 0 errores (warnings/info preexistentes sin regresión nueva).
 * **GLORY:** no aplica; rama `glory-rs-rest`.
+
+## Revisión supervisor (pasada `supervisor_reviewer`)
+
+En este entorno no hay herramienta de subagente para delegar `supervisor_reviewer` (aviso del
+Supervisor), por lo que la pasada de revisión dura se ejecutó según la skill
+`supervisor-review` (solo lectura, sin re-ejecutar pruebas):
+
+- **Rutas modificadas (bloque F8–F10):** F8 — `migrations/20260819000000_bdp_permisos_operativos.*`,
+  `src/services/permisos.rs`, `src/models/configuracion.rs`, `src/repositories/configuracion.rs`,
+  `src/services/{configuracion,mod,modo_operacion,bdp_weblink,haddock,bdp_backup,
+  bdp_sync_preflight}.rs`, `src/handlers/{bdp_article_map,bdp_purchase_note,ventas,mod}.rs`,
+  `tests/{bdp_f8_permisos,bdp_readonly,bdp_service_integration,bdp_simulator_integration,
+  haddock_db}.rs`, frontend (`ConfigBdp.tsx`, `configuracion-types.ts`, `useConfiguracion*.ts`,
+  `gestionRestauranteAPI.schemas.ts`). F9/F10 — documentación y plan (sin código). `git status`
+  limpio tras el commit `e9eef0dd`; sin cambios ajenos.
+- **SOLID:** SRP en `permisos.rs` (modelo de permiso + guard); Open/Closed con `AccionPermiso`
+  extensible por acción sin tocar el guard; Liskov respetado (`desde_valor` fail-closed a Admin);
+  Interface Segregation con enums pequeños; DI: `verificar_permiso` recibe `&PgPool` y delega en
+  `ConfiguracionService`.
+- **Eficiencia/rendimiento:** un SELECT de configuración por acción protegida, consistente con el
+  patrón existente; sin N+1, sin trabajo repetido ni caché innecesaria. Escala igual que el resto
+  del módulo (por restaurante).
+- **Seguridad:** validación en dos capas (CHECK en BD + `Validation` en API); 403 por rol/permiso
+  en backend (M17); fail-closed ante valor desconocido; binds preparados (`COALESCE($51..$54)`, sin
+  interpolación); `effective_role` consistente con `require_role`. Sin secretos ni entradas
+  externas nuevas.
+- **UI:** 4 selects reutilizando el patrón del bloque anterior en `ConfigBdp.tsx`; sin
+  hardcodeo de estilos ni componentes duplicados; type-check PASS. Validación visual queda al
+  agente principal (no ejecutada en esta pasada).
+- **Documentación/entropía:** roadmap cerrado, completados F8/F9/F10 + `tareas-2026-08-13.md`,
+  feature-flags y mapeo visual actualizados, guía del cliente con sección nueva, plan archivado en
+  `Agente/planes/completados/` con referencias corregidas (docs stage del gate valida enlaces).
+- **Evidencia del gate:** `task:check 128A-1 --full` PASS en F7/F8/F9/F10 (reportes en
+  `.quality-reports/`); suite completa exit 0; simulador 92/92 + 24/24; clippy `-D warnings` PASS;
+  type-check frontend PASS.
+
+**Veredicto: AUTORIZADO PARA CONTINUAR** — bloque 128A-1 (F0–F10) válido y coherente. No quedan
+pendientes locales salvo los autorizables por el usuario: deploy a producción y escrituras al BDP
+real (prohibido SSH). Sin hallazgos bloqueantes; solo deuda preexistente del gate (warnings
+sentinel: `barras-decorativas`, `broadcast-mutex-riesgo-rs`, `claseHuerfana`, etc., sin relación
+con este bloque).
