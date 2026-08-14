@@ -555,6 +555,44 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+              <div>
+                <Label htmlFor="permisos-pagos-locales">Pagos parciales locales</Label>
+                <p className="text-xs text-muted-foreground">Registrar pagos parciales en el ledger local.</p>
+              </div>
+              <Select
+                value={config.permisos_pagos_locales}
+                onValueChange={(v) => cambiarCampo('permisos_pagos_locales', v)}
+              >
+                <SelectTrigger id="permisos-pagos-locales" className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Solo admin</SelectItem>
+                  <SelectItem value="admin_trabajador">Admin y trabajadores</SelectItem>
+                  <SelectItem value="todos">Todos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+              <div>
+                <Label htmlFor="permisos-facturacion-local">Facturación local</Label>
+                <p className="text-xs text-muted-foreground">Emitir facturas locales de ventas.</p>
+              </div>
+              <Select
+                value={config.permisos_facturacion_local}
+                onValueChange={(v) => cambiarCampo('permisos_facturacion_local', v)}
+              >
+                <SelectTrigger id="permisos-facturacion-local" className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Solo admin</SelectItem>
+                  <SelectItem value="admin_trabajador">Admin y trabajadores</SelectItem>
+                  <SelectItem value="todos">Todos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
         <div className="border-t pt-3">

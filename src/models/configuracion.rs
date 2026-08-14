@@ -108,6 +108,10 @@ pub struct ConfiguracionRestaurante {
     pub permisos_stock_ajuste: String,
     pub permisos_albaranes_gestion: String,
     pub permisos_anulacion_ventas: String,
+    /* [128A-1/F8-1] Permisos de las variantes LOCALES de F6 (dinero): pagos
+     * parciales y facturación local. Mismos niveles que el resto. */
+    pub permisos_pagos_locales: String,
+    pub permisos_facturacion_local: String,
     /* [094A-4] URL de Google Business para redirigir reseñas positivas */
     pub google_review_url: String,
     /* [094A-6] Datos para botones CTA en mensajes WhatsApp */
@@ -217,6 +221,11 @@ pub struct ActualizarConfiguracionRequest {
     pub permisos_albaranes_gestion: Option<String>,
     #[validate(length(max = 20))]
     pub permisos_anulacion_ventas: Option<String>,
+    /* [128A-1/F8-1] Permisos de operaciones monetarias locales (F6). */
+    #[validate(length(max = 20))]
+    pub permisos_pagos_locales: Option<String>,
+    #[validate(length(max = 20))]
+    pub permisos_facturacion_local: Option<String>,
 }
 
 fn validar_iva(valor: &rust_decimal::Decimal) -> Result<(), validator::ValidationError> {

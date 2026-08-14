@@ -43,7 +43,9 @@ const UPDATE_CONFIG_SQL: &str = "UPDATE configuracion_restaurante SET \
     permisos_catalogo_edicion = COALESCE($51, permisos_catalogo_edicion), \
     permisos_stock_ajuste = COALESCE($52, permisos_stock_ajuste), \
     permisos_albaranes_gestion = COALESCE($53, permisos_albaranes_gestion), \
-    permisos_anulacion_ventas = COALESCE($54, permisos_anulacion_ventas), updated_at = NOW() \
+    permisos_anulacion_ventas = COALESCE($54, permisos_anulacion_ventas), \
+    permisos_pagos_locales = COALESCE($55, permisos_pagos_locales), \
+    permisos_facturacion_local = COALESCE($56, permisos_facturacion_local), updated_at = NOW() \
     WHERE user_id = $1 RETURNING *";
 
 pub struct ConfiguracionRepository;
@@ -54,14 +56,7 @@ impl ConfiguracionRepository {
         pool: &PgPool,
         user_id: Uuid,
     ) -> Result<ConfiguracionRestaurante, sqlx::Error> {
-        let existente = sqlx::query_as::<_, ConfiguracionRestaurante>(
-            "SELECT * FROM configuracion_restaurante WHERE user_id = $1",
-        )
-        .bind(user_id)
-        .fetch_optional(pool)
-        .await?;
-
-        if let Some(config) = existente {
+        if let Some(config) = Self::obtener(pool, user_id).await? {
             return Ok(config);
         }
 
@@ -73,6 +68,22 @@ impl ConfiguracionRepository {
         .bind(id)
         .bind(user_id)
         .fetch_one(pool)
+        .await
+    }
+
+    /// Lectura pura de la configuración (sin efecto colateral de escritura).
+    /// [128A-1/F8-4] `verificar_permiso` usa esta variante: un chequeo de
+    /// permiso no debe crear filas de configuración (`obtener_o_crear` en cada
+    /// request). Sin fila devuelve `None` (fail-closed a 'admin').
+    pub async fn obtener(
+        pool: &PgPool,
+        user_id: Uuid,
+    ) -> Result<Option<ConfiguracionRestaurante>, sqlx::Error> {
+        sqlx::query_as::<_, ConfiguracionRestaurante>(
+            "SELECT * FROM configuracion_restaurante WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .fetch_optional(pool)
         .await
     }
 
@@ -137,6 +148,8 @@ impl ConfiguracionRepository {
             .bind(req.permisos_stock_ajuste.as_deref())
             .bind(req.permisos_albaranes_gestion.as_deref())
             .bind(req.permisos_anulacion_ventas.as_deref())
+            .bind(req.permisos_pagos_locales.as_deref())
+            .bind(req.permisos_facturacion_local.as_deref())
             .fetch_one(pool)
             .await
     }

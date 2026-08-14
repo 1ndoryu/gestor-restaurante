@@ -9,9 +9,8 @@ import {
   useActualizarConfiguracion,
   getObtenerConfiguracionQueryKey,
 } from '../api/generated/configuracion/configuracion';
-import type { ActualizarConfiguracionRequest } from '../api/generated/gestionRestauranteAPI.schemas';
 import { useConfiguracionSync } from './useConfiguracionSync';
-import type { EstadoConfiguracion } from './configuracion-types';
+import type { CuerpoConfiguracionLocal, EstadoConfiguracion } from './configuracion-types';
 
 export type { EstadoConfiguracion };
 
@@ -40,7 +39,7 @@ export function useConfiguracion() {
 
   const guardar = useCallback(async () => {
     setMensaje('');
-    const body: ActualizarConfiguracionRequest = {
+    const body: CuerpoConfiguracionLocal = {
       reserva_email_obligatorio: config.reserva_email_obligatorio,
       reserva_telefono_obligatorio: config.reserva_telefono_obligatorio,
       reserva_nombre_obligatorio: config.reserva_nombre_obligatorio,
@@ -88,6 +87,8 @@ export function useConfiguracion() {
       permisos_stock_ajuste: config.permisos_stock_ajuste,
       permisos_albaranes_gestion: config.permisos_albaranes_gestion,
       permisos_anulacion_ventas: config.permisos_anulacion_ventas,
+      permisos_pagos_locales: config.permisos_pagos_locales,
+      permisos_facturacion_local: config.permisos_facturacion_local,
       google_review_url: config.google_review_url || undefined,
       telefono_restaurante: config.telefono_restaurante || undefined,
       url_reservas: config.url_reservas || undefined,

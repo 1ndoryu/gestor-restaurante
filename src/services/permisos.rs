@@ -16,7 +16,6 @@ use sqlx::PgPool;
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::models::{ConfiguracionRestaurante, UserRole};
-use crate::services::ConfiguracionService;
 
 /// Acciones sensibles protegidas por un permiso configurable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,6 +28,10 @@ pub enum AccionPermiso {
     AlbaranesGestion,
     /// Anulación local de ventas.
     AnulacionVentas,
+    /// Pagos parciales locales (ledger `bdp_pagos`).
+    PagosLocales,
+    /// Facturación local de ventas (numeración `F-{anio}-{n}`).
+    FacturacionLocal,
 }
 
 impl AccionPermiso {
@@ -40,6 +43,8 @@ impl AccionPermiso {
             Self::StockAjuste => "permisos_stock_ajuste",
             Self::AlbaranesGestion => "permisos_albaranes_gestion",
             Self::AnulacionVentas => "permisos_anulacion_ventas",
+            Self::PagosLocales => "permisos_pagos_locales",
+            Self::FacturacionLocal => "permisos_facturacion_local",
         }
     }
 
@@ -51,6 +56,8 @@ impl AccionPermiso {
             Self::StockAjuste => &config.permisos_stock_ajuste,
             Self::AlbaranesGestion => &config.permisos_albaranes_gestion,
             Self::AnulacionVentas => &config.permisos_anulacion_ventas,
+            Self::PagosLocales => &config.permisos_pagos_locales,
+            Self::FacturacionLocal => &config.permisos_facturacion_local,
         }
     }
 }
@@ -104,8 +111,15 @@ pub async fn verificar_permiso(
     accion: AccionPermiso,
     user: &AuthUser,
 ) -> Result<(), AppError> {
-    let config = ConfiguracionService::obtener(pool, user.user_id).await?;
-    if permiso_habilitado(&config, accion, user) {
+    /* [128A-1/F8-4] Lectura pura: no se crea la fila de configuración como
+     * efecto colateral de un chequeo de permiso. Sin fila, se aplica el
+     * default fail-closed 'admin' (solo Admin). */
+    let habilitado =
+        match crate::repositories::ConfiguracionRepository::obtener(pool, user.user_id).await? {
+            Some(config) => permiso_habilitado(&config, accion, user),
+            None => NivelPermiso::Admin.permite(user.effective_role),
+        };
+    if habilitado {
         Ok(())
     } else {
         Err(AppError::Forbidden(

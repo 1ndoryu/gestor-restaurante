@@ -164,10 +164,27 @@
     `tests/bdp_f7_menus_locales.rs::busqueda_escapa_wildcards_iliike`.
 
 ## F8 — Permisos operativos (4)
-* [ ] F8-1 [MEDIA] `pago_parcial_local`/`factura_local` sin permiso operativo
-* [ ] F8-2 [BAJA] `eliminar_venta` sin permiso por accion
-* [ ] F8-3 [BAJA] Tests 403 parciales por endpoint (albaranes/delete)
-* [ ] F8-4 [BAJA] `verificar_permiso` usa `obtener_o_crear` (escritura en lectura)
+* [x] F8-1 [MEDIA] `pago_parcial_local`/`factura_local` sin permiso operativo
+  * 2 variantes nuevas `AccionPermiso::PagosLocales`/`FacturacionLocal` + migración aditiva
+    `20260820000000_bdp_permisos_operativos_locales` (columnas `permisos_pagos_locales`/
+    `permisos_facturacion_local`, `VARCHAR(20) NOT NULL DEFAULT 'admin'` con CHECK). Guards en
+    `ventas.rs` al inicio del handler (antes de validaciones). Evidencia:
+    `tests/bdp_f8_permisos.rs::trabajador_recibe_403_pago_parcial_local_con_default_admin` y
+    `..._factura_local_con_default_admin`; UI: 2 selects nuevos en `ConfigBdp.tsx`.
+* [x] F8-2 [BAJA] `eliminar_venta` sin permiso por accion
+  * Decisión: reusar `AccionPermiso::AnulacionVentas` (misma clase de escritura destructiva,
+    default `admin`); documentado en comentario del handler. Evidencia:
+    `tests/bdp_f8_permisos.rs::trabajador_recibe_403_eliminar_venta_con_default_admin` y
+    `..._admin_no_recibe_403_al_eliminar_venta_inexistente`.
+* [x] F8-3 [BAJA] Tests 403 parciales por endpoint (albaranes/delete)
+  * Añadidos 403 para `actualizar/eliminar/marcar_borrador/conciliar_purchase_note` y
+    `eliminar_venta`; total `tests/bdp_f8_permisos.rs` pasa de 14 a 24. Evidencia:
+    `trabajador_recibe_403_{actualizar,eliminar,marcar_borrador,conciliar}_purchase_note_con_default_admin`.
+* [x] F8-4 [BAJA] `verificar_permiso` usa `obtener_o_crear` (escritura en lectura)
+  * Nuevo `ConfiguracionRepository::obtener` (SELECT puro, devuelve `Option`); `verificar_permiso`
+    lo usa y falla cerrado a `NivelPermiso::Admin` si no hay fila (no crea configuración al
+    comprobar un permiso). Evidencia:
+    `tests/bdp_f8_permisos.rs::verificar_permiso_sin_config_no_crea_fila_y_falla_cerrado`.
 
 ## F9/F10 — Docs (3)
 * [ ] F9-1 [BAJA] Reporte "reproducible" en ruta mutable (latest.md sobrescrito)

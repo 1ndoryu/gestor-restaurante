@@ -11,17 +11,22 @@ use axum::Json;
 use glory_backend::config::AppConfig;
 use glory_backend::errors::AppError;
 use glory_backend::handlers::{
-    actualizar_article_map, ajustar_stock, anular_venta, crear_article_map,
-    crear_purchase_note_local, eliminar_article_map,
+    actualizar_article_map, actualizar_purchase_note_local, ajustar_stock, anular_venta,
+    conciliar_purchase_note, crear_article_map, crear_purchase_note_local, eliminar_article_map,
+    eliminar_purchase_note_local, eliminar_venta, factura_local, marcar_borrador_purchase_note,
+    pago_parcial_local, FacturaLocalRequest, PagoLocalRequest,
 };
 use glory_backend::middleware::AuthUser;
 use glory_backend::models::{
-    ActualizarBdpArticleMapRequest, ActualizarConfiguracionRequest, AjustarBdpArticleStockRequest,
-    AnularVentaRequest, CrearBdpArticleMapRequest, CrearBdpPurchaseNoteRequest, NotificacionEvent,
-    UserRole,
+    ActualizarBdpArticleMapRequest, ActualizarBdpPurchaseNoteRequest,
+    ActualizarConfiguracionRequest, AjustarBdpArticleStockRequest, AnularVentaRequest,
+    BdpPurchaseNoteDraftRequest, BdpPurchaseNoteReconcileRequest, CrearBdpArticleMapRequest,
+    CrearBdpPurchaseNoteRequest, NotificacionEvent, UserRole,
 };
 use glory_backend::repositories::ConfiguracionRepository;
-use glory_backend::services::{ConfiguracionService, ServicioModoOperacion};
+use glory_backend::services::{
+    verificar_permiso, AccionPermiso, ConfiguracionService, ServicioModoOperacion,
+};
 use glory_backend::AppState;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
@@ -94,6 +99,14 @@ async fn config_con_permiso(
         },
         "permisos_anulacion_ventas" => ActualizarConfiguracionRequest {
             permisos_anulacion_ventas: Some(valor.to_string()),
+            ..Default::default()
+        },
+        "permisos_pagos_locales" => ActualizarConfiguracionRequest {
+            permisos_pagos_locales: Some(valor.to_string()),
+            ..Default::default()
+        },
+        "permisos_facturacion_local" => ActualizarConfiguracionRequest {
+            permisos_facturacion_local: Some(valor.to_string()),
             ..Default::default()
         },
         _ => unreachable!("campo no soportado: {campo}"),
@@ -402,6 +415,8 @@ async fn patch_config_persiste_permisos(pool: PgPool) {
         permisos_stock_ajuste: Some("admin_trabajador".to_string()),
         permisos_albaranes_gestion: Some("todos".to_string()),
         permisos_anulacion_ventas: Some("admin".to_string()),
+        permisos_pagos_locales: Some("admin_trabajador".to_string()),
+        permisos_facturacion_local: Some("todos".to_string()),
         ..Default::default()
     };
     ConfiguracionService::actualizar(&pool, user_id, &req)
@@ -415,4 +430,225 @@ async fn patch_config_persiste_permisos(pool: PgPool) {
     assert_eq!(config.permisos_stock_ajuste, "admin_trabajador");
     assert_eq!(config.permisos_albaranes_gestion, "todos");
     assert_eq!(config.permisos_anulacion_ventas, "admin");
+    assert_eq!(config.permisos_pagos_locales, "admin_trabajador");
+    assert_eq!(config.permisos_facturacion_local, "todos");
+}
+
+/* ── Correcciones de la 2a revisión (F8-1..F8-4) ────────────────────── */
+
+/* F8-1: pagos parciales locales y factura local son operaciones monetarias
+ * (F6): con el default 'admin' un Trabajador recibe 403 aunque el modo
+ * efectivo sea standalone. */
+#[sqlx::test(migrations = "./migrations")]
+async fn trabajador_recibe_403_pago_parcial_local_con_default_admin(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("config por defecto");
+    let state = make_app_state(pool);
+    let auth = make_auth(user_id, UserRole::Trabajador);
+    let req = PagoLocalRequest {
+        amount: Decimal::from_str("10.00").unwrap(),
+        tender_id: 1,
+        confirmacion: "PAGO LOCAL cualquiera 10.00".to_string(),
+        idempotency_key: None,
+    };
+    let result = pago_parcial_local(State(state), auth, Path(Uuid::new_v4()), Json(req)).await;
+    assert_forbidden(&result);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn trabajador_recibe_403_factura_local_con_default_admin(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("config por defecto");
+    let state = make_app_state(pool);
+    let auth = make_auth(user_id, UserRole::Trabajador);
+    let req = FacturaLocalRequest {
+        confirmacion: "FACTURA LOCAL cualquiera".to_string(),
+        idempotency_key: None,
+    };
+    let result = factura_local(State(state), auth, Path(Uuid::new_v4()), Json(req)).await;
+    assert_forbidden(&result);
+}
+
+/* F8-2: el DELETE de ventas es escritura sensible (histórico fiscal local):
+ * reusa el permiso de anulación; con default 'admin' un Trabajador recibe 403
+ * antes de tocar el servicio. */
+#[sqlx::test(migrations = "./migrations")]
+async fn trabajador_recibe_403_eliminar_venta_con_default_admin(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("config por defecto");
+    let state = make_app_state(pool);
+    let auth = make_auth(user_id, UserRole::Trabajador);
+    let result = eliminar_venta(State(state), auth, Path(Uuid::new_v4())).await;
+    assert_forbidden(&result);
+}
+
+/* F8-2: el guard pasa para Admin (la venta no existe → NotFound, no 403). */
+#[sqlx::test(migrations = "./migrations")]
+async fn admin_no_recibe_403_al_eliminar_venta_inexistente(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("config por defecto");
+    let state = make_app_state(pool);
+    let auth = make_auth(user_id, UserRole::Admin);
+    let result = eliminar_venta(State(state), auth, Path(Uuid::new_v4())).await;
+    match result {
+        Err(AppError::NotFound(_)) => {}
+        Err(AppError::Forbidden(_)) => panic!("admin no debería recibir 403 por permiso"),
+        Err(other) => panic!("se esperaba NotFound, se obtuvo {other:?}"),
+        Ok(_) => panic!("la venta no existe, eliminar no debería devolver Ok"),
+    }
+}
+
+/* F8-3: los 4 handlers de albaranes que faltaban en la cobertura 403 (el
+ * guard ya existía con AlbaranesGestion; se fija el hueco por endpoint). */
+#[sqlx::test(migrations = "./migrations")]
+async fn trabajador_recibe_403_actualizar_purchase_note_con_default_admin(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("config por defecto");
+    let state = make_app_state(pool);
+    let auth = make_auth(user_id, UserRole::Trabajador);
+    let req = ActualizarBdpPurchaseNoteRequest {
+        numero: None,
+        fecha: None,
+        codigo_proveedor: None,
+        nombre_proveedor: None,
+        total: None,
+        lineas: None,
+    };
+    let result =
+        actualizar_purchase_note_local(State(state), auth, Path(Uuid::new_v4()), Json(req)).await;
+    assert_forbidden(&result);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn trabajador_recibe_403_eliminar_purchase_note_con_default_admin(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("config por defecto");
+    let state = make_app_state(pool);
+    let auth = make_auth(user_id, UserRole::Trabajador);
+    let result = eliminar_purchase_note_local(State(state), auth, Path(Uuid::new_v4())).await;
+    assert_forbidden(&result);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn trabajador_recibe_403_marcar_borrador_purchase_note_con_default_admin(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("config por defecto");
+    let state = make_app_state(pool);
+    let auth = make_auth(user_id, UserRole::Trabajador);
+    let result = marcar_borrador_purchase_note(
+        State(state),
+        auth,
+        Path(Uuid::new_v4()),
+        Json(BdpPurchaseNoteDraftRequest {}),
+    )
+    .await;
+    assert_forbidden(&result);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn trabajador_recibe_403_conciliar_purchase_note_con_default_admin(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("config por defecto");
+    let state = make_app_state(pool);
+    let auth = make_auth(user_id, UserRole::Trabajador);
+    let req = BdpPurchaseNoteReconcileRequest {
+        gasto_existente_id: None,
+        categoria_id: None,
+    };
+    let result = conciliar_purchase_note(State(state), auth, Path(Uuid::new_v4()), Json(req)).await;
+    assert_forbidden(&result);
+}
+
+/* F8-1: ampliar el permiso habilita al Trabajador (pasa el guard y llega al
+ * servicio: la venta no existe → NotFound, no 403). */
+#[sqlx::test(migrations = "./migrations")]
+async fn permisos_pagos_locales_todos_permite_trabajador(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    config_con_permiso(&pool, user_id, "permisos_pagos_locales", "todos")
+        .await
+        .expect("ampliar permiso");
+    let state = make_app_state(pool);
+    let auth = make_auth(user_id, UserRole::Trabajador);
+    let id = Uuid::new_v4();
+    let req = PagoLocalRequest {
+        amount: Decimal::from_str("10.00").unwrap(),
+        tender_id: 1,
+        confirmacion: format!("PAGO LOCAL {id} 10.00"),
+        idempotency_key: None,
+    };
+    let result = pago_parcial_local(State(state), auth, Path(id), Json(req)).await;
+    match result {
+        Err(AppError::NotFound(_)) => {}
+        Err(AppError::Forbidden(_)) => panic!("con 'todos' el trabajador puede pagar local"),
+        Err(other) => panic!("se esperaba NotFound, se obtuvo {other:?}"),
+        Ok(_) => panic!("la venta no existe, el pago no debería devolver Ok"),
+    }
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn permisos_facturacion_local_todos_permite_trabajador(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    config_con_permiso(&pool, user_id, "permisos_facturacion_local", "todos")
+        .await
+        .expect("ampliar permiso");
+    let state = make_app_state(pool);
+    let auth = make_auth(user_id, UserRole::Trabajador);
+    let id = Uuid::new_v4();
+    let req = FacturaLocalRequest {
+        confirmacion: format!("FACTURA LOCAL {id}"),
+        idempotency_key: None,
+    };
+    let result = factura_local(State(state), auth, Path(id), Json(req)).await;
+    match result {
+        Err(AppError::NotFound(_)) => {}
+        Err(AppError::Forbidden(_)) => panic!("con 'todos' el trabajador puede facturar local"),
+        Err(other) => panic!("se esperaba NotFound, se obtuvo {other:?}"),
+        Ok(_) => panic!("la venta no existe, la factura no debería devolver Ok"),
+    }
+}
+
+/* F8-4: verificar_permiso es lectura pura: sin fila de configuración aplica
+ * fail-closed 'admin' y NO crea la fila (obtener_o_crear era escritura en
+ * cada request protegido). */
+#[sqlx::test(migrations = "./migrations")]
+async fn verificar_permiso_sin_config_no_crea_fila_y_falla_cerrado(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    /* Sin fila de configuración: Admin pasa (fail-closed al default 'admin'),
+     * Trabajador recibe 403. */
+    let admin = make_auth(user_id, UserRole::Admin);
+    verificar_permiso(&pool, AccionPermiso::PagosLocales, &admin)
+        .await
+        .expect("admin sin fila de config pasa (default fail-closed 'admin')");
+
+    let trabajador = make_auth(user_id, UserRole::Trabajador);
+    let result = verificar_permiso(&pool, AccionPermiso::PagosLocales, &trabajador).await;
+    assert_forbidden(&result);
+
+    /* La lectura no debe haber creado la fila de configuración. */
+    let filas: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM configuracion_restaurante WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("contar config");
+    assert_eq!(
+        filas, 0,
+        "verificar_permiso no debe crear config (lectura pura)"
+    );
 }

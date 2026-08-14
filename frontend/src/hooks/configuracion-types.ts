@@ -1,5 +1,14 @@
 /* [147A-F5.9] Tipos extraídos de useConfiguracion para cumplir límite de 120 líneas. */
 
+import type { ActualizarConfiguracionRequest } from '../api/generated/gestionRestauranteAPI.schemas';
+
+/* [128A-1/F8-1] Body local: el esquema generado por Orval aún no incluye los
+ * permisos operativos locales, así que se extienden aquí sin tocar generated/. */
+export type CuerpoConfiguracionLocal = ActualizarConfiguracionRequest & {
+  permisos_pagos_locales?: string;
+  permisos_facturacion_local?: string;
+};
+
 export interface EstadoConfiguracion {
   reserva_email_obligatorio: boolean;
   reserva_telefono_obligatorio: boolean;
@@ -50,6 +59,9 @@ export interface EstadoConfiguracion {
   permisos_stock_ajuste: string;
   permisos_albaranes_gestion: string;
   permisos_anulacion_ventas: string;
+  /* [128A-1/F8-1] Permisos de operaciones monetarias locales (F6) */
+  permisos_pagos_locales: string;
+  permisos_facturacion_local: string;
   /* [BKP-005] Configuración de backup BDP */
   bdp_sync_mode: string;
   bdp_backup_retention_days: number;
@@ -105,6 +117,8 @@ export const DEFAULTS: EstadoConfiguracion = {
   permisos_stock_ajuste: 'admin',
   permisos_albaranes_gestion: 'admin',
   permisos_anulacion_ventas: 'admin',
+  permisos_pagos_locales: 'admin',
+  permisos_facturacion_local: 'admin',
   bdp_sync_mode: 'read_only',
   bdp_backup_retention_days: 30,
   bdp_auto_backup_before_write: true,

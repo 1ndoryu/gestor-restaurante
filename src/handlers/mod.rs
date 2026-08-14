@@ -23,6 +23,12 @@ pub use bdp_article_map::{
     actualizar_article_map, ajustar_stock, crear_article_map, eliminar_article_map,
 };
 pub use ventas::anular_venta;
+/* [128A-1/F8-1] Exposición para tests de integración: variantes locales de
+ * F6 (pagos parciales y factura local) y el DELETE de ventas, protegidos por
+ * permiso operativo. */
+pub use ventas::{
+    eliminar_venta, factura_local, pago_parcial_local, FacturaLocalRequest, PagoLocalRequest,
+};
 mod campanas;
 mod canales_reserva;
 mod chatbot;

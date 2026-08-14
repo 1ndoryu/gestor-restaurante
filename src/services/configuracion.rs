@@ -80,6 +80,14 @@ impl ConfiguracionService {
                 "permisos_anulacion_ventas",
                 req.permisos_anulacion_ventas.as_deref(),
             ),
+            (
+                "permisos_pagos_locales",
+                req.permisos_pagos_locales.as_deref(),
+            ),
+            (
+                "permisos_facturacion_local",
+                req.permisos_facturacion_local.as_deref(),
+            ),
         ] {
             if let Some(valor) = valor {
                 if !crate::services::NivelPermiso::VALORES.contains(&valor) {

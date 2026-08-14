@@ -168,6 +168,11 @@ pub async fn eliminar_venta(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
+    /* [128A-1/F8-2] Escritura sensible (histórico fiscal local): el DELETE
+     * exige el mismo permiso que la anulación. Decisión documentada: reusar
+     * `AnulacionVentas` en vez de añadir una acción dedicada (misma clase de
+     * escritura destructiva sobre ventas, default 'admin'). */
+    verificar_permiso(&state.pool, AccionPermiso::AnulacionVentas, &auth).await?;
     VentaService::delete(&state.pool, id, auth.user_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -725,6 +730,10 @@ pub async fn pago_parcial_local(
     Path(id): Path<Uuid>,
     Json(req): Json<PagoLocalRequest>,
 ) -> Result<Json<PagoLocalResponse>, AppError> {
+    /* [128A-1/F8-1] Operación monetaria: requiere permiso operativo aunque el
+     * modo efectivo sea standalone (las variantes locales de F6 no son
+     * BDP-bound). */
+    verificar_permiso(&state.pool, AccionPermiso::PagosLocales, &auth).await?;
     /* [128A-1/F6][F6-6] Contrato de `tender_id`: no existe tabla local de
      * tenders; el mapeo método_pago Glory → tender BDP vive en
      * `configuracion_restaurante.bdp_tender_map` (JSONB) y `bdp_pagos` no
@@ -815,6 +824,9 @@ pub async fn factura_local(
     Path(id): Path<Uuid>,
     Json(req): Json<FacturaLocalRequest>,
 ) -> Result<Json<FacturaLocalResponse>, AppError> {
+    /* [128A-1/F8-1] Emisión de factura local: operación monetaria protegida
+     * por permiso operativo (igual que pago_parcial_local). */
+    verificar_permiso(&state.pool, AccionPermiso::FacturacionLocal, &auth).await?;
     let expected_confirmation = format!("FACTURA LOCAL {id}");
     if req.confirmacion.trim() != expected_confirmation {
         return Err(AppError::Validation(format!(

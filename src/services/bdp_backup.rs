@@ -1013,6 +1013,8 @@ mod tests {
             permisos_stock_ajuste: "admin".to_string(),
             permisos_albaranes_gestion: "admin".to_string(),
             permisos_anulacion_ventas: "admin".to_string(),
+            permisos_pagos_locales: "admin".to_string(),
+            permisos_facturacion_local: "admin".to_string(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

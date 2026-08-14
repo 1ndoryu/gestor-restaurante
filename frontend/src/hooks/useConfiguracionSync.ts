@@ -68,6 +68,8 @@ export function useConfiguracionSync(datos: ConfigServerData | undefined) {
       permisos_stock_ajuste: String(d.permisos_stock_ajuste ?? 'admin'),
       permisos_albaranes_gestion: String(d.permisos_albaranes_gestion ?? 'admin'),
       permisos_anulacion_ventas: String(d.permisos_anulacion_ventas ?? 'admin'),
+      permisos_pagos_locales: String(d.permisos_pagos_locales ?? 'admin'),
+      permisos_facturacion_local: String(d.permisos_facturacion_local ?? 'admin'),
       bdp_sync_mode: String(d.bdp_sync_mode ?? 'read_only'),
       bdp_backup_retention_days: Number(d.bdp_backup_retention_days ?? 30),
       bdp_auto_backup_before_write: Boolean(d.bdp_auto_backup_before_write ?? false),

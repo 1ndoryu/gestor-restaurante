@@ -503,6 +503,8 @@ mod tests {
             permisos_stock_ajuste: "admin".to_string(),
             permisos_albaranes_gestion: "admin".to_string(),
             permisos_anulacion_ventas: "admin".to_string(),
+            permisos_pagos_locales: "admin".to_string(),
+            permisos_facturacion_local: "admin".to_string(),
             google_review_url: String::new(),
             telefono_restaurante: String::new(),
             url_reservas: String::new(),
@@ -1277,6 +1279,8 @@ mod tests {
             permisos_stock_ajuste: None,
             permisos_albaranes_gestion: None,
             permisos_anulacion_ventas: None,
+            permisos_pagos_locales: None,
+            permisos_facturacion_local: None,
         };
         ConfiguracionRepository::actualizar(pool, user_id, &req)
             .await

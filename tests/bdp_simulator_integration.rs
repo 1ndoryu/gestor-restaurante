@@ -212,6 +212,8 @@ fn simulator_config() -> glory_backend::models::ConfiguracionRestaurante {
         permisos_stock_ajuste: "admin".to_string(),
         permisos_albaranes_gestion: "admin".to_string(),
         permisos_anulacion_ventas: "admin".to_string(),
+        permisos_pagos_locales: "admin".to_string(),
+        permisos_facturacion_local: "admin".to_string(),
         google_review_url: String::new(),
         telefono_restaurante: String::new(),
         url_reservas: String::new(),

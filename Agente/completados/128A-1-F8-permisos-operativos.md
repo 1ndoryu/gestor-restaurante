@@ -31,7 +31,7 @@
     son privados; patrón de `bdp_menu_local`).
   - Frontend: `configuracion-types.ts` (4 campos + defaults `'admin'`),
     `useConfiguracion.ts` (body PATCH), `useConfiguracionSync.ts` (sync servidor→local con
-    default `'admin'`), `ConfigBdp.tsx` con sección «Permisos operativos» (4 selects, tras
+    default `'admin'`), `ConfigBdp.tsx` con sección «Permisos operativos» (6 selects, tras
     modalidad de anulación) y `gestionRestauranteAPI.schemas.ts` (campos en
     `ActualizarConfiguracionRequest` y `ConfiguracionRestaurante`, orden alfabético).
 - **Alcance y decisión (auditoría F8, §4.11):** de los endpoints enumerados se protegen los
@@ -56,7 +56,7 @@
   - `node scripts/run-with-db.mjs check` → PASS; `node scripts/run-with-db.mjs clippy` → PASS
     (`-D warnings`, con `#[must_use]` en helpers públicos); `npm run fmt` OK.
   - Suite completa `node scripts/run-with-db.mjs test` → **PASS (exit 0)**; en particular
-    `tests/bdp_f8_permisos.rs` **13/13** (403 por permiso con trabajador y default `admin`,
+    `tests/bdp_f8_permisos.rs` **24/24** (403 por permiso con trabajador y default `admin`,
     admin sin 403, ampliación a `todos`/`admin_trabajador` que habilita al trabajador, PATCH
     inválido → Validation, persistencia de permisos vía PATCH).
   - Frontend `npm run type-check` → PASS (tras ajustar `useConfiguracionSync.ts`).
@@ -73,3 +73,38 @@
   evita discrepancias con `require_role` del middleware.
 - **Sentinel:** el gate corrió la etapa sentinel (PASS, 0 errores).
 - **GLORY:** no aplica; cambios del bloque 128A-1 en rama `glory-rs-rest`.
+
+## Correcciones de la 2a revisión (F8-1..F8-4)
+
+- **F8-1 [MEDIA] pagos y facturación local sin permiso:** 2 variantes nuevas
+  `AccionPermiso::PagosLocales`/`FacturacionLocal` (`src/services/permisos.rs` con
+  `columna()`/`valor()`) + migración aditiva `20260820000000_bdp_permisos_operativos_locales`
+  (columnas `permisos_pagos_locales`/`permisos_facturacion_local`, `VARCHAR(20) NOT NULL
+  DEFAULT 'admin'` con CHECK, M15: no toca filas existentes). Guards en `src/handlers/ventas.rs`
+  al inicio de `pago_parcial_local` y `factura_local` (antes de validaciones). Modelo y repo:
+  2 campos en `ConfiguracionRestaurante`/`ActualizarConfiguracionRequest`
+  (`#[validate(length(max = 20))]`), `UPDATE_CONFIG_SQL` `COALESCE($55..$56)` + binds, y
+  validación en `src/services/configuracion.rs`. Frontend: 2 selects nuevos
+  (`permisos-pagos-locales`, `permisos-facturacion-local`) en `ConfigBdp.tsx` + campos/defaults
+  en `configuracion-types.ts`; como el esquema Orval generado aún no los trae, se extendió el
+  tipo local `CuerpoConfiguracionLocal` (sin tocar `frontend/src/api/generated/*`).
+- **F8-2 [BAJA] `eliminar_venta` sin permiso:** decisión de **reusar
+  `AccionPermiso::AnulacionVentas`** (misma clase de escritura destructiva, default `admin`);
+  documentado en comentario del handler. Evita un permiso nuevo con semántica idéntica.
+- **F8-3 [BAJA] tests 403 por endpoint:** añadidos 403 para
+  `actualizar/eliminar/marcar_borrador/conciliar_purchase_note` y `eliminar_venta`
+  (albaranes ya tenían `crear`). `tests/bdp_f8_permisos.rs` pasa de 14 a **24 tests**, incluidos
+  admin sin 403 (delete/anulación de venta inexistente) y ampliación a `todos` para pagos y
+  factura local.
+- **F8-4 [BAJA] `verificar_permiso` escribía en lectura:** nuevo
+  `ConfiguracionRepository::obtener` (SELECT puro, devuelve `Option`) y `verificar_permiso` lo
+  usa directamente; si no hay fila de configuración falla cerrado a `NivelPermiso::Admin` **sin
+  crear fila**. Test: `verificar_permiso_sin_config_no_crea_fila_y_falla_cerrado`.
+  `obtener_o_crear` sigue disponible para quienes sí necesitan crear (p. ej.
+  `sincronizar_purchase_notes`), comportamiento intacto.
+- **Gate y evidencia:** `test --lib` 149/149; no-regresión F6 (6) + F6 local pagos/factura (11)
+  + F4 anulación/delete (5); `tests/bdp_f8_permisos.rs` **24/24**; `fmt`, `clippy --all-targets
+  -- -D warnings` y `npm --prefix frontend run type-check` → PASS. Inicializadores de test
+  actualizados en `src/services/{haddock,bdp_backup,bdp_sync_preflight,bdp_weblink,
+  modo_operacion}.rs` y `tests/{haddock_db,bdp_service_integration,bdp_simulator_integration,
+  bdp_readonly}.rs` con los 2 campos nuevos.
