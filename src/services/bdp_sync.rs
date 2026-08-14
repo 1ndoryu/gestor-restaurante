@@ -45,6 +45,7 @@ use crate::services::bdp_weblink_catalog::{
     BdpGetPricesArticlesResponse, BdpGetRoomsTablesRequest, BdpGetRoomsTablesResponse,
     BdpInvoiceOrderRequest, BdpOrderIdentifier, BdpOrderPayment,
 };
+use crate::services::{ModoEfectivo, ServicioModoOperacion};
 
 pub(crate) const BDP_SYNC_MARKET_ID: i32 = 9_900;
 /* [F3.1] Contexto resuelto para construir el pedido BDP.
@@ -92,7 +93,12 @@ impl BdpSyncService {
         is_update: bool,
         idempotency_key: Option<&str>,
     ) {
-        if !config.bdp_sync_enabled || !crate::services::bdp_sync_preflight::bdp_configurado(config)
+        /* [128A-1/F1-1] M1: el switch maestro modo_operacion también gatea los
+         * caminos de escritura; 'standalone' nunca llama a BDP aunque
+         * bdp_sync_enabled siga activo. */
+        if ServicioModoOperacion::modo_efectivo_desde_config(config) != ModoEfectivo::Bdp
+            || !config.bdp_sync_enabled
+            || !crate::services::bdp_sync_preflight::bdp_configurado(config)
         {
             return;
         }
@@ -1385,7 +1391,10 @@ impl BdpSyncService {
         tender_id: i32,
         idempotency_key: Option<&str>,
     ) -> Result<Option<String>, String> {
-        if !config.bdp_sync_enabled || !crate::services::bdp_sync_preflight::bdp_configurado(config)
+        /* [128A-1/F1-1] M1: el switch maestro gatea también los pagos. */
+        if ServicioModoOperacion::modo_efectivo_desde_config(config) != ModoEfectivo::Bdp
+            || !config.bdp_sync_enabled
+            || !crate::services::bdp_sync_preflight::bdp_configurado(config)
         {
             return Err("BDP no está habilitado o configurado".into());
         }
@@ -1724,7 +1733,10 @@ impl BdpSyncService {
         config: &ConfiguracionRestaurante,
         idempotency_key: Option<&str>,
     ) -> Result<String, String> {
-        if !config.bdp_sync_enabled || !crate::services::bdp_sync_preflight::bdp_configurado(config)
+        /* [128A-1/F1-1] M1: el switch maestro gatea también la facturación. */
+        if ServicioModoOperacion::modo_efectivo_desde_config(config) != ModoEfectivo::Bdp
+            || !config.bdp_sync_enabled
+            || !crate::services::bdp_sync_preflight::bdp_configurado(config)
         {
             return Err("BDP no está habilitado o configurado".into());
         }

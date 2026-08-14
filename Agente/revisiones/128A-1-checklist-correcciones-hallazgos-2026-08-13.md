@@ -6,11 +6,18 @@
 > Severidad: **[ALTA] [MEDIA] [BAJA]**.
 
 ## F0/F1 — Modo operativo (5)
-* [ ] F0/F1-1 [ALTA] M1 no aplicado en caminos de escritura/polling (bdp_sync, bdp_order_poller)
-* [ ] F0/F1-2 [MEDIA] M2 histeresis/degradacion reactiva no implementada
-* [ ] F0/F1-3 [MEDIA] M3 cache TTL/invalidacion sin uso real
-* [ ] F0/F1-4 [BAJA] Cache expiradas nunca purgadas
-* [ ] F0/F1-5 [BAJA] Badge incoherente en modo forzado bdp (frontend)
+* [x] F0/F1-1 [ALTA] M1 gates en `bdp_sync` (sync_venta, add_order_payment, invoice_order) y
+  poller (`poll_due` SQL + loop, `poll_pending`): modo efectivo != Bdp corta escrituras y polling
+  aunque `bdp_sync_enabled` siga activo. Evidencia: clippy verde + tests de `modo_operacion`.
+* [x] F0/F1-2 [MEDIA] M2 histeresis minima real: `registrar_fallo_bdp`/`registrar_exito_bdp`
+  (N=3 en memoria) + `modo_efectivo_sin_red`; el poller alimenta el contador y degrada a
+  standalone. Evidencia: 3 tests unitarios nuevos (degradacion, reset, no-op en standalone).
+* [x] F0/F1-3 [MEDIA] M3 cache usada de verdad: `obtener_modo_operacion`, `cambiar_modo_operacion`,
+  `diagnosticar_bdp` y los 4 handlers de purchase notes pasan por `state.modo_operacion.modo_efectivo()`.
+* [x] F0/F1-4 [BAJA] `guardar_cache` poda entradas expiradas al insertar. Evidencia: test
+  `cache_purga_entradas_expiradas_al_insertar`.
+* [x] F0/F1-5 [BAJA] Badge derivado con la logica del backend (`modoEfectivoBdp`): modo forzado
+  `bdp` muestra BDP aunque `bdp_sync_enabled=false`. Evidencia: type-check frontend verde.
 
 ## F2 — Catalogo local (4)
 * [ ] F2-1 [MEDIA] `crear()` (POST/upsert) pisa campos locales con defaults

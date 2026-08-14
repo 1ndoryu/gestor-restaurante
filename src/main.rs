@@ -2,6 +2,7 @@ use glory_backend::config::AppConfig;
 use glory_backend::handlers;
 use glory_backend::services::{
     BdpBootstrapOutcome, BdpConfigBootstrapService, BdpOrderPollerService, RecordatorioService,
+    ServicioModoOperacion,
 };
 
 #[tokio::main]
@@ -73,11 +74,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /* Polling BDP separado y opt-in. La configuración nace deshabilitada y
      * poll_due usa un claim PostgreSQL para evitar duplicados entre instancias. */
     let bdp_poll_pool = pool.clone();
+    let bdp_poll_modo = ServicioModoOperacion::new();
     let bdp_poll_handle = tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
         loop {
             interval.tick().await;
-            if let Err(error) = BdpOrderPollerService::poll_due(&bdp_poll_pool).await {
+            if let Err(error) = BdpOrderPollerService::poll_due(&bdp_poll_pool, &bdp_poll_modo).await
+            {
                 tracing::warn!("Scheduler BDP: {error}");
             }
         }

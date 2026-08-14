@@ -24,6 +24,10 @@ pub const MODO_BDP: &str = "bdp";
 
 const TTL: Duration = Duration::from_mins(1);
 
+/* [128A-1/F1/M2] Umbral de fallos BDP consecutivos a partir del cual el modo
+ * efectivo degrada a standalone (histéresis reactiva mínima en memoria). */
+const UMBRAL_FALLOS_BDP: u32 = 3;
+
 /// Modo efectivo derivado para un usuario.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModoEfectivo {
@@ -45,6 +49,8 @@ impl ModoEfectivo {
 struct EntradaCache {
     modo: Option<ModoEfectivo>,
     creada_en: Option<Instant>,
+    /* [M2] Fallos consecutivos hacia BDP registrados por el poller/sync. */
+    fallos_consecutivos: u32,
 }
 
 /// [128A-1/F1] Servicio del conmutador. Cache en memoria por proceso con TTL
@@ -61,7 +67,8 @@ impl ServicioModoOperacion {
         Self::default()
     }
 
-    /// Devuelve el modo efectivo sin tocar BDP (nunca hace red).
+    /// Devuelve el modo efectivo derivado solo de la configuración, sin tocar
+    /// BDP (nunca hace red) y sin considerar la histéresis M2.
     #[must_use]
     pub fn modo_efectivo_desde_config(config: &ConfiguracionRestaurante) -> ModoEfectivo {
         match config.modo_operacion.as_str() {
@@ -78,8 +85,21 @@ impl ServicioModoOperacion {
         }
     }
 
-    /// Modo efectivo con cache TTL (60 s) por usuario. La degradación reactiva
-    /// (histéresis M2) y el preflight ligero se añaden en la fase F1.2 del plan.
+    /// [M2] Modo efectivo considerando la histéresis reactiva: si la
+    /// configuración derivaría `Bdp` pero hay `UMBRAL_FALLOS_BDP` fallos
+    /// consecutivos hacia BDP registrados para este usuario, degrada a
+    /// `Standalone`. No hace red ni usa cache TTL.
+    #[must_use]
+    pub fn modo_efectivo_sin_red(&self, config: &ConfiguracionRestaurante) -> ModoEfectivo {
+        let base = Self::modo_efectivo_desde_config(config);
+        if base == ModoEfectivo::Bdp && self.degradado(config.user_id) {
+            ModoEfectivo::Standalone
+        } else {
+            base
+        }
+    }
+
+    /// Modo efectivo con cache TTL (60 s) por usuario y degradación M2.
     pub async fn modo_efectivo(
         &self,
         pool: &PgPool,
@@ -90,7 +110,7 @@ impl ServicioModoOperacion {
             return Ok(modo);
         }
         let config = ConfiguracionService::obtener(pool, user_id).await?;
-        let modo = Self::modo_efectivo_desde_config(&config);
+        let modo = self.modo_efectivo_sin_red(&config);
         self.guardar_cache(user_id, modo, now);
         Ok(modo)
     }
@@ -100,6 +120,54 @@ impl ServicioModoOperacion {
         if let Ok(mut cache) = self.cache.lock() {
             cache.retain(|(id, _)| *id != user_id);
         }
+    }
+
+    /// [M2] Registra un fallo hacia BDP para el usuario. Al alcanzar
+    /// `UMBRAL_FALLOS_BDP` fallos consecutivos, `modo_efectivo_sin_red` y
+    /// `modo_efectivo` degradan a standalone. Invalida el modo cacheado para
+    /// que la siguiente entrada re-evalúe con el contador actualizado.
+    pub fn registrar_fallo_bdp(&self, user_id: Uuid) {
+        if let Ok(mut cache) = self.cache.lock() {
+            if let Some((_, entrada)) = cache.iter_mut().find(|(id, _)| *id == user_id) {
+                entrada.fallos_consecutivos = entrada
+                    .fallos_consecutivos
+                    .saturating_add(1)
+                    .min(UMBRAL_FALLOS_BDP);
+                /* Re-evaluar en la próxima consulta (M2: no cambiar a mitad de operación). */
+                entrada.modo = None;
+                entrada.creada_en = None;
+            } else {
+                cache.push((
+                    user_id,
+                    EntradaCache {
+                        modo: None,
+                        creada_en: None,
+                        fallos_consecutivos: 1,
+                    },
+                ));
+            }
+        }
+    }
+
+    /// [M2] Registra un éxito hacia BDP: resetea el contador de fallos y
+    /// re-evalúa el modo en la próxima consulta.
+    pub fn registrar_exito_bdp(&self, user_id: Uuid) {
+        if let Ok(mut cache) = self.cache.lock() {
+            if let Some((_, entrada)) = cache.iter_mut().find(|(id, _)| *id == user_id) {
+                entrada.fallos_consecutivos = 0;
+                entrada.modo = None;
+                entrada.creada_en = None;
+            }
+        }
+    }
+
+    fn degradado(&self, user_id: Uuid) -> bool {
+        self.cache.lock().ok().is_some_and(|cache| {
+            cache
+                .iter()
+                .find(|(id, _)| *id == user_id)
+                .is_some_and(|(_, entrada)| entrada.fallos_consecutivos >= UMBRAL_FALLOS_BDP)
+        })
     }
 
     fn desde_cache(&self, user_id: Uuid, now: Instant) -> Option<ModoEfectivo> {
@@ -121,12 +189,21 @@ impl ServicioModoOperacion {
 
     fn guardar_cache(&self, user_id: Uuid, modo: ModoEfectivo, now: Instant) {
         if let Ok(mut cache) = self.cache.lock() {
+            /* [128A-1/F1-4] Podar entradas expiradas al insertar para que la
+             * cache no crezca de forma monótona con usuarios inactivos. */
+            cache.retain(|(id, entrada)| {
+                *id == user_id
+                    || entrada
+                        .creada_en
+                        .is_none_or(|creada| now.duration_since(creada) < TTL)
+            });
             cache.retain(|(id, _)| *id != user_id);
             cache.push((
                 user_id,
                 EntradaCache {
                     modo: Some(modo),
                     creada_en: Some(now),
+                    fallos_consecutivos: 0,
                 },
             ));
         }
@@ -261,6 +338,89 @@ mod tests {
         assert_eq!(
             ServicioModoOperacion::modo_efectivo_desde_config(&cfg),
             ModoEfectivo::Bdp
+        );
+    }
+
+    /* [128A-1/F1-2] M2: histéresis reactiva mínima. Tres fallos consecutivos
+     * degradan a standalone; un éxito resetea y restaura Bdp. */
+    #[test]
+    fn m2_degrada_a_standalone_tras_tres_fallos_consecutivos() {
+        let cfg = config("auto", true, true);
+        let servicio = ServicioModoOperacion::new();
+        assert_eq!(
+            servicio.modo_efectivo_sin_red(&cfg),
+            ModoEfectivo::Bdp,
+            "sin fallos el modo derivado es Bdp"
+        );
+        servicio.registrar_fallo_bdp(cfg.user_id);
+        servicio.registrar_fallo_bdp(cfg.user_id);
+        assert_eq!(
+            servicio.modo_efectivo_sin_red(&cfg),
+            ModoEfectivo::Bdp,
+            "con menos de 3 fallos no degrada"
+        );
+        servicio.registrar_fallo_bdp(cfg.user_id);
+        assert_eq!(
+            servicio.modo_efectivo_sin_red(&cfg),
+            ModoEfectivo::Standalone,
+            "3 fallos consecutivos degradan a standalone"
+        );
+    }
+
+    #[test]
+    fn m2_exito_resetea_el_contador_y_restaura_bdp() {
+        let cfg = config("auto", true, true);
+        let servicio = ServicioModoOperacion::new();
+        servicio.registrar_fallo_bdp(cfg.user_id);
+        servicio.registrar_fallo_bdp(cfg.user_id);
+        servicio.registrar_fallo_bdp(cfg.user_id);
+        assert_eq!(
+            servicio.modo_efectivo_sin_red(&cfg),
+            ModoEfectivo::Standalone
+        );
+        servicio.registrar_exito_bdp(cfg.user_id);
+        assert_eq!(
+            servicio.modo_efectivo_sin_red(&cfg),
+            ModoEfectivo::Bdp,
+            "un éxito resetea el contador y restaura Bdp"
+        );
+    }
+
+    #[test]
+    fn m2_no_degrada_en_modo_standalone_forzado() {
+        let cfg = config("standalone", true, true);
+        let servicio = ServicioModoOperacion::new();
+        servicio.registrar_fallo_bdp(cfg.user_id);
+        servicio.registrar_fallo_bdp(cfg.user_id);
+        servicio.registrar_fallo_bdp(cfg.user_id);
+        assert_eq!(
+            servicio.modo_efectivo_sin_red(&cfg),
+            ModoEfectivo::Standalone
+        );
+    }
+
+    /* [128A-1/F1-4] La cache poda entradas expiradas al insertar. */
+    #[test]
+    fn cache_purga_entradas_expiradas_al_insertar() {
+        let servicio = ServicioModoOperacion::new();
+        let usuario_viejo = Uuid::new_v4();
+        let ahora = Instant::now();
+        /* Entrada expirada (creada hace TTL + 1s). */
+        servicio.guardar_cache(
+            usuario_viejo,
+            ModoEfectivo::Standalone,
+            ahora.checked_sub(TTL + Duration::from_secs(1)).unwrap(),
+        );
+        /* Insertar una entrada nueva para otro usuario debe podar la expirada. */
+        let usuario_nuevo = Uuid::new_v4();
+        servicio.guardar_cache(usuario_nuevo, ModoEfectivo::Bdp, ahora);
+        assert!(
+            servicio.desde_cache(usuario_viejo, ahora).is_none(),
+            "la entrada expirada se purgó"
+        );
+        assert_eq!(
+            servicio.desde_cache(usuario_nuevo, ahora),
+            Some(ModoEfectivo::Bdp)
         );
     }
 }

@@ -22,7 +22,6 @@ use crate::services::bdp_weblink_catalog::{
 };
 use crate::services::{
     verificar_permiso, AccionPermiso, BdpWeblinkClient, ConfiguracionService, ModoEfectivo,
-    ServicioModoOperacion,
 };
 use crate::AppState;
 use uuid::Uuid;
@@ -73,7 +72,11 @@ pub async fn listar_purchase_notes(
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     /* [128A-1/F5][M12] Los flags BDP solo gatean en modo efectivo `bdp`;
      * en `standalone` el CRUD local siempre está disponible. */
-    let modo = ServicioModoOperacion::modo_efectivo_desde_config(&config);
+    /* [128A-1/F1-3] M3: modo efectivo con cache real (servicio del estado). */
+    let modo = state
+        .modo_operacion
+        .modo_efectivo(&state.pool, auth.user_id)
+        .await?;
     if modo == ModoEfectivo::Bdp && !config.ff_bdp_purchase_notes_read {
         return Err(AppError::Validation(
             "La lectura de albaranes de compra BDP no está activada".into(),
@@ -245,7 +248,10 @@ pub async fn sincronizar_purchase_notes(
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     /* [128A-1/F5][M12] En modo efectivo `standalone` la sincronización con BDP
      * está desactivada por diseño (cero llamadas a BDP). */
-    let modo = ServicioModoOperacion::modo_efectivo_desde_config(&config);
+    let modo = state
+        .modo_operacion
+        .modo_efectivo(&state.pool, auth.user_id)
+        .await?;
     if modo == ModoEfectivo::Standalone {
         return Err(AppError::Validation(
             "Modo independiente: la sincronización con BDP está desactivada".into(),
@@ -350,7 +356,10 @@ pub async fn marcar_borrador_purchase_note(
     verificar_permiso(&state.pool, AccionPermiso::AlbaranesGestion, &auth).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     /* [128A-1/F5][M12] En `standalone` el ciclo de vida local no consulta flags. */
-    let modo = ServicioModoOperacion::modo_efectivo_desde_config(&config);
+    let modo = state
+        .modo_operacion
+        .modo_efectivo(&state.pool, auth.user_id)
+        .await?;
     if modo == ModoEfectivo::Bdp && !config.ff_bdp_purchase_notes_draft {
         return Err(AppError::Validation(
             "La creación de borradores de compra BDP no está activada".into(),
@@ -402,7 +411,10 @@ pub async fn conciliar_purchase_note(
     verificar_permiso(&state.pool, AccionPermiso::AlbaranesGestion, &auth).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     /* [128A-1/F5][M12] En `standalone` la conciliación local no consulta flags. */
-    let modo = ServicioModoOperacion::modo_efectivo_desde_config(&config);
+    let modo = state
+        .modo_operacion
+        .modo_efectivo(&state.pool, auth.user_id)
+        .await?;
     if modo == ModoEfectivo::Bdp && !config.ff_bdp_purchase_notes_receive {
         return Err(AppError::Validation(
             "La conciliación de compras BDP no está activada".into(),

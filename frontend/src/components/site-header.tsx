@@ -71,8 +71,14 @@ function BdpStatusIndicator() {
    * siga activo por compatibilidad, se trata como inactivo y el badge muestra
    * el modo independiente. */
   const modoIndependiente = modoOperacion === 'standalone'
+  /* [128A-1/F1-5] Misma lógica que el backend (modo_efectivo_desde_config):
+   * 'bdp' fuerza modo BDP aunque bdp_sync_enabled esté a false; 'auto' es BDP
+   * solo si sync activo y credenciales configuradas. */
+  const modoEfectivoBdp =
+    modoOperacion === 'bdp' ||
+    (modoOperacion === 'auto' && syncEnabled && credencialesOk)
 
-  if (modoIndependiente || !syncEnabled) {
+  if (modoIndependiente || !modoEfectivoBdp) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

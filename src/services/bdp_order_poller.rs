@@ -26,6 +26,7 @@ use crate::models::ConfiguracionRestaurante;
 use crate::repositories::VentaRepository;
 use crate::services::bdp_weblink::BdpWeblinkClient;
 use crate::services::bdp_weblink_catalog::{BdpGetOrderRequest, BdpOrderIdentifier};
+use crate::services::{ModoEfectivo, ServicioModoOperacion};
 
 pub struct BdpOrderPollerService;
 
@@ -33,11 +34,15 @@ impl BdpOrderPollerService {
     /// Ejecuta únicamente configuraciones cuyo polling fue habilitado de forma
     /// explícita y cuya ventana está vencida. La tabla de agenda actúa como
     /// claim atómico entre múltiples instancias.
-    pub async fn poll_due(pool: &PgPool) -> Result<usize, String> {
+    pub async fn poll_due(
+        pool: &PgPool,
+        servicio: &ServicioModoOperacion,
+    ) -> Result<usize, String> {
         let configs = sqlx::query_as::<_, ConfiguracionRestaurante>(
             "SELECT * FROM configuracion_restaurante \
              WHERE bdp_poll_enabled = TRUE AND bdp_sync_enabled = TRUE \
-               AND bdp_base_url <> '' ORDER BY user_id LIMIT 100",
+               AND bdp_base_url <> '' AND modo_operacion <> 'standalone' \
+               ORDER BY user_id LIMIT 100",
         )
         .fetch_all(pool)
         .await
@@ -45,6 +50,12 @@ impl BdpOrderPollerService {
 
         let mut total = 0;
         for config in configs {
+            /* [128A-1/F1-1/F1-2] M1+M2: el modo efectivo (switch maestro y
+             * degradación reactiva) decide si este usuario puede hacer polling;
+             * en standalone no se reclama turno ni se llama a BDP. */
+            if servicio.modo_efectivo_sin_red(&config) != ModoEfectivo::Bdp {
+                continue;
+            }
             let claimed: Option<uuid::Uuid> = sqlx::query_scalar(
                 r"INSERT INTO bdp_poll_schedule (user_id, next_poll_at, updated_at)
                    VALUES ($1, NOW() + ($2 * INTERVAL '1 second'), NOW())
@@ -60,7 +71,7 @@ impl BdpOrderPollerService {
             .await
             .map_err(|e| format!("Error reclamando turno de polling BDP: {e}"))?;
             if claimed.is_some() {
-                match Self::poll_pending(pool, config.user_id, &config).await {
+                match Self::poll_pending(pool, config.user_id, &config, servicio).await {
                     Ok(updated) => total += updated,
                     Err(error) => warn!("Polling BDP usuario {}: {error}", config.user_id),
                 }
@@ -76,10 +87,18 @@ impl BdpOrderPollerService {
         pool: &PgPool,
         user_id: uuid::Uuid,
         config: &ConfiguracionRestaurante,
+        servicio: &ServicioModoOperacion,
     ) -> Result<usize, String> {
-        if !config.bdp_sync_enabled {
+        /* [128A-1/F1-1] M1: standalone nunca llama a BDP. [F1-2] M2: si el
+         * modo degradó por fallos consecutivos, el poller también se detiene. */
+        if !config.bdp_sync_enabled
+            || servicio.modo_efectivo_sin_red(config) != ModoEfectivo::Bdp
+        {
             return Ok(0);
         }
+
+        let mut llamo_bdp = false;
+        let mut fallo_bdp = false;
 
         let ventas = VentaRepository::list_bdp_pending(pool, user_id)
             .await
@@ -121,6 +140,8 @@ impl BdpOrderPollerService {
                 }
             }
             Err(error) => {
+                llamo_bdp = true;
+                fallo_bdp = true;
                 warn!("[R1] Error reconciliando auditorías ambiguas: {error}");
             }
         }
@@ -136,6 +157,7 @@ impl BdpOrderPollerService {
             for venta in &orphaned {
                 match Self::check_order_status(&client, venta.bdp_order_id.unwrap_or(0)).await {
                     Ok(status) => {
+                        llamo_bdp = true;
                         /* La comanda existe en BDP → reconciliar Glory */
                         info!(
                             "[AUDIT-2.11b] Venta {} reconciliada: comanda existe en BDP (status={status}). \
@@ -170,6 +192,8 @@ impl BdpOrderPollerService {
                         updated += 1;
                     }
                     Err(e) => {
+                        llamo_bdp = true;
+                        fallo_bdp = true;
                         /* La comanda no existe o BDP no responde → marcar error
                          * para que no se reintente infinitamente */
                         warn!("[AUDIT-2.11b] Venta {} no reconciliable: {e}", venta.id);
@@ -240,15 +264,33 @@ impl BdpOrderPollerService {
             info!("[276A-4.2] Polling BDP: {} ventas pendientes", ventas.len());
             for venta in &ventas {
                 match Self::poll_one(pool, venta, config, Some(&client)).await {
-                    Ok(true) => updated += 1,
-                    Ok(false) => {}
+                    Ok(true) => {
+                        llamo_bdp = true;
+                        updated += 1;
+                    }
+                    Ok(false) => {
+                        llamo_bdp = true;
+                    }
                     Err(e) => {
+                        llamo_bdp = true;
+                        fallo_bdp = true;
                         warn!(
                             "[276A-4.2] Error consultando GetOrder para venta {}: {e}",
                             venta.id
                         );
                     }
                 }
+            }
+        }
+
+        /* [128A-1/F1-2] M2: alimentar la histéresis del conmutador. Solo se
+         * registra si realmente se intentó llamar a BDP (no-op no altera el
+         * contador, para no enmascarar una degradación activa). */
+        if llamo_bdp {
+            if fallo_bdp {
+                servicio.registrar_fallo_bdp(user_id);
+            } else {
+                servicio.registrar_exito_bdp(user_id);
             }
         }
 

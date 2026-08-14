@@ -11,7 +11,7 @@ use validator::Validate;
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::models::ActualizarConfiguracionRequest;
-use crate::services::{ServicioModoOperacion, MODO_AUTO, MODO_BDP, MODO_STANDALONE};
+use crate::services::{MODO_AUTO, MODO_BDP, MODO_STANDALONE};
 use crate::AppState;
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -42,8 +42,14 @@ pub async fn obtener_modo_operacion(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<ModoOperacionResponse>, AppError> {
+    /* [128A-1/F1-3] M3: la cache TTL/invalidación se usa de verdad: el modo
+     * efectivo pasa por el servicio (cache por usuario + degradación M2). */
+    let modo_efectivo = state
+        .modo_operacion
+        .modo_efectivo(&state.pool, auth.user_id)
+        .await?
+        .as_str();
     let config = crate::services::ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
-    let modo_efectivo = ServicioModoOperacion::modo_efectivo_desde_config(&config).as_str();
     Ok(Json(ModoOperacionResponse {
         modo_operacion: config.modo_operacion,
         modo_efectivo: modo_efectivo.to_string(),
@@ -85,7 +91,11 @@ pub async fn cambiar_modo_operacion(
         crate::services::ConfiguracionService::actualizar(&state.pool, auth.user_id, &update)
             .await?;
     state.modo_operacion.invalidar(auth.user_id);
-    let modo_efectivo = ServicioModoOperacion::modo_efectivo_desde_config(&config).as_str();
+    let modo_efectivo = state
+        .modo_operacion
+        .modo_efectivo(&state.pool, auth.user_id)
+        .await?
+        .as_str();
     Ok(Json(ModoOperacionResponse {
         modo_operacion: config.modo_operacion,
         modo_efectivo: modo_efectivo.to_string(),

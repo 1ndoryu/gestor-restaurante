@@ -20,7 +20,7 @@ use crate::models::{
 use crate::services::bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
 use crate::services::{
     BdpBackupService, BdpSyncDryRunResponse, BdpSyncPreflightService, ConfiguracionService,
-    IntegracionMarketingService, ServicioModoOperacion,
+    IntegracionMarketingService,
 };
 use crate::AppState;
 
@@ -482,7 +482,12 @@ pub async fn diagnosticar_bdp(
 ) -> Result<Json<BdpDiagnosticoResponse>, AppError> {
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     let configurado = bdp_configurado(&config);
-    let modo = ServicioModoOperacion::modo_efectivo_desde_config(&config).as_str();
+    /* [128A-1/F1-3] M3: el diagnóstico usa la cache real del conmutador. */
+    let modo = state
+        .modo_operacion
+        .modo_efectivo(&state.pool, auth.user_id)
+        .await?
+        .as_str();
 
     if !configurado {
         let mut response = BdpDiagnosticoResponse::sin_configurar(config.bdp_sync_enabled);
