@@ -283,3 +283,71 @@ admin sin 403, ampliacion `todos`/`admin_trabajador` habilita al trabajador, PAT
 Validation y persistencia; decision documentada de no gatear sync-prices/sync-tables/
 customers-import/bdp-poll por estar protegidos por guards BDP de backend (documentado en
 `Agente/completados/128A-1-F8-permisos-operativos.md` y en el plan).
+
+## F9 — Pruebas con/sin BDP (`e12b3968`) — solo evidencia documental
+
+1. **BAJA — Reporte "reproducible" en ruta mutable.** La evidencia cita
+   `.quality-reports/branches/glory-rs-rest--f100af0a041e6e8a/128A-1/latest.md` "(commit
+   `3fc17534`...)" pero `latest.md` es un archivo que se sobrescribe: el contenido actual refleja
+   la corrida final del cierre (motivo OVERRIDE "Cierre 128A-1: veredicto supervisor + estado
+   final"), no la de F9. El commit citado en el doc F9 no es verificable desde el artefacto.
+   Accion: guardar una copia por corrida (p. ej. `128A-1-<commit>.md`) o citar el reporte con su
+   commit real y fecha.
+
+Verificado en F9 (sin hallazgo): los conteos declarados coinciden con el codigo — conteo estatico
+de tests en `tests/`: `bdp_f8_permisos` 13, `bdp_f7_menus_locales` 15, `bdp_venta_lineas` 9,
+`bdp_write_guard` 2, `haddock_db` 10, `bdp_simulator_integration` 24; simulador Python 92
+funciones `test_*`; reporte del gate existe y PASS (sentinel 0 errores, 364 warnings / 34 info
+igual a lo declarado); corrida `--include-ignored` documentada para los tests de simulador;
+"sin credenciales -> standalone" coherente con `modo_efectivo_desde_config` de F1; sin
+escrituras ni llamadas al BDP real (alcance autorizado).
+
+## F10 — Cierre documental (`e9eef0dd`, `2475cba0`)
+
+1. **MEDIA — La documentacion de cierre da por implementadas M1/M2/M3, que el codigo no cumple.**
+   `Agente/completados/tareas-2026-08-13.md` (resumen F1: "invariantes M1 + histeresis M2 +
+   invalidation M3 + badge + degradacion automatica"), `roadmap.md:147` ("conmutador
+   standalone/bdp con degradacion y badge") y el checklist del plan §12 (`- [x] F1: ...
+   histeresis (M2) + badge + degradacion, probados`) declaran completado lo que la 2a revision de
+   codigo contradice: M1 no se aplica en los caminos de escritura/polling (hallazgo F0/F1-1,
+   ALTA), M2 histeresis/degradacion reactiva NO esta implementada (comentario en
+   `src/services/modo_operacion.rs:82` la difiere a "fase F1.2") y M3 (cache TTL/invalidacion)
+   no se usa en ningun consumidor (F0/F1-3). Accion: declarar la deuda abierta en el plan y en
+   los completados (M2/M3 pendientes, M1 pendiente en write/polling) o implementarla antes de
+   declarar el bloque cerrado; el cierre "100% operacional" no debe sobrevender F1.
+2. **BAJA — Referencia con wildcard en `roadmap.md:151` pese al gotcha documentado.** El cierre
+   deja `Agente/completados/128A-1-F4-* … 128A-1-F9-*` (con `*`), mientras el propio doc F10
+   documenta el gotcha "no usar globs" (el validador de docs resuelve referencias como literales).
+   Paso el gate, pero la referencia es fragil ante cambios futuros. Accion: listar archivos
+   explicitos (F4...F9) o apuntar solo a `Agente/completados/tareas-2026-08-13.md`.
+
+Verificado en F10 (sin hallazgo): plan movido con `git mv` a
+`Agente/planes/completados/plan-independencia-bdp-2026-08-12.md` (la ruta original ya no existe)
+con estado "Completado 2026-08-13"; referencias actualizadas en
+`Agente/documentacion/bdp/auditoria-plan-independencia-bdp-2026-08-12.md` y en
+`Agente/completados/128A-1-F9-pruebas-bdp.md` (ambas apuntan a `planes/completados/`);
+`roadmap.md` con el bloque 128A-1 cerrado y pendiente de autorizacion de deploy/escrituras BDP;
+feature-flags con secciones «Modo de operacion» (F1/M12) y «Permisos operativos» (F8);
+mapeo visual con changelog 2026-08-13 + seccion 11 (badge independiente, origen Local/BDP,
+menus locales, permisos); guia cliente con seccion 15 no tecnica (funcionar sin BDP + niveles de
+permiso); `tareas-2026-08-13.md` con resumen F0-F10 y gotchas; checklist del plan con F9 y F10
+marcados; el doc F10 registra el primer FAIL del gate por `docs-link-missing` y su correccion.
+
+## Hallazgos globales (resumen del bloque)
+
+- **Alta (2):** F4-1 (D5: guard de config antes de checks por venta en `venta::delete`), F0/F1-1
+  (M1 no aplicado en caminos de escritura/polling).
+- **Media (19):** F0/F1-2 (M2 histeresis no implementada), F0/F1-3 (M3 cache sin uso), F2-1
+  (POST/upsert pisa campos locales), F2-2 (alta local no protegida del import M6), F2-3 (doble
+  escritura de stock), F3-1 (sync pisa stock local ajustado), F3-2 (N6 sin handler ni uso
+  operativo), F4-2 (M11 liberacion de mesa), F4-3 (`anulacion_usuario` client-provided),
+  F4-4 (`total_periodo` excluye anuladas siempre), F5-1 (serie local no forzada, M18),
+  F5-2 (numeracion COUNT insegura), F5-3 (total vs lineas), F6-1 (delete no bloquea
+  `facturada_local`), F6-2 (idempotencia factura inalcanzable), F6-3 (filas legacy
+  `error`/`ambiguo` bloquean factura), F7-1 (filtro `tipo` no validado), F8-1 (pagos/factura
+  local sin permiso), F10-1 (docs sobrevenden M1/M2/M3).
+- **Baja (19):** F0/F1-4/5, F2-4, F3-3/4, F4-5, F5-4/5, F6-4/5/6, F7-2/3/4, F8-2/3/4,
+  F9-1, F10-2.
+- **Acciones pendientes de decidir:** declarar deuda M2/M3/M1-write (F10-1), reordenar checks de
+  delete (F4-1), permisos para pagos/factura local (F8-1), M11 (F4-2), entre otras (ver detalle
+  por fase). Ninguna requiere bloqueo de la revision; se listan para correccion posterior.

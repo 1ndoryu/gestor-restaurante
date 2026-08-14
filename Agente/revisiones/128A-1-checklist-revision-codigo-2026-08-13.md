@@ -32,7 +32,11 @@
 * [x] **F8 — Permisos operativos** (`3fc17534`): revisar migracion `bdp_permisos_operativos`,
       `src/services/permisos.rs` (fail-closed, `permiso_habilitado`, `verificar_permiso`),
       enforcement por endpoint (M17), UI ConfigBdp. Hallazgos: 4 (1 media, 3 baja).
-* [ ] **F9 — Pruebas con/sin BDP** (`e12b3968`): revisar documentacion de evidencia (suites,
-      simulador, gate) y coherencia de lo declarado con el codigo revisado.
-* [ ] **F10 — Cierre documental** (`e9eef0dd`, `2475cba0`): revisar roadmap, completados,
-      feature-flags/mapeo/guia y consistencia de rutas y referencias.
+* [x] **F9 — Pruebas con/sin BDP** (`e12b3968`): revisar documentacion de evidencia (suites,
+      simulador, gate) y coherencia de lo declarado con el codigo revisado. Hallazgos: 1 (baja).
+* [x] **F10 — Cierre documental** (`e9eef0dd`, `2475cba0`): revisar roadmap, completados,
+      feature-flags/mapeo/guia y consistencia de rutas y referencias. Hallazgos: 2 (1 media,
+      1 baja).
+
+**Total de la 2a revision:** 40 hallazgos (2 alta, 19 media, 19 baja) — ver
+`Agente/revisiones/128A-1-hallazgos-revision-codigo-2026-08-13.md` (resumen global al final).
