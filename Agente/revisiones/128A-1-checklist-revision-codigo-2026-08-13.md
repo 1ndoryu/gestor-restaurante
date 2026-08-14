@@ -16,14 +16,16 @@
 * [x] **F3 — Stock local + GetStock/GetListStock** (`978dd3f4`): revisar ajuste manual con auditoria,
       idempotencia, weblink N6 (structs/endpoints), fuente de verdad `bdp_article_stock`, UI origen.
       Hallazgos: 4 (2 media, 2 baja).
-* [ ] **F4 — Anulacion local + delete D5** (`624cc9f1`): revisar migracion `venta_anulacion`,
+* [x] **F4 — Anulacion local + delete D5** (`624cc9f1`): revisar migracion `venta_anulacion`,
       `AnulacionVentaService` (modalidades D4, M8-M11), transicion de estado/idempotencia,
-      desbloqueo `venta::delete` (Haddock M14), poller, UI.
-* [ ] **F5 — Compras locales** (`24a22b64`): revisar migracion `bdp_purchase_notes` (origen/series L-),
+      desbloqueo `venta::delete` (Haddock M14), poller, UI. Hallazgos: 5 (1 alta, 3 media,
+      1 baja).
+* [x] **F5 — Compras locales** (`24a22b64`): revisar migracion `bdp_purchase_notes` (origen/series L-),
       CRUD albaranes locales, gates M12 (flags solo bdp), IVA por linea (A10), conciliacion M18, UI.
-* [ ] **F6 — Auditoria local + pagos parciales + factura local minima** (`acf59e77`): revisar
+      Hallazgos: 5 (3 media, 2 baja).
+* [x] **F6 — Auditoria local + pagos parciales + factura local minima** (`acf59e77`): revisar
       migracion `bdp_audit origen_local`, ledger `bdp_pagos` local (idempotencia/saldo), factura
-      local `facturada_local` (numeracion), guards, UI.
+      local `facturada_local` (numeracion), guards, UI. Hallazgos: 6 (3 media, 3 baja).
 * [ ] **F7 — Menus/packs locales** (`17cc1a03`): revisar migracion `bdp_menu_local` (CRUD con lineas),
       modelo/repositorio/handler, convivencia con BDP (origen), UI Explorador.
 * [ ] **F8 — Permisos operativos** (`3fc17534`): revisar migracion `bdp_permisos_operativos`,

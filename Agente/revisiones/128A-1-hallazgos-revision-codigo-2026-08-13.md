@@ -72,3 +72,136 @@
 4. **BAJA — `warehouse_name` siempre 'General'** aunque `warehouse_id` sea distinto de "0" en el
    ajuste. Inconsistencia menor de etiqueta. Accion: derivar del id o aceptar solo el almacen por
    defecto.
+
+## F4 — Anulacion local + delete D5 (`624cc9f1`)
+
+1. **ALTA — D5 desbloqueo incompleto: el guard de config se mantiene ANTES de los checks por venta.**
+   En `VentaService::delete` (`src/services/venta.rs:225`) el `if config.bdp_sync_enabled { 409 }`
+   se evalua antes de los checks por venta (`anulada`, `bdp_synced`, `bdp_order_id`). El plan
+   D5=A dice "se desbloquea el 409 solo para ventas no sincronizadas con BDP y no anuladas": con
+   sync activa (modos bdp/auto con credenciales) NINGUNA venta se puede eliminar, aunque no este
+   sincronizada ni anulada. Ademas el frontend (`venta-row-actions.tsx`) solo oculta el boton por
+   `haddockSyncEnabled`, `v.anulada`, `bdp_synced` y `bdp_order_id`, no por `bdpSyncEnabled`:
+   en modo sync activa el boton queda visible y responde 409 con mensaje que pide desactivar la
+   sincronizacion (incomodo pero coherente). Accion: reordenar los checks (per-venta antes que
+   config) o eliminar el guard de config reemplazandolo por los per-venta; alinear la visibilidad
+   del boton con el backend.
+2. **MEDIA — M11 (liberacion de mesa) no implementado.** El plan F4 incluye M11 ("liberacion de
+   mesa solo si la venta es la ocupante actual; si no, avisar y no tocar el plano").
+   `VentaRepository::anular` (`src/repositories/venta.rs:536`) no toca mesas ni reservas ni emite
+   aviso en auditoria; solo hay un comentario en `src/services/venta.rs:269-273` documentando la
+   intencion. La doc `Agente/completados/128A-1-F4-anulacion-local-ventas.md` admite "M11 no toca
+   el plano en F4". Accion: implementar la derivacion venta->reserva->mesa y la liberacion/aviso,
+   o declarar la deuda explicitamente en el plan (F4 esta dada por completada).
+3. **MEDIA — `anulacion_usuario` es client-provided y ademas nadie lo envia.** El campo
+   `AnularVentaRequest.anulacion_usuario` (`src/models/venta.rs:207`) viaja del cliente al handler
+   (`src/handlers/ventas.rs:200`) y se audita tal cual, sin derivarlo de `auth.user_id`
+   (spoofeable). El frontend no lo envia (`ListaVentas.tsx:300` solo manda motivo + key), asi que
+   queda NULL siempre y la auditoria no registra quien anulo. Accion: derivarlo siempre de
+   `auth.user_id` en el handler y eliminar el campo del request (o validar que coincida).
+4. **MEDIA — `total_periodo` excluye anuladas de forma permanente, tambien en `estado_solo`.**
+   Plan M10: en `credito_completo` el resumen diario excluye/revierte la venta; en `estado_solo`
+   "solo marca estado (sin reversion contable)". El repo (`src/repositories/venta.rs:371`) filtra
+   `anulada = false` siempre, sin consultar la modalidad; el comentario lo justifica "para no
+   descuadrar caja nunca", pero difiere del plan. Accion: confirmar intencionalidad o
+   parametrizar la exclusion por modalidad.
+5. **BAJA — Idempotency key no esta scoped por venta.** En el camino de conflicto
+   (`src/repositories/venta.rs:598-614`) la clave se busca solo por `(user_id, idempotency_key)`
+   sin verificar `target_entity_id = venta_id`. Si el cliente reutiliza la misma clave para otra
+   venta, el servicio devuelve exito idempotente (`resultado_previo='exito'`) aunque esa segunda
+   venta NO quedo anulada (se devuelve su estado actual). Accion: incluir `venta_id` en la
+   comprobacion de la clave o validar que la fila previa apunte a la misma venta.
+
+Verificado en F4 (sin hallazgo): M9 bloquea `facturada_local` + `bdp_invoiced` + status invoiced
+(`src/repositories/venta.rs:557`); transicion unica con guard + rollback de auditoria en carrera;
+mapeo de errores `map_anular_error` (404/409/422) correcto; poller excluye anuladas
+(`src/repositories/venta.rs:452`); `bdp_sync.rs`/`haddock.rs` saltan ventas anuladas; UI con
+confirmacion `ANULAR {id}` + motivo + badge `anulada`/pendiente BDP; tests constructores
+actualizados.
+
+## F5 — Compras locales (`24a22b64`)
+
+1. **MEDIA — La serie local no se fuerza al prefijo reservado (M18 incompleto).**
+   `crear_local` (`src/repositories/bdp_purchase_note.rs:125-160`) usa `L` solo como default;
+   `req.serie` es libre y no se valida. Si el cliente envia una serie que coincide con una de BDP:
+   (a) el `UNIQUE(user_id, serie, numero)` puede chocar (23505 -> 500 sin mapeo); (b) peor,
+   `upsert_from_bdp` (`src/repositories/bdp_purchase_note.rs:76-91`) hace `ON CONFLICT
+   (user_id, serie, numero) DO UPDATE` sin guard de `origen='bdp'`, asi que un sync posterior
+   sobreescribiria total/fecha/datos de un albaran local con datos BDP. El plan M18 pedia "series
+   locales reservadas (L-... / prefijo configurable)". Accion: forzar/validar el prefijo en
+   backend para origen local y excluir `origen='local'` del conflicto del import.
+2. **MEDIA — Numeracion secuencial local via `COUNT(*)` no es segura ni estable.**
+   `crear_local` calcula `numero = COUNT(*) + 1` sobre TODAS las notas locales del usuario,
+   ignorando la serie, sin transaccion ni guard de carrera: dos altas simultaneas generan el mismo
+   numero (colision UNIQUE -> 500), y tras un borrado se reutilizan numeros (cuestionable para un
+   secuencial documental). Accion: secuencia por `(user_id, serie)` con reintento ante 23505 o
+   `MAX(numero) + 1` bajo lock/reintento.
+3. **MEDIA — Total explicito puede discrepar del desglose de lineas.**
+   `calcular_desglose` (`src/repositories/bdp_purchase_note.rs`) usa `total_explicito` si viene,
+   pero `datos_bdp.importe_base/importe_iva` se calculan de las lineas. La conciliacion
+   (`desglose_desde_datos`) registra el gasto con base/IVA de lineas aunque el albaran muestre otro
+   total -> descuadre albaran vs gasto. `crear_purchase_note_local`
+   (`src/handlers/bdp_purchase_note.rs`) acepta total + lineas sin validar consistencia. Accion:
+   validar `total == base + iva` cuando vienen lineas (o calcular siempre de las lineas).
+4. **BAJA — `desglose_desde_datos` falla silenciosamente a `(total, 0)`.** El
+   `unwrap_or((total, Decimal::ZERO))` en `conciliar_purchase_note` (`src/handlers/bdp_purchase_note.rs`)
+   convierte lineas malformadas (sin cantidad/precio/iva) en gasto con IVA=0 sin log ni aviso.
+   Accion: loggear el fallback y validar en el alta que cada linea tenga los 4 campos.
+5. **BAJA — Fecha invalida y numero duplicado sin mapeo de errores.** Un `fecha` mal formado se
+   ignora silenciosamente (None) en crear/actualizar; `actualizar_local` con un `numero` duplicado
+   devuelve 23505 -> 500 generico (`AppError::Database`) sin mensaje accionable. Accion: validar
+   formato YYYY-MM-DD y mapear 23505 -> 409 con mensaje de serie/numero en uso.
+
+Verificado en F5 (sin hallazgo): gates M12 en los 4 handlers de compras
+(`listar`/`sync`/`marcar_borrador`/`conciliar`) via `modo_efectivo_desde_config`; sync con BDP
+rechazado en `standalone` (cero llamadas BDP); CRUD local disponible sin flags en `standalone`;
+A10 IVA por linea implementado (desglose base/IVA por linea, 4 tests unitarios nuevos);
+`origen` con CHECK y default 'bdp' (no altera importados); `eliminar_local` solo pendiente/borrador
+(conciliados no se borran, D5); UI con badge origen + modal crear/editar con lineas e IVA.
+
+## F6 — Auditoria local + pagos parciales + factura local (`acf59e77`)
+
+1. **MEDIA — `venta::delete` no bloquea ventas con `facturada_local`.** Los guards de
+   `VentaService::delete` (`src/services/venta.rs:236,242`) cubren `anulada` y
+   `bdp_synced`/`bdp_order_id`, pero no `facturada_local`. Una venta facturada localmente
+   (sin sync BDP) puede eliminarse: se pierde el historico fiscal y el numero de factura, y por
+   `ON DELETE CASCADE` en `bdp_pagos` se borran sus pagos. El estado `facturada` es final igual
+   que `anulada` (D5). Accion: bloquear el DELETE tambien para `facturada_local` (y, por robustez,
+   para ventas con filas en `bdp_pagos`).
+2. **MEDIA — Idempotencia de factura local inalcanzable en el reintento normal.** El guard M9
+   (`venta.facturada_local` -> Protocol `venta_ya_facturada`, `src/repositories/venta.rs:705`)
+   corre ANTES de la consulta de idempotency_key, asi que un reintento con la misma clave sobre una
+   venta ya facturada devuelve 409 en vez de exito idempotente (C1). El camino de exito idempotente
+   solo se alcanza si la clave existe y la venta NO esta facturada (caso cross-venta -> exito falso,
+   ver F4-5). Accion: consultar la clave antes de los guards M9 (o tratar
+   `venta_ya_facturada` + clave coincidente como exito idempotente).
+3. **MEDIA — Filas legacy de pago fallido/ambiguo bloquean la facturacion local.**
+   `facturar_local` (`src/repositories/venta.rs:709-718`) usa `EXISTS(SELECT 1 FROM bdp_pagos)` y
+   suma solo `resultado='exito'`: una fila historica con `resultado='error'` o `'ambiguo'` (flujo
+   BDP previo) deja `tiene_pagos=true` y `pagado=0` -> bloquea la factura local con
+   "pagos pendientes" para siempre, aunque no haya saldo real pendiente. Accion: considerar solo
+   filas `resultado='exito'`/`'ambiguo'` (o 'error' retentado) para el guard de pendiente.
+4. **BAJA — Numeracion `F-{anio}-{n:04}` con `COUNT` global mezcla anos y reutiliza numeros.**
+   El `COUNT(*)` (`src/repositories/venta.rs:725-726`) cuenta todas las facturas del usuario sin
+   filtrar por anio (el numero embebido en `F-{anio}-...` puede saltarse o repetirse entre anos) y,
+   combinado con el hallazgo 1 (delete permitido), un borrado decrementa el conteo y reutiliza
+   numeros del mismo anio. Accion: numerar por `(user_id, anio)` con `MAX`+retry (el retry 23505
+   del servicio ya existe) o secuencia dedicada.
+5. **BAJA — Idempotency key explicita cross-venta -> exito falso en factura local.** Mismo patron
+   que F4-5: la clave se busca solo por `(user_id, idempotency_key)` sin verificar
+   `target_entity_id = venta`. Una clave fija reutilizada en otra venta devuelve exito idempotente
+   sin facturar la segunda. El frontend genera `randomUUID()` por clic, asi que el riesgo es bajo,
+   pero el contrato C1 queda abierto. Accion: incluir `venta_id` en la comprobacion.
+6. **BAJA — `tender_id` sin validar contra una tabla de formas de pago.** `bdp_pagos.tender_id` es
+   `INT NOT NULL` sin FK; el handler valida `> 0` pero no que el tender exista
+   (`src/handlers/ventas.rs`, `PagoLocalRequest`). Un tender inexistente queda como referencia
+   huerfana en el ledger. Accion: validar contra la tabla de tenders o documentar el contrato.
+
+Verificado en F6 (sin hallazgo): A11 `origen_operacion` ('local') en las 4 auditorias (anular,
+stock_ajuste, pago_parcial_local, factura_local) con default 'bdp' que no altera filas previas;
+`bdp_invoice` rechaza ventas con `facturada_local` (M9 extendido); guard en `anular` ya cubre
+`facturada_local`; normalizacion de claves vacias (evita colapso de pagos y exito falso entre
+ventas distintas sin clave); `pago_parcial_local` con lock `FOR UPDATE`, saldo pendiente, guards
+anulada/facturada y respuesta con balance; retry x3 ante 23505 en factura local; handlers con
+confirmacion dinamica y mapeo de errores sin 500; UI (BdpHistorial con badge/filtro origen,
+pagos/factura local en venta-row-actions, badge factura en tabla); tests 11/11 declarados.
