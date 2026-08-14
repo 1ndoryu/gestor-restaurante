@@ -52,11 +52,28 @@
     `test_ajustar_stock_warehouse_name_derivado` + clippy verde.
 
 ## F4 — Anulacion local + delete D5 (5)
-* [ ] F4-1 [ALTA] `venta::delete` guard de config antes de checks por venta
-* [ ] F4-2 [MEDIA] M11 liberacion de mesa no implementado
-* [ ] F4-3 [MEDIA] `anulacion_usuario` client-provided (spoofeable)
-* [ ] F4-4 [MEDIA] `total_periodo` excluye anuladas siempre (modalidad)
-* [ ] F4-5 [BAJA] Idempotency key no scoped por venta (anulacion)
+* [x] F4-1 [ALTA] `venta::delete` guard de config antes de checks por venta
+  * Eliminado el guard `config.bdp_sync_enabled` global: los checks per-venta (`anulada`,
+    `bdp_synced`/`bdp_order_id`) son el unico bloqueo BDP (D5=A); guard Haddock M14 permanece.
+    Evidencia: `tests/bdp_f4_anulacion_delete.rs` (`delete_venta_local_sin_sync_con_bdp_activo_ok`,
+    `delete_venta_sincronizada_bdp_bloqueada`) + clippy verde.
+* [x] F4-2 [MEDIA] M11 liberacion de mesa no implementado
+  * Deuda declarada (accion aceptada: "implementar o declarar la deuda"): la ocupacion de mesas se
+    deriva de reservas (venta->reserva_id->mesa, fallback `num_mesa`) y no hay vinculo de ocupacion
+    que una anulacion deba liberar; no se toca el plano en F4. Nota ampliada en
+    `Agente/completados/128A-1-F4-anulacion-local-ventas.md`.
+* [x] F4-3 [MEDIA] `anulacion_usuario` client-provided (spoofeable)
+  * Campo eliminado de `AnularVentaRequest` (backend y `frontend/src/api/bdp.ts`); el servicio pasa
+    siempre `Some(user_id)` del autenticado. Evidencia:
+    `tests/bdp_f4_anulacion_delete.rs::anular_registra_usuario_autenticado` + type-check frontend verde.
+* [x] F4-4 [MEDIA] `total_periodo` excluye anuladas siempre (modalidad)
+  * Firma con `excluir_anuladas: bool` (SQL dinamico); `DashboardService::resumen_mes` lee
+    `config.anulacion_modalidad` y excluye solo en `credito_completo`. Evidencia:
+    `tests/bdp_f4_anulacion_delete.rs::resumen_mes_respeta_modalidad_anulacion` + clippy verde.
+* [x] F4-5 [BAJA] Idempotency key no scoped por venta (anulacion)
+  * `VentaRepository::anular` verifica `target_entity_id != id` en el camino de conflicto ->
+    `sqlx::Error::Protocol("idempotency_key_otra_venta")` -> `AppError::Conflict` con rollback.
+    Evidencia: `tests/bdp_f4_anulacion_delete.rs::idempotency_key_reutilizada_en_otra_venta_conflicto`.
 
 ## F5 — Compras locales (5)
 * [ ] F5-1 [MEDIA] Serie local no forzada al prefijo reservado (M18)

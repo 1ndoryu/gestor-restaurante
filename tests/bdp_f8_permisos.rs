@@ -224,7 +224,6 @@ async fn trabajador_recibe_403_anular_venta_con_default_admin(pool: PgPool) {
     let req = AnularVentaRequest {
         motivo: Some("Prueba de permiso".to_string()),
         idempotency_key: None,
-        anulacion_usuario: None,
     };
     let result = anular_venta(State(state), auth, Path(Uuid::new_v4()), Json(req)).await;
     assert_forbidden(&result);
@@ -265,7 +264,6 @@ async fn admin_no_recibe_403_al_anular_venta_inexistente(pool: PgPool) {
     let req = AnularVentaRequest {
         motivo: Some("Prueba".to_string()),
         idempotency_key: None,
-        anulacion_usuario: None,
     };
     let result = anular_venta(State(state), auth, Path(Uuid::new_v4()), Json(req)).await;
     /* El guard pasa (no es Forbidden); al no existir la venta, la anulación
@@ -313,7 +311,6 @@ async fn permisos_anulacion_ventas_todos_permite_trabajador(pool: PgPool) {
     let req = AnularVentaRequest {
         motivo: Some("Prueba".to_string()),
         idempotency_key: None,
-        anulacion_usuario: None,
     };
     let result = anular_venta(State(state), auth, Path(Uuid::new_v4()), Json(req)).await;
     match result {

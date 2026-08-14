@@ -9,7 +9,9 @@ use crate::errors::AppError;
 use crate::models::{
     AnalisisReservas, DashboardReservas, OcupacionReservas, ResumenEconomico, ResumenReservas,
 };
-use crate::repositories::{DashboardReservasRepository, GastoRepository, VentaRepository};
+use crate::repositories::{
+    ConfiguracionRepository, DashboardReservasRepository, GastoRepository, VentaRepository,
+};
 
 pub struct DashboardService;
 
@@ -32,7 +34,13 @@ impl DashboardService {
         .pred_opt()
         .ok_or_else(|| AppError::Internal("Error calculando fecha".into()))?;
 
-        let total_ventas = VentaRepository::total_periodo(pool, user_id, desde, hasta).await?;
+        /* [128A-1/F4][F4-4] La exclusión de anuladas del resumen depende de la
+         * modalidad de anulación: `credito_completo` revierte el IVA
+         * (excluye), `estado_solo` solo marca estado (incluye). */
+        let config = ConfiguracionRepository::obtener_o_crear(pool, user_id).await?;
+        let excluir_anuladas = config.anulacion_modalidad == "credito_completo";
+        let total_ventas =
+            VentaRepository::total_periodo(pool, user_id, desde, hasta, excluir_anuladas).await?;
         let total_gastos = GastoRepository::total_periodo(pool, user_id, desde, hasta).await?;
         let margen = total_ventas - total_gastos;
 

@@ -361,20 +361,28 @@ impl VentaRepository {
         user_id: Uuid,
         desde: chrono::NaiveDate,
         hasta: chrono::NaiveDate,
+        excluir_anuladas: bool,
     ) -> Result<rust_decimal::Decimal, sqlx::Error> {
-        /* [128A-1/F4/M10] En modalidad `credito_completo` el resumen diario
-         * excluye las ventas anuladas (reversión idempotente). El servicio
-         * decide la modalidad; aquí la exclusión es permanente para no
-         * descuadrar caja nunca. */
-        let rec = sqlx::query_scalar::<_, Option<rust_decimal::Decimal>>(
+        /* [128A-1/F4][F4-4] M10 parametrizado por modalidad: en
+         * `credito_completo` el resumen excluye las anuladas (reversión
+         * idempotente del IVA); en `estado_solo` NO hay reversión contable,
+         * así que las anuladas siguen contando. El servicio (dashboard)
+         * decide según `config.anulacion_modalidad`. */
+        let excluye_anuladas_sql = if excluir_anuladas {
+            " AND anulada = false"
+        } else {
+            ""
+        };
+        let query = format!(
             "SELECT COALESCE(SUM(importe_base), 0) as total FROM ventas \
-             WHERE user_id = $1 AND fecha >= $2 AND fecha <= $3 AND anulada = false",
-        )
-        .bind(user_id)
-        .bind(desde)
-        .bind(hasta)
-        .fetch_one(pool)
-        .await?;
+             WHERE user_id = $1 AND fecha >= $2 AND fecha <= $3{excluye_anuladas_sql}"
+        );
+        let rec = sqlx::query_scalar::<_, Option<rust_decimal::Decimal>>(&query)
+            .bind(user_id)
+            .bind(desde)
+            .bind(hasta)
+            .fetch_one(pool)
+            .await?;
         Ok(rec.unwrap_or_default())
     }
 
@@ -595,13 +603,25 @@ impl VentaRepository {
         .await?;
 
         let Some(audit_id) = maybe_audit_id else {
-            let (existing_id, resultado): (Uuid, String) = sqlx::query_as(
-                "SELECT id, resultado FROM bdp_audit_log WHERE user_id = $1 AND idempotency_key = $2",
+            /* [128A-1/F4][F4-5] La clave de idempotencia está scoped por venta:
+             * si la fila previa apunta a OTRA venta, no es un reintento de esta
+             * anulación sino una clave reutilizada → conflicto, nunca éxito
+             * idempotente falso. */
+            let (existing_id, resultado, target_entity_id): (Uuid, String, Uuid) = sqlx::query_as(
+                "SELECT id, resultado, target_entity_id \
+                 FROM bdp_audit_log \
+                 WHERE user_id = $1 AND idempotency_key = $2",
             )
             .bind(user_id)
             .bind(idempotency_key.unwrap_or_default())
             .fetch_one(&mut *tx)
             .await?;
+            if target_entity_id != id {
+                tx.rollback().await?;
+                return Err(sqlx::Error::Protocol(
+                    "idempotency_key_otra_venta".to_string(),
+                ));
+            }
             /* Si ya estaba anulada, devolver la fila actual (estado consistente). */
             let venta_actual =
                 sqlx::query_as::<_, Venta>("SELECT * FROM ventas WHERE id = $1 AND user_id = $2")

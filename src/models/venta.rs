@@ -192,7 +192,8 @@ pub struct VentaConCliente {
  * - `motivo`: obligatorio en modalidad `credito_completo` (M10).
  * - `idempotency_key`: doble click seguro (guard C1); si se reenvía la misma
  *   clave tras un éxito previo, la operación es idempotente.
- * - `anulacion_usuario`: si viene, se audita como usuario que anuló. */
+ * - `anulacion_usuario`: NO se acepta del cliente (spoofeable); el usuario
+ *   que anula siempre se deriva de `auth.user_id` en el handler (F4-3). */
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct AnularVentaRequest {
     #[validate(length(
@@ -203,8 +204,6 @@ pub struct AnularVentaRequest {
     pub motivo: Option<String>,
     #[serde(default)]
     pub idempotency_key: Option<String>,
-    #[serde(default)]
-    pub anulacion_usuario: Option<Uuid>,
 }
 
 /// Query params para listar ventas con filtro por fecha

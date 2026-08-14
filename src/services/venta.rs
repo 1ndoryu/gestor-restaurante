@@ -215,6 +215,7 @@ impl VentaService {
      * accionable. Las anuladas nunca se borran (histórico con motivo). */
     pub async fn delete(pool: &PgPool, id: Uuid, user_id: Uuid) -> Result<(), AppError> {
         let config = ConfiguracionRepository::obtener_o_crear(pool, user_id).await?;
+        /* M14: con Haddock activo el bloqueo permanece (no hay DELETE remoto). */
         if config.haddock_sync_enabled {
             return Err(AppError::Conflict(
                 "No se pueden eliminar ventas mientras la sincronización con Haddock está activa. \
@@ -222,14 +223,11 @@ impl VentaService {
                     .into(),
             ));
         }
-        if config.bdp_sync_enabled {
-            return Err(AppError::Conflict(
-                "No se pueden eliminar ventas mientras la sincronización con BDP está activa. \
-                 Desactívela primero en Configuración."
-                    .into(),
-            ));
-        }
 
+        /* [128A-1/F4][D5=A] Los checks per-venta van ANTES que cualquier guard
+         * de config BDP: con sync activa solo se bloquea la venta que YA está
+         * sincronizada (bdp_synced / bdp_order_id), no todas. Una venta local
+         * sin tocar por BDP se elimina aunque `bdp_sync_enabled=true`. */
         let venta = VentaRepository::find_by_id(pool, id, user_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
@@ -299,7 +297,9 @@ impl VentaService {
             id,
             user_id,
             motivo,
-            req.anulacion_usuario,
+            /* [128A-1/F4][F4-3] El usuario que anula siempre es el autenticado;
+             * nunca viene del cliente (spoofeable). */
+            Some(user_id),
             req.idempotency_key.as_deref(),
         )
         .await
@@ -394,6 +394,10 @@ impl VentaService {
                     AppError::Conflict("La venta está facturada y no se puede anular.".into())
                 }
                 "venta_ya_anulada" => AppError::Conflict("La venta ya está anulada.".into()),
+                "idempotency_key_otra_venta" => AppError::Conflict(
+                    "idempotency_key ya usada para otra venta: reintenta con una clave nueva."
+                        .into(),
+                ),
                 _ => AppError::Conflict(msg.clone()),
             },
             _ => AppError::Database(err),

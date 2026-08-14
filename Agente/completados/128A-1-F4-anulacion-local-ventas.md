@@ -30,5 +30,11 @@
   cache offline `.sqlx/` no tiene las columnas nuevas; `customInstance` devuelve `{ data, status }` y
   la anulación extrae `.data`. Ocupación de mesas se deriva de reservas (venta→reserva_id→mesa,
   fallback `num_mesa`), por lo que M11 no toca el plano en F4.
+- **Deuda declarada (F4-2 / M11):** la liberación automática de mesa al anular una venta NO se
+  implementa en este bloque. La ocupación de mesas se deriva de reservas (venta→reserva_id→mesa,
+  fallback `num_mesa`) y no existe un vínculo de ocupación que una anulación deba liberar; la acción
+  aceptada por el hallazgo fue "implementar o declarar la deuda". Se declara como deuda explícita a
+  resolver en fase futura si el plano pasa a estado gestionado por ventas. Evidencia: nota en
+  `Agente/revisiones/128A-1-checklist-correcciones-hallazgos-2026-08-13.md` (F4-2) y esta sección.
 - **Sentinel:** el gate corrió la etapa sentinel (PASS, 0 errores; warnings preexistentes no bloquean).
 - **GLORY:** no aplica; cambios del bloque 128A-1 en rama `glory-rs-rest`.

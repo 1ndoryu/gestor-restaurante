@@ -162,7 +162,7 @@ export async function ajustarBdpArticleStock(
  * modalidad credito_completo. Idempotency key protege el doble click (C1). */
 export async function anularVenta(
   ventaId: string,
-  req: { motivo?: string; idempotency_key?: string; anulacion_usuario?: string },
+  req: { motivo?: string; idempotency_key?: string },
 ): Promise<AnularVentaResponse> {
   const resp = await customInstance(`/api/ventas/${ventaId}/anular`, {
     method: 'POST',
@@ -641,8 +641,8 @@ export function useEliminarBdpMenuLocal(queryClient?: QueryClient) {
 }
 
 /** Mutation hook: anulación local de una venta (D4, C1 idempotencia). */
-export function useAnularVenta(queryClient?: QueryClient, options?: UseMutationOptions<AnularVentaResponse, unknown, { ventaId: string; req: { motivo?: string; idempotency_key?: string; anulacion_usuario?: string } }>) {
-  return useMutation<AnularVentaResponse, unknown, { ventaId: string; req: { motivo?: string; idempotency_key?: string; anulacion_usuario?: string } }>({
+export function useAnularVenta(queryClient?: QueryClient, options?: UseMutationOptions<AnularVentaResponse, unknown, { ventaId: string; req: { motivo?: string; idempotency_key?: string } }>) {
+  return useMutation<AnularVentaResponse, unknown, { ventaId: string; req: { motivo?: string; idempotency_key?: string } }>({
     ...options,
     mutationFn: ({ ventaId, req }) => anularVenta(ventaId, req),
     onSuccess: (data, variables, onMutateResult, context) => {

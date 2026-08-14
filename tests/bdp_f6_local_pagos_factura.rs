@@ -346,7 +346,6 @@ async fn factura_local_anulada_bloqueada(pool: PgPool) {
         AnularVentaRequest {
             motivo: Some("Error de caja".into()),
             idempotency_key: Some("anular-fact".to_string()),
-            anulacion_usuario: None,
         },
     )
     .await
@@ -374,7 +373,6 @@ async fn anular_facturada_local_bloqueada_m9(pool: PgPool) {
         AnularVentaRequest {
             motivo: Some("Intento posterior".into()),
             idempotency_key: Some("anular-facturada".to_string()),
-            anulacion_usuario: None,
         },
     )
     .await
