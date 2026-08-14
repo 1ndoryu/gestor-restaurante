@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use glory_backend::models::{ActualizarBdpArticleMapRequest, CrearBdpArticleMapRequest};
 use glory_backend::repositories::{
-    BdpArticleMapRepository, BdpArticleUpsertData, BdpArticleUpsertStatus,
+    AjusteStockError, BdpArticleMapRepository, BdpArticleUpsertData, BdpArticleUpsertStatus,
 };
 use glory_backend::services::BdpAuditEntry;
 use rust_decimal::Decimal;
@@ -359,9 +359,74 @@ async fn test_crear_local_marca_origen_local(pool: PgPool) {
         .expect("crear should succeed");
 
     assert_eq!(created.origen, "local");
-    assert!(!created.local_dirty, "alta nueva local no es dirty");
+    assert!(
+        created.local_dirty,
+        "alta nueva local queda protegida del import (M6)"
+    );
     assert_eq!(created.descripcion, "Hamburguesa local");
     assert_eq!(created.precio_tarifa1, Decimal::new(500, 2));
+}
+
+/* [128A-1/F2][F2-1] Un POST de mapeo puro sobre un glory code existente NO
+ * pisa los campos locales ni reactiva un artículo desactivado (M7). */
+#[sqlx::test(migrations = "./migrations")]
+async fn test_crear_mapeo_puro_no_pisa_campos_locales(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+
+    /* Fila importada de BDP con datos propios. */
+    BdpArticleMapRepository::upsert_from_bdp(
+        &pool,
+        user_id,
+        &bdp_data("NO-PISA", "DESCRIPCION BDP", Decimal::new(100, 2), true),
+    )
+    .await
+    .unwrap();
+
+    /* Desactivación local previa (M7): activo=false sin edición de datos. */
+    let map = BdpArticleMapRepository::buscar_por_codigo(&pool, user_id, "NO-PISA")
+        .await
+        .unwrap()
+        .unwrap();
+    let patch = ActualizarBdpArticleMapRequest {
+        articulo_bdp_codigo: None,
+        articulo_bdp_nombre: None,
+        descripcion: None,
+        precio_tarifa1: None,
+        iva_pct: None,
+        departamento: None,
+        familia: None,
+        subfamilia: None,
+        activo: Some(false),
+        barcode: None,
+    };
+    BdpArticleMapRepository::actualizar(&pool, map.id, user_id, &patch)
+        .await
+        .unwrap();
+
+    /* POST de mapeo puro (solo código BDP) sobre el mismo glory code. */
+    let req = req_bdp("NO-PISA", "9999", None);
+    let updated = BdpArticleMapRepository::crear(&pool, user_id, &req)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        updated.descripcion, "DESCRIPCION BDP",
+        "el mapeo puro no vacía descripcion local"
+    );
+    assert_eq!(
+        updated.precio_tarifa1,
+        Decimal::new(100, 2),
+        "el mapeo puro no resetea precio"
+    );
+    assert_eq!(
+        updated.articulo_bdp_codigo, "9999",
+        "el código BDP sí se actualiza en un mapeo puro"
+    );
+    assert!(
+        !updated.activo,
+        "el mapeo puro sin activo no reactiva un artículo desactivado (M7)"
+    );
+    assert!(!updated.local_dirty, "un mapeo puro no marca dirty (M6/M7)");
 }
 
 #[sqlx::test(migrations = "./migrations")]
@@ -956,4 +1021,201 @@ async fn test_ajustar_stock_idempotencia_reintento_exitoso(pool: PgPool) {
 
     assert_eq!(stock2.stock, Decimal::new(100, 2), "sin doble aplicación");
     assert_eq!(prev2.as_deref(), Some("exito"));
+}
+
+/* [128A-1/F3][F3-1] Un ajuste local marca `ajustado_local` y el sync BDP
+ * (upsert_from_bdp → upsert_stock) NO lo sobrescribe. */
+#[sqlx::test(migrations = "./migrations")]
+async fn test_sync_no_pisa_stock_ajustado_local(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+
+    /* Ajuste manual: fuente de verdad local = 50.00, ajustado_local=true. */
+    BdpArticleMapRepository::ajustar_stock(
+        &pool,
+        user_id,
+        "STOCK-LOCAL-01",
+        Decimal::new(5000, 2),
+        "Entrada manual",
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    /* Import BDP con stock 999.00 → no debe pisar el ajuste local. */
+    let data = BdpArticleUpsertData {
+        descripcion: "ARTICULO LOCAL AJUSTADO",
+        stock_actual: Decimal::new(99900, 2),
+        ..bdp_data("STOCK-LOCAL-01", "", Decimal::new(100, 2), true)
+    };
+    BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data)
+        .await
+        .unwrap();
+
+    let stock = BdpArticleMapRepository::listar_stock(&pool, user_id, Some("0"))
+        .await
+        .unwrap();
+    assert_eq!(stock.len(), 1);
+    assert_eq!(
+        stock[0].stock,
+        Decimal::new(5000, 2),
+        "el sync no pisa el stock ajustado localmente"
+    );
+    assert!(stock[0].ajustado_local);
+
+    /* Sin ajuste local, el sync sigue actualizando (comportamiento normal). */
+    let data2 = BdpArticleUpsertData {
+        descripcion: "ARTICULO SIN AJUSTE",
+        stock_actual: Decimal::new(700, 2),
+        ..bdp_data("STOCK-LOCAL-02", "", Decimal::new(100, 2), true)
+    };
+    BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data2)
+        .await
+        .unwrap();
+    let stock2 = BdpArticleMapRepository::listar_stock(&pool, user_id, Some("0"))
+        .await
+        .unwrap();
+    assert_eq!(
+        stock2
+            .iter()
+            .find(|s| s.articulo_glory_codigo == "STOCK-LOCAL-02")
+            .unwrap()
+            .stock,
+        Decimal::new(700, 2)
+    );
+    assert!(
+        !stock2
+            .iter()
+            .find(|s| s.articulo_glory_codigo == "STOCK-LOCAL-02")
+            .unwrap()
+            .ajustado_local
+    );
+}
+
+/* [128A-1/F3][F3-3] Un ajuste que dejaría el stock negativo se rechaza y la
+ * transacción se revierte (la fila conserva su valor previo). */
+#[sqlx::test(migrations = "./migrations")]
+async fn test_ajustar_stock_rechaza_negativo(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+
+    BdpArticleMapRepository::ajustar_stock(
+        &pool,
+        user_id,
+        "NEG01",
+        Decimal::new(1000, 2),
+        "Entrada",
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let err = BdpArticleMapRepository::ajustar_stock(
+        &pool,
+        user_id,
+        "NEG01",
+        Decimal::new(-2000, 2),
+        "Merma erronea",
+        None,
+        None,
+    )
+    .await
+    .expect_err("stock negativo debe rechazarse");
+
+    assert!(
+        matches!(err, AjusteStockError::StockNegativo(_)),
+        "se esperaba StockNegativo, got {err:?}"
+    );
+
+    let stock = BdpArticleMapRepository::listar_stock(&pool, user_id, None)
+        .await
+        .unwrap();
+    assert_eq!(stock.len(), 1);
+    assert_eq!(
+        stock[0].stock,
+        Decimal::new(1000, 2),
+        "la transacción se revierte y el stock previo se conserva"
+    );
+}
+
+/* [128A-1/F3][F3-4] El nombre del almacén se deriva del id: 'General' solo
+ * para el almacén por defecto "0". */
+#[sqlx::test(migrations = "./migrations")]
+async fn test_ajustar_stock_warehouse_name_derivado(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+
+    let (general, _, _) = BdpArticleMapRepository::ajustar_stock(
+        &pool,
+        user_id,
+        "WH0",
+        Decimal::new(100, 2),
+        "Entrada",
+        Some("0"),
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(general.warehouse_id, "0");
+    assert_eq!(general.warehouse_name, "General");
+
+    let (otro, _, _) = BdpArticleMapRepository::ajustar_stock(
+        &pool,
+        user_id,
+        "WH7",
+        Decimal::new(100, 2),
+        "Entrada",
+        Some("7"),
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(otro.warehouse_id, "7");
+    assert_eq!(
+        otro.warehouse_name, "7",
+        "el nombre se deriva del id cuando no es el almacén por defecto"
+    );
+}
+
+/* [128A-1/F2][F2-3] Fila Omitido* no propaga stock BDP a bdp_article_stock:
+ * el import solo escribe stock para filas creadas/actualizadas. */
+#[sqlx::test(migrations = "./migrations")]
+async fn test_upsert_omite_dirty_sin_escritura_stock(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+
+    /* Alta local (F2-2): local_dirty=true desde el inicio, sin fila de stock. */
+    let req = CrearBdpArticleMapRequest {
+        articulo_glory_codigo: "F23-01".into(),
+        articulo_bdp_codigo: None,
+        articulo_bdp_nombre: None,
+        descripcion: Some("Articulo local".into()),
+        precio_tarifa1: Some(Decimal::new(999, 2)),
+        iva_pct: None,
+        departamento: None,
+        familia: None,
+        subfamilia: None,
+        activo: None,
+        barcode: None,
+    };
+    BdpArticleMapRepository::crear(&pool, user_id, &req)
+        .await
+        .unwrap();
+
+    /* El import con stock distinto se omite → el stock local no se toca. */
+    let data = BdpArticleUpsertData {
+        descripcion: "VERSION BDP NUEVA",
+        stock_actual: Decimal::new(555, 2),
+        ..bdp_data("F23-01", "", Decimal::new(50, 2), true)
+    };
+    let status = BdpArticleMapRepository::upsert_from_bdp(&pool, user_id, &data)
+        .await
+        .unwrap();
+    assert_eq!(status, BdpArticleUpsertStatus::OmitidoLocalDirty);
+
+    let stock = BdpArticleMapRepository::listar_stock(&pool, user_id, None)
+        .await
+        .unwrap();
+    assert!(
+        stock.is_empty(),
+        "una fila omitida por ediciones locales no escribe stock BDP"
+    );
 }

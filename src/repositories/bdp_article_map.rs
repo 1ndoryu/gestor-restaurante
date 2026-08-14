@@ -40,6 +40,15 @@ impl BdpArticleUpsertStatus {
     }
 }
 
+/// [128A-1/F3] Errores de dominio del ajuste de stock local.
+#[derive(Debug, thiserror::Error)]
+pub enum AjusteStockError {
+    #[error("Stock negativo inválido: {0}")]
+    StockNegativo(String),
+    #[error(transparent)]
+    Db(#[from] sqlx::Error),
+}
+
 pub struct BdpArticleMapRepository;
 
 impl BdpArticleMapRepository {
@@ -122,23 +131,28 @@ impl BdpArticleMapRepository {
         let subfamilia = req.subfamilia.unwrap_or(0);
         let activo = req.activo.unwrap_or(true);
         let barcode = req.barcode.as_deref().unwrap_or("");
+        /* [128A-1/F2] Los campos del DO UPDATE se ligan como Option: si el
+         * POST no los trae, se conserva el valor existente (COALESCE contra la
+         * fila objetivo). El INSERT mantiene los defaults clásicos para filas
+         * nuevas. Así un mapeo puro sobre un glory code existente ya no vacía
+         * descripcion/precio/iva ni reactiva un artículo desactivado (M7). */
         sqlx::query_as::<_, BdpArticleMap>(
             "INSERT INTO bdp_article_map \
                 (id, user_id, articulo_glory_codigo, articulo_bdp_codigo, articulo_bdp_nombre, \
                  descripcion, precio_tarifa1, iva_pct, departamento, familia, subfamilia, \
                  activo, barcode, origen, local_dirty) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, false) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) \
              ON CONFLICT (user_id, articulo_glory_codigo) DO UPDATE SET \
-                articulo_bdp_codigo = EXCLUDED.articulo_bdp_codigo, \
-                articulo_bdp_nombre = EXCLUDED.articulo_bdp_nombre, \
-                descripcion = COALESCE(EXCLUDED.descripcion, bdp_article_map.descripcion), \
-                precio_tarifa1 = COALESCE(EXCLUDED.precio_tarifa1, bdp_article_map.precio_tarifa1), \
-                iva_pct = COALESCE(EXCLUDED.iva_pct, bdp_article_map.iva_pct), \
-                departamento = COALESCE(EXCLUDED.departamento, bdp_article_map.departamento), \
-                familia = COALESCE(EXCLUDED.familia, bdp_article_map.familia), \
-                subfamilia = COALESCE(EXCLUDED.subfamilia, bdp_article_map.subfamilia), \
-                activo = COALESCE(EXCLUDED.activo, bdp_article_map.activo), \
-                barcode = COALESCE(EXCLUDED.barcode, bdp_article_map.barcode), \
+                articulo_bdp_codigo = COALESCE($17, bdp_article_map.articulo_bdp_codigo), \
+                articulo_bdp_nombre = COALESCE($18, bdp_article_map.articulo_bdp_nombre), \
+                descripcion = COALESCE($19, bdp_article_map.descripcion), \
+                precio_tarifa1 = COALESCE($20, bdp_article_map.precio_tarifa1), \
+                iva_pct = COALESCE($21, bdp_article_map.iva_pct), \
+                departamento = COALESCE($22, bdp_article_map.departamento), \
+                familia = COALESCE($23, bdp_article_map.familia), \
+                subfamilia = COALESCE($24, bdp_article_map.subfamilia), \
+                activo = COALESCE($25, bdp_article_map.activo), \
+                barcode = COALESCE($26, bdp_article_map.barcode), \
                 origen = CASE WHEN $15 THEN 'local' ELSE bdp_article_map.origen END, \
                 local_dirty = CASE \
                     WHEN $16 AND bdp_article_map.origen = 'bdp' THEN true \
@@ -163,6 +177,16 @@ impl BdpArticleMapRepository {
         .bind(if tiene_campos_locales { "local" } else { "bdp" })
         .bind(tiene_campos_locales)
         .bind(marca_dirty)
+        .bind(req.articulo_bdp_codigo.as_deref())
+        .bind(req.articulo_bdp_nombre.as_deref())
+        .bind(req.descripcion.as_deref())
+        .bind(req.precio_tarifa1)
+        .bind(req.iva_pct)
+        .bind(req.departamento)
+        .bind(req.familia)
+        .bind(req.subfamilia)
+        .bind(req.activo)
+        .bind(req.barcode.as_deref())
         .fetch_one(pool)
         .await
     }
@@ -370,6 +394,9 @@ impl BdpArticleMapRepository {
     /// Upsert del stock por almacén. Por defecto `warehouse_id` "0" / "General".
     /// [247A-10/S2] Se usa desde `sync_catalog` para guardar el stock agregado
     /// de `ExportArticles` mientras BDP no devuelva desglose por almacén.
+    /// [128A-1/F3] No sobrescribe filas ajustadas localmente: el UPDATE se
+    /// condiciona a `NOT ajustado_local` para que el sync nunca pise la
+    /// fuente de verdad editable (`bdp_article_stock`).
     pub async fn upsert_stock(
         pool: &PgPool,
         user_id: Uuid,
@@ -385,7 +412,8 @@ impl BdpArticleMapRepository {
                 warehouse_name = EXCLUDED.warehouse_name, \
                 ultima_sync_at = NOW(), \
                 updated_at = NOW() \
-             WHERE bdp_article_stock.stock IS DISTINCT FROM EXCLUDED.stock",
+             WHERE NOT bdp_article_stock.ajustado_local \
+               AND bdp_article_stock.stock IS DISTINCT FROM EXCLUDED.stock",
         )
         .bind(Uuid::new_v4())
         .bind(user_id)
@@ -410,6 +438,8 @@ impl BdpArticleMapRepository {
      * ejecutan SOLO cuando la auditoría se inserta por primera vez.
      *
      * Retorna (BdpArticleStock, audit_id, resultado_previo).
+     * [128A-1/F3] Guard de stock negativo: si el resultado quedara < 0 se
+     * revierte la transacción y se devuelve `AjusteStockError::StockNegativo`.
      */
     pub async fn ajustar_stock(
         pool: &PgPool,
@@ -419,10 +449,17 @@ impl BdpArticleMapRepository {
         motivo: &str,
         warehouse_id: Option<&str>,
         idempotency_key: Option<&str>,
-    ) -> Result<(crate::models::BdpArticleStock, Uuid, Option<String>), sqlx::Error> {
+    ) -> Result<(crate::models::BdpArticleStock, Uuid, Option<String>), AjusteStockError> {
         let mut tx = pool.begin().await?;
 
         let warehouse = warehouse_id.unwrap_or("0");
+        /* [128A-1/F3] Etiqueta coherente con el id: 'General' solo para el
+         * almacén por defecto "0"; si no, se usa el id como nombre. */
+        let warehouse_name = if warehouse == "0" {
+            "General"
+        } else {
+            warehouse
+        };
         let audit_payload = serde_json::json!({
             "articulo_glory_codigo": articulo_glory_codigo,
             "delta": delta,
@@ -467,11 +504,12 @@ impl BdpArticleMapRepository {
          * stock y la suma se hace contra la fila existente. */
         let stock = sqlx::query_as::<_, crate::models::BdpArticleStock>(
             "INSERT INTO bdp_article_stock \
-                (id, user_id, articulo_glory_codigo, warehouse_id, warehouse_name, stock, created_at, updated_at) \
-             VALUES ($1, $2, $3, $4, 'General', $5, NOW(), NOW()) \
+                (id, user_id, articulo_glory_codigo, warehouse_id, warehouse_name, stock, ajustado_local, created_at, updated_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW()) \
              ON CONFLICT (user_id, articulo_glory_codigo, warehouse_id) DO UPDATE SET \
                 stock = bdp_article_stock.stock + EXCLUDED.stock, \
                 warehouse_name = EXCLUDED.warehouse_name, \
+                ajustado_local = true, \
                 updated_at = NOW() \
              RETURNING *",
         )
@@ -479,9 +517,21 @@ impl BdpArticleMapRepository {
         .bind(user_id)
         .bind(articulo_glory_codigo)
         .bind(warehouse)
+        .bind(warehouse_name)
         .bind(delta)
         .fetch_one(&mut *tx)
         .await?;
+
+        /* [128A-1/F3] Guard de stock negativo: inventario negativo es un
+         * estado inválido (un error de tipeo no puede dejar la fuente de
+         * verdad local en negativo). Se revierte la transacción completa. */
+        if stock.stock < Decimal::ZERO {
+            let _ = tx.rollback().await;
+            return Err(AjusteStockError::StockNegativo(format!(
+                "el stock del artículo {articulo_glory_codigo} quedaría en {}",
+                stock.stock
+            )));
+        }
 
         tx.commit().await?;
 

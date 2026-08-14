@@ -20,16 +20,36 @@
   `bdp` muestra BDP aunque `bdp_sync_enabled=false`. Evidencia: type-check frontend verde.
 
 ## F2 — Catalogo local (4)
-* [ ] F2-1 [MEDIA] `crear()` (POST/upsert) pisa campos locales con defaults
-* [ ] F2-2 [MEDIA] Alta local no queda protegida del import (M6)
-* [ ] F2-3 [MEDIA] Doble escritura de stock en `sync_catalog` + filas Omitido*
-* [ ] F2-4 [BAJA] `resolve_article_local` solo con codigo numerico
+* [x] F2-1 [MEDIA] `crear()` (POST/upsert) pisa campos locales con defaults
+  * DO UPDATE con `COALESCE($n, bdp_article_map.x)` (params Option) en vez de `EXCLUDED.x`;
+    un mapeo puro ya no vacia descripcion/precio/iva ni reactiva un articulo desactivado (M7).
+    Evidencia: clippy verde + `test_crear_mapeo_puro_no_pisa_campos_locales`.
+* [x] F2-2 [MEDIA] Alta local no queda protegida del import (M6)
+  * `local_dirty = $15 = tiene_campos_locales`; DO UPDATE marca dirty solo si la fila era `origen='bdp'`.
+    Evidencia: `test_crear_local_marca_origen_local` (dirty=true) + clippy verde.
+* [x] F2-3 [MEDIA] Doble escritura de stock en `sync_catalog` + filas Omitido*
+  * `aplicar_upsert` ya no llama a `upsert_stock` extra (lo hace `upsert_from_bdp` solo para no omitidas).
+    Evidencia: `test_upsert_omite_dirty_sin_escritura_stock` + clippy verde.
+* [x] F2-4 [BAJA] `resolve_article_local` solo con codigo numerico
+  * Busca por el string configurado (ignora vacio/GLORY); id BDP del `articulo_bdp_codigo` del mapeo
+    cuando el codigo configurado no es numerico. Evidencia: `test_resolve_article_local_sin_codigo_numerico`
+    (lib `services::bdp_sync`, 34/34) + clippy verde.
 
 ## F3 — Stock local + N6 (4)
-* [ ] F3-1 [MEDIA] Sync pisa stock local ajustado
+* [x] F3-1 [MEDIA] Sync pisa stock local ajustado
+  * Migracion `20260814000001`: `ajustado_local BOOLEAN NOT NULL DEFAULT false`;
+    `upsert_stock` con `WHERE NOT ajustado_local AND stock IS DISTINCT FROM EXCLUDED.stock`;
+    `ajustar_stock` escribe `ajustado_local = true`; modelo `BdpArticleStock.ajustado_local`.
+    Evidencia: `test_sync_no_pisa_stock_ajustado_local` + clippy verde (35/35 en `bdp_article_map`).
 * [ ] F3-2 [MEDIA] N6 (get_stock/get_list_stock) sin handler ni uso operativo
-* [ ] F3-3 [BAJA] Sin guard de stock negativo
-* [ ] F3-4 [BAJA] `warehouse_name` siempre 'General'
+  * Pendiente: resolver en bloque F9/F10 (docs) declarando la deuda (queda como transporte sin exponer).
+* [x] F3-3 [BAJA] Sin guard de stock negativo
+  * `AjusteStockError` (StockNegativo/Db) en `crear/ajustar_stock`: valida `stock < 0` antes del
+    commit con rollback; mapeo 422 en `errors/mod.rs`. Evidencia:
+    `test_ajustar_stock_rechaza_negativo` + clippy verde.
+* [x] F3-4 [BAJA] `warehouse_name` siempre 'General'
+  * Derivado: `"General"` solo para id `"0"`, si no usa el id. Evidencia:
+    `test_ajustar_stock_warehouse_name_derivado` + clippy verde.
 
 ## F4 — Anulacion local + delete D5 (5)
 * [ ] F4-1 [ALTA] `venta::delete` guard de config antes de checks por venta

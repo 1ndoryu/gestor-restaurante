@@ -41,6 +41,7 @@ pub use trabajador::TrabajadorRepository;
 pub mod resena;
 pub use resena::ResenaRepository;
 pub mod inactividad;
+pub use bdp_article_map::AjusteStockError;
 pub use bdp_article_map::BdpArticleMapRepository;
 pub use bdp_article_map::BdpArticleUpsertData;
 pub use bdp_article_map::BdpArticleUpsertStatus;

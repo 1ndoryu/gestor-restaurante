@@ -91,9 +91,7 @@ impl BdpOrderPollerService {
     ) -> Result<usize, String> {
         /* [128A-1/F1-1] M1: standalone nunca llama a BDP. [F1-2] M2: si el
          * modo degradó por fallos consecutivos, el poller también se detiene. */
-        if !config.bdp_sync_enabled
-            || servicio.modo_efectivo_sin_red(config) != ModoEfectivo::Bdp
-        {
+        if !config.bdp_sync_enabled || servicio.modo_efectivo_sin_red(config) != ModoEfectivo::Bdp {
             return Ok(0);
         }
 

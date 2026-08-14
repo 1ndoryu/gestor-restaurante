@@ -656,6 +656,7 @@ export interface BdpArticleMap {
  */
 export interface BdpArticleStock {
   articulo_glory_codigo: string;
+  ajustado_local: boolean;
   created_at: string;
   id: string;
   stock: string;

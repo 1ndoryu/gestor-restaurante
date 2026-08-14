@@ -84,6 +84,8 @@ pub struct BdpArticleStock {
     pub warehouse_id: String,
     pub warehouse_name: String,
     pub stock: Decimal,
+    /* [128A-1/F3] El sync BDP no sobrescribe filas ajustadas localmente. */
+    pub ajustado_local: bool,
     pub ultima_sync_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

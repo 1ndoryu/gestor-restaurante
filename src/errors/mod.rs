@@ -28,6 +28,9 @@ pub enum AppError {
     #[error("Error de base de datos: {0}")]
     Database(#[from] sqlx::Error),
 
+    #[error(transparent)]
+    AjusteStock(#[from] crate::repositories::AjusteStockError),
+
     #[error("Error de validación: {0}")]
     Validation(String),
 }
@@ -69,11 +72,20 @@ impl IntoResponse for AppError {
                     "Ocurrió un error de base de datos".to_string(),
                 )
             }
-            Self::Validation(msg) => (
+            Self::AjusteStock(crate::repositories::AjusteStockError::StockNegativo(msg))
+            | Self::Validation(msg) => (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "validation_error",
                 msg.clone(),
             ),
+            Self::AjusteStock(crate::repositories::AjusteStockError::Db(err)) => {
+                tracing::error!("Error de base de datos: {err}");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "database_error",
+                    "Ocurrió un error de base de datos".to_string(),
+                )
+            }
         };
 
         let body = ErrorResponse {

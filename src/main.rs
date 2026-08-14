@@ -79,7 +79,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
         loop {
             interval.tick().await;
-            if let Err(error) = BdpOrderPollerService::poll_due(&bdp_poll_pool, &bdp_poll_modo).await
+            if let Err(error) =
+                BdpOrderPollerService::poll_due(&bdp_poll_pool, &bdp_poll_modo).await
             {
                 tracing::warn!("Scheduler BDP: {error}");
             }

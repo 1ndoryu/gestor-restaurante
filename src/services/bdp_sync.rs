@@ -813,31 +813,30 @@ impl BdpSyncService {
     }
 
     /// [128A-1/F2] Intento 3 de `resolve_article`: si
-    /// `bdp_default_article_code` es numérico, busca el mapeo local con ese
-    /// código Glory y usa sus datos (descripción, precio, IVA) en vez del
-    /// fallback genérico. Respeta `activo`: un mapeo desactivado no se vende.
+    /// `bdp_default_article_code` está configurado, busca el mapeo local con
+    /// ese código Glory (numérico o alfanumérico) y usa sus datos
+    /// (descripción, precio, IVA) en vez del fallback genérico. Respeta
+    /// `activo`: un mapeo desactivado no se vende. El id BDP del artículo se
+    /// toma del mapeo local cuando el código configurado no es numérico.
     async fn resolve_article_local(
         pool: &PgPool,
         user_id: uuid::Uuid,
         config: &ConfiguracionRestaurante,
     ) -> Option<ResolvedArticle> {
-        let Ok(code) = config.bdp_default_article_code.trim().parse::<i64>() else {
-            return None;
-        };
-        if code <= 0 {
+        let code = config.bdp_default_article_code.trim();
+        if code.is_empty() || code.eq_ignore_ascii_case("GLORY") {
             return None;
         }
+        let config_code_numeric = code.parse::<i64>().ok().filter(|id| *id > 0);
         let map = match crate::repositories::BdpArticleMapRepository::buscar_por_codigo(
-            pool,
-            user_id,
-            &code.to_string(),
+            pool, user_id, code,
         )
         .await
         {
             Ok(Some(map)) => map,
             Ok(None) => return None,
             Err(e) => {
-                warn!("[128A-1/F2] Error resolviendo artículo local {code}: {e}");
+                warn!("[128A-1/F2] Error resolviendo artículo local '{code}': {e}");
                 return None;
             }
         };
@@ -858,8 +857,19 @@ impl BdpSyncService {
             default_iva
         };
         let price = Self::decimal_to_f64(&map.precio_tarifa1);
+        /* [128A-1/F2] El id BDP puede venir del código configurado (numérico,
+         * semántica clásica) o del código BDP del mapeo local cuando el código
+         * configurado es alfanumérico. Si ninguno es numérico, no hay un
+         * ArticleId BDP válido → fallback genérico. */
+        let id = match config_code_numeric {
+            Some(id) => id,
+            None => match map.articulo_bdp_codigo.trim().parse::<i64>() {
+                Ok(id) if id > 0 => id,
+                _ => return None,
+            },
+        };
         Some(ResolvedArticle {
-            id: code,
+            id,
             name,
             price,
             vat_pct: iva_pct,
@@ -1998,6 +2008,10 @@ impl BdpSyncService {
     /// [128A-1/F2] Aplica un upsert BDP a `bdp_article_map` respetando las
     /// reglas M6/M7 y propaga el stock al almacén por defecto. Devuelve el
     /// estado del upsert para que `sync_catalog` lo contabilice.
+    /// [128A-1/F2][F2-3] La propagación de stock es responsabilidad de
+    /// `upsert_from_bdp` (una sola escritura por artículo, solo para filas no
+    /// omitidas). Aquí NO se escribe stock de nuevo: hacerlo duplicaba la
+    /// escritura y pisaba `bdp_article_stock` para filas `Omitido*`.
     async fn aplicar_upsert(
         pool: &PgPool,
         user_id: Uuid,
@@ -2012,19 +2026,6 @@ impl BdpSyncService {
         .await
         .map_err(|e| format!("[157A-7] Error upsert artículo BDP {code}: {e}"))?;
 
-        /* [247A-10/S2] Guardar también el stock por almacén (General por
-         * defecto). Se hace como operación separada; si falla no debe romper
-         * el sync del artículo, pero se loguea. */
-        if let Err(e) = crate::repositories::BdpArticleMapRepository::upsert_stock(
-            pool,
-            user_id,
-            code,
-            upsert_data.stock_actual,
-        )
-        .await
-        {
-            warn!("[247A-10/S2] Error upsert stock por almacén {code}: {e}");
-        }
         Ok(status)
     }
 
@@ -2383,6 +2384,7 @@ enum OrderSendFailure {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::CrearBdpArticleMapRequest;
     use rust_decimal::Decimal;
     use std::str::FromStr;
 
@@ -3259,5 +3261,68 @@ mod tests {
             created_at: Utc::now(),
         }];
         assert!(BdpSyncService::validate_order_lines(&lineas).is_err());
+    }
+
+    /* [128A-1/F2-4] `resolve_article_local` no exige que el código Glory
+     * configurado sea numérico: busca el mapeo local por el string exacto y,
+     * si el código configurado no es numérico, el id BDP sale del
+     * `articulo_bdp_codigo` del mapeo. Vacío o "GLORY" → fallback genérico. */
+    #[sqlx::test(migrations = "./migrations")]
+    async fn test_resolve_article_local_sin_codigo_numerico(pool: sqlx::PgPool) {
+        let user_id = Uuid::new_v4();
+        let email = format!("bdp-sync-{user_id}@example.com");
+        sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+            .bind(user_id)
+            .bind(&email)
+            .bind("argon2_hash_placeholder")
+            .execute(&pool)
+            .await
+            .expect("create_test_user failed");
+
+        BdpArticleMapRepository::crear(
+            &pool,
+            user_id,
+            &CrearBdpArticleMapRequest {
+                articulo_glory_codigo: "CAFE001".into(),
+                articulo_bdp_codigo: Some("1001".into()),
+                articulo_bdp_nombre: Some("CAFE BOMBON".into()),
+                descripcion: Some("Cafe bombon grande".into()),
+                precio_tarifa1: Some(Decimal::from_str("5.00").unwrap()),
+                iva_pct: Some(Decimal::from_str("10").unwrap()),
+                departamento: None,
+                familia: None,
+                subfamilia: None,
+                activo: Some(true),
+                barcode: None,
+            },
+        )
+        .await
+        .expect("crear mapeo local");
+
+        let mut config = test_config();
+        config.user_id = user_id;
+        config.bdp_default_article_code = "CAFE001".into();
+
+        let resolved = BdpSyncService::resolve_article_local(&pool, user_id, &config)
+            .await
+            .expect("debe resolver por glory code alfanumerico");
+        assert_eq!(resolved.id, 1001, "id BDP debe salir del mapeo local");
+        assert_eq!(resolved.name, "Cafe bombon grande");
+
+        config.bdp_default_article_code = String::new();
+        assert!(
+            BdpSyncService::resolve_article_local(&pool, user_id, &config)
+                .await
+                .is_none(),
+            "codigo vacio -> fallback generico"
+        );
+
+        config.bdp_default_article_code = "GLORY".into();
+        assert!(
+            BdpSyncService::resolve_article_local(&pool, user_id, &config)
+                .await
+                .is_none(),
+            "codigo GLORY -> fallback generico"
+        );
     }
 }

@@ -123,6 +123,8 @@ export interface BdpArticleStockItem {
   warehouse_id: string;
   warehouse_name: string;
   stock: string;
+  /* [128A-1/F3] El sync BDP no sobrescribe filas ajustadas localmente. */
+  ajustado_local: boolean;
   ultima_sync_at?: string | null;
   created_at: string;
   updated_at: string;
