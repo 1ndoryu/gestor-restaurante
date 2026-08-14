@@ -15,6 +15,11 @@ use crate::models::{
 
 pub struct BdpPurchaseNoteRepository;
 
+/* [128A-1/F5][F5-1] Prefijo reservado para series de albaranes locales (M18):
+ * ninguna serie local puede salir de este prefijo, así el UNIQUE
+ * (user_id, serie, numero) no puede colisionar con importados de BDP. */
+pub const SERIE_LOCAL_PREFIJO: &str = "L";
+
 impl BdpPurchaseNoteRepository {
     /// Lista los albaranes de compra de un usuario, opcionalmente filtrados.
     pub async fn listar(
@@ -69,6 +74,10 @@ impl BdpPurchaseNoteRepository {
         let total = note.total_albaran;
         let fecha = note.fecha_albaran.as_deref().and_then(parse_fecha_bdp);
 
+        /* [128A-1/F5][F5-1] El `DO UPDATE` solo toca filas importadas
+         * (`origen='bdp'`): si la clave (user_id, serie, numero) ya la ocupa
+         * un albarán LOCAL, el sync NUNCA pisa total/fecha/datos locales. El
+         * conflicto queda sin actualizar (rows_affected=0 → no procesado). */
         let result = sqlx::query(
             "INSERT INTO bdp_purchase_notes \
                 (id, user_id, serie, numero, fecha, codigo_proveedor, nombre_proveedor, total, datos_bdp, estado, ultima_sync_at, created_at, updated_at) \
@@ -80,7 +89,8 @@ impl BdpPurchaseNoteRepository {
                 total = EXCLUDED.total, \
                 datos_bdp = EXCLUDED.datos_bdp, \
                 ultima_sync_at = NOW(), \
-                updated_at = NOW()",
+                updated_at = NOW() \
+             WHERE bdp_purchase_notes.origen = 'bdp'",
         )
         .bind(Uuid::new_v4())
         .bind(user_id)
@@ -128,45 +138,73 @@ impl BdpPurchaseNoteRepository {
         user_id: Uuid,
         req: &CrearBdpPurchaseNoteRequest,
     ) -> Result<BdpPurchaseNote, sqlx::Error> {
-        let serie = req.serie.clone().unwrap_or_else(|| "L".to_string());
-        /* [M18] Secuencial local: siguiente número de la serie local. */
-        let numero = if let Some(n) = &req.numero {
-            n.clone()
-        } else {
-            let count: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) FROM bdp_purchase_notes \
-                 WHERE user_id = $1 AND origen = 'local'",
-            )
-            .bind(user_id)
-            .fetch_one(pool)
-            .await?;
-            (count + 1).to_string()
-        };
-        let fecha = req
-            .fecha
-            .as_deref()
-            .and_then(|f| chrono::NaiveDate::parse_from_str(f, "%Y-%m-%d").ok());
-        let (total, datos_bdp) = construir_total_y_datos(req);
+        /* [128A-1/F5][F5-1] M18: la serie local SIEMPRE usa el prefijo
+         * reservado; si el cliente manda otra, se rechaza (spoofeable). */
+        let serie = req
+            .serie
+            .clone()
+            .unwrap_or_else(|| SERIE_LOCAL_PREFIJO.to_string());
+        if !serie.starts_with(SERIE_LOCAL_PREFIJO) {
+            return Err(sqlx::Error::Protocol(format!(
+                "serie_local_prefijo_invalido: la serie local debe empezar por el prefijo reservado '{SERIE_LOCAL_PREFIJO}'"
+            )));
+        }
+        let (total, datos_bdp) = construir_total_y_datos(req).map_err(sqlx::Error::Protocol)?;
 
-        sqlx::query_as::<_, BdpPurchaseNote>(
-            "INSERT INTO bdp_purchase_notes \
-                (id, user_id, serie, numero, fecha, codigo_proveedor, nombre_proveedor, \
-                 total, datos_bdp, origen, estado, ultima_sync_at, created_at, updated_at) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'local', 'pendiente', NULL, NOW(), NOW()) \
-             RETURNING id, user_id, serie, numero, fecha, codigo_proveedor, nombre_proveedor, \
-                       total, datos_bdp, origen, estado, gasto_id, ultima_sync_at, created_at, updated_at",
-        )
-        .bind(Uuid::new_v4())
-        .bind(user_id)
-        .bind(&serie)
-        .bind(&numero)
-        .bind(fecha)
-        .bind(req.codigo_proveedor.as_deref())
-        .bind(req.nombre_proveedor.as_deref())
-        .bind(total)
-        .bind(datos_bdp)
-        .fetch_one(pool)
-        .await
+        /* [128A-1/F5][F5-2] Secuencial por (user_id, serie) con reintento ante
+         * colisión de carrera (23505): dos altas simultáneas no generan el
+         * mismo número. Si `req.numero` viene explícito no se reintenta (el
+         * duplicado es error real → 409 en el handler). */
+        let mut intentos = 0;
+        loop {
+            intentos += 1;
+            let numero = if let Some(n) = &req.numero {
+                n.clone()
+            } else {
+                let max: Option<i32> = sqlx::query_scalar(
+                    "SELECT MAX(numero::integer) FROM bdp_purchase_notes \
+                     WHERE user_id = $1 AND serie = $2 AND origen = 'local' \
+                       AND numero ~ '^[0-9]+$'",
+                )
+                .bind(user_id)
+                .bind(&serie)
+                .fetch_one(pool)
+                .await?;
+                (max.unwrap_or(0) + 1).to_string()
+            };
+            let fecha = req
+                .fecha
+                .as_deref()
+                .and_then(|f| chrono::NaiveDate::parse_from_str(f, "%Y-%m-%d").ok());
+
+            let resultado = sqlx::query_as::<_, BdpPurchaseNote>(
+                "INSERT INTO bdp_purchase_notes \
+                    (id, user_id, serie, numero, fecha, codigo_proveedor, nombre_proveedor, \
+                     total, datos_bdp, origen, estado, ultima_sync_at, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'local', 'pendiente', NULL, NOW(), NOW()) \
+                 RETURNING id, user_id, serie, numero, fecha, codigo_proveedor, nombre_proveedor, \
+                           total, datos_bdp, origen, estado, gasto_id, ultima_sync_at, created_at, updated_at",
+            )
+            .bind(Uuid::new_v4())
+            .bind(user_id)
+            .bind(&serie)
+            .bind(&numero)
+            .bind(fecha)
+            .bind(req.codigo_proveedor.as_deref())
+            .bind(req.nombre_proveedor.as_deref())
+            .bind(total)
+            .bind(datos_bdp.clone())
+            .fetch_one(pool)
+            .await;
+
+            match resultado {
+                Ok(note) => return Ok(note),
+                Err(sqlx::Error::Database(ref db))
+                    if db.is_unique_violation() && req.numero.is_none() && intentos < 3 =>
+                { /* Carrera de numeración: recalcular y reintentar. */ }
+                Err(e) => return Err(e),
+            }
+        }
     }
 
     /// Actualiza un albarán local (COALESCE por campo; `datos_bdp` se recalcula
@@ -180,7 +218,8 @@ impl BdpPurchaseNoteRepository {
     where
         E: sqlx::Executor<'e, Database = sqlx::Postgres>,
     {
-        let (total_nuevo, datos_nuevo) = calcular_actualizacion(req);
+        let (total_nuevo, datos_nuevo) =
+            calcular_actualizacion(req).map_err(sqlx::Error::Protocol)?;
         let fecha = req
             .fecha
             .as_deref()
@@ -302,35 +341,35 @@ impl BdpPurchaseNoteRepository {
  * `importe_base`/`importe_iva` del propio objeto. */
 
 /// Calcula el total y los datos JSON de un albarán local al crearlo.
-#[must_use]
-pub fn construir_total_y_datos(req: &CrearBdpPurchaseNoteRequest) -> (Decimal, serde_json::Value) {
+pub fn construir_total_y_datos(
+    req: &CrearBdpPurchaseNoteRequest,
+) -> Result<(Decimal, serde_json::Value), String> {
     if let Some(lineas) = &req.lineas {
         if !lineas.is_empty() {
             return calcular_desglose(lineas, req.total);
         }
     }
-    (req.total.unwrap_or(Decimal::ZERO), serde_json::json!({}))
+    Ok((req.total.unwrap_or(Decimal::ZERO), serde_json::json!({})))
 }
 
 /// Calcula los cambios de un albarán local al actualizarlo.
 /// Devuelve `(total, None)` si no llegan líneas (no tocar `datos_bdp`).
-#[must_use]
 pub fn calcular_actualizacion(
     req: &ActualizarBdpPurchaseNoteRequest,
-) -> (Option<Decimal>, Option<serde_json::Value>) {
+) -> Result<(Option<Decimal>, Option<serde_json::Value>), String> {
     if let Some(lineas) = &req.lineas {
         if !lineas.is_empty() {
-            let (total, datos) = calcular_desglose(lineas, req.total);
-            return (Some(total), Some(datos));
+            let (total, datos) = calcular_desglose(lineas, req.total)?;
+            return Ok((Some(total), Some(datos)));
         }
     }
-    (req.total, None)
+    Ok((req.total, None))
 }
 
 fn calcular_desglose(
     lineas: &[BdpPurchaseNoteLineaLocal],
     total_explicito: Option<Decimal>,
-) -> (Decimal, serde_json::Value) {
+) -> Result<(Decimal, serde_json::Value), String> {
     let mut importe_base = Decimal::ZERO;
     let mut importe_iva = Decimal::ZERO;
     let cien = Decimal::from(100);
@@ -349,15 +388,26 @@ fn calcular_desglose(
             "importe_iva": iva,
         }));
     }
-    let total = total_explicito.unwrap_or(importe_base + importe_iva);
-    (
+    /* [128A-1/F5][F5-3] El total SIEMPRE se calcula del desglose de líneas:
+     * si el cliente manda un total explícito distinto, es un descuadre (el
+     * gasto de conciliación saldría por el desglose y no cuadraría con el
+     * albarán). Se rechaza con mensaje accionable. */
+    let total = importe_base + importe_iva;
+    if let Some(explicito) = total_explicito {
+        if explicito != total {
+            return Err(format!(
+                "El total indicado ({explicito}) no coincide con el desglose de las líneas ({total})"
+            ));
+        }
+    }
+    Ok((
         total,
         serde_json::json!({
             "lineas": lineas_json,
             "importe_base": importe_base,
             "importe_iva": importe_iva,
         }),
-    )
+    ))
 }
 
 fn decimal_desde_json(value: &serde_json::Value) -> Option<Decimal> {
@@ -416,7 +466,7 @@ mod tests {
                 linea("Pan", "3", "2.00", "21"),
             ]),
         };
-        let (total, datos) = construir_total_y_datos(&req);
+        let (total, datos) = construir_total_y_datos(&req).expect("desglose válido");
         /* base = 20 + 6 = 26; iva = 2 + 1.26 = 3.26; total = 29.26 */
         assert_eq!(total, Decimal::from_str("29.26").unwrap());
         assert_eq!(
@@ -431,7 +481,7 @@ mod tests {
     }
 
     #[test]
-    fn construir_total_y_datos_respeta_total_explicito() {
+    fn construir_total_y_datos_rechaza_total_discrepante() {
         let req = CrearBdpPurchaseNoteRequest {
             serie: None,
             numero: None,
@@ -441,8 +491,25 @@ mod tests {
             total: Some(Decimal::from_str("30.00").unwrap()),
             lineas: Some(vec![linea("Tomate", "2", "10.00", "10")]),
         };
-        let (total, _datos) = construir_total_y_datos(&req);
-        assert_eq!(total, Decimal::from_str("30.00").unwrap());
+        /* Las líneas suman 22.00 (base 20 + IVA 2); el total explícito 30.00
+         * no cuadra → error de validación (F5-3), nunca un descuadre silencioso. */
+        let err = construir_total_y_datos(&req).expect_err("total discrepante debe fallar");
+        assert!(err.contains("no coincide"), "mensaje accionable: {err}");
+    }
+
+    #[test]
+    fn construir_total_y_datos_acepta_total_coincidente() {
+        let req = CrearBdpPurchaseNoteRequest {
+            serie: None,
+            numero: None,
+            fecha: None,
+            codigo_proveedor: None,
+            nombre_proveedor: Some("Proveedor".to_string()),
+            total: Some(Decimal::from_str("22.00").unwrap()),
+            lineas: Some(vec![linea("Tomate", "2", "10.00", "10")]),
+        };
+        let (total, _datos) = construir_total_y_datos(&req).expect("total coincide con líneas");
+        assert_eq!(total, Decimal::from_str("22.00").unwrap());
     }
 
     #[test]
@@ -456,7 +523,7 @@ mod tests {
             total: Some(Decimal::from_str("50.00").unwrap()),
             lineas: None,
         };
-        let (total, datos) = construir_total_y_datos(&con_total);
+        let (total, datos) = construir_total_y_datos(&con_total).expect("sin líneas ok");
         assert_eq!(total, Decimal::from_str("50.00").unwrap());
         assert_eq!(datos, serde_json::json!({}));
 
@@ -464,7 +531,7 @@ mod tests {
             total: None,
             ..con_total
         };
-        let (total, _) = construir_total_y_datos(&sin_total);
+        let (total, _) = construir_total_y_datos(&sin_total).expect("sin líneas ok");
         assert_eq!(total, Decimal::ZERO);
     }
 
@@ -479,7 +546,7 @@ mod tests {
             total: None,
             lineas: Some(vec![linea("Tomate", "2", "10.00", "10")]),
         };
-        let (_total, datos) = construir_total_y_datos(&req);
+        let (_total, datos) = construir_total_y_datos(&req).expect("desglose válido");
         let (base, iva) =
             BdpPurchaseNoteRepository::desglose_desde_datos(&datos).expect("desglose presente");
         assert_eq!(base, Decimal::from_str("20.00").unwrap());

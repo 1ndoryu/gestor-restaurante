@@ -44,3 +44,23 @@
   `customInstance` devuelve `{ data, status }` → los fetchers extraen `.data`.
 - **Sentinel:** el gate corrió la etapa sentinel (PASS, 0 errores; warnings preexistentes no bloquean).
 - **GLORY:** no aplica; cambios del bloque 128A-1 en rama `glory-rs-rest`.
+
+## Correcciones 128A-1 (pasada de verificación — F5-1..F5-5)
+
+- **F5-1 (M18 completo):** serie local forzada al prefijo reservado `L` en `crear_local`
+  (constante `SERIE_LOCAL_PREFIJO`; serie ajena -> 422). El `ON CONFLICT` de `upsert_from_bdp` lleva
+  `WHERE bdp_purchase_notes.origen = 'bdp'`: un sync nunca pisa un albarán local que colisione en
+  `(user_id, serie, numero)` (queda `rows_affected=0`, no procesado).
+- **F5-2:** numeración secuencial por `(user_id, serie)` con `MAX(numero::integer) + 1` (solo
+  `origen='local'` y números numéricos) y reintento ante 23505 por carrera (hasta 3 intentos);
+  `req.numero` explícito se respeta y su duplicado se mapea a 409.
+- **F5-3:** el total se calcula SIEMPRE del desglose de líneas; un total explícito discrepante se
+  rechaza con 422 y mensaje "no coincide" (crear y actualizar) — se elimina el descuadre
+  albarán vs gasto de conciliación.
+- **F5-4:** el fallback a `(total, 0)` de `desglose_desde_datos` en `conciliar_purchase_note` ahora
+  loguea `tracing::warn!` (id/origen/total); el alta exige los 4 campos por tipo.
+- **F5-5:** `validar_fecha_local` (YYYY-MM-DD) en crear/actualizar -> 422; `map_repo_error` mapea
+  23505 (UNIQUE serie/numero) -> 409 "Ya existe un albarán con esa serie y número (duplicado)".
+- **Evidencia:** `tests/bdp_f5_compras_locales.rs` (9 tests de integración DB) + unit tests del repo
+  actualizados (`construir_total_y_datos_rechaza_total_discrepante`) + clippy verde. Ver checklist
+  `Agente/revisiones/128A-1-checklist-correcciones-hallazgos-2026-08-13.md` (F5).

@@ -117,8 +117,13 @@ pub async fn crear_purchase_note_local(
             "Debes indicar un total o al menos una línea".into(),
         ));
     }
+    /* [128A-1/F5][F5-5] Fecha con formato estricto YYYY-MM-DD: una fecha
+     * malformada no se ignora silenciosamente en el alta. */
+    validar_fecha_local(req.fecha.as_deref())?;
 
-    let note = BdpPurchaseNoteRepository::crear_local(&state.pool, auth.user_id, &req).await?;
+    let note = BdpPurchaseNoteRepository::crear_local(&state.pool, auth.user_id, &req)
+        .await
+        .map_err(map_repo_error)?;
     tracing::info!(
         "[128A-1/F5] Albarán local {} ({}-{}) creado por usuario {}",
         note.id,
@@ -161,9 +166,12 @@ pub async fn actualizar_purchase_note_local(
             "Solo se pueden editar albaranes de origen local".into(),
         ));
     }
+    /* [128A-1/F5][F5-5] Misma validación de fecha que en el alta. */
+    validar_fecha_local(req.fecha.as_deref())?;
 
-    let ok =
-        BdpPurchaseNoteRepository::actualizar_local(&state.pool, id, auth.user_id, &req).await?;
+    let ok = BdpPurchaseNoteRepository::actualizar_local(&state.pool, id, auth.user_id, &req)
+        .await
+        .map_err(map_repo_error)?;
     if !ok {
         return Err(AppError::NotFound("Albarán local no encontrado".into()));
     }
@@ -448,9 +456,21 @@ pub async fn conciliar_purchase_note(
         /* [128A-1/F5][A10] Los albaranes locales guardan IVA por línea en
          * `datos_bdp.lineas`; la conciliación usa ese desglose. Los albaranes
          * importados de BDP (sin desglose) registran el total como base. */
+        /* [128A-1/F5][F5-4] El fallback a (total, 0) ya no es silencioso: se
+         * loguea (importados BDP sin desglose, o locales sin líneas). */
         let (importe_base, importe_iva) =
-            BdpPurchaseNoteRepository::desglose_desde_datos(&note.datos_bdp)
-                .unwrap_or((total, rust_decimal::Decimal::ZERO));
+            if let Some(d) = BdpPurchaseNoteRepository::desglose_desde_datos(&note.datos_bdp) {
+                d
+            } else {
+                tracing::warn!(
+                    "[128A-1/F5-4] Sin desglose de líneas en albarán {} (origen {}): \
+                     gasto con IVA 0 sobre total {}",
+                    id,
+                    note.origen,
+                    total
+                );
+                (total, rust_decimal::Decimal::ZERO)
+            };
         let nuevo = NuevoGasto {
             user_id: auth.user_id,
             fecha,
@@ -504,6 +524,38 @@ fn map_bdp_error(err: &BdpWeblinkError) -> AppError {
         }
         _ => AppError::Internal(format!("Error ExportPurchaseNotes: {err}")),
     }
+}
+
+/* [128A-1/F5][F5-5] Mapeo de errores del repo local: las validaciones de
+ * negocio viajan como `sqlx::Error::Protocol(msg)` → 422 con el mensaje; el
+ * `UNIQUE(user_id, serie, numero)` duplicado (23505) → 409 accionable. */
+fn map_repo_error(err: sqlx::Error) -> AppError {
+    if err
+        .as_database_error()
+        .and_then(sqlx::error::DatabaseError::code)
+        .is_some_and(|c| c == "23505")
+    {
+        return AppError::Conflict(
+            "Ya existe un albarán con esa serie y número (duplicado)".into(),
+        );
+    }
+    match &err {
+        sqlx::Error::RowNotFound => AppError::NotFound("Albarán no encontrado".into()),
+        sqlx::Error::Protocol(msg) => AppError::Validation(msg.clone()),
+        _ => AppError::from(err),
+    }
+}
+
+/// Valida el formato estricto `YYYY-MM-DD` de la fecha de un albarán local.
+fn validar_fecha_local(fecha: Option<&str>) -> Result<(), AppError> {
+    if let Some(f) = fecha {
+        if chrono::NaiveDate::parse_from_str(f, "%Y-%m-%d").is_err() {
+            return Err(AppError::Validation(
+                "Fecha inválida: formato esperado YYYY-MM-DD".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn resolver_perfil_exportacion(

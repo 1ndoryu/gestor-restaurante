@@ -76,11 +76,36 @@
     Evidencia: `tests/bdp_f4_anulacion_delete.rs::idempotency_key_reutilizada_en_otra_venta_conflicto`.
 
 ## F5 — Compras locales (5)
-* [ ] F5-1 [MEDIA] Serie local no forzada al prefijo reservado (M18)
-* [ ] F5-2 [MEDIA] Numeracion `COUNT(*)` no segura por (user_id, serie)
-* [ ] F5-3 [MEDIA] Total explicito puede discrepar del desglose de lineas
-* [ ] F5-4 [BAJA] `desglose_desde_datos` fallback silencioso a (total, 0)
-* [ ] F5-5 [BAJA] Fecha invalida y numero duplicado sin mapeo de errores
+* [x] F5-1 [MEDIA] Serie local no forzada al prefijo reservado (M18)
+  * `crear_local` exige el prefijo reservado `L` (constante `SERIE_LOCAL_PREFIJO`): serie fuera del
+    prefijo -> `sqlx::Error::Protocol("serie_local_prefijo_invalido")` -> 422 en handler; el default
+    sigue siendo `L`. El `ON CONFLICT` de `upsert_from_bdp` ahora lleva `WHERE
+    bdp_purchase_notes.origen = 'bdp'`: un sync NUNCA pisa total/fecha/datos de un albaran local.
+    Evidencia: `tests/bdp_f5_compras_locales.rs` (`serie_local_fuera_del_prefijo_reservado_rechazada`,
+    `upsert_bdp_nunca_pisa_albaran_local`) + clippy verde.
+* [x] F5-2 [MEDIA] Numeracion `COUNT(*)` no segura por (user_id, serie)
+  * Secuencial por `(user_id, serie)` con `MAX(numero::integer) + 1` (solo filas `origen='local'` y
+    numeros numericos) y reintento ante 23505 (carrera, hasta 3 intentos). Numero explicito se
+    respeta; duplicado explicito -> 409 (no reintento). Evidencia:
+    `tests/bdp_f5_compras_locales.rs::numeracion_secuencial_por_serie_y_usuario` + clippy verde.
+* [x] F5-3 [MEDIA] Total explicito puede discrepar del desglose de lineas
+  * El total SIEMPRE se calcula de las lineas; si el cliente manda un total explicito distinto al
+    desglose (base+IVA), `calcular_desglose` devuelve error -> `Protocol` -> 422 con mensaje
+    accionable ("no coincide"). Aplica a crear y actualizar. Evidencia:
+    `tests/bdp_f5_compras_locales.rs` (`total_discrepante_con_lineas_rechazado`,
+    `total_guardado_desde_lineas_con_total_coincidente`) + unit test del repo
+    `construir_total_y_datos_rechaza_total_discrepante`.
+* [x] F5-4 [BAJA] `desglose_desde_datos` fallback silencioso a (total, 0)
+  * El fallback en `conciliar_purchase_note` ahora loguea `tracing::warn!` con id/origen/total
+    (importados BDP sin desglose o locales sin lineas son legitimos; ya no es silencioso). El alta
+    exige los 4 campos por tipo (`BdpPurchaseNoteLineaLocal` sin opcionales). Evidencia:
+    `tests/bdp_f5_compras_locales.rs::conciliacion_sin_desglose_usa_total_con_iva_cero`.
+* [x] F5-5 [BAJA] Fecha invalida y numero duplicado sin mapeo de errores
+  * `validar_fecha_local` en crear/actualizar: fecha malformada -> 422 "YYYY-MM-DD" (ya no se ignora
+    silenciosamente). `map_repo_error`: 23505 (UNIQUE user_id/serie/numero) -> 409 "Ya existe un
+    albaran con esa serie y numero (duplicado)". Evidencia:
+    `tests/bdp_f5_compras_locales.rs` (`fecha_invalida_rechazada_en_crear_y_actualizar`,
+    `numero_duplicado_mapeado_a_conflicto_409`).
 
 ## F6 — Auditoria/pagos/factura (6)
 * [ ] F6-1 [MEDIA] `venta::delete` no bloquea `facturada_local`
