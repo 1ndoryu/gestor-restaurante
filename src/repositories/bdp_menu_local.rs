@@ -3,9 +3,11 @@
  * Consultas dinámicas (sin macro) para no depender del cache offline `.sqlx/`. */
 
 use rust_decimal::Decimal;
+use serde_json::json;
 use sqlx::Arguments;
 use sqlx::PgPool;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt::Write as _;
 use uuid::Uuid;
 
@@ -59,7 +61,16 @@ impl BdpMenuLocalRepository {
         req: &CrearBdpMenuLocalRequest,
     ) -> Result<BdpMenuLocalConLineas, sqlx::Error> {
         let id = Uuid::new_v4();
-        let tipo: BdpMenuLocalTipo = req.tipo.as_str().into();
+        /* [128A-1/F7][F7-1] Conversión fallible: el handler ya valida, pero el
+         * repo no puede persistir un tipo inválido como 'menu' (contrato). */
+        let tipo: BdpMenuLocalTipo = req
+            .tipo
+            .as_str()
+            .try_into()
+            .map_err(|_| sqlx::Error::Protocol("tipo_invalido".to_string()))?;
+        /* [128A-1/F7][F7-2] Las líneas referencian artículos del catálogo
+         * local: un código que no existe deja referencias colgantes. */
+        Self::validar_articulos_en_catalogo(pool, user_id, &req.lineas).await?;
         let precio = req.precio.unwrap_or_else(|| sumar_lineas(&req.lineas));
         let activo = req.activo.unwrap_or(true);
 
@@ -80,6 +91,20 @@ impl BdpMenuLocalRepository {
         .await?;
 
         Self::insertar_lineas(&mut tx, id, &req.lineas).await?;
+        Self::auditar(
+            &mut tx,
+            user_id,
+            "menu_local_crear",
+            id,
+            &json!({
+                "tipo": tipo.as_str(),
+                "nombre": req.nombre,
+                "precio": precio,
+                "activo": activo,
+                "lineas": req.lineas.len(),
+            }),
+        )
+        .await?;
         tx.commit().await?;
 
         Self::find_by_id(pool, id, user_id)
@@ -95,8 +120,22 @@ impl BdpMenuLocalRepository {
         user_id: Uuid,
         req: &ActualizarBdpMenuLocalRequest,
     ) -> Result<bool, sqlx::Error> {
+        /* [128A-1/F7][F7-1/F7-2] Mismos contratos que en crear: tipo fallible
+         * y códigos de artículo presentes en el catálogo local. */
+        let tipo: Option<BdpMenuLocalTipo> = req
+            .tipo
+            .as_deref()
+            .map(|t| {
+                t.try_into()
+                    .map_err(|_| sqlx::Error::Protocol("tipo_invalido".to_string()))
+            })
+            .transpose()?;
+        let tipo_audit: Option<&'static str> = tipo.as_ref().map(BdpMenuLocalTipo::as_str);
+        if let Some(lineas) = &req.lineas {
+            Self::validar_articulos_en_catalogo(pool, user_id, lineas).await?;
+        }
+
         let mut tx = pool.begin().await?;
-        let tipo: Option<BdpMenuLocalTipo> = req.tipo.as_deref().map(Into::into);
         /* Si no llega precio explícito pero sí líneas nuevas, se recalcula
          * desde las líneas (el precio de venta sigue a la composición). */
         let precio_nuevo = req
@@ -133,21 +172,54 @@ impl BdpMenuLocalRepository {
                 .await?;
             Self::insertar_lineas(&mut tx, id, lineas).await?;
         }
+        Self::auditar(
+            &mut tx,
+            user_id,
+            "menu_local_actualizar",
+            id,
+            &json!({
+                "tipo": tipo_audit,
+                "nombre": req.nombre,
+                "precio": req.precio,
+                "activo": req.activo,
+                "reemplaza_lineas": req.lineas.as_ref().map(Vec::len),
+            }),
+        )
+        .await?;
         tx.commit().await?;
         Ok(true)
     }
 
-    /// Elimina un menú/pack local (las líneas se borran por CASCADE).
-    pub async fn eliminar<'e, E>(executor: E, id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error>
-    where
-        E: sqlx::Executor<'e, Database = sqlx::Postgres>,
-    {
+    /// Elimina un menú/pack local (las líneas se borran por CASCADE) y lo
+    /// registra en la auditoría local (A11).
+    pub async fn eliminar(pool: &PgPool, id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
+        let mut tx = pool.begin().await?;
+        let nombre: Option<String> = sqlx::query_scalar(
+            "SELECT nombre FROM bdp_menus_locales WHERE id = $1 AND user_id = $2",
+        )
+        .bind(id)
+        .bind(user_id)
+        .fetch_optional(&mut *tx)
+        .await?;
         let result = sqlx::query("DELETE FROM bdp_menus_locales WHERE id = $1 AND user_id = $2")
             .bind(id)
             .bind(user_id)
-            .execute(executor)
+            .execute(&mut *tx)
             .await?;
-        Ok(result.rows_affected() > 0)
+        if result.rows_affected() == 0 {
+            tx.rollback().await?;
+            return Ok(false);
+        }
+        Self::auditar(
+            &mut tx,
+            user_id,
+            "menu_local_eliminar",
+            id,
+            &json!({ "nombre": nombre }),
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(true)
     }
 
     /* ── Helpers privados ──────────────────────────────────────────────── */
@@ -173,12 +245,19 @@ impl BdpMenuLocalRepository {
             let _ = args.add(activo);
         }
         if let Some(busqueda) = &params.busqueda {
-            let termino = busqueda.trim();
+            /* [128A-1/F7][F7-4] Escape de wildcards de ILIKE: un término con
+             * `%`/`_` literales no debe matchear de más (ESCAPE '\'). */
+            let termino = busqueda
+                .trim()
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_");
             if !termino.is_empty() {
                 param_idx += 1;
                 let _ = write!(
                     query,
-                    " AND (nombre ILIKE ${param_idx} OR COALESCE(descripcion, '') ILIKE ${param_idx})"
+                    " AND (nombre ILIKE ${param_idx} ESCAPE '\\' \
+                     OR COALESCE(descripcion, '') ILIKE ${param_idx} ESCAPE '\\')"
                 );
                 let _ = args.add(format!("%{termino}%"));
             }
@@ -188,6 +267,70 @@ impl BdpMenuLocalRepository {
         sqlx::query_as_with::<_, BdpMenuLocal, _>(&query, args)
             .fetch_all(pool)
             .await
+    }
+
+    /// [F7-2] Verifica que los códigos de artículo de las líneas existan en el
+    /// catálogo local (`bdp_article_map.articulo_glory_codigo`). Códigos
+    /// vacíos/ausentes (línea "sin código") se permiten.
+    async fn validar_articulos_en_catalogo(
+        pool: &PgPool,
+        user_id: Uuid,
+        lineas: &[BdpMenuLocalLineaRequest],
+    ) -> Result<(), sqlx::Error> {
+        let solicitados: HashSet<String> = lineas
+            .iter()
+            .filter_map(|l| l.articulo_codigo.as_deref().map(str::trim))
+            .filter(|c| !c.is_empty())
+            .map(str::to_string)
+            .collect();
+        if solicitados.is_empty() {
+            return Ok(());
+        }
+        let codigos: Vec<String> = solicitados.iter().cloned().collect();
+        let existentes: Vec<String> = sqlx::query_scalar(
+            "SELECT DISTINCT articulo_glory_codigo FROM bdp_article_map \
+             WHERE user_id = $1 AND articulo_glory_codigo = ANY($2)",
+        )
+        .bind(user_id)
+        .bind(&codigos)
+        .fetch_all(pool)
+        .await?;
+        let existentes: HashSet<String> = existentes.into_iter().collect();
+        let faltantes: Vec<String> = solicitados.difference(&existentes).cloned().collect();
+        if !faltantes.is_empty() {
+            return Err(sqlx::Error::Protocol(format!(
+                "articulo_no_en_catalogo:{}",
+                faltantes.join(", ")
+            )));
+        }
+        Ok(())
+    }
+
+    /// [F7-3] Registra una mutación de menú/pack en `bdp_audit_log` con
+    /// `origen_operacion='local'` para que el Historial la refleje (A11).
+    async fn auditar(
+        conn: &mut sqlx::PgConnection,
+        user_id: Uuid,
+        operacion: &str,
+        menu_id: Uuid,
+        payload: &serde_json::Value,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r"INSERT INTO bdp_audit_log
+               (user_id, operacion, direccion, datos_enviados, resultado, origen_operacion,
+                target_entity_type, target_entity_id, authorization_reason)
+               VALUES ($1, $2, 'internal', $3, 'exito', 'local', 'menu_local', $4, $5)",
+        )
+        .bind(user_id)
+        .bind(operacion)
+        .bind(payload)
+        .bind(menu_id)
+        .bind(format!(
+            "{operacion} de menú/pack local {menu_id} — operación interna, no requiere autorización BDP"
+        ))
+        .execute(&mut *conn)
+        .await?;
+        Ok(())
     }
 
     async fn cargar_lineas(
@@ -314,7 +457,14 @@ mod tests {
     fn tipo_as_str_mapea_valores() {
         assert_eq!(BdpMenuLocalTipo::Menu.as_str(), "menu");
         assert_eq!(BdpMenuLocalTipo::Pack.as_str(), "pack");
-        let desde_string: BdpMenuLocalTipo = "pack".to_string().into();
+        let desde_string: BdpMenuLocalTipo = "pack".to_string().try_into().unwrap();
         assert_eq!(desde_string, BdpMenuLocalTipo::Pack);
+    }
+
+    #[test]
+    fn tipo_desconocido_falla_al_convertir() {
+        assert!(BdpMenuLocalTipo::try_from("combo").is_err());
+        assert!(BdpMenuLocalTipo::try_from("").is_err());
+        assert!(BdpMenuLocalTipo::try_from("MENU".to_string()).is_err());
     }
 }

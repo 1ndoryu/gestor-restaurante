@@ -30,25 +30,27 @@ impl BdpMenuLocalTipo {
     }
 }
 
-impl From<String> for BdpMenuLocalTipo {
-    fn from(value: String) -> Self {
-        match value.as_str() {
-            "pack" => BdpMenuLocalTipo::Pack,
-            "menu" => BdpMenuLocalTipo::Menu,
-            other => {
-                tracing::warn!(
-                    "[BdpMenuLocalTipo] valor desconocido '{}', defaulteando a Menu",
-                    other
-                );
-                BdpMenuLocalTipo::Menu
-            }
-        }
+/* [128A-1/F7][F7-1] La conversión es FALLIBLE: un tipo desconocido ya no
+ * defaultea a `Menu` con un warn (un tipo inválido se perseguiría como 'menu'
+ * silenciosamente si el repo se reusara sin la validación del handler). El
+ * repo devuelve `Protocol("tipo_invalido")` y el handler lo mapea a 400. */
+impl TryFrom<String> for BdpMenuLocalTipo {
+    type Error = &'static str;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.as_str().try_into()
     }
 }
 
-impl From<&str> for BdpMenuLocalTipo {
-    fn from(value: &str) -> Self {
-        value.to_string().into()
+impl TryFrom<&str> for BdpMenuLocalTipo {
+    type Error = &'static str;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "pack" => Ok(BdpMenuLocalTipo::Pack),
+            "menu" => Ok(BdpMenuLocalTipo::Menu),
+            _ => Err("tipo inválido: debe ser 'menu' o 'pack'"),
+        }
     }
 }
 
@@ -100,7 +102,10 @@ pub struct BdpMenuLocalConLineas {
 /// Línea de menú/pack en las peticiones de creación/edición.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct BdpMenuLocalLineaRequest {
-    /// Código del artículo del catálogo local (opcional, texto libre).
+    /// Código del artículo del catálogo local (`bdp_article_map.
+    /// articulo_glory_codigo`). [128A-1/F7][F7-2] Si llega, debe existir en
+    /// el catálogo del usuario (422 si no); vacío/ausente = línea "sin
+    /// código" (descripción libre).
     pub articulo_codigo: Option<String>,
     pub descripcion: String,
     pub cantidad: Option<Decimal>,

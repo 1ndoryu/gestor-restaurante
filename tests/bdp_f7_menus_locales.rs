@@ -39,6 +39,20 @@ async fn create_test_user(pool: &PgPool) -> Uuid {
     id
 }
 
+/* [128A-1/F7][F7-2] El catálogo local es la fuente de `articulo_codigo`: los
+ * tests que componen menús con códigos deben registrar el artículo primero. */
+async fn crear_articulo_catalogo(pool: &PgPool, user_id: Uuid) {
+    sqlx::query(
+        "INSERT INTO bdp_article_map \
+            (user_id, articulo_glory_codigo, articulo_bdp_codigo, articulo_bdp_nombre) \
+         VALUES ($1, 'ART-001', '1001', 'Artículo de prueba')",
+    )
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("crear artículo de catálogo");
+}
+
 fn linea(descripcion: &str, cantidad: &str, precio: &str) -> BdpMenuLocalLineaRequest {
     BdpMenuLocalLineaRequest {
         articulo_codigo: Some("ART-001".to_string()),
@@ -105,6 +119,7 @@ fn make_auth(user_id: Uuid) -> AuthUser {
 #[sqlx::test(migrations = "./migrations")]
 async fn crear_menu_con_lineas_guarda_detalle_y_precio_calculado(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
+    crear_articulo_catalogo(&pool, user_id).await;
 
     let req = crear_request(
         "Menú del día",
@@ -130,6 +145,7 @@ async fn crear_menu_con_lineas_guarda_detalle_y_precio_calculado(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn listar_filtra_por_tipo_activo_y_busqueda(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
+    crear_articulo_catalogo(&pool, user_id).await;
 
     BdpMenuLocalRepository::crear(
         &pool,
@@ -208,6 +224,7 @@ async fn listar_filtra_por_tipo_activo_y_busqueda(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn actualizar_reemplaza_lineas_y_aplica_coalesce(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
+    crear_articulo_catalogo(&pool, user_id).await;
 
     let menu = BdpMenuLocalRepository::crear(
         &pool,
@@ -253,6 +270,7 @@ async fn actualizar_reemplaza_lineas_y_aplica_coalesce(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn eliminar_borra_menu_y_sus_lineas(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
+    crear_articulo_catalogo(&pool, user_id).await;
 
     let menu = BdpMenuLocalRepository::crear(
         &pool,
@@ -287,6 +305,7 @@ async fn eliminar_borra_menu_y_sus_lineas(pool: PgPool) {
 async fn aislamiento_por_usuario(pool: PgPool) {
     let user_a = create_test_user(&pool).await;
     let user_b = create_test_user(&pool).await;
+    crear_articulo_catalogo(&pool, user_a).await;
 
     let menu_a = BdpMenuLocalRepository::crear(
         &pool,
@@ -314,6 +333,7 @@ async fn aislamiento_por_usuario(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn doble_nombre_mismo_tipo_viola_unique(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
+    crear_articulo_catalogo(&pool, user_id).await;
 
     BdpMenuLocalRepository::crear(
         &pool,
@@ -349,6 +369,7 @@ async fn doble_nombre_mismo_tipo_viola_unique(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn handler_crear_menu_local_funciona_sin_flags_en_standalone(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
+    crear_articulo_catalogo(&pool, user_id).await;
     /* Configuración por defecto (modo 'auto' sin BDP configurado) = modo
      * efectivo standalone: el CRUD local NO consulta feature flags (M12). */
     ConfiguracionRepository::obtener_o_crear(&pool, user_id)
@@ -454,6 +475,7 @@ async fn handler_actualizar_devuelve_404_si_no_existe(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn handler_duplicado_devuelve_conflicto(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
+    crear_articulo_catalogo(&pool, user_id).await;
     let state = make_app_state(pool.clone());
     let auth = make_auth(user_id);
 
@@ -477,6 +499,7 @@ async fn handler_duplicado_devuelve_conflicto(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn handler_listar_devuelve_menus_del_usuario(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
+    crear_articulo_catalogo(&pool, user_id).await;
     BdpMenuLocalRepository::crear(
         &pool,
         user_id,
@@ -497,6 +520,7 @@ async fn handler_listar_devuelve_menus_del_usuario(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn handler_eliminar_borra_y_devuelve_404_en_segunda_llamada(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
+    crear_articulo_catalogo(&pool, user_id).await;
     let menu = BdpMenuLocalRepository::crear(
         &pool,
         user_id,
@@ -516,4 +540,168 @@ async fn handler_eliminar_borra_y_devuelve_404_en_segunda_llamada(pool: PgPool) 
         AppError::NotFound(msg) => assert!(msg.contains("no encontrado")),
         other => panic!("se esperaba AppError::NotFound, se obtuvo {other:?}"),
     }
+}
+
+/* ── Correcciones de la 2a revisión (F7-1..F7-4) ─────────────────────── */
+
+/* F7-1: el filtro `tipo` del listado se valida en el handler (400), no llega
+ * al CHECK de BD (23514 -> 500). */
+#[sqlx::test(migrations = "./migrations")]
+async fn handler_listar_filtro_tipo_invalido_rechaza(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let state = make_app_state(pool);
+    let auth = make_auth(user_id);
+    let params = BdpMenuLocalListParams {
+        tipo: Some("combo".to_string()),
+        activo: None,
+        busqueda: None,
+    };
+
+    let result = listar_menus_locales(State(state), auth, Query(params)).await;
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        AppError::Validation(msg) => assert!(msg.contains("tipo")),
+        other => panic!("se esperaba AppError::Validation, se obtuvo {other:?}"),
+    }
+}
+
+/* F7-2: el repo rechaza líneas con códigos de artículo fuera del catálogo
+ * local (referencias colgantes), aunque el handler no las filtre. */
+#[sqlx::test(migrations = "./migrations")]
+async fn crear_menu_con_articulo_fuera_del_catalogo_rechazado(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let mut req = crear_request("Menú roto", "menu", vec![linea("Café", "1", "1.20")]);
+    req.lineas[0].articulo_codigo = Some("NO-EXISTE".to_string());
+
+    let err = BdpMenuLocalRepository::crear(&pool, user_id, &req)
+        .await
+        .expect_err("código fuera del catálogo debe fallar");
+    match err {
+        sqlx::Error::Protocol(msg) => assert!(msg.contains("articulo_no_en_catalogo")),
+        other => panic!("se esperaba sqlx::Error::Protocol, se obtuvo {other:?}"),
+    }
+}
+
+/* F7-3: crear/actualizar/eliminar de menús registran auditoría local (A11). */
+#[sqlx::test(migrations = "./migrations")]
+async fn crud_menus_registra_auditoria_local(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    crear_articulo_catalogo(&pool, user_id).await;
+
+    let menu = BdpMenuLocalRepository::crear(
+        &pool,
+        user_id,
+        &crear_request("Auditable", "menu", vec![linea("Agua", "1", "1.00")]),
+    )
+    .await
+    .expect("crear menú");
+    BdpMenuLocalRepository::actualizar(
+        &pool,
+        menu.id,
+        user_id,
+        &ActualizarBdpMenuLocalRequest {
+            tipo: None,
+            nombre: None,
+            descripcion: None,
+            precio: None,
+            activo: Some(false),
+            lineas: None,
+        },
+    )
+    .await
+    .expect("actualizar menú");
+    BdpMenuLocalRepository::eliminar(&pool, menu.id, user_id)
+        .await
+        .expect("eliminar menú");
+
+    let operaciones: Vec<String> =
+        sqlx::query_scalar("SELECT operacion FROM bdp_audit_log WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_all(&pool)
+            .await
+            .expect("leer auditoría");
+    assert_eq!(operaciones.len(), 3, "una entrada por mutación");
+    for esperada in [
+        "menu_local_crear",
+        "menu_local_actualizar",
+        "menu_local_eliminar",
+    ] {
+        assert!(
+            operaciones.iter().any(|op| op == esperada),
+            "falta {esperada} en {operaciones:?}"
+        );
+    }
+    let origen: String =
+        sqlx::query_scalar("SELECT origen_operacion FROM bdp_audit_log WHERE user_id = $1 LIMIT 1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("leer origen");
+    assert_eq!(origen, "local");
+}
+
+/* F7-4: la búsqueda escapa wildcards de ILIKE (% y _ literales). */
+#[sqlx::test(migrations = "./migrations")]
+async fn busqueda_escapa_wildcards_iliike(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    crear_articulo_catalogo(&pool, user_id).await;
+
+    BdpMenuLocalRepository::crear(
+        &pool,
+        user_id,
+        &crear_request("Menú 100%", "menu", vec![linea("Agua", "1", "1.00")]),
+    )
+    .await
+    .unwrap();
+    BdpMenuLocalRepository::crear(
+        &pool,
+        user_id,
+        &crear_request("Menú 100X", "menu", vec![linea("Pan", "1", "0.50")]),
+    )
+    .await
+    .unwrap();
+    BdpMenuLocalRepository::crear(
+        &pool,
+        user_id,
+        &crear_request("Combo_Especial", "pack", vec![linea("Tarta", "1", "8.00")]),
+    )
+    .await
+    .unwrap();
+    BdpMenuLocalRepository::crear(
+        &pool,
+        user_id,
+        &crear_request("ComboNormal", "pack", vec![linea("Helado", "1", "3.00")]),
+    )
+    .await
+    .unwrap();
+
+    let params = BdpMenuLocalListParams {
+        tipo: None,
+        activo: None,
+        busqueda: Some("100%".to_string()),
+    };
+    let resultado = BdpMenuLocalRepository::listar(&pool, user_id, &params)
+        .await
+        .unwrap();
+    assert_eq!(
+        resultado.len(),
+        1,
+        "el % literal no debe matchear '100X' ni cualquier sufijo"
+    );
+    assert_eq!(resultado[0].nombre, "Menú 100%");
+
+    let params = BdpMenuLocalListParams {
+        tipo: None,
+        activo: None,
+        busqueda: Some("Combo_".to_string()),
+    };
+    let resultado = BdpMenuLocalRepository::listar(&pool, user_id, &params)
+        .await
+        .unwrap();
+    assert_eq!(
+        resultado.len(),
+        1,
+        "el _ literal no debe matchear 'ComboNormal'"
+    );
+    assert_eq!(resultado[0].nombre, "Combo_Especial");
 }

@@ -59,6 +59,12 @@ pub async fn listar_menus_locales(
     auth: AuthUser,
     Query(params): Query<BdpMenuLocalListParams>,
 ) -> Result<Json<Vec<BdpMenuLocalConLineas>>, AppError> {
+    /* [128A-1/F7][F7-1] El filtro `tipo` se valida en el handler: un valor
+     * inválido ya no llega a la columna con CHECK (23514 -> 500), devuelve
+     * 400. */
+    if let Some(ref tipo) = params.tipo {
+        validar_tipo(tipo)?;
+    }
     let menus = BdpMenuLocalRepository::listar(&state.pool, auth.user_id, &params).await?;
     Ok(Json(menus))
 }
@@ -92,7 +98,7 @@ pub async fn crear_menu_local(
 
     let menu = BdpMenuLocalRepository::crear(&state.pool, auth.user_id, &req)
         .await
-        .map_err(map_error_unique)?;
+        .map_err(map_repo_error)?;
     tracing::info!(
         "[128A-1/F7] Menú/pack local {} ('{}', {}) creado por usuario {}",
         menu.id,
@@ -165,7 +171,7 @@ pub async fn actualizar_menu_local(
 
     let ok = BdpMenuLocalRepository::actualizar(&state.pool, id, auth.user_id, &req)
         .await
-        .map_err(map_error_unique)?;
+        .map_err(map_repo_error)?;
     if !ok {
         return Err(AppError::NotFound("Menú/pack local no encontrado".into()));
     }
@@ -277,14 +283,27 @@ fn validar_lineas(lineas: &[BdpMenuLocalLineaRequest]) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Mapea violaciones del `UNIQUE(user_id, tipo, nombre)` a un 409 legible.
-fn map_error_unique(e: sqlx::Error) -> AppError {
+/// Mapea errores del repositorio: el `UNIQUE(user_id, tipo, nombre)` a un 409
+/// legible y los contratos de F7 (`tipo_invalido`, `articulo_no_en_catalogo`)
+/// a un 400 de validación.
+fn map_repo_error(e: sqlx::Error) -> AppError {
     let es_duplicado = e
         .as_database_error()
         .and_then(sqlx::error::DatabaseError::code)
         .is_some_and(|c| c == "23505");
     if es_duplicado {
         AppError::Conflict("Ya existe un menú/pack con ese nombre y tipo".into())
+    } else if let sqlx::Error::Protocol(msg) = &e {
+        if msg == "tipo_invalido" {
+            AppError::Validation("El tipo debe ser 'menu' o 'pack'".into())
+        } else if let Some(codigos) = msg.strip_prefix("articulo_no_en_catalogo:") {
+            AppError::Validation(format!(
+                "Los artículos no existen en el catálogo local: {codigos}. \
+                 Regístralos antes de componer el menú/pack."
+            ))
+        } else {
+            AppError::from(e)
+        }
     } else {
         AppError::from(e)
     }

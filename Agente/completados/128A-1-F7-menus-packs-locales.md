@@ -61,3 +61,43 @@
   se documenta aquí como pendiente de cierre.
 - **Sentinel:** el gate corrió la etapa sentinel (PASS, 0 errores).
 - **GLORY:** no aplica; cambios del bloque 128A-1 en rama `glory-rs-rest`.
+
+## Correcciones de la 2a revisión (F7-1..F7-4, commit `[128A-1] F7 correcciones`)
+
+- **F7-1 (MEDIA)** `BdpMenuLocalTipo` deja `From<String>`/`From<&str>` (default silencioso a
+  `Menu`) y pasa a `TryFrom<String>`/`TryFrom<&str>` con `Error = &'static str`. `crear`/
+  `actualizar` convierten con `.try_into()` → `sqlx::Error::Protocol("tipo_invalido")` →
+  `AppError::Validation("El tipo debe ser 'menu' o 'pack'")`. `listar_menus_locales` valida
+  `params.tipo` con `validar_tipo` (400) antes de consultar; el filtro ya no deja pasar tipos
+  arbitrarios ni usa un default silencioso. `map_error_unique` renombrado a `map_repo_error`
+  (mapea `tipo_invalido` y `articulo_no_en_catalogo:<códigos>` → Validation con mensaje
+  accionable). Tests: `handler_listar_filtro_tipo_invalido_rechaza` (handler) +
+  `tipo_desconocido_falla_al_convertir` (unit) + `tipo_as_str_mapea_valores` con
+  `.try_into().unwrap()`.
+- **F7-2 (BAJA)** `validar_articulos_en_catalogo(pool, user_id, lineas)` en el repo: cada código
+  no vacío debe existir en `bdp_article_map.articulo_glory_codigo` del usuario (`= ANY($1)` con
+  `Vec<String>`); si falta → `Protocol("articulo_no_en_catalogo:<códigos>")` → Validation con
+  mensaje accionable. Se llama en `crear` y en `actualizar` (solo cuando llega `lineas`); el
+  contrato queda documentado en `BdpMenuLocalLineaRequest.articulo_codigo`. Test:
+  `crear_menu_con_articulo_fuera_del_catalogo_rechazado`.
+- **F7-3 (BAJA)** `auditar(conn, user_id, operacion, menu_id, payload)` inserta en `bdp_audit_log`
+  (`direccion='internal'`, `resultado='exito'`, `origen_operacion='local'`,
+  `target_entity_type='menu_local'`, `target_entity_id`, `authorization_reason`, sin
+  `idempotency_key`) y se invoca dentro de la transacción en `menu_local_crear`,
+  `menu_local_actualizar` (payload con `tipo_audit: Option<&str>` calculado antes del move de
+  `tipo`) y `menu_local_eliminar` (firma cambiada a `eliminar(pool: &PgPool, id, user_id)` con tx
+  interna). Test: `crud_menus_registra_auditoria_local` (crear/actualizar/eliminar → 3 filas de
+  auditoría `local` con `target_entity_type='menu_local'`).
+- **F7-4 (BAJA)** `listar_menus` escapa wildcards del término:
+  `termino.trim().replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")` + `ESCAPE '\'` en
+  ambos ILIKE: buscar `100%` o `Combo_` ya es literal. Test:
+  `busqueda_escapa_wildcards_iliike`.
+- **Tests:** helper nuevo `crear_articulo_catalogo(pool, user_id)` (inserta `bdp_article_map` con
+  `articulo_glory_codigo='ART-001'`); añadido a los 6 tests de repo y 4 de handler que llegan al
+  repo (los que fallan antes del repo — nombre vacío, sin líneas, tipo inválido — no lo necesitan).
+  `tests/bdp_f7_menus_locales.rs` pasa de 15 a 19 tests.
+- **Gate:** `check` OK; `fmt` OK; clippy `--all-targets -- -D warnings` OK (corregidos 3
+  `explicit_auto_deref` → `&mut tx` en los call sites de `auditar`); `test --lib` 149/149;
+  integración `bdp_f7_menus_locales` 19/19 + `bdp_f6_correcciones` 6/6.
+- **Archivos:** `src/models/bdp_menu_local.rs`, `src/repositories/bdp_menu_local.rs`,
+  `src/handlers/bdp_menu_local.rs`, `tests/bdp_f7_menus_locales.rs`, checklist F7 `[x]`.

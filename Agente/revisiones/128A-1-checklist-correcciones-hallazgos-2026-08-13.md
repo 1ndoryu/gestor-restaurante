@@ -137,10 +137,31 @@
     existente en el handler). Evidencia: comentario de contrato + guard existente.
 
 ## F7 — Menus/packs locales (4)
-* [ ] F7-1 [MEDIA] Filtro `tipo` no validado + `From<String>` default silencioso
-* [ ] F7-2 [BAJA] `articulo_codigo` sin validar contra catalogo local
-* [ ] F7-3 [BAJA] CRUD menus sin auditoria local (A11)
-* [ ] F7-4 [BAJA] ILIKE sin escape de wildcards
+* [x] F7-1 [MEDIA] Filtro `tipo` no validado + `From<String>` default silencioso
+  * `BdpMenuLocalTipo` pasa de `From<String>` (default silencioso a `Menu`) a `TryFrom<String>`/
+    `TryFrom<&str>` con `Error = &'static str`; `crear`/`actualizar` convierten con `.try_into()` →
+    `sqlx::Error::Protocol("tipo_invalido")` → `AppError::Validation`; `listar_menus_locales`
+    valida `params.tipo` antes de consultar (400). `map_error_unique` renombrado a `map_repo_error`
+    y mapea `tipo_invalido` y `articulo_no_en_catalogo:...`. Evidencia:
+    `tests/bdp_f7_menus_locales.rs::handler_listar_filtro_tipo_invalido_rechaza` +
+    `tipo_desconocido_falla_al_convertir` (unit).
+* [x] F7-2 [BAJA] `articulo_codigo` sin validar contra catalogo local
+  * `validar_articulos_en_catalogo(pool, user_id, lineas)` en el repo: códigos no vacíos deben
+    existir en `bdp_article_map.articulo_glory_codigo` del usuario (`= ANY($1)`); falta →
+    `Protocol("articulo_no_en_catalogo:...")` → `AppError::Validation` con mensaje accionable.
+    Se llama en `crear` y en `actualizar` (solo si llegan líneas). Evidencia:
+    `tests/bdp_f7_menus_locales.rs::crear_menu_con_articulo_fuera_del_catalogo_rechazado`.
+* [x] F7-3 [BAJA] CRUD menus sin auditoria local (A11)
+  * `auditar(conn, user_id, operacion, menu_id, payload)` inserta en `bdp_audit_log` con
+    `direccion='internal'`, `resultado='exito'`, `origen_operacion='local'`,
+    `target_entity_type='menu_local'`, `target_entity_id`, `authorization_reason` y SIN
+    `idempotency_key`; se llama dentro de la tx en `crear`, `actualizar` (payload con `tipo_audit`
+    calculado antes del move de `tipo`) y `eliminar` (ahora `eliminar(pool, id, user_id)` con tx
+    interna). Evidencia: `tests/bdp_f7_menus_locales.rs::crud_menus_registra_auditoria_local`.
+* [x] F7-4 [BAJA] ILIKE sin escape de wildcards
+  * `listar_menus` escapa `\`, `%` y `_` del término (`replace` + `ESCAPE '\'` en ambos ILIKE):
+    buscar `100%` o `Combo_` ya no es comodín. Evidencia:
+    `tests/bdp_f7_menus_locales.rs::busqueda_escapa_wildcards_iliike`.
 
 ## F8 — Permisos operativos (4)
 * [ ] F8-1 [MEDIA] `pago_parcial_local`/`factura_local` sin permiso operativo
