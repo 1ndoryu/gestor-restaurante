@@ -40,3 +40,24 @@
 
 **Total de la 2a revision:** 40 hallazgos (2 alta, 19 media, 19 baja) — ver
 `Agente/revisiones/128A-1-hallazgos-revision-codigo-2026-08-13.md` (resumen global al final).
+
+## Veredicto de la 2a revision (pasada dura de cierre, estilo supervisor-review)
+
+- **Revision completa:** F0–F10 revisados tarea por tarea contra el plan
+  (`Agente/planes/completados/plan-independencia-bdp-2026-08-12.md`, §4 diseños, M1–M18,
+  D1–D9, A7–A13, §11/§12) y el estado real del codigo (commits `821954c0..2475cba0`). Cada
+  hallazgo con `archivo:linea`, severidad y accion sugerida.
+- **Metodo:** revision estatica; NO se ejecutaron pruebas ni sentinel check (instruccion
+  explicita del usuario). Los conteos de evidencia de F9 se validaron estaticamente
+  (13/13, 15/15, 9/9, 2/2, 10/10, 24/24, simulador 92/92, reporte del gate presente).
+- **Hallazgos criticos:** 2 ALTOS — F4-1 (`venta::delete` bloquea todo con sync activa por el
+  guard de config ANTES de los checks por venta, `src/services/venta.rs:225`) y F0/F1-1 (M1 no
+  aplicado en los caminos de escritura/polling de BDP). Ademas F10-1 (MEDIA): la documentacion
+  de cierre da por implementadas M2 (histeresis) y M3 (cache), que el codigo difiere o no usa.
+- **Estado del bloque:** la implementacion F0–F10 esta funcionalmente cubierta por tests, pero
+  NO esta libre de hallazgos: se recomienda corregir los 2 ALTOS y declarar explicitamente la
+  deuda M2/M3/M1-write antes de considerar el plan "100% operacional" cerrado. El resto son
+  correcciones puntuales (media/baja) listadas por fase.
+- **Sentinel/gate:** no ejecutado (fuera de alcance por instruccion); los cambios de esta
+  revision son solo 2 MDs bajo `Agente/revisiones/`. Cuando se implementen correcciones, correr
+  el gate normal del proyecto.
