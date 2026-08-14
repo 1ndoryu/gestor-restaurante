@@ -108,12 +108,33 @@
     `numero_duplicado_mapeado_a_conflicto_409`).
 
 ## F6 — Auditoria/pagos/factura (6)
-* [ ] F6-1 [MEDIA] `venta::delete` no bloquea `facturada_local`
-* [ ] F6-2 [MEDIA] Idempotencia factura local inalcanzable (guard M9 antes de clave)
-* [ ] F6-3 [MEDIA] Filas legacy `error`/`ambiguo` bloquean factura local
-* [ ] F6-4 [BAJA] Numeracion `F-{anio}-{n}` con COUNT global mezcla anos
-* [ ] F6-5 [BAJA] Idempotency key cross-venta -> exito falso (factura)
-* [ ] F6-6 [BAJA] `tender_id` sin validar contra formas de pago
+* [x] F6-1 [MEDIA] `venta::delete` no bloquea `facturada_local`
+  * `VentaService::delete` ahora trata `facturada_local` como estado final (D5): Conflict con
+    mensaje accionable; además rechaza ventas con filas en `bdp_pagos` (el DELETE no puede
+    cascadear el ledger). Evidencia: `tests/bdp_f6_correcciones.rs`
+    (`delete_venta_facturada_local_bloqueada`, `delete_venta_con_filas_bdp_pagos_bloqueada`).
+* [x] F6-2 [MEDIA] Idempotencia factura local inalcanzable (guard M9 antes de clave)
+  * `VentaRepository::facturar_local` resuelve la clave ANTES de los guards M9: reintento con la
+    misma clave sobre la venta ya facturada → Ok idempotente (mismo numero), nunca 409. Evidencia:
+    `tests/bdp_f6_correcciones.rs::factura_local_reintento_misma_clave_es_exito_idempotente`.
+* [x] F6-3 [MEDIA] Filas legacy `error`/`ambiguo` bloquean factura local
+  * El guard de pagos solo mira filas con `resultado IN ('exito','ambiguo')` (EXISTS y SUM): una
+    fila legacy `error` de un flujo BDP previo ya no deja la venta bloqueada para siempre. Evidencia:
+    `tests/bdp_f6_correcciones.rs::factura_local_con_fila_legacy_error_ok`.
+* [x] F6-4 [BAJA] Numeracion `F-{anio}-{n}` con COUNT global mezcla anos
+  * Numeración por `(user_id, año)`: `MAX((regexp_match(...))[1]::integer) + 1` sobre
+    `factura_numero LIKE 'F-{anio}-%'` (retry 23505 del servicio cubre la carrera). Evidencia:
+    `tests/bdp_f6_correcciones.rs::numeracion_por_anio_no_mezcla_numeros_previos`.
+* [x] F6-5 [BAJA] Idempotency key cross-venta -> exito falso (factura)
+  * La clave se valida contra `target_entity_id` en ambos caminos (previo y carrera): si apunta a
+    OTRA venta → `Protocol("idempotency_key_otra_venta")` → `AppError::Conflict`, y la venta queda
+    sin facturar. Evidencia: `tests/bdp_f6_correcciones.rs`
+    (`factura_local_clave_reutilizada_otra_venta_conflicto`).
+* [x] F6-6 [BAJA] `tender_id` sin validar contra formas de pago
+  * No existe tabla local de tenders: el mapeo método Glory → tender BDP vive en
+    `configuracion_restaurante.bdp_tender_map` (JSONB) y `bdp_pagos` no tiene FK. El contrato queda
+    documentado en `src/handlers/ventas.rs::pago_parcial_local` (validación `tender_id > 0` ya
+    existente en el handler). Evidencia: comentario de contrato + guard existente.
 
 ## F7 — Menus/packs locales (4)
 * [ ] F7-1 [MEDIA] Filtro `tipo` no validado + `From<String>` default silencioso

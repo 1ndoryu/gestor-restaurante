@@ -712,6 +712,31 @@ impl VentaRepository {
             return Err(sqlx::Error::RowNotFound);
         };
 
+        /* [128A-1/F6][F6-2/F6-5] (C1) La idempotencia se resuelve ANTES de los
+         * guards M9: un reintento con la misma clave sobre una venta ya
+         * facturada es ÉXITO idempotente (no 409). La clave está scoped por
+         * venta: si la fila previa apunta a OTRA venta, es clave reutilizada →
+         * conflicto, nunca éxito falso. */
+        let clave_prev: Option<(Uuid, String, Uuid)> = sqlx::query_as(
+            "SELECT id, resultado, target_entity_id FROM bdp_audit_log \
+             WHERE user_id = $1 AND idempotency_key = $2",
+        )
+        .bind(user_id)
+        .bind(&key)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if let Some((audit_id, resultado, target_entity_id)) = clave_prev {
+            if target_entity_id != id {
+                tx.rollback().await?;
+                return Err(sqlx::Error::Protocol(
+                    "idempotency_key_otra_venta".to_string(),
+                ));
+            }
+            tx.commit().await?;
+            let ya_facturada = venta.facturada_local;
+            return Ok((venta, audit_id, Some(resultado), ya_facturada));
+        }
+
         /* M9: no facturar anuladas ni doble facturación (local o BDP). */
         if venta.anulada {
             return Err(sqlx::Error::Protocol(
@@ -725,11 +750,15 @@ impl VentaRepository {
             return Err(sqlx::Error::Protocol("venta_ya_facturada".to_string()));
         }
 
-        /* Si el ledger de pagos parciales tiene filas, deben cubrir el total. */
+        /* [128A-1/F6][F6-3] El guard de pagos solo mira filas con resultado
+         * 'exito'/'ambiguo': filas históricas legacy 'error'/'ambiguo' de un
+         * flujo BDP previo NO bloquean la facturación local para siempre.
+         * Si quedan filas reales, deben cubrir el total. */
         let (tiene_pagos, pagado): (bool, rust_decimal::Decimal) = sqlx::query_as(
-            "SELECT EXISTS(SELECT 1 FROM bdp_pagos WHERE venta_id = $1), \
+            "SELECT EXISTS(SELECT 1 FROM bdp_pagos WHERE venta_id = $1 \
+                           AND resultado IN ('exito', 'ambiguo')), \
                     COALESCE((SELECT SUM(amount) FROM bdp_pagos \
-                              WHERE venta_id = $1 AND resultado = 'exito'), 0)",
+                              WHERE venta_id = $1 AND resultado IN ('exito', 'ambiguo')), 0)",
         )
         .bind(id)
         .fetch_one(&mut *tx)
@@ -741,15 +770,20 @@ impl VentaRepository {
             ));
         }
 
-        /* Numeración local secuencial por usuario: F-{año}-{n:04}. */
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM ventas WHERE user_id = $1 AND factura_numero IS NOT NULL",
+        /* [128A-1/F6][F6-4] Numeración local por (user_id, año):
+         * F-{año}-{n:04} sin mezclar años ni reutilizar números tras
+         * borrados (MAX del secuencial + 1; el retry 23505 del servicio
+         * cubre la carrera). */
+        let anio = chrono::Utc::now().format("%Y");
+        let max_numero: Option<i32> = sqlx::query_scalar(
+            "SELECT MAX((regexp_match(factura_numero, '^F-[0-9]{4}-([0-9]+)$'))[1]::integer) \
+             FROM ventas WHERE user_id = $1 AND factura_numero LIKE $2",
         )
         .bind(user_id)
+        .bind(format!("F-{anio}-%"))
         .fetch_one(&mut *tx)
         .await?;
-        let anio = chrono::Utc::now().format("%Y");
-        let numero = format!("F-{anio}-{:04}", count + 1);
+        let numero = format!("F-{anio}-{:04}", max_numero.unwrap_or(0) + 1);
 
         let audit_payload = serde_json::json!({
             "venta_id": id,
@@ -780,13 +814,21 @@ impl VentaRepository {
         .await?;
 
         let Some(audit_id) = maybe_audit_id else {
-            let (existing_id, resultado): (Uuid, String) = sqlx::query_as(
-                "SELECT id, resultado FROM bdp_audit_log WHERE user_id = $1 AND idempotency_key = $2",
+            /* Carrera: otra transacción insertó la clave mientras tanto. */
+            let (existing_id, resultado, target_entity_id): (Uuid, String, Uuid) = sqlx::query_as(
+                "SELECT id, resultado, target_entity_id FROM bdp_audit_log \
+                 WHERE user_id = $1 AND idempotency_key = $2",
             )
             .bind(user_id)
             .bind(&key)
             .fetch_one(&mut *tx)
             .await?;
+            if target_entity_id != id {
+                tx.rollback().await?;
+                return Err(sqlx::Error::Protocol(
+                    "idempotency_key_otra_venta".to_string(),
+                ));
+            }
             let venta_actual =
                 sqlx::query_as::<_, Venta>("SELECT * FROM ventas WHERE id = $1 AND user_id = $2")
                     .bind(id)

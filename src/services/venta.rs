@@ -244,6 +244,29 @@ impl VentaService {
                     .into(),
             ));
         }
+        /* [128A-1/F6][F6-1] El estado `facturada_local` es final igual que
+         * `anulada` (D5): eliminar la venta perdería el histórico fiscal y el
+         * número de factura. Por robustez tampoco se eliminan ventas con filas
+         * en `bdp_pagos` (el DELETE cascadearía el ledger de pagos). */
+        if venta.facturada_local {
+            return Err(AppError::Conflict(
+                "La venta está facturada localmente y no se puede eliminar: se perdería el \
+                 histórico fiscal y el número de factura (D5)."
+                    .into(),
+            ));
+        }
+        let tiene_pagos: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM bdp_pagos WHERE venta_id = $1)")
+                .bind(id)
+                .fetch_one(pool)
+                .await?;
+        if tiene_pagos {
+            return Err(AppError::Conflict(
+                "La venta tiene pagos parciales registrados y no se puede eliminar: se perdería \
+                 el ledger de pagos (D5)."
+                    .into(),
+            ));
+        }
         if !VentaRepository::delete(pool, id, user_id).await? {
             return Err(AppError::NotFound(
                 "Venta no encontrada tras verificación".into(),

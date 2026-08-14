@@ -725,6 +725,11 @@ pub async fn pago_parcial_local(
     Path(id): Path<Uuid>,
     Json(req): Json<PagoLocalRequest>,
 ) -> Result<Json<PagoLocalResponse>, AppError> {
+    /* [128A-1/F6][F6-6] Contrato de `tender_id`: no existe tabla local de
+     * tenders; el mapeo método_pago Glory → tender BDP vive en
+     * `configuracion_restaurante.bdp_tender_map` (JSONB) y `bdp_pagos` no
+     * tiene FK. La validación es `tender_id > 0` (referencia simbólica del
+     * ledger); se documenta el contrato en vez de inventar una tabla nueva. */
     if req.amount <= rust_decimal::Decimal::ZERO || req.tender_id <= 0 {
         return Err(AppError::Validation(
             "El pago requiere amount mayor que cero y tender_id válido.".into(),

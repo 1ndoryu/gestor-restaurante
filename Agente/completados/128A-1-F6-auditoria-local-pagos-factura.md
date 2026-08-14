@@ -65,3 +65,34 @@
   (no hay tools de subagente); se documenta aquí como pendiente de cierre.
 - **Sentinel:** el gate corrió la etapa sentinel (PASS, 0 errores).
 - **GLORY:** no aplica; cambios del bloque 128A-1 en rama `glory-rs-rest`.
+
+## Correcciones de la 2a revisión (F6-1..F6-6, commit `[128A-1] F6 correcciones`)
+
+- **F6-1 (MEDIA)** `VentaService::delete` trata `facturada_local` como estado final igual que
+  `anulada` (D5): Conflict con mensaje accionable. Por robustez también rechaza ventas con filas en
+  `bdp_pagos` (el DELETE cascadearía el ledger). Tests:
+  `delete_venta_facturada_local_bloqueada`, `delete_venta_con_filas_bdp_pagos_bloqueada`.
+- **F6-2 (MEDIA)** `VentaRepository::facturar_local` resuelve la idempotencia ANTES de los guards
+  M9: `clave_prev` = `(id, resultado, target_entity_id)` por `(user_id, idempotency_key)`; si apunta a
+  la misma venta → commit + `Ok((venta, audit_id, Some(resultado), ya_facturada))` (éxito idempotente,
+  nunca 409). `ya_facturada` se bindea antes de mover `venta` (E0382). El camino de carrera
+  (INSERT ON CONFLICT → None) también verifica `target_entity_id`. Test:
+  `factura_local_reintento_misma_clave_es_exito_idempotente`.
+- **F6-3 (MEDIA)** Guard de pagos con `resultado IN ('exito','ambiguo')` en EXISTS y SUM: filas
+  legacy `error` de un flujo BDP previo no bloquean la factura local para siempre. Test:
+  `factura_local_con_fila_legacy_error_ok`.
+- **F6-4 (BAJA)** Numeración por `(user_id, año)`: `MAX((regexp_match(factura_numero,
+  '^F-[0-9]{4}-([0-9]+)$'))[1]::integer) + 1` con `LIKE 'F-{anio}-%'` (i32), sin mezclar años ni
+  reutilizar números tras borrados; el retry 23505 del servicio cubre la carrera. Test:
+  `numeracion_por_anio_no_mezcla_numeros_previos`.
+- **F6-5 (BAJA)** Clave scoped por venta en ambos caminos: `target_entity_id != id` →
+  `Protocol("idempotency_key_otra_venta")` → `AppError::Conflict`; la venta queda sin facturar (no hay
+  éxito falso). Test: `factura_local_clave_reutilizada_otra_venta_conflicto`.
+- **F6-6 (BAJA)** Contrato de `tender_id` documentado en `src/handlers/ventas.rs::pago_parcial_local`:
+  no existe tabla local de tenders; el mapeo método Glory → tender BDP vive en
+  `configuracion_restaurante.bdp_tender_map` (JSONB) y `bdp_pagos` no tiene FK; la validación es
+  `tender_id > 0` (referencia simbólica del ledger), ya presente en el handler.
+- **Gate:** fmt OK; clippy `--all-targets -- -D warnings` OK; `test --lib` 148/148; integración
+  `bdp_f6_correcciones` 6/6 + `bdp_f6_local_pagos_factura` 11/11 + `bdp_f4_anulacion_delete` 5/5.
+- **Archivos:** `src/services/venta.rs`, `src/repositories/venta.rs`, `src/handlers/ventas.rs`,
+  `tests/bdp_f6_correcciones.rs` (nuevo), checklist F6 `[x]`.
