@@ -205,3 +205,36 @@ ventas distintas sin clave); `pago_parcial_local` con lock `FOR UPDATE`, saldo p
 anulada/facturada y respuesta con balance; retry x3 ante 23505 en factura local; handlers con
 confirmacion dinamica y mapeo de errores sin 500; UI (BdpHistorial con badge/filtro origen,
 pagos/factura local en venta-row-actions, badge factura en tabla); tests 11/11 declarados.
+
+## F7 — Menus/packs locales (`17cc1a03`)
+
+1. **MEDIA — Filtro `tipo` no validado y `From<String>` default silencioso.** En
+   `listar_menus` (`src/repositories/bdp_menu_local.rs`) el parametro `tipo` se bindea directo a
+   la columna con `CHECK (tipo IN ('menu','pack'))`: un valor invalido desde la query string
+   provoca un error de BD (23514) -> 500 en vez de 400. Ademas, `From<String> for
+   BdpMenuLocalTipo` (`src/models/bdp_menu_local.rs:45-56`) defaultea a `Menu` con solo un warn
+   para valores desconocidos: si el repo se reusa por otra via sin la validacion del handler,
+   un tipo invalido se persistiria como 'menu' silenciosamente. Accion: validar el filtro en el
+   handler (400) y hacer el `From` fallible o restringirlo a las conversiones ya validadas.
+2. **BAJA — `articulo_codigo` de las lineas no se valida contra el catalogo local.**
+   `bdp_menu_local_lineas.articulo_codigo` es texto libre sin FK a `bdp_article_map` ni
+   comprobacion de existencia en el backend; el select del frontend mitiga el error de tipeo, pero
+   un articulo borrado/desactivado (F2/M6/M7) deja referencias colgantes en menus activos. El plan
+   §4.10 habla de "agrupaciones de articulos del catalogo local". Accion: validar existencia (o
+   avisar) al crear/actualizar, o documentar el contrato de texto libre.
+3. **BAJA — CRUD de menus sin auditoria local (A11 incompleto).** Las operaciones
+   crear/actualizar/eliminar de `bdp_menus_locales` no registran entradas en `bdp_audit_log`
+   (a diferencia de anular/stock/pagos/factura en F6). El Historial local no refleja cambios de
+   menu/pack. Accion: auditar las mutaciones (con `origen_operacion='local'`) o declarar el
+   alcance de A11.
+4. **BAJA — Busqueda ILIKE sin escape de wildcards.** El filtro `busqueda` en `listar_menus`
+   usa `format!("%{termino}%")` sin escapar `%`/`_`: un termino con wildcards matchea de mas.
+   Riesgo bajo (solo busqueda), pero conviene escapar. Accion: `replace("%", "\\%")` +
+   `ESCAPE '\'`.
+
+Verificado en F7 (sin hallazgo): transacciones en crear/actualizar; reemplazo de lineas con
+orden determinista (`orden`); `cargar_lineas` con `ANY($1)` (sin N+1); CASCADE de lineas en
+eliminar; recalculado de precio desde lineas si no viene explicito; validaciones de tipo/nombre/
+lineas/precios/cantidades en handlers; mapeo 23505 -> 409 (`map_error_unique`); UNIQUE
+`(user_id, tipo, nombre)`; sin gates de flags (M12: capacidad standalone); UI en BdpExplorador +
+BdpMenuLocalModal con select de articulos; tests 15/15 declarados.

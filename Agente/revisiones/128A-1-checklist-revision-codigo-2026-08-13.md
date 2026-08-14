@@ -26,8 +26,9 @@
 * [x] **F6 — Auditoria local + pagos parciales + factura local minima** (`acf59e77`): revisar
       migracion `bdp_audit origen_local`, ledger `bdp_pagos` local (idempotencia/saldo), factura
       local `facturada_local` (numeracion), guards, UI. Hallazgos: 6 (3 media, 3 baja).
-* [ ] **F7 — Menus/packs locales** (`17cc1a03`): revisar migracion `bdp_menu_local` (CRUD con lineas),
-      modelo/repositorio/handler, convivencia con BDP (origen), UI Explorador.
+* [x] **F7 — Menus/packs locales** (`17cc1a03`): revisar migracion `bdp_menu_local` (CRUD con lineas),
+      modelo/repositorio/handler, convivencia con BDP (origen), UI Explorador. Hallazgos: 4
+      (1 media, 3 baja).
 * [ ] **F8 — Permisos operativos** (`3fc17534`): revisar migracion `bdp_permisos_operativos`,
       `src/services/permisos.rs` (fail-closed, `permiso_habilitado`, `verificar_permiso`),
       enforcement por endpoint (M17), UI ConfigBdp.
