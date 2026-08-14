@@ -29,9 +29,9 @@
 * [x] **F7 — Menus/packs locales** (`17cc1a03`): revisar migracion `bdp_menu_local` (CRUD con lineas),
       modelo/repositorio/handler, convivencia con BDP (origen), UI Explorador. Hallazgos: 4
       (1 media, 3 baja).
-* [ ] **F8 — Permisos operativos** (`3fc17534`): revisar migracion `bdp_permisos_operativos`,
+* [x] **F8 — Permisos operativos** (`3fc17534`): revisar migracion `bdp_permisos_operativos`,
       `src/services/permisos.rs` (fail-closed, `permiso_habilitado`, `verificar_permiso`),
-      enforcement por endpoint (M17), UI ConfigBdp.
+      enforcement por endpoint (M17), UI ConfigBdp. Hallazgos: 4 (1 media, 3 baja).
 * [ ] **F9 — Pruebas con/sin BDP** (`e12b3968`): revisar documentacion de evidencia (suites,
       simulador, gate) y coherencia de lo declarado con el codigo revisado.
 * [ ] **F10 — Cierre documental** (`e9eef0dd`, `2475cba0`): revisar roadmap, completados,

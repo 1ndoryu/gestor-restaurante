@@ -238,3 +238,48 @@ eliminar; recalculado de precio desde lineas si no viene explicito; validaciones
 lineas/precios/cantidades en handlers; mapeo 23505 -> 409 (`map_error_unique`); UNIQUE
 `(user_id, tipo, nombre)`; sin gates de flags (M12: capacidad standalone); UI en BdpExplorador +
 BdpMenuLocalModal con select de articulos; tests 15/15 declarados.
+
+## F8 — Permisos operativos configurables (`3fc17534`)
+
+1. **MEDIA — `pago_parcial_local` y `factura_local` (F6, dinero) sin permiso operativo.**
+   El plan §4.11/F8 enumeraba explicitamente entre los endpoints a proteger "bdp-payment" y
+   "bdp-invoice" con "tests 403 por permiso". La nota de alcance documentada cubre las variantes
+   BDP (guards `bdp_sync_enabled`/modo/flags/BdpWriteGuard), pero las variantes LOCALES de F6
+   (`pago_parcial_local`, `src/handlers/ventas.rs:717`; `factura_local`,
+   `src/handlers/ventas.rs:802`) NO son BDP-bound, funcionan en `standalone` y no tienen
+   `verificar_permiso`: con el default 'admin' un Trabajador autenticado puede registrar pagos
+   parciales y emitir facturas locales (operaciones monetarias) sin ningun permiso. La nota de
+   alcance no cubre estos endpoints. Accion: anadir `AccionPermiso` (p. ej. `PagosLocales`/
+   `FacturacionLocal`) + `verificar_permiso` en ambos handlers + tests 403 + selects en
+   ConfigBdp.
+2. **BAJA — `eliminar_venta` sin permiso por accion.** `src/handlers/ventas.rs:166` (DELETE
+   `/ventas/:id`) tiene guards de estado (anulada/sync BDP/order BDP) pero ningun chequeo de rol
+   ni permiso: con default 'admin' un Trabajador puede eliminar ventas no sincronizadas ni
+   anuladas (historico fiscal local). No aparece en la lista explicita de F8 del plan, pero es
+   escritura sensible dentro del espiritu de M17 ("ninguna accion sensible queda solo protegida
+   por UI"). Accion: evaluar un permiso dedicado o reusar `AnulacionVentas` para el DELETE.
+3. **BAJA — Cobertura de tests 403 parcial por endpoint.** `tests/bdp_f8_permisos.rs` (13/13)
+   cubre 403 para stock, catalogo (crear/actualizar/eliminar), albaranes (solo `crear_local`) y
+   anulacion; no cubre `actualizar_purchase_note_local`, `eliminar_purchase_note_local`,
+   `marcar_borrador_purchase_note` ni `conciliar_purchase_note` (el guard existe en los 5
+   handlers, mismo `AccionPermiso`). La promesa "tests 403 por permiso" se cumple por accion pero
+   con huecos por endpoint. Accion: anadir los 4 casos restantes de albaranes (y 403 de
+   `eliminar_venta` si se decide el hallazgo 2).
+4. **BAJA — `verificar_permiso` lee config con `obtener_o_crear` en cada request.** Cada endpoint
+   protegido ejecuta `ConfiguracionService::obtener` -> `obtener_o_crear` (`src/repositories/
+   configuracion.rs:53`): (a) una query extra por request sin cache; (b) efecto colateral de
+   escritura: si el user_id (o el impersonado) no tiene fila de configuracion, se le crea una con
+   defaults. Aceptable con decenas de usuarios, pero conviene una lectura pura o cache.
+
+Verificado en F8 (sin hallazgo): migracion aditiva M15 (`ADD COLUMN IF NOT EXISTS` con CHECK y
+default 'admin', no altera filas previas); `desde_valor` fail-closed a Admin ante valor
+desconocido; `permite` sobre `effective_role` consistente con `AuthUser::require_role` (los
+unicos roles son Admin/Trabajador, asi que 'todos' y 'admin_trabajador' son equivalentes en la
+practica — futuro-proofing, no defecto); validacion de valores en PATCH (`src/services/
+configuracion.rs`) + CHECK en BD (defensa en profundidad); enforcement en los 5 handlers de
+albaranes y los 4 de catalogo/stock; UI con 4 selects + defaults 'admin' + sync servidor->local
+(ConfigBdp.tsx); exports para tests en `src/handlers/mod.rs`; 13 tests con 403 default admin,
+admin sin 403, ampliacion `todos`/`admin_trabajador` habilita al trabajador, PATCH invalido ->
+Validation y persistencia; decision documentada de no gatear sync-prices/sync-tables/
+customers-import/bdp-poll por estar protegidos por guards BDP de backend (documentado en
+`Agente/completados/128A-1-F8-permisos-operativos.md` y en el plan).
