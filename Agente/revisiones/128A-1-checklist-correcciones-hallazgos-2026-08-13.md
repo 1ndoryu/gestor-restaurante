@@ -41,8 +41,11 @@
     `upsert_stock` con `WHERE NOT ajustado_local AND stock IS DISTINCT FROM EXCLUDED.stock`;
     `ajustar_stock` escribe `ajustado_local = true`; modelo `BdpArticleStock.ajustado_local`.
     Evidencia: `test_sync_no_pisa_stock_ajustado_local` + clippy verde (35/35 en `bdp_article_map`).
-* [ ] F3-2 [MEDIA] N6 (get_stock/get_list_stock) sin handler ni uso operativo
-  * Pendiente: resolver en bloque F9/F10 (docs) declarando la deuda (queda como transporte sin exponer).
+* [x] F3-2 [MEDIA] N6 (get_stock/get_list_stock) sin handler ni uso operativo
+  * Deuda documental declarada (F10-1): el transporte existe en `bdp_weblink_catalog`
+    (`get_stock`/`get_list_stock` con `effective_stock`), pero no hay handler HTTP ni uso
+    operativo; queda documentado en `roadmap.md` y en el checklist de cierre del plan como
+    pendiente de fase F3.2.
 * [x] F3-3 [BAJA] Sin guard de stock negativo
   * `AjusteStockError` (StockNegativo/Db) en `crear/ajustar_stock`: valida `stock < 0` antes del
     commit con rollback; mapeo 422 en `errors/mod.rs`. Evidencia:
