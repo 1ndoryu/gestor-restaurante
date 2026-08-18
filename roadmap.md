@@ -143,12 +143,17 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 ### Bloque 128A-1 — Independencia total del BDP (completado 2026-08-13)
 
 F0–F10 implementados en `glory-rs-rest` (commits `821954c0`…`e12b3968`, gate `task:check 128A-1
---full` PASS en F7/F8/F9): conmutador `standalone`/`bdp` con degradación y badge, catálogo local,
-stock local, anulación local, compras locales, historial/pagos parciales/factura local,
-menús/packs locales y permisos operativos por acción con enforcement backend (403). Sin escrituras
-ni deploy: pendiente de autorización del usuario para llevar a producción. Plan cerrado en
+--full` PASS en F7/F8/F9): conmutador `standalone`/`bdp` con badge, catálogo local, stock local,
+anulación local, compras locales, historial/pagos parciales/factura local, menús/packs locales y
+permisos operativos por acción con enforcement backend (403). Sin escrituras ni deploy: pendiente
+de autorización del usuario para llevar a producción. **Deuda declarada (F10-1):** M1
+(invariantes del conmutador) aplica en los caminos auditados, pero NO en todos los de
+escritura/polling (hallazgo F0/F1-1, ALTA); M2 (histéresis/degradación reactiva) está diferida y
+M3 (cache TTL/invalidación) no tiene consumidores. Plan cerrado en
 `Agente/planes/completados/plan-independencia-bdp-2026-08-12.md`; evidencia por fase en
-`Agente/completados/128A-1-F4-*` … `128A-1-F9-*` y resumen en
+`Agente/completados/128A-1-F4-anulacion-local-ventas.md`, `128A-1-F5-compras-locales.md`,
+`128A-1-F6-auditoria-local-pagos-factura.md`, `128A-1-F7-menus-packs-locales.md`,
+`128A-1-F8-permisos-operativos.md` y `128A-1-F9-pruebas-bdp.md`; resumen en
 `Agente/completados/tareas-2026-08-13.md`.
 
 - Automatizar la detección de credenciales literales en documentación según `Agente/prevencion/prevencion-secretos-documentacion-bdp-2026-07-28.md`.

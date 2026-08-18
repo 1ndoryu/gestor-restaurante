@@ -704,7 +704,8 @@ cliente (no autorizada).
 ## Checklist de cierre
 
 - [ ] F0: inventario A/B verificado contra el estado real con evidencia
-- [x] F1: modo operativo + invariantes (M1) + histéresis (M2) + badge + degradación, probados
+- [x] F1: modo operativo + invariantes (M1, parcial: no en todos los write/polling) + badge +
+      degradación, probados — deuda M2 (histéresis) y M3 (cache) declarada en F10-1
 - [x] F2: catálogo local (origen/local_dirty, CRUD sin BDP, resolve_article M5, import M6/M7), probado
       con gate PASS
 - [x] F3: stock local (ajuste manual con auditoría, GetStock/GetListStock N6, UI con origen),

@@ -111,7 +111,8 @@ function assertSafeTargetRoot(targetRoot) {
   const normalized = resolved.replace(/\\/g, '/').toLowerCase();
   const safeSuffix = normalized.endsWith('/glory-target');
   const parentIsTmp = path.basename(path.dirname(resolved)).toLowerCase() === 'tmp';
-  if (!safeSuffix || !parentIsTmp || normalized === '/' || normalized.length < 12) {
+  const parentIsOsTmp = resolved.toLowerCase().startsWith(process.env.TEMP?.toLowerCase() ?? '\0') || resolved.toLowerCase().startsWith(process.env.TMP?.toLowerCase() ?? '\0');
+  if (!safeSuffix || !(parentIsTmp || parentIsOsTmp) || normalized === '/' || normalized.length < 12) {
     throw new Error(`Target root rechazado por seguridad: ${resolved}`);
   }
   return resolved;

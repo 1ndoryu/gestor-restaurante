@@ -187,6 +187,15 @@
     `tests/bdp_f8_permisos.rs::verificar_permiso_sin_config_no_crea_fila_y_falla_cerrado`.
 
 ## F9/F10 — Docs (3)
-* [ ] F9-1 [BAJA] Reporte "reproducible" en ruta mutable (latest.md sobrescrito)
-* [ ] F10-1 [MEDIA] Docs sobrevenden M1/M2/M3 (declarar deuda o implementar)
-* [ ] F10-2 [BAJA] Referencia con wildcard en roadmap.md:151
+* [x] F9-1 [BAJA] Reporte "reproducible" en ruta mutable (latest.md sobrescrito)
+  * `Agente/completados/128A-1-F9-pruebas-bdp.md` ahora cita el reporte con su commit real y
+    fecha (no `latest.md` solo) y declara que `latest.md` se sobrescribe por corrida; la corrida
+    de cierre guarda copia por corrida `128A-1-<short-commit>.md` en el directorio del reporte
+    (gitignored, se regenera por corrida).
+* [x] F10-1 [MEDIA] Docs sobrevenden M1/M2/M3 (declarar deuda o implementar)
+  * Deuda declarada en `roadmap.md` (bloque 128A-1: M1 pendiente en write/polling, M2 histéresis
+    y M3 cache sin consumidores), en `Agente/completados/tareas-2026-08-13.md` (resumen F1) y en
+    el checklist de cierre del plan (`F1` marcado con la deuda, no como implementado completo).
+* [x] F10-2 [BAJA] Referencia con wildcard en roadmap.md:151
+  * `roadmap.md` lista los archivos explícitos `128A-1-F4-anulacion-local-ventas.md` …
+    `128A-1-F9-pruebas-bdp.md` en lugar de `128A-1-F4-* … 128A-1-F9-*`.

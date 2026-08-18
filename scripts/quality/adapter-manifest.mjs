@@ -7,6 +7,10 @@ export const REQUIRED_STAGE_NAMES = Object.freeze(['sentinel']);
 export const TASK_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
 const PLACEHOLDERS = new Set(['{stage}', '{reportPath}', '{taskId}']);
 const SENSITIVE_ENV_NAMES = /(?:TOKEN|KEY|SECRET|PASSWORD|PASSWD|AUTHORIZATION|DATABASE_URL|PGPASSWORD)/u;
+/* [sandbox-safe-dir] GIT_CONFIG_KEY_<n> transporta el *nombre* de una clave
+ * de configuración git (p. ej. safe.directory), no un secreto; su valor vive
+ * en GIT_CONFIG_VALUE_<n>. Se exime del patrón genérico de KEY. */
+const NON_SENSITIVE_ENV_EXACT = new Set(['GIT_CONFIG_KEY_0', 'GIT_CONFIG_KEY_1']);
 const ADAPTER_KEYS = new Set(['id', 'version', 'protocolVersion', 'capabilities', 'environment', 'output']);
 const ENVIRONMENT_KEYS = new Set(['mode', 'allowlisted']);
 const OUTPUT_KEYS = new Set(['schemaVersion', 'exitCodes']);
@@ -56,7 +60,7 @@ function assertStageList(value, label, declaredStages) { if (!Array.isArray(valu
 function declaredStageNames(manifest) { if (!isRecord(manifest?.stages) || Object.keys(manifest.stages).length === 0) throw new Error('quality-adapter.json.stages: debe ser un objeto no vacío'); return Object.keys(manifest.stages); }
 function assertEnvironmentNames(names, label) {
   if (!Array.isArray(names) || !names.every(item => typeof item === 'string' && /^[A-Za-z_][A-Za-z0-9_]*(?:\(X86\))?$/u.test(item))) throw new Error(`${label}: debe contener nombres de entorno allowlisted`);
-  const sensitive = names.filter(name => SENSITIVE_ENV_NAMES.test(name.toUpperCase()));
+  const sensitive = names.filter(name => SENSITIVE_ENV_NAMES.test(name.toUpperCase()) && !NON_SENSITIVE_ENV_EXACT.has(name));
   if (sensitive.length > 0) throw new Error(`${label}: variables sensibles no permitidas (${sensitive.join(', ')})`);
   return names;
 }

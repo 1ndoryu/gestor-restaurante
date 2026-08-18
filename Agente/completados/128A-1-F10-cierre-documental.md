@@ -31,7 +31,8 @@
     (referencia glob `128A-1-F{2..9}-*.md` inexistente; los completados individuales existen solo
     de F4 a F9); corregida la referencia y segunda ejecución **PASS** (sentinel, varsense, rust,
     frontend, docs) — reporte en
-    `.quality-reports/branches/glory-rs-rest--f100af0a041e6e8a/128A-1/latest.md`.
+    `.quality-reports/branches/glory-rs-rest--f100af0a041e6e8a/128A-1/latest.md`
+    ([F9-1] mutable; evidencia estable = copia por corrida `128A-1-<short-commit>.md`).
 * **Gotchas:** el validador de docs del gate resuelve las referencias como literales — no usar
   globs (`{2..9}`, `*`) en rutas de documentación; listar archivos reales o apuntar al resumen
   `tareas-*.md`.

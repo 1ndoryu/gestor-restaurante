@@ -22,9 +22,12 @@
     cacheado, export de artículos/clientes, health/version/tenders).
   - **Regresión del gate:** `npm run task:check -- 128A-1 --full --allow-heavy --heavy-reason
     "F9 pruebas con/sin BDP + simulador + regresión"` → **PASS** (sentinel, varsense, rust con
-    4 comandos, frontend type-check, docs). Reporte reproducible:
-    `.quality-reports/branches/glory-rs-rest--f100af0a041e6e8a/128A-1/latest.md` (commit
-    `3fc17534`, rama `glory-rs-rest`, política enforce).
+    4 comandos, frontend type-check, docs). Reporte:
+    `.quality-reports/branches/glory-rs-rest--f100af0a041e6e8a/128A-1/latest.md` (corrida de
+    cierre, commit real en `latest.json`/encabezado, rama `glory-rs-rest`, política enforce).
+    [F9-1] `latest.md` es **mutable** (se sobrescribe en cada corrida); la evidencia estable es
+    la copia por corrida `128A-1-<short-commit>.md` del mismo directorio (gitignored) y el
+    commit real + fecha de cada corrida.
   - **Con/sin BDP (recorrido):** sin credenciales → modo efectivo `standalone`, bloque F1–F8
     probado con suites locales; con credenciales + simulador → modo `bdp`, verificado por
     `bdp_simulator_integration` y la suite Python del simulador. Sin escrituras ni llamadas al
