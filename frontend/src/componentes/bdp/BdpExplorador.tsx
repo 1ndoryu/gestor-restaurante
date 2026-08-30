@@ -96,8 +96,8 @@ function DefinitionDetail({ data }: { data: BdpExplorerItem }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.lines.map((line, i) => (
-                <TableRow key={i}>
+              {data.lines.map((line) => (
+                <TableRow key={String(line.articleCode)}>
                   <TableCell className="text-xs">{line.articleName}</TableCell>
                   <TableCell className="font-mono text-xs">{line.articleCode}</TableCell>
                   <TableCell className="text-xs text-right">{line.quantity}</TableCell>
@@ -452,8 +452,8 @@ function BdpExplorador() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {resultadoReal.lines.map((line, i) => (
-                    <TableRow key={i}>
+                  {resultadoReal.lines.map((line) => (
+                    <TableRow key={String(line.article_code ?? line.article_name ?? 'linea')}>
                       <TableCell className="text-xs">{line.article_name ?? '—'}</TableCell>
                       <TableCell className="font-mono text-xs">{line.article_code ?? '—'}</TableCell>
                       <TableCell className="text-xs text-right">{line.quantity ?? '—'}</TableCell>

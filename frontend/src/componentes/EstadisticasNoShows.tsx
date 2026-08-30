@@ -76,8 +76,8 @@ function EstadisticasNoShows() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {stats.por_canal.map((canal, i) => (
-                      <TableRow key={i}>
+                    {stats.por_canal.map((canal) => (
+                      <TableRow key={canal.canal_nombre || 'sin-canal'}>
                         <TableCell>{canal.canal_nombre || 'Sin canal'}</TableCell>
                         <TableCell className="text-right">{canal.total_reservas}</TableCell>
                         <TableCell className="text-right">{canal.no_shows}</TableCell>
