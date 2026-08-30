@@ -82,7 +82,7 @@ function ListaCanales() {
               <TableRow>
                 <TableHead>Canal</TableHead>
                 <TableHead>Fecha de creación</TableHead>
-                <TableHead className="w-10"></TableHead>
+                <TableHead className="w-10 text-center">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -91,15 +91,18 @@ function ListaCanales() {
                   <TableCell className="font-medium">{c.nombre}</TableCell>
                   <TableCell>{new Date(c.created_at).toLocaleDateString('es-ES')}</TableCell>
                   <TableCell>
+                    <div className="flex justify-center">
                     <TooltipButton
-                      variant="ghost"
+                      variant="outline"
                       size="icon"
+                      className="bg-muted/40 hover:bg-muted"
                       onClick={() => eliminarMut.mutate({ id: c.id })}
                       disabled={eliminarMut.isPending}
                       tooltip="Eliminar canal"
                     >
                       <Trash2 className="size-4 text-destructive" />
                     </TooltipButton>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

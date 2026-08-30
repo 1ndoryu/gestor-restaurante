@@ -1,7 +1,7 @@
 /* [287A-5] Ajuste guiado reutilizable para parámetros de lectura BDP que la
  * aplicación no puede descubrir de forma fiable en una instalación real. */
 
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +16,8 @@ interface BdpRequiredSettingProps {
   saving: boolean;
   onChange: (value: string) => void;
   onSave: () => void;
+  /** [208A-2] Si se pasa, muestra un botón para ocultar el aviso de nuevo. */
+  onDismiss?: () => void;
 }
 
 export function BdpRequiredSetting({
@@ -28,15 +30,21 @@ export function BdpRequiredSetting({
   saving,
   onChange,
   onSave,
+  onDismiss,
 }: BdpRequiredSettingProps) {
   return (
     <div className="flex w-full flex-col gap-3 rounded-md border p-3">
       <div className="flex items-start gap-2">
         <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-600" />
-        <div>
+        <div className="flex-1">
           <p className="text-sm font-medium">{title}</p>
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
+        {onDismiss && (
+          <Button variant="ghost" size="icon" className="size-6 shrink-0" onClick={onDismiss} aria-label="Ocultar este aviso">
+            <X className="size-3.5" />
+          </Button>
+        )}
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex flex-1 flex-col gap-1">

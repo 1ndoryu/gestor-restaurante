@@ -264,13 +264,13 @@ function BdpHistorial() {
                     <TableHead>Dirección</TableHead>
                     <TableHead>Origen</TableHead>
                     <TableHead>Resultado</TableHead>
-                    <TableHead className="w-10"></TableHead>
+                    <TableHead className="w-10 text-center">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {auditFiltrado.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center text-[13px] text-muted-foreground">
                         Sin registros de auditoría.
                       </TableCell>
                     </TableRow>
@@ -285,9 +285,11 @@ function BdpHistorial() {
                         <TableCell>{origenBadge(entry.origen_operacion)}</TableCell>
                         <TableCell>{resultadoBadge(entry.resultado)}</TableCell>
                         <TableCell>
+                          <div className="flex justify-center">
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="icon"
+                            className="bg-muted/40 hover:bg-muted"
                             onClick={() => {
                               setEntrySeleccionado(entry);
                               setSnapshotSeleccionado(null);
@@ -296,6 +298,7 @@ function BdpHistorial() {
                           >
                             <Eye className="size-4" />
                           </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -317,13 +320,13 @@ function BdpHistorial() {
                     <TableHead>Tipo</TableHead>
                     <TableHead>Fecha</TableHead>
                     <TableHead>Notas</TableHead>
-                    <TableHead className="w-10"></TableHead>
+                    <TableHead className="w-10 text-center">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {snapshots.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={4} className="text-center text-[13px] text-muted-foreground">
                         No hay snapshots todavía. Se crean automáticamente antes de cada operación de escritura BDP.
                       </TableCell>
                     </TableRow>
@@ -336,9 +339,11 @@ function BdpHistorial() {
                           {snapshot.notas ?? '—'}
                         </TableCell>
                         <TableCell>
+                          <div className="flex justify-center">
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="icon"
+                            className="bg-muted/40 hover:bg-muted"
                             onClick={() => {
                               setSnapshotSeleccionado(snapshot);
                               setEntrySeleccionado(null);
@@ -347,6 +352,7 @@ function BdpHistorial() {
                           >
                             <Eye className="size-4" />
                           </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

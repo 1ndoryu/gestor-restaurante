@@ -1,14 +1,32 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::models::ConfiguracionRestaurante;
-use crate::services::{BdpBackupService, BdpWeblinkClient};
+use crate::services::{BdpBackupService, BdpWeblinkClient, ModoEfectivo, ServicioModoOperacion};
 
 pub struct BdpWriteGuard;
 
 /* [C1-2] Scopes de escritura BDP válidos. */
-const VALID_BDP_WRITE_SCOPES: &[&str] =
-    &["create_order", "add_payment", "invoice", "create_customer"];
+const VALID_BDP_WRITE_SCOPES: &[&str] = &[
+    "create_order",
+    "add_payment",
+    "invoice",
+    "create_customer",
+    /* [198A-1/F1] Escrituras Glory -> BDP nuevas (catálogo, stock, deptos, comandas, plano, fidelización). */
+    "create_article",
+    "modify_article",
+    "modify_prices",
+    "create_department",
+    "create_family",
+    "regularize_stock",
+    "transfer_stock",
+    "inventory",
+    "cancel_order",
+    "add_tip",
+    "add_points",
+];
 
 impl BdpWriteGuard {
     /// Un registro pendiente o ambiguo puede representar una operación remota
@@ -43,7 +61,7 @@ impl BdpWriteGuard {
     /// pre-check de armado existente y el INSERT se ejecutan dentro de una
     /// transacción protegida por advisory lock para evitar condiciones de
     /// carrera con armado manual concurrente.
-    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+    #[allow(clippy::too_many_arguments)]
     pub async fn try_auto_arm(
         pool: &PgPool,
         user_id: Uuid,
@@ -56,7 +74,7 @@ impl BdpWriteGuard {
         if !config.ff_bdp_auto_arm {
             return Err("Auto-arming BDP no está habilitado para este restaurante".into());
         }
-        if !config.bdp_sync_enabled {
+        if ServicioModoOperacion::modo_efectivo_desde_config(config) != ModoEfectivo::Bdp {
             return Err("La integración BDP no está activa".into());
         }
         if !config.bdp_auto_backup_before_write {
@@ -70,6 +88,68 @@ impl BdpWriteGuard {
         if confirmation_text.trim().trim_end_matches('/') != target {
             return Err("La confirmación no coincide con el destino BDP configurado".into());
         }
+
+        Self::auto_arm_inner(
+            pool,
+            user_id,
+            config,
+            scope,
+            target_entity_type,
+            target_entity_id,
+        )
+        .await
+    }
+
+    /// [198A-1/F1] Auto-arming para el worker de push. Autorizado por
+    /// `push_modalidad == "automatico"` (D1) o por una acción manual explícita
+    /// (`forzar_manual`, botón "Sincronizar a BDP" — D1/D2) en lugar del flag
+    /// interactivo `ff_bdp_auto_arm`; conserva el resto del fail-closed (sync
+    /// activo, backup pre-write, scope válido, destino allowlist, snapshot
+    /// vigente). El reintento manual tras bloqueo por suscripción (D2) usa
+    /// `forzar_manual=true`.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn armar_push(
+        pool: &PgPool,
+        user_id: Uuid,
+        config: &ConfiguracionRestaurante,
+        scope: &str,
+        target_entity_type: &str,
+        target_entity_id: Uuid,
+        forzar_manual: bool,
+    ) -> Result<(), String> {
+        if !forzar_manual && config.push_modalidad != "automatico" {
+            return Err("Push automático deshabilitado (push_modalidad no es 'automatico')".into());
+        }
+        if ServicioModoOperacion::modo_efectivo_desde_config(config) != ModoEfectivo::Bdp {
+            return Err("La integración BDP no está activa".into());
+        }
+        if !config.bdp_auto_backup_before_write {
+            return Err("Escritura BDP bloqueada: auto-backup pre-write desactivado".into());
+        }
+        if !VALID_BDP_WRITE_SCOPES.contains(&scope) {
+            return Err(format!("Scope de escritura BDP no válido: {scope}"));
+        }
+        Self::auto_arm_inner(
+            pool,
+            user_id,
+            config,
+            scope,
+            target_entity_type,
+            target_entity_id,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_lines)]
+    async fn auto_arm_inner(
+        pool: &PgPool,
+        user_id: Uuid,
+        config: &ConfiguracionRestaurante,
+        scope: &str,
+        target_entity_type: &str,
+        target_entity_id: Uuid,
+    ) -> Result<(), String> {
+        let target = BdpBackupService::canonical_target(config)?;
 
         BdpWeblinkClient::new(config)
             .ensure_write_target_allowed()

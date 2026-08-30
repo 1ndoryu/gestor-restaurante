@@ -36,6 +36,9 @@ import BdpStock from './componentes/bdp/BdpStock';
 import BdpExplorador from './componentes/bdp/BdpExplorador';
 import BdpHistorial from './componentes/bdp/BdpHistorial';
 import BdpCompras from './componentes/bdp/BdpCompras';
+import BdpCatalogo from './componentes/bdp/BdpCatalogo';
+import BdpInventario from './componentes/bdp/BdpInventario';
+import BdpSincronizacion from './componentes/bdp/BdpSincronizacion';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -82,6 +85,9 @@ function App() {
               <Route path="/bdp/explorador" element={<BdpExplorador />} />
               <Route path="/bdp/historial" element={<BdpHistorial />} />
               <Route path="/bdp/compras" element={<BdpCompras />} />
+              <Route path="/bdp/catalogo" element={<BdpCatalogo />} />
+              <Route path="/bdp/inventario" element={<BdpInventario />} />
+              <Route path="/bdp/sincronizacion" element={<BdpSincronizacion />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

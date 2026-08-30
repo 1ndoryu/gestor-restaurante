@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Trash2, Pencil, Merge, Download } from 'lucide-react';
+import { Trash2, Pencil, Merge, Download, MoreHorizontal, Link2 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import FormularioCliente from './FormularioCliente';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -197,7 +198,7 @@ function ListaClientes() {
                   </TableHead>
                   <TableHead>Notas</TableHead>
                   <TableHead>BDP</TableHead>
-                  <TableHead className="w-20"></TableHead>
+                  <TableHead className="w-20 text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -225,24 +226,41 @@ function ListaClientes() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
-                        <TooltipButton variant="ghost" size="icon" onClick={() => setClienteEditar(c)} tooltip="Editar cliente">
-                          <Pencil className="size-4" />
-                        </TooltipButton>
-                        {!c.bdp_synced && (
-                          <TooltipButton variant="outline" onClick={() => { setClienteBdp(c); setCodigoBdp(''); setConfirmacionBdp(''); }} tooltip="Vincular este cliente con un código BDP">
-                            BDP
-                          </TooltipButton>
-                        )}
-                        <TooltipButton
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => eliminarMut.mutate({ id: c.id })}
-                          disabled={eliminarMut.isPending}
-                          tooltip="Eliminar cliente"
-                        >
-                          <Trash2 className="size-4 text-destructive" />
-                        </TooltipButton>
+                      {/* [208A-3] El cliente sin vínculo BDP tiene 3 acciones
+                       * (Editar/Vincular/Eliminar) → menú de 3 puntos (regla global).
+                       * El botón «Vincular a BDP» es una acción (abre el diálogo de
+                       * vinculación), no un estado: el estado está en su columna. */}
+                      <div className="flex items-center justify-center">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="icon" aria-label="Acciones del cliente" className="bg-muted/40 hover:bg-muted">
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuItem onClick={() => setClienteEditar(c)}>
+                              <Pencil className="mr-2 size-3.5" />
+                              Editar
+                            </DropdownMenuItem>
+                            {!c.bdp_synced && (
+                              <DropdownMenuItem
+                                onClick={() => { setClienteBdp(c); setCodigoBdp(''); setConfirmacionBdp(''); }}
+                              >
+                                <Link2 className="mr-2 size-3.5" />
+                                Vincular a BDP
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => eliminarMut.mutate({ id: c.id })}
+                              disabled={eliminarMut.isPending}
+                            >
+                              <Trash2 className="mr-2 size-3.5" />
+                              Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>

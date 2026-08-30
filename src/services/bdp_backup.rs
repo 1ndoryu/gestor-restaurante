@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [BKP-003] Motor de snapshots y auditoría BDP.
  * Gestiona snapshots (puntos de restauración) y audit log (traza inmutable).
  * Pre-write snapshots: selectivos, máximo 1 llamada adicional a BDP.
@@ -1015,6 +1017,11 @@ mod tests {
             permisos_anulacion_ventas: "admin".to_string(),
             permisos_pagos_locales: "admin".to_string(),
             permisos_facturacion_local: "admin".to_string(),
+            push_modalidad: "automatico".to_string(),
+            bdp_tav_map: serde_json::json!({}),
+            bdp_almacen_default: 1,
+            bdp_codreg_default: 1,
+            bdp_articulo_rango_inicial: 90_000_000,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

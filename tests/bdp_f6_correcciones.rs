@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [128A-1/F6] Tests de integración DB de las correcciones de la 2a revisión
  * (bloque 128A-1): delete D5 vs facturada_local/ledger (F6-1), idempotencia de
  * factura local alcanzable y scoped por venta (F6-2/F6-5), filas legacy

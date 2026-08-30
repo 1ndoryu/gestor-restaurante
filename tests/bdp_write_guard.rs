@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 //! Pruebas `SQLx` del armado BDP. Solo usa una base temporal local; no hace HTTP.
 
 use glory_backend::repositories::ConfiguracionRepository;

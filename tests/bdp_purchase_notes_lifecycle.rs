@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [247A-12] Tests de integración del ciclo de vida de albaranes de compra BDP.
  * No contactan con BDP real; validan el flujo local: pendiente → borrador → conciliado.
  * Usan #[sqlx::test] para crear una BD temporal por test con migraciones aplicadas. */

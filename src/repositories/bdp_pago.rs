@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [247A-9] Repositorio del ledger local de pagos parciales BDP.
  * Usa sqlx::query (funcion) con mapeo manual para evitar la macro query_as!,
  * que requeriria metadata offline del nuevo schema. */

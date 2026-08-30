@@ -5,6 +5,7 @@ mod bdp_backup;
 mod bdp_config_bootstrap;
 mod bdp_explorer;
 pub(crate) mod bdp_order_poller;
+pub mod bdp_push;
 mod bdp_sync;
 mod bdp_sync_preflight;
 pub mod bdp_throttle;
@@ -42,6 +43,12 @@ pub use bdp_config_bootstrap::{
 };
 pub use bdp_explorer::{BdpExploracionResultado, BdpExplorerService, ExploracionCategoria};
 pub use bdp_order_poller::BdpOrderPollerService;
+pub use bdp_push::{
+    payload_cancelar, payload_crear_articulo, payload_crear_departamento, payload_crear_familia,
+    payload_inventario, payload_modificar_articulo, payload_propina, payload_puntos,
+    payload_regularizacion, BdpPushFila, BdpPushFlushResumen, BdpPushFlushService,
+    BdpPushPendiente, BdpPushService,
+};
 pub use bdp_sync::BdpSyncService;
 pub use bdp_sync::SyncTablesResult;
 pub use bdp_sync_preflight::{BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncPreflightService};

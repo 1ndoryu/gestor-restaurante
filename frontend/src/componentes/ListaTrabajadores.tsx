@@ -229,7 +229,7 @@ export default function ListaTrabajadores() {
                 <TableHead>Cargo</TableHead>
                 <TableHead>Permisos</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead className="w-20"></TableHead>
+                <TableHead className="w-20 text-center">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -256,13 +256,14 @@ export default function ListaTrabajadores() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-1">
-                      <TooltipButton variant="ghost" size="icon" onClick={() => setTrabajadorEditar(t)} tooltip="Editar trabajador">
+                    <div className="flex justify-center gap-1">
+                      <TooltipButton variant="outline" size="icon" className="bg-muted/40 hover:bg-muted" onClick={() => setTrabajadorEditar(t)} tooltip="Editar trabajador">
                         <Pencil className="size-4" />
                       </TooltipButton>
                       <TooltipButton
-                        variant="ghost"
+                        variant="outline"
                         size="icon"
+                        className="bg-muted/40 hover:bg-muted"
                         onClick={() => eliminarTrabajador(t.id)}
                         tooltip="Eliminar trabajador"
                       >

@@ -112,6 +112,17 @@ pub struct ConfiguracionRestaurante {
      * parciales y facturación local. Mismos niveles que el resto. */
     pub permisos_pagos_locales: String,
     pub permisos_facturacion_local: String,
+    /* [198A-1/F1] Escrituras BDP completas (D1/D3/D5/M13).
+     * - push_modalidad: 'automatico' (default) | 'manual'.
+     * - bdp_tav_map: JSONB iva_pct -> TAVCode BDP.
+     * - bdp_almacen_default / bdp_codreg_default: almacén y motivo de
+     *   regularización/traspaso (defaults Store=1, CodReg=1).
+     * - bdp_articulo_rango_inicial: rango reservado de códigos de artículo. */
+    pub push_modalidad: String,
+    pub bdp_tav_map: serde_json::Value,
+    pub bdp_almacen_default: i32,
+    pub bdp_codreg_default: i32,
+    pub bdp_articulo_rango_inicial: i64,
     /* [094A-4] URL de Google Business para redirigir reseñas positivas */
     pub google_review_url: String,
     /* [094A-6] Datos para botones CTA en mensajes WhatsApp */
@@ -226,6 +237,16 @@ pub struct ActualizarConfiguracionRequest {
     pub permisos_pagos_locales: Option<String>,
     #[validate(length(max = 20))]
     pub permisos_facturacion_local: Option<String>,
+    /* [198A-1/F1] Escrituras BDP completas. */
+    #[validate(length(max = 20))]
+    pub push_modalidad: Option<String>,
+    pub bdp_tav_map: Option<serde_json::Value>,
+    #[validate(range(min = 1, max = 999_999))]
+    pub bdp_almacen_default: Option<i32>,
+    #[validate(range(min = 1, max = 99))]
+    pub bdp_codreg_default: Option<i32>,
+    #[validate(range(min = 1))]
+    pub bdp_articulo_rango_inicial: Option<i64>,
 }
 
 fn validar_iva(valor: &rust_decimal::Decimal) -> Result<(), validator::ValidationError> {

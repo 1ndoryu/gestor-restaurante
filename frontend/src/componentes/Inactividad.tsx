@@ -190,7 +190,7 @@ export default function Inactividad() {
             <TableHead>Días</TableHead>
             <TableHead>Canal</TableHead>
             <TableHead>Estado</TableHead>
-            <TableHead className="text-right">Acciones</TableHead>
+            <TableHead className="text-center">Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -215,19 +215,21 @@ export default function Inactividad() {
                   {r.activa ? 'Activa' : 'Inactiva'}
                 </Badge>
               </TableCell>
-              <TableCell className="text-right">
-                <div className="flex justify-end gap-1">
+              <TableCell className="text-center">
+                <div className="flex justify-center gap-1">
                   <TooltipButton
-                    variant="ghost"
+                    variant="outline"
                     size="icon"
+                    className="bg-muted/40 hover:bg-muted"
                     onClick={() => setReglaEditar(r)}
                     tooltip="Editar regla de inactividad"
                   >
                     <Pencil className="h-4 w-4" />
                   </TooltipButton>
                   <TooltipButton
-                    variant="ghost"
+                    variant="outline"
                     size="icon"
+                    className="bg-muted/40 hover:bg-muted"
                     onClick={() => setConfirmarEliminar(r.id)}
                     tooltip="Eliminar regla de inactividad"
                   >

@@ -119,7 +119,7 @@ export default function ListaPlantillas() {
                   <TableHead>Categoría</TableHead>
                   <TableHead>Idioma</TableHead>
                   <TableHead>Fecha</TableHead>
-                  <TableHead className="w-24" />
+                  <TableHead className="w-24 text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -155,16 +155,17 @@ export default function ListaPlantillas() {
                         {ETIQUETAS_CATEGORIA[p.categoria] || p.categoria}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm">{p.idioma.toUpperCase()}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
+                    <TableCell className="text-[13px]">{p.idioma.toUpperCase()}</TableCell>
+                    <TableCell className="text-muted-foreground text-[13px]">
                       {new Date(p.created_at).toLocaleDateString('es-ES')}
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
+                      <div className="flex justify-center gap-1">
                         {p.estado === 'borrador' && (
                           <TooltipButton
-                            variant="ghost"
+                            variant="outline"
                             size="icon"
+                            className="bg-muted/40 hover:bg-muted"
                             tooltip="Enviar plantilla a Meta"
                             onClick={() => handleEnviar(p)}
                           >
@@ -172,8 +173,9 @@ export default function ListaPlantillas() {
                           </TooltipButton>
                         )}
                         <TooltipButton
-                          variant="ghost"
+                          variant="outline"
                           size="icon"
+                          className="bg-muted/40 hover:bg-muted"
                           tooltip="Eliminar plantilla"
                           onClick={() => handleEliminar(p.id)}
                         >

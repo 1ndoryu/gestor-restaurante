@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* 263A-1: Repositorio de clientes — CRM con búsqueda y paginación.
 Rendimiento crítico: debe manejar ~43k clientes con índices adecuados.
 [094A-5] Convertido a queries dinámicas para soportar nueva columna ultima_visita. */

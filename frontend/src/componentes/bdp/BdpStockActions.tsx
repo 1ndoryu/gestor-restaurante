@@ -15,6 +15,9 @@ import { BdpDemoToggle } from './BdpDemoToggle';
 interface BdpStockActionsProps {
   summary: string;
   demoMode: boolean;
+  /** [208A-2/C2] Modo efectivo BDP: si es false (standalone/auto sin BDP), las
+   * acciones que consultan BDP se deshabilitan (H7). */
+  bdpMode: boolean;
   exportDisabled: boolean;
   onToggleDemo: (enabled: boolean) => void;
   onExport: () => void;
@@ -23,6 +26,7 @@ interface BdpStockActionsProps {
 export function BdpStockActions({
   summary,
   demoMode,
+  bdpMode,
   exportDisabled,
   onToggleDemo,
   onExport,
@@ -81,8 +85,8 @@ export function BdpStockActions({
           <TooltipButton
             variant="outline"
             onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending || demoMode}
-            tooltip="Importa/actualiza artículos y stock desde BDP a la Aplicación Web. No modifica BDP."
+            disabled={syncMutation.isPending || demoMode || !bdpMode}
+            tooltip={bdpMode ? 'Importa/actualiza artículos y stock desde BDP a la Aplicación Web. No modifica BDP.' : 'Requiere BDP conectado (modo BDP). En modo independiente el stock se gestiona localmente.'}
           >
             {syncMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Sync catálogo

@@ -32,11 +32,14 @@ export function NavMain({
 
   return (
     <SidebarGroup>
-      <SidebarGroupContent className="flex flex-col gap-2">
+      {/* [208A-2] Botones del menú más compactos: size sm (h-7, text-xs) e
+       * iconos 3.5 para que quepa todo sin scroll excesivo. */}
+      <SidebarGroupContent className="flex flex-col gap-1.5">
         <SidebarMenu>
-          <SidebarMenuItem className="flex items-center gap-2">
+          <SidebarMenuItem className="flex items-center gap-1.5">
             <SidebarMenuButton
               tooltip="Nueva Venta"
+              size="sm"
               className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
               onClick={() => setModalVenta(true)}
             >
@@ -45,6 +48,7 @@ export function NavMain({
             </SidebarMenuButton>
             <SidebarMenuButton
               tooltip="Nuevo Gasto"
+              size="sm"
               className="min-w-8 bg-secondary text-secondary-foreground duration-200 ease-linear hover:bg-secondary/80 group-data-[collapsible=icon]:opacity-0"
               onClick={() => setModalGasto(true)}
             >
@@ -61,7 +65,13 @@ export function NavMain({
 
             return (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild tooltip={item.title} isActive={activo}>
+                <SidebarMenuButton
+                  asChild
+                  size="sm"
+                  tooltip={item.title}
+                  isActive={activo}
+                  className="[&_svg]:size-3.5"
+                >
                   <Link to={item.url}>
                     {item.icon}
                     <span>{item.title}</span>

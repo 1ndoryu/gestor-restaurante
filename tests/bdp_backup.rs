@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [BKP-007] Tests de integración DB para BdpBackupService.
  * Usa #[sqlx::test(migrations = "./migrations")] — BD temporal, migraciones automáticas.
  * NO contacta al servidor BDP — solo valida operaciones contra PostgreSQL.

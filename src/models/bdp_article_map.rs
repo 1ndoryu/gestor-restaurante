@@ -109,6 +109,74 @@ pub struct AjustarBdpArticleStockRequest {
     pub idempotency_key: Option<String>,
 }
 
+/// [198A-1/D6] Línea de conteo físico de inventario: artículo + unidades contadas.
+#[derive(Debug, Clone, Deserialize, Serialize, Validate)]
+pub struct InventarioLineaRequest {
+    #[validate(length(min = 1, max = 100, message = "Código Glory requerido (max 100)"))]
+    pub articulo_glory_codigo: String,
+    pub unidades_contadas: Decimal,
+}
+
+/// [198A-1/D6] Envío por lotes del conteo físico (`UpdateMassiveInventory`).
+#[derive(Debug, Deserialize, Serialize, Validate)]
+pub struct RegistrarInventarioRequest {
+    #[validate(length(min = 1, message = "El inventario requiere al menos un artículo"))]
+    pub articulos: Vec<InventarioLineaRequest>,
+}
+
+/* [208A-2/C3] Persistencia local del conteo de inventario (D3/D4). */
+
+/// Conteo de inventario persistido (cabecera fechada).
+#[derive(Debug, Serialize, sqlx::FromRow, ToSchema)]
+pub struct BdpConteoInventario {
+    pub id: Uuid,
+    pub fecha: chrono::NaiveDate,
+    pub observaciones: String,
+    pub estado: String,
+    pub creado_el: DateTime<Utc>,
+    pub total_lineas: i64,
+}
+
+/// Línea de un conteo persistido.
+#[derive(Debug, Serialize, sqlx::FromRow, ToSchema)]
+pub struct BdpConteoInventarioLinea {
+    pub id: Uuid,
+    pub articulo_glory_codigo: String,
+    pub esperado: Decimal,
+    pub contado: Decimal,
+    pub diferencia: Decimal,
+    pub aplicado_al_stock: bool,
+}
+
+/// Request para guardar un conteo de inventario (D3: persistir; D4: aplicar).
+#[derive(Debug, Clone, Deserialize, Validate, ToSchema)]
+pub struct CrearConteoInventarioRequest {
+    #[validate(length(max = 500, message = "Observaciones máx 500"))]
+    pub observaciones: Option<String>,
+    /// Clave de idempotencia por sesión de conteo: reenviar la misma clave
+    /// devuelve el conteo ya guardado sin volver a aplicar la diferencia.
+    #[validate(length(max = 100, message = "idempotency_key max 100"))]
+    pub idempotency_key: Option<String>,
+    #[validate(length(min = 1, message = "El conteo requiere al menos un artículo"))]
+    pub articulos: Vec<InventarioLineaRequest>,
+}
+
+/// Resultado de guardar un conteo: persistido + aplicado + (si hay códigos
+/// BDP) encolado para el terminal. En standalone el worker no envía nada.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ConteoInventarioCreado {
+    pub conteo: BdpConteoInventario,
+    pub lineas: Vec<BdpConteoInventarioLinea>,
+    /// True si la clave de idempotencia ya existía (no se volvió a aplicar).
+    pub reutilizado: bool,
+    /// Líneas cuya diferencia se aplicó al stock local.
+    pub aplicadas: usize,
+    /// Líneas con código BDP numérico encoladas para el terminal.
+    pub encolados: usize,
+    /// Líneas sin código BDP (locales puras) omitidas del envío.
+    pub omitidos_sin_bdp: usize,
+}
+
 /// Request para actualizar un mapeo de artículo (PATCH parcial)
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct ActualizarBdpArticleMapRequest {

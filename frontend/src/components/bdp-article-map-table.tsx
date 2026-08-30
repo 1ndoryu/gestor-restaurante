@@ -166,7 +166,7 @@ function BdpArticleMapTable() {
                 <TableHead>Familia</TableHead>
                 <TableHead>Stock</TableHead>
                 <TableHead>Activo</TableHead>
-                <TableHead className="w-10"></TableHead>
+                <TableHead className="w-10 text-center">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -213,12 +213,13 @@ function BdpArticleMapTable() {
                     />
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-center gap-1">
                       {editando?.id === m.id ? (
                         <>
                           <TooltipButton
-                            variant="ghost"
+                            variant="outline"
                             size="icon"
+                            className="bg-muted/40 hover:bg-muted"
                             onClick={guardarEdicion}
                             disabled={actualizarMutation.isPending}
                             tooltip="Guardar cambios"
@@ -226,8 +227,9 @@ function BdpArticleMapTable() {
                             <Check className="size-3.5 text-emerald-600" />
                           </TooltipButton>
                           <TooltipButton
-                            variant="ghost"
+                            variant="outline"
                             size="icon"
+                            className="bg-muted/40 hover:bg-muted"
                             onClick={() => setEditando(null)}
                             tooltip="Cancelar"
                           >
@@ -237,16 +239,18 @@ function BdpArticleMapTable() {
                       ) : (
                         <>
                           <TooltipButton
-                            variant="ghost"
+                            variant="outline"
                             size="icon"
+                            className="bg-muted/40 hover:bg-muted"
                             onClick={() => startEdicion(m)}
                             tooltip="Editar datos locales del artículo"
                           >
                             <Pencil className="size-3.5" />
                           </TooltipButton>
                           <TooltipButton
-                            variant="ghost"
+                            variant="outline"
                             size="icon"
+                            className="bg-muted/40 hover:bg-muted"
                             onClick={() => eliminarMutation.mutate({ id: m.id })}
                             disabled={eliminarMutation.isPending}
                             tooltip="Eliminar este mapeo. No afecta al catálogo BDP."

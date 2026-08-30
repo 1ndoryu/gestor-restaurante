@@ -140,16 +140,134 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Tareas pendientes
 
+### Bloque 208A-2 — Corrección de la independencia BDP (H1–H8) (completado 2026-08-27)
+
+Plan archivado: `Agente/planes/completados/plan-correccion-independencia-bdp-2026-08-27.md`.
+Hereda la **auditoría 208A-1** y las decisiones D1–D6. **C1**: CRUD de artículos movido a la
+página "Catálogo" (pestañas Artículos / Departamentos y familias); Configuración → BDP queda
+solo con conexión/mapeos/permisos + enlace "Ir a Catálogo". **C2**: botón "Nuevo artículo" en
+Stock (NuevoArticuloDialog) + empty state accionable + "Sync catálogo/precios" deshabilitados
+fuera de modo bdp (H7). **C3**: conteo de inventario persistido (migración
+`20260827000000_bdp_conteos_inventario` con idempotencia), endpoints `GET/POST
+/bdp/inventario/conteos` + `GET /:id`; el guardado aplica la diferencia al stock local con
+motivo "conteo" (D4) y encola solo líneas con código BDP; UI con "Guardar conteo", historial y
+"Retomar" y mensaje honesto en standalone. **C4**: sección "Sincronización" en el menú con
+`GET /bdp/push/pendientes` y `POST /bdp/push/:id/reintentar` (reintento manual D2); acciones
+solo en modo bdp. **C5**: normalización standalone+sync → sync=false al guardar (H5). **C6**: empty
+state de Compras con "Nuevo albarán" (H8). **Verificado**: `cargo check` exit 0; tests nuevos
+12/12 (conteos 4, cola 5, normalización 3) + regresión bdp_inventario 3/3 y bdp_push 13/13,
+ejecutados test por test (regla nueva `no-heavy-suites` en el AGENTS.md raíz); `tsc` limpio;
+UI end-to-end (alta TEST-1, stock 5 tras conteo, cola visible sin envío, Configuración sin CRUD,
+cero tráfico a BDP). Trabajo sin commitear.
+
+### Bloque 208A-1 — Auditoría integral independencia BDP, revisión 1×1 (auditado 2026-08-27)
+
+Plan activo: `Agente/planes/plan-auditoria-independencia-bdp-2026-08-27.md`. El usuario detectó
+que la UX no refleja la independencia (Stock no crea artículos, Inventario no persiste conteos,
+el CRUD de artículos está escondido en Configuración, Compras bajo sospecha). **Regla: NO se
+implementa nada durante la auditoría** — se verifica 1×1 cada dominio (modo operativo, catálogo,
+stock, inventario, anulación, compras, pagos/factura local, menús, historial, permisos,
+escrituras 198A-1, UX, integridad de datos), se anota hallazgo con evidencia y severidad, y al
+final se decide el plan de corrección.
+**Resultado 2026-08-27:** baseline verde (`cargo check` exit 0, 153 tests, `tsc` limpio). El
+núcleo de independencia está implementado y testeado; la deuda es de UX/ubicación: **H1** (CRUD
+de artículos solo en Configuración → BDP → "Catálogo de artículos BDP"; la página "Catálogo"
+solo tiene departamentos/familias — **Alto**), **H2** (Stock sin "Nuevo artículo"; empty state
+solo sugiere BDP/demo — **Alto**), **H3** (Inventario: conteo solo `useState`, no persiste;
+en standalone "Enviar" es no-op con toast engañoso — **Alto**), **H4** (diferencia contada no se
+aplica al stock local — **Medio**), **H5** (sin normalización al guardar standalone+sync —
+**Bajo**), **H6** (sin visibilidad de la cola de push en UI; solo flush global — **Medio**),
+**H7** ("Sync catálogo" habilitado en standalone — **Medio**), **H8** (empty state de Compras no
+ofrece "Nuevo albarán" — **Bajo**). Verificado como correcto (no es bug): encolado local en
+standalone (filas pendientes que se envían al conectar BDP), test de invariante de flush,
+migraciones aditivas, serie L-, rango reservado. **Siguiente paso:** decidir el plan de
+corrección (decisiones del usuario en §6 del plan) — NO se ha implementado nada todavía.
+
+### Bloque 138A-2 — Verificación LECTURA REAL de las 24 lecturas BDP "en uso" (en curso)
+
+Plan activo: `Agente/planes/plan-prueba-lecturas-bdp-2026-08-18.md`. Verificar contra el **BDP
+REAL del restaurante** (`100.83.196.35:8068`, solo lecturas, cero escrituras) que las 24 funciones
+de lectura marcadas "en uso" en el inventario final (64 funciones) siguen respondiendo tras
+F0–F10 (128A-1). Sin simulador (descartado por decisión del usuario), sin escrituras, sin deploy.
+Pendiente de confirmar BDP online + credenciales antes de ejecutar.
+
+### Bloque 198A-2 — Pruebas de interfaz: independencia + escritura (sin BDP real) (completado 2026-08-19)
+
+Plan activo: `Agente/planes/plan-pruebas-interfaz-bdp-2026-08-19.md`. Verificar a nivel de
+**interfaz** (navegador + backend local + BD de rama) que la independencia (128A-1) y los
+efectos locales de la integración de escritura (198A-1) funcionan en `standalone`, y que
+**ninguna** funcionalidad ofrece ni envía nada a BDP (cero tráfico a `100.83.196.35:8068`).
+Cubre: conmutador/badge, catálogo/stock/anulación/compras/pagos-factura local/menús/permisos,
+y los controles nuevos (artículo D3, departamento/familia D7, propina D8, puntos D9, inventario
+D6=A, CallWaiter D10 oculto, "Sincronizar a BDP" oculto, CancelOrder F6). Sin BDP real, sin
+deploy.
+**Progreso 2026-08-19 (primera pasada):** stack aislado (:3100 backend / :5180 vite, BD de
+rama, seed demo), login OK, `modo_efectivo=standalone` verificado; badge off ✅, Sincronizar
+oculto ✅, CallWaiter oculto ✅, departamento creado local con código secuencial ✅, inventario
+renderiza ✅, propina/anulación locales visibles ✅, banners de desactivación ✅, **cero tráfico
+a BDP** ✅. **Bug corregido:** bucle infinito `Maximum update depth exceeded` en
+`BdpStatusIndicator` (`site-header.tsx`) — memoizado `serverData` con `useMemo`.
+**Progreso 2026-08-19 (segunda pasada, completa):** propina end-to-end (diálogo → `5.50 €`
+persistido en `ventas.propina`) ✅, anulación local end-to-end (motivo + confirmación →
+`anulada=true` + `anulacion_motivo`) ✅, Compras (4 albaranes, sync deshabilitado, nuevo albarán) ✅,
+Explorador (menús/packs locales + 4 definiciones BDP) ✅, Historial (4 auditoría + 2 snapshots;
+registra `anular_venta` Local) ✅, Stock (6 artículos, sync deshabilitado) ✅, **403 de permisos**
+(trabajador → `POST /api/bdp/push/flush` y `GET /api/trabajadores` 403 claro; lectura de
+configuración 200) ✅, **cero tráfico a BDP** (solo localhost) ✅.
+
+### Bloque 198A-1 — Escrituras BDP completas (completado 2026-08-19)
+
+Plan (archivado): `Agente/planes/completados/plan-escrituras-bdp-completas-2026-08-19.md`.
+**Objetivo:** que todo lo que
+BDP pueda aceptar como escritura se escriba (**15 nuevas** —catálogo, stock, departamentos, propina,
+`CallWaiter` en el plano, puntos— + `CancelOrder` pendiente de suscripción), construido sobre los datos
+locales de 128A-1 (catálogo, stock, departamentos, anulación, propina, puntos) con cola de push
+unidireccional (`local_dirty` → BDP), guards/arming/backup/auditoría, y
+**independencia intacta** (en `standalone` nada se envía). Incluye 5 lecturas de soporte
+(`GetApplicationVersion`, perfiles para crear/modificar, `GetPoints`) y ampliación del simulador.
+Fuera de alcance (BDP no lo expone): menús/fastfoods/packs y compras — permanecen locales.
+**Revisiones profundas 2 y 3 (2026-08-19):** 16 conflictos nuevos (M11–M26: códigos no devueltos por
+`CreateArticlesAndUpdateProfiles`, dependencia departamento→artículo, mapeo IVA `bdp_tav_map`, códigos
+de familia, `AllProfiles`, identificadores BDP para propina/cancelación, simulación de suscripción por
+módulo, migraciones aditivas, concurrencia con UNIQUE parcial + `FOR UPDATE`, colisión de rango
+reservado, límites de recurso, `GetApplicationVersion` por módulo, `ErrorList` parcial de stock/inventario,
+requisitos `WebArticle`/`Inventariable`, `OrderIdentifier { OrderId }`). D1 resuelta: `push_modalidad`
+configurable (default `automatico`). D2 resuelta: bloqueo por suscripción → reintento **solo manual**
+(el auto-reintento queda para errores transitorios). D3 resuelta: código de rango reservado automático
+editable (default `90xxxxxxx`), `AutomaticCode` descartado (M11). D4 resuelta: perfiles = todos los POS
+activos (`AllProfiles=true` en departamentos). D5 resuelta: almacenes y motivos configurables en
+Configuración (defaults Store=1, CodReg=1). D6 resuelta: UI completa de inventario (conteo físico,
+diferencias, envío por lotes). D7 resuelta: códigos de departamento/familia/subfamilia por asignación
+secuencial automática. D8 resuelta: propina configurable por venta (sumar/sustituir, default sumar).
+D9 resuelta: fidelización con gating por módulo (puntos en ficha de cliente, `pendiente_suscripcion`
+si no hay módulo). D10 resuelta: incluir `CallWaiter` (botón "llamar camarero" en el plano).
+**Progreso final (cerrado):** catálogo con 20 endpoints + cliente con 20 métodos + structs PascalCase;
+migraciones `bdp_push_escrituras`, `bdp_push_estado_ancho`, `bdp_catalogo_propina_puntos` y
+`bdp_write_arming_ampliar` (corrige las CHECK de scopes/dominios que bloqueaban el arming del push);
+`BdpPushService` + `BdpPushFlushService` (worker con guards, no-op en standalone); wiring en handlers
+locales (artículo D3, departamento/familia D7, propina D8, puntos D9, inventario D6=A) + UI completa
+(CallWaiter D10, propina, puntos, catálogo, inventario) + botón "Sincronizar a BDP" (flush manual D1/D2);
+`CancelOrder` como push (F6): `payload_cancelar` + encolado `venta/cancelar` desde la anulación local
+con `bdp_order_id`. Tests (153 unit + 13 bdp_push + 3 bdp_inventario + 24 bdp_f8_permisos + 8
+bdp_service_integration). **Pendiente diferido por diseño:** verificación real contra BDP
+(suscripción/datos del cliente; BDP offline).
+
 ### Bloque 128A-1 — Independencia total del BDP (completado 2026-08-13)
 
 F0–F10 implementados en `glory-rs-rest` (commits `821954c0`…`e12b3968`, gate `task:check 128A-1
 --full` PASS en F7/F8/F9): conmutador `standalone`/`bdp` con badge, catálogo local, stock local,
 anulación local, compras locales, historial/pagos parciales/factura local, menús/packs locales y
 permisos operativos por acción con enforcement backend (403). Sin escrituras ni deploy: pendiente
-de autorización del usuario para llevar a producción. **Deuda declarada (F10-1):** M1
-(invariantes del conmutador) aplica en los caminos auditados, pero NO en todos los de
-escritura/polling (hallazgo F0/F1-1, ALTA); M2 (histéresis/degradación reactiva) está diferida y
-M3 (cache TTL/invalidación) no tiene consumidores. Plan cerrado en
+de autorización del usuario para llevar a producción. **Deuda declarada (F10-1) — CERRADA:** M1 (invariantes del conmutador), M2 (histéresis) y M3
+(cache/invalidación) estaban parcialmente abiertas al cierre. Se cerraron: M1 — se eliminaron los
+checks redundantes de `bdp_sync_enabled`/`bdp_configurado` que contradecían el modo forzado `bdp`
+en `bdp_sync.rs` (sync_venta/add_order_payment/invoice_order), `venta.rs` (retry_bdp_sync),
+`ventas.rs` (obtener_bdp_status) y `bdp_write_guard.rs` (try_auto_arm/armar_push), y el poller dejó de
+filtrar por `bdp_sync_enabled` (el modo efectivo es la única puerta); M2 — ya implementada en
+`ServicioModoOperacion` (umbral 3 fallos, registrar_fallo/exito) y cableada al poller y a las
+escrituras directas (`bdp_payment`/`bdp_invoice` bloquean en degradación y alimentan la histéresis);
+M3 — `invalidar` se llama al guardar configuración y `modo_efectivo` (con TTL) tiene consumidores.
+Plan cerrado en
 `Agente/planes/completados/plan-independencia-bdp-2026-08-12.md`; evidencia por fase en
 `Agente/completados/128A-1-F4-anulacion-local-ventas.md`, `128A-1-F5-compras-locales.md`,
 `128A-1-F6-auditoria-local-pagos-factura.md`, `128A-1-F7-menus-packs-locales.md`,

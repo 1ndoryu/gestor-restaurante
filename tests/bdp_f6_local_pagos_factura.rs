@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [128A-1/F6] Tests de integración DB de la fase 6 de independencia BDP:
  * auditoría local (`origen_operacion`), pagos parciales locales (A8/M13) y
  * factura local mínima (A7/D9). No contactan con BDP real — validan los

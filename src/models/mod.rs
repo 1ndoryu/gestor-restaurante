@@ -1,7 +1,9 @@
 mod api_key;
 mod bdp_article_map;
+mod bdp_catalogo_clasificacion;
 mod bdp_menu_local;
 pub mod bdp_pago;
+mod bdp_punto_cliente;
 mod bdp_purchase_note;
 mod campana;
 mod canal_reserva;
@@ -99,13 +101,19 @@ pub use resena::{
 mod inactividad;
 pub use bdp_article_map::{
     ActualizarBdpArticleMapRequest, AjustarBdpArticleStockRequest, BdpArticleMap, BdpArticleStock,
-    CrearBdpArticleMapRequest,
+    BdpConteoInventario, BdpConteoInventarioLinea, ConteoInventarioCreado,
+    CrearBdpArticleMapRequest, CrearConteoInventarioRequest, InventarioLineaRequest,
+    RegistrarInventarioRequest,
+};
+pub use bdp_catalogo_clasificacion::{
+    BdpCatalogoClasificacion, CrearBdpClasificacionRequest, TIPO_DEPARTAMENTO, TIPO_FAMILIA,
 };
 pub use bdp_menu_local::{
     ActualizarBdpMenuLocalRequest, BdpMenuLocal, BdpMenuLocalConLineas, BdpMenuLocalLinea,
     BdpMenuLocalLineaRequest, BdpMenuLocalListParams, BdpMenuLocalTipo, CrearBdpMenuLocalRequest,
 };
 pub use bdp_pago::BdpPago;
+pub use bdp_punto_cliente::{BdpPuntoCliente, SumarPuntosRequest};
 pub use bdp_purchase_note::{
     ActualizarBdpPurchaseNoteRequest, BdpPurchaseNote, BdpPurchaseNoteDraftRequest,
     BdpPurchaseNoteEstado, BdpPurchaseNoteLineaLocal, BdpPurchaseNoteListParams,

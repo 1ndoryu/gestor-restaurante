@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [064A-13] Tests de integración con base de datos real (PostgreSQL).
  * Usa #[sqlx::test] — crea BD temporal por test, aplica migraciones, destruye al final.
  * Requiere DATABASE_URL apuntando a un servidor PostgreSQL accesible.
@@ -306,6 +308,11 @@ async fn test_configuracion_actualizar_haddock_fields(pool: PgPool) {
         permisos_anulacion_ventas: None,
         permisos_pagos_locales: None,
         permisos_facturacion_local: None,
+        push_modalidad: None,
+        bdp_tav_map: None,
+        bdp_almacen_default: None,
+        bdp_codreg_default: None,
+        bdp_articulo_rango_inicial: None,
     };
 
     let updated = ConfiguracionRepository::actualizar(&pool, user_id, &req)

@@ -18,6 +18,7 @@
 use axum::extract::{Path, State};
 use axum::routing::{get, patch};
 use axum::{Json, Router};
+use rust_decimal::Decimal;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -25,15 +26,17 @@ use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::models::{
     ActualizarBdpArticleMapRequest, AjustarBdpArticleStockRequest, BdpArticleMap, BdpArticleStock,
-    CrearBdpArticleMapRequest,
+    BdpConteoInventario, ConteoInventarioCreado, CrearBdpArticleMapRequest,
+    CrearConteoInventarioRequest, RegistrarInventarioRequest,
 };
-use crate::repositories::BdpArticleMapRepository;
+use crate::repositories::{AjusteStockError, BdpArticleMapRepository};
 use crate::services::bdp_weblink_catalog::{
-    BdpGetFastfoodRequest, BdpGetMenuRequest, BdpGetPackRequest,
+    BdpGetFastfoodRequest, BdpGetMenuRequest, BdpGetPackRequest, BdpStockInfoEntry,
 };
 use crate::services::{
-    verificar_permiso, AccionPermiso, BdpCatalogSyncResult, BdpSyncService, BdpWeblinkClient,
-    ConfiguracionService, SyncTablesResult,
+    payload_crear_articulo, payload_inventario, payload_modificar_articulo, payload_regularizacion,
+    verificar_permiso, AccionPermiso, BdpCatalogSyncResult, BdpPushService, BdpSyncService,
+    BdpWeblinkClient, ConfiguracionService, SyncTablesResult,
 };
 use crate::AppState;
 
@@ -53,6 +56,16 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/bdp/article-stock",
             get(listar_article_stock).post(ajustar_stock),
+        )
+        .route("/bdp/inventario", axum::routing::post(registrar_inventario))
+        /* [208A-2/C3] Conteos persistidos (D3/D4): listar, guardar+aplicar, retomar. */
+        .route(
+            "/bdp/inventario/conteos",
+            get(listar_conteos_inventario).post(crear_conteo_inventario),
+        )
+        .route(
+            "/bdp/inventario/conteos/:id",
+            get(obtener_conteo_inventario),
         )
         .route(
             "/bdp/article-maps/import-catalog",
@@ -170,7 +183,210 @@ pub async fn ajustar_stock(
         }
     }
 
+    /* [198A-1/F1] Encolar el ajuste para push BDP. Solo si el artículo tiene
+     * código BDP numérico (un artículo local puro no puede regularizarse en BDP
+     * todavía — queda para F3/F4). El worker de flush decide según el modo. */
+    if let Some(map) = BdpArticleMapRepository::buscar_por_codigo(
+        &state.pool,
+        auth.user_id,
+        &req.articulo_glory_codigo,
+    )
+    .await?
+    {
+        if let Ok(bdp_code) = map.articulo_bdp_codigo.trim().parse::<i64>() {
+            let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+            let payload =
+                payload_regularizacion(&config, bdp_code, req.delta).map_err(AppError::Internal)?;
+            BdpPushService::encolar(
+                &state.pool,
+                auth.user_id,
+                crate::services::bdp_push::DOMINIO_STOCK,
+                &map.articulo_glory_codigo,
+                crate::services::bdp_push::OPERACION_REGULARIZAR,
+                &payload,
+            )
+            .await
+            .map_err(AppError::Internal)?;
+        }
+    }
+
     Ok(Json(stock))
+}
+
+/* [198A-1/D6] Inventario (conteo físico) → UpdateMassiveInventory. Localmente
+ * no persiste el conteo (la diferencia esperada/contada se calcula en la UI);
+ * el endpoint resuelve los códigos BDP, construye el lote y encola
+ * `stock/inventario`. El worker no envía nada en standalone (independencia).
+ * Los artículos locales puros (sin código BDP numérico) se omiten y se reportan. */
+pub async fn registrar_inventario(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(req): Json<RegistrarInventarioRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    verificar_permiso(&state.pool, AccionPermiso::StockAjuste, &auth).await?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+
+    let codigos: Vec<String> = req
+        .articulos
+        .iter()
+        .map(|a| a.articulo_glory_codigo.clone())
+        .collect();
+    let resueltos =
+        BdpArticleMapRepository::codigos_bdp_para_glory(&state.pool, auth.user_id, &codigos)
+            .await?;
+
+    let contadas: std::collections::HashMap<String, rust_decimal::Decimal> = req
+        .articulos
+        .iter()
+        .map(|a| (a.articulo_glory_codigo.clone(), a.unidades_contadas))
+        .collect();
+
+    let mut lineas = Vec::new();
+    for (glory, code) in &resueltos {
+        if let Some(unidades) = contadas.get(glory) {
+            lineas.push(BdpStockInfoEntry {
+                article: *code,
+                units: *unidades,
+            });
+        }
+    }
+
+    if lineas.is_empty() {
+        return Err(AppError::Validation(
+            "Ningún artículo del inventario tiene código BDP numérico; no hay lote que enviar"
+                .into(),
+        ));
+    }
+
+    let omitidos = req.articulos.len() - lineas.len();
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    let payload = payload_inventario(&config, lineas).map_err(AppError::Internal)?;
+    BdpPushService::encolar(
+        &state.pool,
+        auth.user_id,
+        crate::services::bdp_push::DOMINIO_STOCK,
+        "conteo",
+        crate::services::bdp_push::OPERACION_INVENTARIO,
+        &payload,
+    )
+    .await
+    .map_err(AppError::Internal)?;
+
+    Ok(Json(serde_json::json!({
+        "enviados": resueltos.len(),
+        "omitidos_sin_bdp": omitidos,
+    })))
+}
+
+/* [208A-2/C3] Conteos de inventario persistidos (decisiones D3/D4).
+ * GET /api/bdp/inventario/conteos        — historial de conteos (cabeceras).
+ * POST /api/bdp/inventario/conteos       — guardar conteo: persiste líneas,
+ *   aplica la diferencia al stock local (motivo 'conteo') y, si hay códigos
+ *   BDP, encola el envío (el worker no envía nada en standalone).
+ * GET /api/bdp/inventario/conteos/:id    — detalle con líneas (para retomar). */
+pub async fn listar_conteos_inventario(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<Json<Vec<BdpConteoInventario>>, AppError> {
+    let conteos =
+        BdpArticleMapRepository::listar_conteos(&state.pool, auth.user_id, 50).await?;
+    Ok(Json(conteos))
+}
+
+pub async fn obtener_conteo_inventario(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(conteo_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let detalle = BdpArticleMapRepository::obtener_conteo(&state.pool, auth.user_id, conteo_id)
+        .await?;
+    let Some((conteo, lineas)) = detalle else {
+        return Err(AppError::NotFound(
+            "Conteo de inventario no encontrado".into(),
+        ));
+    };
+    Ok(Json(serde_json::json!({ "conteo": conteo, "lineas": lineas })))
+}
+
+pub async fn crear_conteo_inventario(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(req): Json<CrearConteoInventarioRequest>,
+) -> Result<Json<ConteoInventarioCreado>, AppError> {
+    verificar_permiso(&state.pool, AccionPermiso::StockAjuste, &auth).await?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+
+    let articulos: Vec<(String, Decimal)> = req
+        .articulos
+        .iter()
+        .map(|a| (a.articulo_glory_codigo.clone(), a.unidades_contadas))
+        .collect();
+    let (conteo, lineas, reutilizado, aplicadas) =
+        BdpArticleMapRepository::crear_conteo(
+            &state.pool,
+            auth.user_id,
+            req.observaciones.as_deref().unwrap_or(""),
+            req.idempotency_key.as_deref(),
+            &articulos,
+        )
+        .await
+        .map_err(|e| match e {
+            AjusteStockError::StockNegativo(m) => AppError::Validation(m),
+            AjusteStockError::Db(db) => {
+                AppError::Internal(format!("No se pudo guardar el conteo: {db}"))
+            }
+        })?;
+
+    /* Encolar el envío de las líneas con código BDP (misma lógica que
+     * registrar_inventario; el worker no envía nada en standalone). */
+    let codigos: Vec<String> = lineas
+        .iter()
+        .map(|l| l.articulo_glory_codigo.clone())
+        .collect();
+    let resueltos =
+        BdpArticleMapRepository::codigos_bdp_para_glory(&state.pool, auth.user_id, &codigos)
+            .await?;
+    let contadas: std::collections::HashMap<String, Decimal> = lineas
+        .iter()
+        .map(|l| (l.articulo_glory_codigo.clone(), l.contado))
+        .collect();
+    let mut lotes = Vec::new();
+    for (glory, code) in &resueltos {
+        if let Some(unidades) = contadas.get(glory) {
+            lotes.push(BdpStockInfoEntry {
+                article: *code,
+                units: *unidades,
+            });
+        }
+    }
+    let omitidos_sin_bdp = lineas.len() - lotes.len();
+    let mut encolados = 0usize;
+    if !lotes.is_empty() {
+        let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+        let payload = payload_inventario(&config, lotes).map_err(AppError::Internal)?;
+        BdpPushService::encolar(
+            &state.pool,
+            auth.user_id,
+            crate::services::bdp_push::DOMINIO_STOCK,
+            "conteo",
+            crate::services::bdp_push::OPERACION_INVENTARIO,
+            &payload,
+        )
+        .await
+        .map_err(AppError::Internal)?;
+        encolados = resueltos.len();
+    }
+
+    Ok(Json(ConteoInventarioCreado {
+        conteo,
+        lineas,
+        reutilizado,
+        aplicadas,
+        encolados,
+        omitidos_sin_bdp,
+    }))
 }
 
 /// Crear o actualizar un mapeo de artículo (upsert por código Glory)
@@ -195,7 +411,49 @@ pub async fn crear_article_map(
     verificar_permiso(&state.pool, AccionPermiso::CatalogoEdicion, &auth).await?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
-    let map = BdpArticleMapRepository::crear(&state.pool, auth.user_id, &req).await?;
+    let mut map = BdpArticleMapRepository::crear(&state.pool, auth.user_id, &req).await?;
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+
+    if map.articulo_bdp_codigo.trim().parse::<i64>().is_ok() {
+        /* [198A-1/F1] Artículo ya mapeado a BDP: la edición local se empuja
+         * como modificación. */
+        let payload = payload_modificar_articulo(&config, &map).map_err(AppError::Internal)?;
+        BdpPushService::encolar(
+            &state.pool,
+            auth.user_id,
+            crate::services::bdp_push::DOMINIO_ARTICULO,
+            &map.articulo_glory_codigo,
+            crate::services::bdp_push::OPERACION_MODIFICAR,
+            &payload,
+        )
+        .await
+        .map_err(AppError::Internal)?;
+    } else {
+        /* [198A-1/D3] Artículo local puro: asignar código del rango reservado
+         * (configurable, default 90 000 000, M11/M22) y encolar el alta. */
+        let codigo = BdpArticleMapRepository::siguiente_codigo_reservado(
+            &state.pool,
+            auth.user_id,
+            config.bdp_articulo_rango_inicial,
+        )
+        .await?;
+        map =
+            BdpArticleMapRepository::asignar_codigo_bdp(&state.pool, map.id, auth.user_id, codigo)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Mapeo no encontrado".into()))?;
+        let payload = payload_crear_articulo(&config, &map).map_err(AppError::Internal)?;
+        BdpPushService::encolar(
+            &state.pool,
+            auth.user_id,
+            crate::services::bdp_push::DOMINIO_ARTICULO,
+            &map.articulo_glory_codigo,
+            crate::services::bdp_push::OPERACION_CREAR,
+            &payload,
+        )
+        .await
+        .map_err(AppError::Internal)?;
+    }
+
     Ok(Json(map))
 }
 
@@ -226,6 +484,23 @@ pub async fn actualizar_article_map(
     let map = BdpArticleMapRepository::actualizar(&state.pool, id, auth.user_id, &req)
         .await?
         .ok_or_else(|| AppError::NotFound("Mapeo no encontrado".into()))?;
+
+    /* [198A-1/F1] Push de modificación para artículos ya mapeados a BDP. */
+    if map.articulo_bdp_codigo.trim().parse::<i64>().is_ok() {
+        let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+        let payload = payload_modificar_articulo(&config, &map).map_err(AppError::Internal)?;
+        BdpPushService::encolar(
+            &state.pool,
+            auth.user_id,
+            crate::services::bdp_push::DOMINIO_ARTICULO,
+            &map.articulo_glory_codigo,
+            crate::services::bdp_push::OPERACION_MODIFICAR,
+            &payload,
+        )
+        .await
+        .map_err(AppError::Internal)?;
+    }
+
     Ok(Json(map))
 }
 

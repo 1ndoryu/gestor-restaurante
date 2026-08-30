@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [F2.4] Repositorio de líneas de venta.
  * Batch insert para crear múltiples líneas junto con la venta.
  * Lectura por venta para poblar el pedido BDP multi-item. */

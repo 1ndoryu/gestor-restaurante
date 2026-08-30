@@ -2,6 +2,7 @@
  * [283A-20] Añadida campana de notificaciones en tiempo real.
  * [237A-3] Indicador rápido de estado BDP en la barra superior. */
 
+import { useMemo } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -17,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useSetSyncMode } from "@/api/bdp-backup"
+import { useFlushBdpPush } from "@/api/bdp"
 import { toast } from "sonner"
 import axios from "@/api/axios-instance"
 import { useQueryClient } from "@tanstack/react-query"
@@ -38,20 +40,34 @@ const titulos: Record<string, string> = {
   "/marketing/plantillas": "Plantillas WhatsApp",
   "/marketing/plantillas/nueva": "Nueva Plantilla",
   "/marketing/recordatorios": "Recordatorios",
-  "/bdp/stock": "Stock BDP",
-  "/bdp/explorador": "Explorador BDP",
-  "/bdp/historial": "Historial BDP",
-  "/bdp/compras": "Compras BDP",
+  "/bdp/stock": "Stock",
+  "/bdp/explorador": "Menús y Packs",
+  "/bdp/historial": "Historial",
+  "/bdp/compras": "Compras",
+  "/bdp/catalogo": "Catálogo",
+  "/bdp/inventario": "Inventario",
+  "/bdp/sincronizacion": "Sincronización",
 }
 
 function BdpStatusIndicator() {
   const { data: config } = useObtenerConfiguracion()
-  const { config: configSync } = useConfiguracionSync(
-    config
-      ? { status: config.status, data: config.data as unknown as Record<string, string | number | boolean> }
-      : undefined
+  /* [198A-2] Memoizar serverData (mismo bug [BKP-008c] ya corregido en
+   * useConfiguracion.ts): el literal { status, data } creaba una referencia
+   * nueva por render, lo que disparaba el setState de useConfiguracionSync y
+   * producía un bucle infinito "Maximum update depth exceeded". */
+  const serverData = useMemo(
+    () =>
+      config
+        ? { status: config.status, data: config.data as unknown as Record<string, string | number | boolean> }
+        : undefined,
+    [config],
   )
+  const { config: configSync } = useConfiguracionSync(serverData)
   const { mutate: setSyncMode, isPending: isChangingMode } = useSetSyncMode()
+  /* [198A-1/F1] Flush manual de la cola de push (botón "Sincronizar a BDP").
+   * Requerido por D1 (botón manual siempre) y D2 (reintento tras suscripción
+   * solo manual). El backend exige rol Admin; aquí se muestra el resultado. */
+  const { mutate: flushPush, isPending: isFlushing } = useFlushBdpPush()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const cfg = config?.status === 200 ? (config.data as unknown as Record<string, unknown>) : null
@@ -205,6 +221,38 @@ function BdpStatusIndicator() {
             Activar escritura temporal
           </DropdownMenuItem>
         )}
+        <DropdownMenuItem
+          disabled={isFlushing}
+          onClick={() =>
+            flushPush(undefined, {
+              onSuccess: (r) => {
+                if (r.sincronizados > 0) {
+                  toast.success('Sincronizado con BDP', {
+                    description: `${r.sincronizados} operación(es) enviada(s).`,
+                  })
+                } else if (r.pendientes_suscripcion > 0) {
+                  toast.warning('Pendiente de suscripción BDP', {
+                    description: `${r.pendientes_suscripcion} operación(es) no se enviaron: suscripción no activada.`,
+                  })
+                } else if (r.errores > 0) {
+                  toast.error('Errores al sincronizar', {
+                    description: `${r.errores} operación(es) fallaron.`,
+                  })
+                } else {
+                  toast.info('Sin operaciones pendientes', {
+                    description: 'No hay cambios locales pendientes de enviar a BDP.',
+                  })
+                }
+              },
+              onError: (err: unknown) =>
+                toast.error('No se pudo sincronizar con BDP', {
+                  description: String((err as { message?: string })?.message ?? 'Error desconocido'),
+                }),
+            })
+          }
+        >
+          {isFlushing ? 'Sincronizando...' : 'Sincronizar a BDP'}
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => navigate('/configuracion/bdp-backup')}>
           Ver historial BDP
         </DropdownMenuItem>

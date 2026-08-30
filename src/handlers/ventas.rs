@@ -13,8 +13,10 @@ use crate::models::{
     ActualizarVentaRequest, AnularVentaRequest, CrearVentaRequest, Venta, VentaLinea,
     VentasPaginadas, VentasQuery,
 };
+use crate::repositories::VentaRepository;
 use crate::services::{
-    verificar_permiso, AccionPermiso, BdpOrderPollerService, BdpSyncService, VentaService,
+    payload_propina, verificar_permiso, AccionPermiso, BdpOrderPollerService, BdpPushService,
+    BdpSyncService, ModoEfectivo, ServicioModoOperacion, VentaService,
 };
 use crate::AppState;
 
@@ -347,7 +349,9 @@ pub async fn obtener_bdp_status(
         .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
 
     /* Si tiene order_id y BDP está configurado, refrescar solo esta venta. */
-    if venta.bdp_order_id.is_some() && config.bdp_sync_enabled {
+    if venta.bdp_order_id.is_some()
+        && ServicioModoOperacion::modo_efectivo_desde_config(&config) == ModoEfectivo::Bdp
+    {
         let _ = BdpOrderPollerService::refresh_one(&state.pool, &venta, &config).await;
     }
 
@@ -478,6 +482,13 @@ pub async fn bdp_invoice(
         )));
     }
     let config = crate::services::ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    /* [128A-1/F1-2] M2: en degradación/standalone se bloquea la escritura con
+     * mensaje claro en lugar de intentar y fallar en silencio. */
+    if state.modo_operacion.modo_efectivo_sin_red(&config) != ModoEfectivo::Bdp {
+        return Err(AppError::Validation(
+            "BDP no disponible: el sistema está en modo independiente.".into(),
+        ));
+    }
 
     let venta = crate::repositories::VentaRepository::find_by_id(&state.pool, id, auth.user_id)
         .await?
@@ -514,7 +525,10 @@ pub async fn bdp_invoice(
     let idempotency_key = req.idempotency_key.as_deref();
     let invoice_number =
         match BdpSyncService::invoice_order(&state.pool, &venta, &config, idempotency_key).await {
-            Ok(number) => number,
+            Ok(number) => {
+                state.modo_operacion.registrar_exito_bdp(auth.user_id);
+                number
+            }
             Err(ref e) if e.starts_with("idempotencia_duplicada:") => {
                 /* [C1-6] Idempotencia: si la operación ya fue exitosa, devolvemos el
                  * estado actual en lugar de 422. */
@@ -545,7 +559,10 @@ pub async fn bdp_invoice(
                 }
                 return Err(AppError::Validation(e.clone()));
             }
-            Err(e) => return Err(AppError::Validation(e)),
+            Err(e) => {
+                state.modo_operacion.registrar_fallo_bdp(auth.user_id);
+                return Err(AppError::Validation(e));
+            }
         };
 
     Ok(Json(BdpInvoiceResponse {
@@ -590,6 +607,12 @@ pub async fn bdp_payment(
         )));
     }
     let config = crate::services::ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    /* [128A-1/F1-2] M2: en degradación/standalone se bloquea la escritura. */
+    if state.modo_operacion.modo_efectivo_sin_red(&config) != ModoEfectivo::Bdp {
+        return Err(AppError::Validation(
+            "BDP no disponible: el sistema está en modo independiente.".into(),
+        ));
+    }
     let venta = crate::repositories::VentaRepository::find_by_id(&state.pool, id, auth.user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
@@ -620,7 +643,7 @@ pub async fn bdp_payment(
     )
     .await
     {
-        Ok(_) => {}
+        Ok(_) => state.modo_operacion.registrar_exito_bdp(auth.user_id),
         Err(ref e) if e.starts_with("idempotencia_duplicada:") => {
             /* [C1-6] Idempotencia: si la operación ya fue exitosa, devolvemos el
              * estado actual en lugar de 422. */
@@ -629,7 +652,10 @@ pub async fn bdp_payment(
                 return Err(AppError::Validation(e.clone()));
             }
         }
-        Err(e) => return Err(AppError::Validation(e)),
+        Err(e) => {
+            state.modo_operacion.registrar_fallo_bdp(auth.user_id);
+            return Err(AppError::Validation(e));
+        }
     }
 
     Ok(Json(BdpPaymentResponse {
@@ -850,6 +876,75 @@ pub async fn factura_local(
     }))
 }
 
+/* [198A-1/D8] Propina por venta. Localmente guarda `ventas.propina`
+ * (independiente de BDP); con BDP y `bdp_order_id`, encola AddOrderTip.
+ * `add_tip`: true suma a la propina existente en BDP, false la sustituye. */
+#[derive(serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
+pub struct AgregarPropinaRequest {
+    pub amount: rust_decimal::Decimal,
+    #[serde(default = "default_add_tip")]
+    pub add_tip: bool,
+}
+
+fn default_add_tip() -> bool {
+    true
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/ventas/{id}/propina",
+    tag = "Ventas",
+    params(("id" = Uuid, Path, description = "ID de la venta")),
+    request_body = AgregarPropinaRequest,
+    responses(
+        (status = 200, description = "Propina guardada", body = Venta),
+        (status = 404, description = "Venta no encontrada", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn agregar_propina(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(req): Json<AgregarPropinaRequest>,
+) -> Result<Json<Venta>, AppError> {
+    if req.amount <= rust_decimal::Decimal::ZERO {
+        return Err(AppError::Validation(
+            "La propina debe ser mayor que cero".into(),
+        ));
+    }
+    let venta = VentaService::get(&state.pool, id, auth.user_id).await?;
+    if venta.anulada {
+        return Err(AppError::Validation(
+            "No se puede añadir propina a una venta anulada".into(),
+        ));
+    }
+
+    let venta = VentaRepository::actualizar_propina(&state.pool, id, auth.user_id, req.amount)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
+
+    /* [M16] Solo encolar si la comanda está en BDP; si no, queda local con el
+     * aviso "comanda no sincronizada" (no es error del push). */
+    if let Some(order_id) = venta.bdp_order_id {
+        let payload =
+            payload_propina(order_id, req.amount, req.add_tip).map_err(AppError::Internal)?;
+        BdpPushService::encolar(
+            &state.pool,
+            auth.user_id,
+            crate::services::bdp_push::DOMINIO_PROPINA,
+            &id.to_string(),
+            crate::services::bdp_push::OPERACION_PROPINA,
+            &payload,
+        )
+        .await
+        .map_err(AppError::Internal)?;
+    }
+
+    Ok(Json(venta))
+}
+
 /* [263A-15] Axum 0.7 (matchit 0.7.x) usa :param, no {param}.
  * Todas las rutas con path params corregidas de {id} a :id.
  * Las anotaciones #[utoipa::path] mantienen {id} (sintaxis OpenAPI, no afecta routing). */
@@ -872,5 +967,6 @@ pub fn routes() -> Router<AppState> {
         .route("/ventas/:id/bdp-payments", get(listar_bdp_payments))
         .route("/ventas/:id/pagos-locales", post(pago_parcial_local))
         .route("/ventas/:id/factura-local", post(factura_local))
+        .route("/ventas/:id/propina", post(agregar_propina))
         .route("/ventas/bdp-poll", post(bdp_poll))
 }

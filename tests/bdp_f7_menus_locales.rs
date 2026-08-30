@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [128A-1/F7] Tests de integración de menús/packs locales (D2, §4.10).
  * CRUD local 100% operativo sin BDP. No dependen de feature flags (M12).
  * Usan #[sqlx::test] con migraciones aplicadas y no contactan con BDP real. */

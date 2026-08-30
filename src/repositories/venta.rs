@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* 253A-5: Repositorio de ventas — queries SQL con parámetros */
 
 use sqlx::{Executor, PgPool, Postgres};
@@ -85,6 +87,26 @@ impl VentaRepository {
             .bind(user_id)
             .fetch_optional(pool)
             .await
+    }
+
+    /* [198A-1/D8] Guarda la propina local de una venta. Fuente de verdad local
+     * para mostrar/editar la propina sin BDP; el push AddOrderTip se encola en
+     * el handler. */
+    pub async fn actualizar_propina(
+        pool: &PgPool,
+        id: Uuid,
+        user_id: Uuid,
+        propina: rust_decimal::Decimal,
+    ) -> Result<Option<Venta>, sqlx::Error> {
+        sqlx::query_as::<_, Venta>(
+            "UPDATE ventas SET propina = $3, updated_at = NOW() \
+             WHERE id = $1 AND user_id = $2 RETURNING *",
+        )
+        .bind(id)
+        .bind(user_id)
+        .bind(propina)
+        .fetch_optional(pool)
+        .await
     }
 
     /* [044A-8+9] Whitelist de columnas — previene SQL injection.

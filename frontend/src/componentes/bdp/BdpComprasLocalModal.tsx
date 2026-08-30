@@ -116,15 +116,22 @@ export function BdpComprasLocalModal({
     setLineas((prev) => prev.filter((l) => l.key !== key));
   }
 
+  /* Normaliza decimales con coma (formato español) a punto antes de enviar;
+   * el backend espera `Decimal` con punto (serde). [208A-2/F5] */
+  function normalizarDecimal(valor: string): string {
+    const limpio = valor.trim().replace(/\s/g, '');
+    return limpio.replace(',', '.');
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const lineasValidas: BdpPurchaseNoteLineaLocal[] = lineas
       .filter((l) => l.descripcion.trim() && l.cantidad !== '' && l.precio_unitario !== '')
       .map((l) => ({
         descripcion: l.descripcion.trim(),
-        cantidad: l.cantidad,
-        precio_unitario: l.precio_unitario,
-        iva_pct: l.iva_pct === '' ? '21' : l.iva_pct,
+        cantidad: normalizarDecimal(l.cantidad),
+        precio_unitario: normalizarDecimal(l.precio_unitario),
+        iva_pct: l.iva_pct === '' ? '21' : normalizarDecimal(l.iva_pct),
       }));
     const tieneProveedor = nombreProveedor.trim() !== '' || codigoProveedor.trim() !== '';
     const tieneImporte = total.trim() !== '' || lineasValidas.length > 0;
@@ -141,7 +148,7 @@ export function BdpComprasLocalModal({
       fecha: fecha || undefined,
       codigo_proveedor: codigoProveedor.trim() || undefined,
       nombre_proveedor: nombreProveedor.trim() || undefined,
-      total: total.trim() || undefined,
+      total: total.trim() ? normalizarDecimal(total) : undefined,
       lineas: lineasValidas.length > 0 ? lineasValidas : undefined,
     };
     if (isEdit) {

@@ -307,18 +307,18 @@ function SnapshotTable({snapshots}: {snapshots: BdpSnapshot[]}) {
                     <TableHead>Fecha</TableHead>
                     <TableHead>Datos</TableHead>
                     <TableHead>Notas</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
+                    <TableHead className="text-center">Acciones</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
                 {snapshots.map(s => (
                     <TableRow key={s.id}>
                         <TableCell>{tipoSnapshotBadge(s.tipo)}</TableCell>
-                        <TableCell className="text-sm">{formatDate(s.created_at)}</TableCell>
+                        <TableCell className="text-[13px]">{formatDate(s.created_at)}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{datosResumen(s.datos)}</TableCell>
                         <TableCell className="text-xs max-w-[200px] truncate">{s.notas ?? '—'}</TableCell>
                         <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
+                            <div className="flex justify-center gap-1">
                                 {confirmRestore === s.id ? (
                                     <div className="flex flex-col gap-1 items-end">
                                         <p className="text-xs text-destructive">Escribe exactamente: <code className="break-all">RESTAURAR {s.id}</code></p>
@@ -357,6 +357,7 @@ function SnapshotTable({snapshots}: {snapshots: BdpSnapshot[]}) {
                                         <TooltipButton
                                             size="sm"
                                             variant="outline"
+                                            className="bg-muted/40 hover:bg-muted"
                                             onClick={() => {
                                                 toast.info('Restaurar sobre datos actuales', {
                                                     description: 'Esto sobrescribirá los datos locales de la Aplicación Web con los del snapshot.'
@@ -368,7 +369,8 @@ function SnapshotTable({snapshots}: {snapshots: BdpSnapshot[]}) {
                                         </TooltipButton>
                                         <TooltipButton
                                             size="sm"
-                                            variant="ghost"
+                                            variant="outline"
+                                            className="bg-muted/40 hover:bg-muted"
                                             onClick={() => {
                                                 if (window.confirm('¿Eliminar este snapshot permanentemente?')) {
                                                     eliminar.mutate(s.id, {
@@ -412,7 +414,7 @@ function AuditTable({entries}: {entries: BdpAuditEntry[]}) {
             <TableBody>
                 {entries.map(e => (
                     <TableRow key={e.id}>
-                        <TableCell className="text-sm">{formatDate(e.created_at)}</TableCell>
+                        <TableCell className="text-[13px]">{formatDate(e.created_at)}</TableCell>
                         <TableCell>
                             <Badge variant="outline">{operacionLabel(e.operacion)}</Badge>
                         </TableCell>

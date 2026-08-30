@@ -33,7 +33,8 @@ export function NavSecondary({
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild isActive={location.pathname === item.url}>
+              {/* [208A-2] Mismo tamaño compacto que la navegación principal. */}
+              <SidebarMenuButton asChild size="sm" isActive={location.pathname === item.url}>
                 <Link to={item.url}>
                   {item.icon}
                   <span>{item.title}</span>

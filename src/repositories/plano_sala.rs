@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [263A-14] Repositorio del plano de sala: zonas, mesas, combinaciones.
  * Queries para CRUD, batch update posiciones, plano completo, export/import. */
 
@@ -298,6 +300,25 @@ impl PlanoSalaRepository {
         sqlx::query_as!(Mesa, "SELECT * FROM mesas WHERE id = $1", id)
             .fetch_one(pool)
             .await
+    }
+
+    /* [198A-1/D10] Códigos (mesa, salón) para `CallWaiter` de BDP. Usa el número
+     * de mesa y el `orden` de su zona como identificador de salón (el plano no
+     * guarda el RoomCode BDP; se confirma en F0). Scoped por user_id. */
+    pub async fn codigos_mesa_para_bdp(
+        pool: &PgPool,
+        mesa_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<(i32, i32)>, sqlx::Error> {
+        sqlx::query_as::<_, (i32, i32)>(
+            "SELECT m.numero, z.orden FROM mesas m \
+             INNER JOIN zonas_sala z ON z.id = m.zona_id \
+             WHERE m.id = $1 AND z.user_id = $2",
+        )
+        .bind(mesa_id)
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await
     }
 
     /* Obtiene el nombre de la zona de una mesa */

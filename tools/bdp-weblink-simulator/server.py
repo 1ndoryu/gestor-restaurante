@@ -26,6 +26,22 @@ WRITE_PATHS = {
     "/API/Orders/Cancel",
     "/API/Orders/Payment/Add",
     "/API/Orders/Invoice",
+    # [198A-1] Escrituras BDP nuevas.
+    "/API/Orders/Tip/Add",
+    "/API/Waiters/Call",
+    "/API/Loyalty/AddPoints",
+    "/API/Articles/CreateAndUpdateProfiles",
+    "/API/Articles/ModifyPrices",
+    "/API/Articles/ModifyAndUpdateProfiles",
+    "/API/Departments/Create",
+    "/API/Departments/CreateAndUpdateProfiles",
+    "/API/Warehouse/CreateFamily",
+    "/API/Warehouse/CreateSubfamily",
+    "/API/Warehouse/Regularizations",
+    "/API/Warehouse/Transfers",
+    "/API/Warehouse/UpdateMassiveStock",
+    "/API/Warehouse/UpdateStock",
+    "/API/Warehouse/UpdateMassiveInventory",
 }
 PUBLIC_PATHS = {"/Service/Health", "/Auth/Login"}
 SENSITIVE_KEYS = {"password", "token", "authorization", "codigointegrador", "integratorcode"}
@@ -63,6 +79,15 @@ class SimulatorState:
     tokens: set[str] = field(default_factory=set)
     next_order_id: int = 1000
     next_invoice: int = 1
+    # [198A-1] Estado de escrituras nuevas.
+    articles: dict[int, dict[str, Any]] = field(default_factory=dict)
+    departments: dict[int, dict[str, Any]] = field(default_factory=dict)
+    families: dict[int, dict[str, Any]] = field(default_factory=dict)
+    subfamilies: dict[int, dict[str, Any]] = field(default_factory=dict)
+    points: dict[int, float] = field(default_factory=dict)
+    stock: dict[int, float] = field(default_factory=dict)
+    waiter_calls: list[dict[str, Any]] = field(default_factory=list)
+    next_article_id: int = 90000000
 
     def __post_init__(self) -> None:
         self.reset()
@@ -79,6 +104,22 @@ class SimulatorState:
             self.tokens = set()
             self.next_order_id = 1000
             self.next_invoice = 1
+            self.articles = {
+                int(item["Code"]): copy.deepcopy(item) for item in self.fixtures.get("articles", [])
+            }
+            self.departments = {
+                int(item.get("Code", item.get("Id"))): copy.deepcopy(item)
+                for item in self.fixtures.get("departments", [])
+            }
+            self.families = {}
+            self.subfamilies = {}
+            self.points = {}
+            self.stock = {
+                int(item["Code"]): float(item.get("CurrentStock", 0) or 0)
+                for item in self.fixtures.get("articles", [])
+            }
+            self.waiter_calls = []
+            self.next_article_id = 90000000
 
     def order_for_identifier(self, identifier: dict[str, Any]) -> dict[str, Any] | None:
         if identifier.get("OrderId") is not None:
@@ -214,11 +255,13 @@ class SimulatorHandler(BaseHTTPRequestHandler):
             if path == "/Service/GetVersion":
                 return {"Version": 0, "Subversion": 0, "Revision": "SIMULATOR", "Application": "Glory WebLink Simulator", "ApplicationDescription": "Contrato local; no es BDP", "ErrorMessage": ""}
             if path in {"/API/Articles/Export", "/API/Articles/GetPOSList"}:
-                return {"Articles": copy.deepcopy(state.fixtures["articles"]), "ErrorMessage": ""}
+                return {"Articles": list(copy.deepcopy(state.articles).values()), "ErrorMessage": ""}
             if path == "/API/Customers/Export":
                 return {"Customers": list(copy.deepcopy(state.customers).values()), "ErrorMessage": ""}
             if path == "/API/Departments/Export" or path == "/API/Departments/ExportFromProfile":
-                return {"Departments": copy.deepcopy(state.fixtures["departments"]), "ErrorMessage": ""}
+                return {"Departments": list(copy.deepcopy(state.departments).values()), "ErrorMessage": ""}
+            if path in {"/API/Warehouse/GetStock", "/API/Warehouse/GetListStock"}:
+                return {"Stock": copy.deepcopy(state.stock), "ErrorMessage": ""}
             if path in {"/API/POSes/Get", "/API/POS/Get"}:
                 return {"POSes": copy.deepcopy(state.fixtures["poses"]), "ErrorMessage": ""}
             if path in {"/API/Employees/Get", "/API/Employee/Get", "/API/POS/Employees/Get"}:
@@ -246,6 +289,40 @@ class SimulatorHandler(BaseHTTPRequestHandler):
                 return self._add_payment(payload)
             if path == "/API/Orders/Invoice":
                 return self._invoice(payload)
+            # [198A-1/F2] Lecturas de soporte.
+            if path == "/Service/GetApplicationVersion":
+                return {"Version": 1, "SubVersion": 0, "Revision": "SIMULATOR", "Application": payload.get("Application"), "ApplicationDescription": "suscripcion simulada", "ErrorMessage": ""}
+            if path in {"/API/ProfilesLists/GetCreateArticleList", "/API/ProfilesLists/GetModifyArticleList", "/API/ProfilesLists/GetCreateDepartmentList"}:
+                return {"ProfilesList": [{"Profile": 1}], "ErrorMessage": ""}
+            if path == "/API/Loyalty/GetPoints":
+                return {"Points": state.points.get(int(payload.get("Customer", 0)), 0.0), "ErrorMessage": ""}
+            # [198A-1] Escrituras nuevas.
+            if path == "/API/Orders/Tip/Add":
+                return self._add_tip(payload)
+            if path == "/API/Waiters/Call":
+                return self._call_waiter(payload)
+            if path == "/API/Loyalty/AddPoints":
+                return self._add_points(payload)
+            if path == "/API/Articles/CreateAndUpdateProfiles":
+                return self._create_article(payload)
+            if path == "/API/Articles/ModifyPrices":
+                return {"ErrorMessage": ""}
+            if path == "/API/Articles/ModifyAndUpdateProfiles":
+                return self._modify_article(payload)
+            if path in {"/API/Departments/Create", "/API/Departments/CreateAndUpdateProfiles"}:
+                return self._create_department(payload)
+            if path == "/API/Warehouse/CreateFamily":
+                return self._create_family(payload)
+            if path == "/API/Warehouse/CreateSubfamily":
+                return self._create_subfamily(payload)
+            if path == "/API/Warehouse/Regularizations":
+                return self._regularize(payload)
+            if path == "/API/Warehouse/Transfers":
+                return self._transfer(payload)
+            if path in {"/API/Warehouse/UpdateMassiveStock", "/API/Warehouse/UpdateMassiveInventory"}:
+                return self._massive_stock(payload)
+            if path == "/API/Warehouse/UpdateStock":
+                return self._update_stock(payload)
         return None
 
     def _create_customer(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -344,6 +421,147 @@ class SimulatorHandler(BaseHTTPRequestHandler):
         order["Status"] = 3
         order["InvoiceNumber"] = invoice
         return {"InvoiceNumber": invoice, "Order": self._public_order(order), "ErrorMessage": ""}
+
+    # [198A-1] Helpers de las escrituras nuevas.
+    @staticmethod
+    def _first_article_data(payload: dict[str, Any]) -> dict[str, Any]:
+        data = payload.get("ArticleData")
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            return data[0]
+        if isinstance(data, dict):
+            return data
+        return {}
+
+    def _create_article(self, payload: dict[str, Any]) -> dict[str, Any]:
+        state = self.server.state
+        first = self._first_article_data(payload)
+        if not first:
+            return {"ErrorMessage": "ArticleData obligatorio", "ListaErroresArticulo": []}
+        if bool(payload.get("AutomaticCode", False)):
+            code = state.next_article_id
+            state.next_article_id += 1
+        else:
+            try:
+                code = int(first.get("ArtCode", 0))
+            except (TypeError, ValueError):
+                return {"ErrorMessage": "ArtCode invalido", "ListaErroresArticulo": []}
+        if code <= 0:
+            return {"ErrorMessage": "ArtCode invalido", "ListaErroresArticulo": []}
+        stored = copy.deepcopy(first)
+        stored["Code"] = str(code)
+        state.articles[code] = stored
+        state.stock.setdefault(code, 0.0)
+        return {"ErrorMessage": "", "ListaErroresArticulo": []}
+
+    def _modify_article(self, payload: dict[str, Any]) -> dict[str, Any]:
+        state = self.server.state
+        first = self._first_article_data(payload)
+        try:
+            code = int(first.get("ArtCode", 0))
+        except (TypeError, ValueError):
+            return {"ErrorMessage": "ArtCode invalido"}
+        if code in state.articles:
+            state.articles[code].update(first)
+        return {"ErrorMessage": ""}
+
+    def _create_department(self, payload: dict[str, Any]) -> dict[str, Any]:
+        state = self.server.state
+        try:
+            code = int(payload.get("Code", 0))
+        except (TypeError, ValueError):
+            return {"ErrorMessage": "Code obligatorio"}
+        if code <= 0 or not str(payload.get("Description", "")).strip():
+            return {"ErrorMessage": "Code y Description obligatorios"}
+        if code in state.departments and not payload.get("Overwrite", False):
+            return {"ErrorMessage": "departamento duplicado"}
+        state.departments[code] = copy.deepcopy(payload)
+        return {"ErrorMessage": ""}
+
+    def _create_family(self, payload: dict[str, Any]) -> dict[str, Any]:
+        state = self.server.state
+        try:
+            code = int(payload.get("Code", 0))
+        except (TypeError, ValueError):
+            return {"ErrorMessage": "Code obligatorio"}
+        if code <= 0 or not str(payload.get("Description", "")).strip():
+            return {"ErrorMessage": "Code y Description obligatorios"}
+        if code in state.families and not payload.get("Overwrite", False):
+            return {"ErrorMessage": "familia duplicada"}
+        state.families[code] = copy.deepcopy(payload)
+        return {"ErrorMessage": ""}
+
+    def _create_subfamily(self, payload: dict[str, Any]) -> dict[str, Any]:
+        state = self.server.state
+        try:
+            code = int(payload.get("Code", 0))
+        except (TypeError, ValueError):
+            return {"ErrorMessage": "Code obligatorio"}
+        if code <= 0 or not str(payload.get("Description", "")).strip():
+            return {"ErrorMessage": "Code y Description obligatorios"}
+        if code in state.subfamilies and not payload.get("Overwrite", False):
+            return {"ErrorMessage": "subfamilia duplicada"}
+        state.subfamilies[code] = copy.deepcopy(payload)
+        return {"ErrorMessage": ""}
+
+    def _add_tip(self, payload: dict[str, Any]) -> dict[str, Any]:
+        state = self.server.state
+        order = state.order_for_identifier(_identifier(payload))
+        if order is None:
+            return {"ErrorMessage": "comanda inexistente"}
+        try:
+            amount = float(payload.get("Amount", 0))
+        except (TypeError, ValueError):
+            return {"ErrorMessage": "Amount invalido"}
+        if bool(payload.get("AddTip", False)):
+            order["Tip"] = float(order.get("Tip", 0)) + amount
+        else:
+            order["Tip"] = amount
+        return {"Order": self._public_order(order), "ErrorMessage": ""}
+
+    def _call_waiter(self, payload: dict[str, Any]) -> dict[str, Any]:
+        state = self.server.state
+        state.waiter_calls.append(copy.deepcopy(payload))
+        return {"ErrorMessage": ""}
+
+    def _add_points(self, payload: dict[str, Any]) -> dict[str, Any]:
+        state = self.server.state
+        try:
+            customer = int(payload.get("Customer", 0))
+            added = float(payload.get("PointsAdded", 0))
+        except (TypeError, ValueError):
+            return {"ErrorMessage": "Customer y PointsAdded invalidos"}
+        if customer <= 0 or not str(payload.get("Reason", "")).strip():
+            return {"ErrorMessage": "Customer y Reason obligatorios"}
+        state.points[customer] = state.points.get(customer, 0.0) + added
+        return {"Points": state.points[customer], "ErrorMessage": ""}
+
+    def _apply_stock_delta(self, article: Any, units: Any) -> None:
+        state = self.server.state
+        if article is None:
+            return
+        try:
+            code = int(article)
+            delta = float(units or 0)
+        except (TypeError, ValueError):
+            return
+        state.stock[code] = state.stock.get(code, 0.0) + delta
+
+    def _regularize(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self._apply_stock_delta(payload.get("Article"), payload.get("Units"))
+        return {"ErrorMessage": ""}
+
+    def _transfer(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self._apply_stock_delta(payload.get("Article"), payload.get("Units"))
+        return {"ErrorMessage": ""}
+
+    def _update_stock(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self._apply_stock_delta(payload.get("Article"), payload.get("Units"))
+        return {"ErrorMessage": ""}
+
+    def _massive_stock(self, payload: dict[str, Any]) -> dict[str, Any]:
+        for item in payload.get("ArticlesList", []):
+            self._apply_stock_delta(item.get("Article"), item.get("Units"))
+        return {"ErrorMessage": "", "ErrorList": []}
 
     def _json(self, status: int, value: Any) -> None:
         self._raw(status, json.dumps(value, ensure_ascii=False).encode("utf-8"))

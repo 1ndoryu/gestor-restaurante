@@ -9,15 +9,16 @@
  * botones visibles cuando no aplican los de BDP y la venta no está anulada
  * ni facturada. */
 
-import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Button } from '@/components/ui/button';
-import { Trash2, Pencil, Eye, RefreshCw, CreditCard, ReceiptText, Search, AlertTriangle, Ban } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { MoreHorizontal, Trash2, Pencil, Eye, RefreshCw, CreditCard, ReceiptText, Search, AlertTriangle, Ban, Coins } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import instance from '@/api/axios-instance';
@@ -86,7 +87,7 @@ function VentaRowActions({
   const totalVenta = Number(v.importe_base) + Number(v.importe_iva);
   const total = totalVenta.toFixed(2);
   const queryClient = useQueryClient();
-  const [accion, setAccion] = useState<'pago' | 'factura' | 'pagoLocal' | 'facturaLocal' | null>(null);
+  const [accion, setAccion] = useState<'pago' | 'factura' | 'pagoLocal' | 'facturaLocal' | 'propina' | null>(null);
   const [tenderId, setTenderId] = useState('');
   const [importe, setImporte] = useState(total);
   const [confirmacion, setConfirmacion] = useState('');
@@ -97,6 +98,9 @@ function VentaRowActions({
   /* [128A-1/F4] Anulación local */
   const [anularAbierto, setAnularAbierto] = useState(false);
   const [motivo, setMotivo] = useState('');
+  /* [198A-1/D8] Propina por venta (sumar/sustituir, D8). */
+  const [propinaImporte, setPropinaImporte] = useState('');
+  const [propinaSumar, setPropinaSumar] = useState(true);
 
   const hayAmbiguo = useMemo(() => pagos?.pagos.some((p) => p.resultado === 'ambiguo') ?? false, [pagos]);
   const pendiente = useMemo(() => Number(pagos?.pendiente ?? totalVenta), [pagos, totalVenta]);
@@ -124,6 +128,8 @@ function VentaRowActions({
     setTenderId('');
     setImporte(total);
     setPagos(null);
+    setPropinaImporte('');
+    setPropinaSumar(true);
   };
 
   const ejecutarBdp = async () => {
@@ -153,6 +159,28 @@ function VentaRowActions({
     } catch (error) {
       const message = (error as { response?: { data?: { message?: string } } }).response?.data?.message;
       toast.error('Operación BDP bloqueada', { description: message ?? 'Revisa preflight, armado y auditoría antes de reintentar.' });
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  /* [128A-1/F6] Pago parcial local y factura local mínima. */
+  /* [198A-1/D8] Propina por venta: guarda local y, con BDP, encola AddOrderTip. */
+  const ejecutarPropina = async () => {
+    if (accion !== 'propina') return;
+    const importeCanonico = Number(propinaImporte).toFixed(2);
+    setEnviando(true);
+    try {
+      await instance.post(`/api/ventas/${v.id}/propina`, {
+        amount: Number(importeCanonico),
+        add_tip: propinaSumar,
+      });
+      toast.success(`Propina de ${importeCanonico} € registrada`);
+      cerrar();
+      queryClient.invalidateQueries({ queryKey: ['listarVentas'] });
+    } catch (error) {
+      const message = (error as { response?: { data?: { message?: string } } }).response?.data?.message;
+      toast.error('No se pudo guardar la propina', { description: message ?? 'Revisa el estado de la venta.' });
     } finally {
       setEnviando(false);
     }
@@ -209,110 +237,108 @@ function VentaRowActions({
 
   return (
     <>
-    <div className="flex gap-1">
-      {v.reserva_id && (
-        <TooltipButton variant="ghost" size="icon" onClick={() => onVerReserva(v.reserva_id!)} tooltip="Ver reserva" tooltipSide="left">
-          <Eye className="size-4" />
-        </TooltipButton>
-      )}
-      {haddockSyncEnabled && !v.haddock_synced && v.haddock_sync_error && (
-        <TooltipButton
-          variant="ghost"
-          size="icon"
-          onClick={() => onRetrySync(v.id)}
-          disabled={retryPending}
-          tooltip="Reintentar sincronización Haddock"
-          tooltipSide="left"
-        >
-          <RefreshCw className={`size-4 text-amber-600 ${retryPending ? 'animate-spin' : ''}`} />
-        </TooltipButton>
-      )}
-      {/* [237A-3] Botón consultar estado BDP individual */}
-      {bdpSyncEnabled && bdp.bdp_synced && bdp.bdp_order_id && (
-        <TooltipButton
-          variant="ghost"
-          size="icon"
-          onClick={async () => {
-            setConsultandoEstado(true);
-            try {
-              const status = await fetchBdpStatus(v.id);
-              toast.info(`Estado BDP: ${status.bdp_order_status ?? 'desconocido'}`, {
-                description: `Orden: ${status.bdp_order_id ?? '—'} · Sync: ${status.bdp_synced ? 'sí' : 'no'}${status.bdp_sync_error ? ` · Error: ${status.bdp_sync_error}` : ''}`,
-              });
-              queryClient.invalidateQueries({ queryKey: ['listarVentas'] });
-            } catch {
-              toast.error('No se pudo consultar el estado BDP');
-            } finally {
-              setConsultandoEstado(false);
-            }
-          }}
-          disabled={consultandoEstado}
-          tooltip="Consultar estado actual de esta comanda en BDP"
-          tooltipSide="left"
-        >
-          <Search className={`size-4 text-blue-600 ${consultandoEstado ? 'animate-pulse' : ''}`} />
-        </TooltipButton>
-      )}
-      {/* Un fallo de CreateOrder deja bdp_synced=false; el error es la señal de retry. */}
-      {bdpSyncEnabled && !(v as unknown as VentaConClienteBdp).bdp_synced && (v as unknown as VentaConClienteBdp).bdp_sync_error && onRetryBdp && (
-        <TooltipButton
-          variant="ghost"
-          size="icon"
-          onClick={() => onRetryBdp(v.id)}
-          disabled={retryBdpPending}
-          tooltip="El envío a BDP es automático. Este botón solo aparece si la sincronización falló; úsalo para reintentarla."
-          tooltipSide="left"
-        >
-          <RefreshCw className={`size-4 text-blue-600 ${retryBdpPending ? 'animate-spin' : ''}`} />
-        </TooltipButton>
-      )}
-      {puedePagar && (
-        <TooltipButton variant="ghost" size="icon" onClick={() => { setAccion('pago'); setConfirmacion(''); }} tooltip="Registrar pago en BDP" tooltipSide="left">
-          <CreditCard className="size-4 text-emerald-700" />
-        </TooltipButton>
-      )}
-      {puedePagar && (
-        <TooltipButton variant="ghost" size="icon" onClick={() => { setAccion('factura'); setConfirmacion(''); }} tooltip="Facturar orden en BDP" tooltipSide="left">
-          <ReceiptText className="size-4 text-violet-700" />
-        </TooltipButton>
-      )}
-      {puedePagoLocal && (
-        <TooltipButton variant="ghost" size="icon" onClick={() => { setAccion('pagoLocal'); setConfirmacion(''); }} tooltip="Registrar pago local" tooltipSide="left">
-          <CreditCard className="size-4 text-emerald-700" />
-        </TooltipButton>
-      )}
-      {puedeFacturaLocal && (
-        <TooltipButton variant="ghost" size="icon" onClick={() => { setAccion('facturaLocal'); setConfirmacion(''); }} tooltip="Facturar localmente" tooltipSide="left">
-          <ReceiptText className="size-4 text-violet-700" />
-        </TooltipButton>
-      )}
-      {!v.anulada && onAnular && (
-        <TooltipButton
-          variant="ghost"
-          size="icon"
-          onClick={() => { setMotivo(''); setAnularAbierto(true); }}
-          disabled={anularPending}
-          tooltip="Anular venta"
-          tooltipSide="left"
-        >
-          <Ban className="size-4 text-destructive" />
-        </TooltipButton>
-      )}
-      <TooltipButton variant="ghost" size="icon" onClick={() => onEditar(v)} tooltip="Editar" tooltipSide="left">
-        <Pencil className="size-4" />
-      </TooltipButton>
-      {!haddockSyncEnabled && !v.anulada && !bdp.bdp_synced && !bdp.bdp_order_id && (
-        <TooltipButton
-          variant="ghost"
-          size="icon"
-          onClick={() => onEliminar(v.id)}
-          disabled={eliminarPending}
-          tooltip="Eliminar venta"
-          tooltipSide="left"
-        >
-          <Trash2 className="size-4 text-destructive" />
-        </TooltipButton>
-      )}
+    {/* [VENTAS-UI] Acciones agrupadas en menú contextual de 3 puntos para
+     * no saturar la fila con iconos sueltos; los diálogos se mantienen. */}
+    <div className="flex items-center justify-center">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="icon" aria-label="Acciones de la venta" className="bg-muted/40 hover:bg-muted">
+          <MoreHorizontal className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-60">
+        {v.reserva_id && (
+          <DropdownMenuItem onClick={() => onVerReserva(v.reserva_id!)}>
+            <Eye className="size-4" />
+            Ver reserva
+          </DropdownMenuItem>
+        )}
+        {haddockSyncEnabled && !v.haddock_synced && v.haddock_sync_error && (
+          <DropdownMenuItem onClick={() => onRetrySync(v.id)} disabled={retryPending}>
+            <RefreshCw className={`size-4 text-amber-600 ${retryPending ? 'animate-spin' : ''}`} />
+            Reintentar sincronización Haddock
+          </DropdownMenuItem>
+        )}
+        {/* [237A-3] Consultar estado BDP individual */}
+        {bdpSyncEnabled && bdp.bdp_synced && bdp.bdp_order_id && (
+          <DropdownMenuItem
+            disabled={consultandoEstado}
+            onClick={async () => {
+              setConsultandoEstado(true);
+              try {
+                const status = await fetchBdpStatus(v.id);
+                toast.info(`Estado BDP: ${status.bdp_order_status ?? 'desconocido'}`, {
+                  description: `Orden: ${status.bdp_order_id ?? '—'} · Sync: ${status.bdp_synced ? 'sí' : 'no'}${status.bdp_sync_error ? ` · Error: ${status.bdp_sync_error}` : ''}`,
+                });
+                queryClient.invalidateQueries({ queryKey: ['listarVentas'] });
+              } catch {
+                toast.error('No se pudo consultar el estado BDP');
+              } finally {
+                setConsultandoEstado(false);
+              }
+            }}
+          >
+            <Search className={`size-4 text-blue-600 ${consultandoEstado ? 'animate-pulse' : ''}`} />
+            Consultar estado BDP
+          </DropdownMenuItem>
+        )}
+        {/* Un fallo de CreateOrder deja bdp_synced=false; el error es la señal de retry. */}
+        {bdpSyncEnabled && !bdp.bdp_synced && bdp.bdp_sync_error && onRetryBdp && (
+          <DropdownMenuItem onClick={() => onRetryBdp(v.id)} disabled={retryBdpPending}>
+            <RefreshCw className={`size-4 text-blue-600 ${retryBdpPending ? 'animate-spin' : ''}`} />
+            Reintentar envío a BDP
+          </DropdownMenuItem>
+        )}
+        {puedePagar && (
+          <DropdownMenuItem onClick={() => { setAccion('pago'); setConfirmacion(''); }}>
+            <CreditCard className="size-4 text-emerald-700" />
+            Registrar pago en BDP
+          </DropdownMenuItem>
+        )}
+        {puedePagar && (
+          <DropdownMenuItem onClick={() => { setAccion('factura'); setConfirmacion(''); }}>
+            <ReceiptText className="size-4 text-violet-700" />
+            Facturar orden en BDP
+          </DropdownMenuItem>
+        )}
+        {puedePagoLocal && (
+          <DropdownMenuItem onClick={() => { setAccion('pagoLocal'); setConfirmacion(''); }}>
+            <CreditCard className="size-4 text-emerald-700" />
+            Registrar pago local
+          </DropdownMenuItem>
+        )}
+        {puedeFacturaLocal && (
+          <DropdownMenuItem onClick={() => { setAccion('facturaLocal'); setConfirmacion(''); }}>
+            <ReceiptText className="size-4 text-violet-700" />
+            Facturar localmente
+          </DropdownMenuItem>
+        )}
+        {/* [198A-1/D8] Propina por venta: local siempre disponible. */}
+        {!v.anulada && (
+          <DropdownMenuItem onClick={() => { setAccion('propina'); setPropinaImporte(''); setPropinaSumar(true); }}>
+            <Coins className="size-4 text-amber-600" />
+            Añadir propina
+          </DropdownMenuItem>
+        )}
+        {!v.anulada && onAnular && (
+          <DropdownMenuItem onClick={() => { setMotivo(''); setAnularAbierto(true); }} disabled={anularPending}>
+            <Ban className="size-4 text-destructive" />
+            Anular venta
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => onEditar(v)}>
+          <Pencil className="size-4" />
+          Editar
+        </DropdownMenuItem>
+        {!haddockSyncEnabled && !v.anulada && !bdp.bdp_synced && !bdp.bdp_order_id && (
+          <DropdownMenuItem onClick={() => onEliminar(v.id)} disabled={eliminarPending}>
+            <Trash2 className="size-4 text-destructive" />
+            Eliminar venta
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
     </div>
     <Dialog open={accion === 'pago'} onOpenChange={(open: boolean) => { if (!open) cerrar(); }}>
       <DialogContent className="sm:max-w-lg">
@@ -348,20 +374,20 @@ function VentaRowActions({
               <>
                 <Separator className="my-2" />
                 <div className="max-h-40 overflow-auto rounded border">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-[13px]">
                     <thead className="bg-muted/50">
                       <tr>
-                        <th className="p-2 text-left font-medium">Fecha</th>
-                        <th className="p-2 text-right font-medium">Importe</th>
-                        <th className="p-2 text-left font-medium">Estado</th>
+                        <th className="p-1.5 text-left font-medium">Fecha</th>
+                        <th className="p-1.5 text-right font-medium">Importe</th>
+                        <th className="p-1.5 text-left font-medium">Estado</th>
                       </tr>
                     </thead>
                     <tbody>
                       {pagos.pagos.map((p) => (
                         <tr key={p.id} className="border-t">
-                          <td className="p-2 text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString('es-ES')}</td>
-                          <td className="p-2 text-right tabular-nums">{formatCurrency(p.amount)}</td>
-                          <td className="p-2">
+                          <td className="p-1.5 text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString('es-ES')}</td>
+                          <td className="p-1.5 text-right tabular-nums">{formatCurrency(p.amount)}</td>
+                          <td className="p-1.5">
                             {p.resultado === 'exito' && <Badge variant="default" className="bg-emerald-600">Éxito</Badge>}
                             {p.resultado === 'ambiguo' && <Badge variant="outline" className="border-amber-500 text-amber-700">Ambiguo</Badge>}
                             {p.resultado === 'error' && <Badge variant="destructive">Error</Badge>}
@@ -442,20 +468,20 @@ function VentaRowActions({
               <>
                 <Separator className="my-2" />
                 <div className="max-h-40 overflow-auto rounded border">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-[13px]">
                     <thead className="bg-muted/50">
                       <tr>
-                        <th className="p-2 text-left font-medium">Fecha</th>
-                        <th className="p-2 text-right font-medium">Importe</th>
-                        <th className="p-2 text-left font-medium">Estado</th>
+                        <th className="p-1.5 text-left font-medium">Fecha</th>
+                        <th className="p-1.5 text-right font-medium">Importe</th>
+                        <th className="p-1.5 text-left font-medium">Estado</th>
                       </tr>
                     </thead>
                     <tbody>
                       {pagos.pagos.map((p) => (
                         <tr key={p.id} className="border-t">
-                          <td className="p-2 text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString('es-ES')}</td>
-                          <td className="p-2 text-right tabular-nums">{formatCurrency(p.amount)}</td>
-                          <td className="p-2">
+                          <td className="p-1.5 text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString('es-ES')}</td>
+                          <td className="p-1.5 text-right tabular-nums">{formatCurrency(p.amount)}</td>
+                          <td className="p-1.5">
                             {p.resultado === 'exito' && <Badge variant="default" className="bg-emerald-600">Éxito</Badge>}
                             {p.resultado === 'ambiguo' && <Badge variant="outline" className="border-amber-500 text-amber-700">Ambiguo</Badge>}
                             {p.resultado === 'error' && <Badge variant="destructive">Error</Badge>}
@@ -539,6 +565,31 @@ function VentaRowActions({
             onClick={ejecutarAnulacion}
           >
             {anularPending ? 'Anulando…' : 'Anular venta'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    {/* [198A-1/D8] Diálogo de propina (sumar/sustituir, D8). */}
+    <Dialog open={accion === 'propina'} onOpenChange={(open: boolean) => { if (!open) cerrar(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Añadir propina</DialogTitle>
+          <DialogDescription>Guarda la propina localmente; si la comanda está en BDP, la empuja (sumar o sustituir).</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <div>
+            <Label htmlFor={`propina-${v.id}`}>Importe</Label>
+            <Input id={`propina-${v.id}`} type="number" min="0.01" step="0.01" value={propinaImporte} onChange={(e) => setPropinaImporte(e.target.value)} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch id={`propina-sumar-${v.id}`} checked={propinaSumar} onCheckedChange={setPropinaSumar} />
+            <Label htmlFor={`propina-sumar-${v.id}`}>Sumar a la propina existente (si no, sustituye)</Label>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={cerrar}>Cancelar</Button>
+          <Button disabled={enviando || Number(propinaImporte) <= 0} onClick={ejecutarPropina}>
+            {enviando ? 'Guardando…' : 'Guardar propina'}
           </Button>
         </DialogFooter>
       </DialogContent>

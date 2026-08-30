@@ -266,32 +266,32 @@ function BdpExplorador() {
               <TableHead className="text-right">Artículos</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Origen</TableHead>
-              <TableHead className="w-24"></TableHead>
+              <TableHead className="w-24 text-center">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoadingMenus ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={7} className="text-center text-[13px] text-muted-foreground">
                   <Loader2 className="size-4 animate-spin inline mr-1" />
                   Cargando menús locales...
                 </TableCell>
               </TableRow>
             ) : (menusLocales ?? []).length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={7} className="text-center text-[13px] text-muted-foreground">
                   No hay menús/packs locales. Crea el primero con «Nuevo menú/pack».
                 </TableCell>
               </TableRow>
             ) : (
               (menusLocales ?? []).map((menu) => (
                 <TableRow key={menu.id}>
-                  <TableCell className="text-sm font-medium">{menu.nombre}</TableCell>
+                  <TableCell className="text-[13px] font-medium">{menu.nombre}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{menu.tipo === 'menu' ? 'Menú' : 'Pack'}</Badge>
                   </TableCell>
-                  <TableCell className="text-right text-sm">{formatPrecio(menu.precio)}</TableCell>
-                  <TableCell className="text-right text-sm">{menu.lineas.length}</TableCell>
+                  <TableCell className="text-right text-[13px]">{formatPrecio(menu.precio)}</TableCell>
+                  <TableCell className="text-right text-[13px]">{menu.lineas.length}</TableCell>
                   <TableCell>
                     {menu.activo ? (
                       <Badge variant="secondary">Activo</Badge>
@@ -303,18 +303,20 @@ function BdpExplorador() {
                     <Badge>Local</Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-center gap-1">
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="icon"
+                        className="bg-muted/40 hover:bg-muted"
                         onClick={() => abrirEdicion(menu)}
                         aria-label={`Editar ${menu.nombre}`}
                       >
                         <Pencil className="size-4" />
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="icon"
+                        className="bg-muted/40 hover:bg-muted"
                         onClick={() => handleEliminar(menu)}
                         aria-label={`Eliminar ${menu.nombre}`}
                       >
@@ -474,13 +476,13 @@ function BdpExplorador() {
                   <TableHead>Nombre</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Descripción</TableHead>
-                  <TableHead className="w-10"></TableHead>
+                  <TableHead className="w-10 text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center text-[13px] text-muted-foreground">
                       No hay definiciones que coincidan.
                     </TableCell>
                   </TableRow>
@@ -488,7 +490,7 @@ function BdpExplorador() {
                   items.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-mono text-xs">{item.code}</TableCell>
-                      <TableCell className="text-sm font-medium">{item.name}</TableCell>
+                      <TableCell className="text-[13px] font-medium">{item.name}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{tipoLabel(item.type)}</Badge>
                       </TableCell>
@@ -496,9 +498,11 @@ function BdpExplorador() {
                         {item.description}
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => setSeleccionado(item)}>
-                          <Eye className="size-4" />
-                        </Button>
+                        <div className="flex justify-center">
+                          <Button variant="outline" size="icon" className="bg-muted/40 hover:bg-muted" onClick={() => setSeleccionado(item)}>
+                            <Eye className="size-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

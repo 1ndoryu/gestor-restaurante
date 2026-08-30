@@ -91,7 +91,7 @@ export default function ListaCampanas() {
                                     <TableHead>Segmento</TableHead>
                                     <TableHead className="text-right">Destinatarios</TableHead>
                                     <TableHead>Fecha</TableHead>
-                                    <TableHead className="w-24" />
+                                    <TableHead className="w-24 text-center">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -110,15 +110,15 @@ export default function ListaCampanas() {
                                         </TableCell>
                                         <TableCell>{ETIQUETAS_SEGMENTO[c.segmento] || c.segmento}</TableCell>
                                         <TableCell className="text-right">{c.total_destinatarios > 0 ? `${c.total_enviados}/${c.total_destinatarios}` : '—'}</TableCell>
-                                        <TableCell className="text-muted-foreground text-sm">{new Date(c.created_at).toLocaleDateString('es-ES')}</TableCell>
+                                        <TableCell className="text-muted-foreground text-[13px]">{new Date(c.created_at).toLocaleDateString('es-ES')}</TableCell>
                                         <TableCell>
-                                            <div className="flex gap-1">
+                                            <div className="flex justify-center gap-1">
                                                 {c.estado === 'borrador' && (
-                                                    <TooltipButton variant="ghost" size="icon" tooltip="Enviar campaña" onClick={() => handleEnviar(c)}>
+                                                    <TooltipButton variant="outline" size="icon" className="bg-muted/40 hover:bg-muted" tooltip="Enviar campaña" onClick={() => handleEnviar(c)}>
                                                         <Send className="size-4" />
                                                     </TooltipButton>
                                                 )}
-                                                <TooltipButton variant="ghost" size="icon" tooltip="Eliminar campaña" onClick={() => handleEliminar(c.id)}>
+                                                <TooltipButton variant="outline" size="icon" className="bg-muted/40 hover:bg-muted" tooltip="Eliminar campaña" onClick={() => handleEliminar(c.id)}>
                                                     <Trash2 className="size-4" />
                                                 </TooltipButton>
                                             </div>

@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [F1.4] Repositorio de mapeo artículos Glory → BDP.
  * CRUD completo + búsqueda por código para uso interno de bdp_sync.
  * [157A-7] F9.1: upsert_from_bdp() para sync enriquecida de catálogo. */
@@ -77,6 +79,28 @@ impl BdpArticleMapRepository {
         .await
     }
 
+    /// [198A-1/D6] Resuelve los códigos BDP numéricos de una lista de códigos
+    /// Glory. Solo devuelve pares con código BDP numérico (los artículos
+    /// locales puros se omiten; el inventario no puede regularizarlos en BDP).
+    pub async fn codigos_bdp_para_glory(
+        pool: &PgPool,
+        user_id: Uuid,
+        codigos: &[String],
+    ) -> Result<Vec<(String, i64)>, sqlx::Error> {
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT articulo_glory_codigo, articulo_bdp_codigo FROM bdp_article_map \
+             WHERE user_id = $1 AND articulo_glory_codigo = ANY($2)",
+        )
+        .bind(user_id)
+        .bind(codigos)
+        .fetch_all(pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(glory, bdp)| bdp.trim().parse::<i64>().ok().map(|code| (glory, code)))
+            .collect())
+    }
+
     /// Busca un mapeo por código Glory (usado por `bdp_sync::resolve_article`)
     pub async fn buscar_por_codigo(
         pool: &PgPool,
@@ -88,6 +112,47 @@ impl BdpArticleMapRepository {
         )
         .bind(user_id)
         .bind(articulo_glory_codigo)
+        .fetch_optional(pool)
+        .await
+    }
+
+    /* [198A-1/D3] Siguiente código libre del rango reservado (default
+     * 90 000 000). Solo considera códigos numéricos >= rango inicial; si no
+     * hay ninguno, devuelve el rango inicial. La subconsulta filtra por regex
+     * antes del cast para no fallar con códigos alfanuméricos. */
+    pub async fn siguiente_codigo_reservado(
+        pool: &PgPool,
+        user_id: Uuid,
+        rango_inicial: i64,
+    ) -> Result<i64, sqlx::Error> {
+        let next: Option<i64> = sqlx::query_scalar(
+            "SELECT COALESCE(MAX(c), $2 - 1) + 1 \
+             FROM ( \
+               SELECT articulo_bdp_codigo::bigint AS c FROM bdp_article_map \
+               WHERE user_id = $1 AND articulo_bdp_codigo ~ '^[0-9]{1,13}$' \
+             ) t WHERE t.c >= $2",
+        )
+        .bind(user_id)
+        .bind(rango_inicial)
+        .fetch_one(pool)
+        .await?;
+        Ok(next.unwrap_or(rango_inicial))
+    }
+
+    /// Asigna el código BDP a un artículo local puro (D3) y lo marca `local_dirty`.
+    pub async fn asignar_codigo_bdp(
+        pool: &PgPool,
+        id: Uuid,
+        user_id: Uuid,
+        codigo: i64,
+    ) -> Result<Option<BdpArticleMap>, sqlx::Error> {
+        sqlx::query_as::<_, BdpArticleMap>(
+            "UPDATE bdp_article_map SET articulo_bdp_codigo = $3, origen = 'local', \
+             local_dirty = true, updated_at = NOW() WHERE id = $1 AND user_id = $2 RETURNING *",
+        )
+        .bind(id)
+        .bind(user_id)
+        .bind(codigo.to_string())
         .fetch_optional(pool)
         .await
     }
@@ -553,6 +618,241 @@ impl BdpArticleMapRepository {
         .bind(warehouse_id)
         .fetch_optional(&mut **tx)
         .await
+    }
+
+    /* [208A-2/C3] Conteos de inventario persistidos (decisiones D3/D4). */
+
+    /// Lista las cabeceras de los conteos del usuario, con total de líneas.
+    pub async fn listar_conteos(
+        pool: &PgPool,
+        user_id: Uuid,
+        limite: i64,
+    ) -> Result<Vec<crate::models::BdpConteoInventario>, sqlx::Error> {
+        sqlx::query_as::<_, crate::models::BdpConteoInventario>(
+            r"SELECT c.id, c.fecha, c.observaciones, c.estado, c.creado_el,
+                      (SELECT COUNT(*)::bigint FROM bdp_conteos_inventario_lineas l
+                        WHERE l.conteo_id = c.id) AS total_lineas
+               FROM bdp_conteos_inventario c
+               WHERE c.user_id = $1
+               ORDER BY c.creado_el DESC
+               LIMIT $2",
+        )
+        .bind(user_id)
+        .bind(limite)
+        .fetch_all(pool)
+        .await
+    }
+
+    /// Detalle de un conteo con sus líneas (para retomar/recontar).
+    pub async fn obtener_conteo(
+        pool: &PgPool,
+        user_id: Uuid,
+        conteo_id: Uuid,
+    ) -> Result<
+        Option<(crate::models::BdpConteoInventario, Vec<crate::models::BdpConteoInventarioLinea>)>,
+        sqlx::Error,
+    > {
+        let conteo = sqlx::query_as::<_, crate::models::BdpConteoInventario>(
+            r"SELECT c.id, c.fecha, c.observaciones, c.estado, c.creado_el,
+                      (SELECT COUNT(*)::bigint FROM bdp_conteos_inventario_lineas l
+                        WHERE l.conteo_id = c.id) AS total_lineas
+               FROM bdp_conteos_inventario c
+               WHERE c.user_id = $1 AND c.id = $2",
+        )
+        .bind(user_id)
+        .bind(conteo_id)
+        .fetch_optional(pool)
+        .await?;
+        let Some(conteo) = conteo else {
+            return Ok(None);
+        };
+        let lineas = sqlx::query_as::<_, crate::models::BdpConteoInventarioLinea>(
+            r"SELECT id, articulo_glory_codigo, esperado, contado, diferencia, aplicado_al_stock
+               FROM bdp_conteos_inventario_lineas
+               WHERE conteo_id = $1
+               ORDER BY articulo_glory_codigo",
+        )
+        .bind(conteo_id)
+        .fetch_all(pool)
+        .await?;
+        Ok(Some((conteo, lineas)))
+    }
+
+    /// Guarda un conteo y aplica la diferencia al stock local en la misma
+    /// transacción (D4, motivo 'conteo', auditoría idempotente por línea con
+    /// clave `conteo:{id}:{codigo}`). Si una línea dejaría stock negativo se
+    /// revierte todo el conteo con `AjusteStockError::StockNegativo`.
+    pub async fn crear_conteo(
+        pool: &PgPool,
+        user_id: Uuid,
+        observaciones: &str,
+        idempotency_key: Option<&str>,
+        articulos: &[(String, Decimal)],
+    ) -> Result<
+        (
+            crate::models::BdpConteoInventario,
+            Vec<crate::models::BdpConteoInventarioLinea>,
+            bool,
+            usize,
+        ),
+        AjusteStockError,
+    > {
+        let mut tx = pool.begin().await?;
+        let conteo_id = Uuid::new_v4();
+        /* Idempotencia (D4): con la misma clave, la inserción no hace nada y
+         * devolvemos el conteo ya existente sin volver a aplicar. Atómico: el
+         * índice único parcial + ON CONFLICT evita la doble aplicación incluso
+         * con dos POSTs concurrentes de la misma clave. */
+        let insertadas = sqlx::query(
+            r"INSERT INTO bdp_conteos_inventario (id, user_id, observaciones, idempotency_key)
+              VALUES ($1, $2, $3, $4)
+              ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING",
+        )
+        .bind(conteo_id)
+        .bind(user_id)
+        .bind(observaciones)
+        .bind(idempotency_key)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+        if insertadas == 0 {
+            let existing_id: Uuid = sqlx::query_scalar(
+                r"SELECT id FROM bdp_conteos_inventario
+                  WHERE user_id = $1 AND idempotency_key = $2",
+            )
+            .bind(user_id)
+            .bind(idempotency_key.unwrap_or_default())
+            .fetch_one(&mut *tx)
+            .await?;
+            tx.commit().await?;
+            let (conteo, lineas) = Self::obtener_conteo(pool, user_id, existing_id)
+                .await?
+                .ok_or(sqlx::Error::RowNotFound)?;
+            return Ok((conteo, lineas, true, 0));
+        }
+
+        let mut lineas = Vec::new();
+        let mut aplicadas = 0usize;
+        for (codigo, contado) in articulos {
+            /* Esperado = stock local (fuente de verdad) con fallback al
+             * snapshot BDP, igual que en la UI de Inventario. */
+            let esperado: Decimal = sqlx::query_scalar(
+                r"SELECT COALESCE(
+                        (SELECT stock FROM bdp_article_stock
+                          WHERE user_id = $1 AND articulo_glory_codigo = $2 AND warehouse_id = '0'),
+                        (SELECT stock_actual FROM bdp_article_map
+                          WHERE user_id = $1 AND articulo_glory_codigo = $2),
+                        0)::numeric",
+            )
+            .bind(user_id)
+            .bind(codigo)
+            .fetch_one(&mut *tx)
+            .await?;
+            let diferencia = contado - esperado;
+            let linea_id = Uuid::new_v4();
+            sqlx::query(
+                r"INSERT INTO bdp_conteos_inventario_lineas
+                    (id, conteo_id, articulo_glory_codigo, esperado, contado, diferencia, aplicado_al_stock)
+                  VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            )
+            .bind(linea_id)
+            .bind(conteo_id)
+            .bind(codigo)
+            .bind(esperado)
+            .bind(contado)
+            .bind(diferencia)
+            .bind(diferencia != Decimal::ZERO)
+            .execute(&mut *tx)
+            .await?;
+
+            if diferencia != Decimal::ZERO {
+                /* Auditoría idempotente por conteo+línea. */
+                let audit_payload = serde_json::json!({
+                    "articulo_glory_codigo": codigo,
+                    "delta": diferencia,
+                    "motivo": "conteo",
+                    "warehouse_id": "0",
+                });
+                let idem = format!("conteo:{conteo_id}:{codigo}");
+                sqlx::query(
+                    r"INSERT INTO bdp_audit_log
+                        (user_id, operacion, direccion, datos_enviados, resultado, origen_operacion,
+                         target_entity_type, target_entity_id, authorization_reason, idempotency_key)
+                      VALUES ($1, 'stock_ajuste', 'internal', $2, 'exito', 'local', 'articulo', NULL, $3, $4)
+                      ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING",
+                )
+                .bind(user_id)
+                .bind(audit_payload)
+                .bind("Ajuste por conteo de inventario — operación interna, no requiere autorización BDP")
+                .bind(&idem)
+                .execute(&mut *tx)
+                .await?;
+
+                /* Base: si no hay fila local, se crea con el esperado para que
+                 * el delta deje el stock = contado (no un valor derivado). */
+                sqlx::query(
+                    r"INSERT INTO bdp_article_stock
+                        (id, user_id, articulo_glory_codigo, warehouse_id, warehouse_name, stock,
+                         ajustado_local, created_at, updated_at)
+                      VALUES ($1, $2, $3, '0', 'General', $4, true, NOW(), NOW())
+                      ON CONFLICT (user_id, articulo_glory_codigo, warehouse_id) DO NOTHING",
+                )
+                .bind(Uuid::new_v4())
+                .bind(user_id)
+                .bind(codigo)
+                .bind(esperado)
+                .execute(&mut *tx)
+                .await?;
+
+                let stock = sqlx::query_as::<_, crate::models::BdpArticleStock>(
+                    r"INSERT INTO bdp_article_stock
+                        (id, user_id, articulo_glory_codigo, warehouse_id, warehouse_name, stock,
+                         ajustado_local, created_at, updated_at)
+                      VALUES ($1, $2, $3, '0', 'General', $4, true, NOW(), NOW())
+                      ON CONFLICT (user_id, articulo_glory_codigo, warehouse_id) DO UPDATE SET
+                        stock = bdp_article_stock.stock + EXCLUDED.stock,
+                        warehouse_name = EXCLUDED.warehouse_name,
+                        ajustado_local = true,
+                        updated_at = NOW()
+                      RETURNING *",
+                )
+                .bind(Uuid::new_v4())
+                .bind(user_id)
+                .bind(codigo)
+                .bind(diferencia)
+                .fetch_one(&mut *tx)
+                .await?;
+
+                if stock.stock < Decimal::ZERO {
+                    let _ = tx.rollback().await;
+                    return Err(AjusteStockError::StockNegativo(format!(
+                        "el stock del artículo {codigo} quedaría en {} tras el conteo",
+                        stock.stock
+                    )));
+                }
+                aplicadas += 1;
+            }
+
+            lineas.push(crate::models::BdpConteoInventarioLinea {
+                id: linea_id,
+                articulo_glory_codigo: codigo.clone(),
+                esperado,
+                contado: *contado,
+                diferencia,
+                aplicado_al_stock: diferencia != Decimal::ZERO,
+            });
+        }
+
+        let conteo = crate::models::BdpConteoInventario {
+            id: conteo_id,
+            fecha: chrono::Utc::now().date_naive(),
+            observaciones: observaciones.to_string(),
+            estado: "aplicado".to_string(),
+            creado_el: chrono::Utc::now(),
+            total_lineas: lineas.len() as i64,
+        };
+        tx.commit().await?;
+        Ok((conteo, lineas, false, aplicadas))
     }
 }
 

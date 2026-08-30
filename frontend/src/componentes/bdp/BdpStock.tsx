@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
   SlidersHorizontal,
+  Plus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,8 @@ import { useBdpArticleStock, useAjustarBdpArticleStock } from '@/api/bdp';
 import { formatPrice, formatStock, formatDate, exportToCsv, PAGE_SIZES, type SortKey } from './bdp-stock-utils';
 import { mockArticleMaps } from './bdp-mocks';
 import { BdpStockActions } from './BdpStockActions';
+import NuevoArticuloDialog from './NuevoArticuloDialog';
+import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
 import type { BdpArticleMap } from '@/api/generated/gestionRestauranteAPI.schemas';
 
 function TableSkeleton() {
@@ -127,6 +130,16 @@ function AjustarStockDialog({
 function BdpStock() {
   const queryClient = useQueryClient();
   const { demoMode, setDemoMode } = useBdpDemoMode();
+  /* [208A-2/C2] Modo efectivo (misma lógica que el backend/site-header):
+   * en standalone no se ofrecen acciones BDP (H7). */
+  const { data: configResponse } = useObtenerConfiguracion();
+  const configData = configResponse?.status === 200 ? configResponse.data : undefined;
+  const modoEfectivoBdp = !!configData && (
+    configData.modo_operacion === 'bdp'
+    || (configData.modo_operacion === 'auto'
+      && configData.bdp_sync_enabled
+      && (configData.bdp_base_url ?? '').trim() !== '')
+  );
   const { data, isLoading, error: listError } = useListarArticleMaps({
     query: { enabled: !demoMode },
   });
@@ -148,6 +161,7 @@ function BdpStock() {
 
   const [ajustarArticulo, setAjustarArticulo] = useState<BdpArticleMap | null>(null);
   const [ajusteOpen, setAjusteOpen] = useState(false);
+  const [nuevoOpen, setNuevoOpen] = useState(false);
 
   function guardarAjuste(delta: string, motivo: string) {
     if (!ajustarArticulo) return;
@@ -228,10 +242,25 @@ function BdpStock() {
       <BdpStockActions
         summary={`${filteredCount} artículos · Última sync: ${lastSync ? formatDate(lastSync) : '—'}`}
         demoMode={demoMode}
+        bdpMode={modoEfectivoBdp}
         exportDisabled={paginated.length === 0}
         onToggleDemo={setDemoMode}
         onExport={handleExport}
       />
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          {modoEfectivoBdp
+            ? 'Stock local editable; con BDP conectado, el ajuste también se encola al terminal.'
+            : 'Modo independiente: el stock se gestiona localmente y no se envía a BDP.'}
+        </p>
+        <Button variant="default" size="sm" onClick={() => setNuevoOpen(true)} disabled={demoMode}>
+          <Plus className="size-3.5 mr-1" />
+          Nuevo artículo
+        </Button>
+      </div>
+
+      <NuevoArticuloDialog open={nuevoOpen} onOpenChange={setNuevoOpen} />
 
       <AjustarStockDialog
         articulo={ajustarArticulo}
@@ -300,9 +329,22 @@ function BdpStock() {
       ) : isLoadingEffective ? (
         <TableSkeleton />
       ) : filteredCount === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No hay artículos que coincidan con los filtros. Sincroniza el catálogo desde BDP o pulsa "Cargar demo".
-        </p>
+        mapeos.length === 0 ? (
+          <div className="flex flex-col items-start gap-3 rounded-md border border-dashed p-4">
+            <p className="text-sm text-muted-foreground">
+              No hay artículos todavía. Crea el primero con "Nuevo artículo" — funciona en modo
+              independiente, sin BDP.
+            </p>
+            <Button variant="default" size="sm" onClick={() => setNuevoOpen(true)} disabled={demoMode}>
+              <Plus className="size-3.5 mr-1" />
+              Nuevo artículo
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No hay artículos que coincidan con los filtros.
+          </p>
+        )
       ) : (
         <>
           <div className="rounded-md border overflow-x-auto">
@@ -324,7 +366,7 @@ function BdpStock() {
                   <TableHead className="cursor-pointer" onClick={() => handleSort('stock_actual')}>
                     <span className="flex items-center gap-1">Stock <SortIcon column="stock_actual" /></span>
                   </TableHead>
-                  <TableHead>Ajustar</TableHead>
+                  <TableHead className="text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -354,17 +396,19 @@ function BdpStock() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setAjustarArticulo(m);
-                            setAjusteOpen(true);
-                          }}
-                        >
-                          <SlidersHorizontal className="size-3" />
-                          Ajustar
-                        </Button>
+                        <div className="flex justify-center">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setAjustarArticulo(m);
+                              setAjusteOpen(true);
+                            }}
+                          >
+                            <SlidersHorizontal className="size-3" />
+                            Ajustar
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

@@ -156,7 +156,7 @@ export default function ListaResenas() {
                         <Badge variant="outline">Pendiente</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-[13px] text-muted-foreground">
                       {new Date(r.created_at).toLocaleDateString('es-ES')}
                     </TableCell>
                   </TableRow>

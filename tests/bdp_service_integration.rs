@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [267A-5] Tests de integración de servicios BDP contra simulador + PostgreSQL.
  *
  * Estos tests verifican los servicios de negocio completos (sync_venta,
@@ -211,6 +213,11 @@ async fn seed_config(pool: &PgPool, user_id: Uuid) -> ConfiguracionRestaurante {
         permisos_anulacion_ventas: "admin".to_string(),
         permisos_pagos_locales: "admin".to_string(),
         permisos_facturacion_local: "admin".to_string(),
+        push_modalidad: "automatico".to_string(),
+        bdp_tav_map: json!({}),
+        bdp_almacen_default: 1,
+        bdp_codreg_default: 1,
+        bdp_articulo_rango_inicial: 90_000_000,
         google_review_url: String::new(),
         telefono_restaurante: String::new(),
         url_reservas: String::new(),
@@ -270,6 +277,7 @@ async fn seed_venta(pool: &PgPool, user_id: Uuid) -> Venta {
         facturada_local: false,
         factura_numero: None,
         factura_fecha: None,
+        propina: Decimal::ZERO,
     }
 }
 
@@ -555,6 +563,7 @@ async fn svc_add_payment_full_flow(pool: PgPool) {
         facturada_local: false,
         factura_numero: None,
         factura_fecha: None,
+        propina: Decimal::ZERO,
     };
 
     seed_arming(&pool, &config, venta_id, "add_payment").await;
@@ -661,6 +670,7 @@ async fn svc_invoice_order_full_flow(pool: PgPool) {
         facturada_local: false,
         factura_numero: None,
         factura_fecha: None,
+        propina: Decimal::ZERO,
     };
 
     seed_arming(&pool, &config, venta_id, "invoice").await;

@@ -126,7 +126,7 @@ function ListaGastos() {
                   </TableHead>
                   <TableHead className="text-right">IVA</TableHead>
                   <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="w-20"></TableHead>
+                  <TableHead className="w-20 text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -140,18 +140,20 @@ function ListaGastos() {
                     <TableCell className="text-right">{formatearMoneda(g.importe_iva)}</TableCell>
                     <TableCell className="text-right font-medium">{formatearMoneda((parseFloat(g.importe_base) + parseFloat(g.importe_iva)).toFixed(2))}</TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
+                      <div className="flex justify-center gap-1">
                         <TooltipButton
-                          variant="ghost"
+                          variant="outline"
                           size="icon"
+                          className="bg-muted/40 hover:bg-muted"
                           onClick={() => setGastoEditando(g)}
                           tooltip="Editar gasto"
                         >
                           <Pencil className="size-4" />
                         </TooltipButton>
                         <TooltipButton
-                          variant="ghost"
+                          variant="outline"
                           size="icon"
+                          className="bg-muted/40 hover:bg-muted"
                           onClick={() => eliminarMutation.mutate({ id: g.id })}
                           disabled={eliminarMutation.isPending}
                           tooltip="Eliminar gasto"

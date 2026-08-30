@@ -236,7 +236,7 @@ function TablaReglas() {
                   <TableHead>Tiempo</TableHead>
                   <TableHead>Canal</TableHead>
                   <TableHead>Activa</TableHead>
-                  <TableHead className="w-16" />
+                  <TableHead className="w-16 text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -266,14 +266,17 @@ function TablaReglas() {
                       />
                     </TableCell>
                     <TableCell>
+                      <div className="flex justify-center">
                       <TooltipButton
-                        variant="ghost"
+                        variant="outline"
                         size="icon"
+                        className="bg-muted/40 hover:bg-muted"
                         tooltip="Eliminar recordatorio"
                         onClick={() => handleEliminar(r.id)}
                       >
                         <Trash2 className="size-4" />
                       </TooltipButton>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

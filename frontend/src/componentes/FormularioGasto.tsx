@@ -29,6 +29,7 @@ function FormularioGasto({ onExito, gasto }: Props) {
   const {
     campos, cambiarCampo, error, manejarEnvio, cargando, categorias, esEdicion,
     sugerenciasProveedores, autocompletarAbierto, setAutocompletarAbierto, seleccionarProveedor,
+    marcarInteraccionProveedor,
   } = useFormularioGasto(onExito, gasto);
   const digitalizacion = useDigitalizacion();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -172,8 +173,8 @@ function FormularioGasto({ onExito, gasto }: Props) {
               id="proveedor"
               type="text"
               value={campos.proveedor}
-              onChange={e => cambiarCampo('proveedor', e.target.value)}
-              onFocus={() => { if (sugerenciasProveedores.length > 0) setAutocompletarAbierto(true); }}
+              onChange={e => { marcarInteraccionProveedor(); cambiarCampo('proveedor', e.target.value); }}
+              onFocus={() => { marcarInteraccionProveedor(); if (campos.proveedor.trim().length >= 2) setAutocompletarAbierto(true); }}
               onBlur={() => { setTimeout(() => setAutocompletarAbierto(false), 200); }}
               placeholder="Opcional"
               autoComplete="off"

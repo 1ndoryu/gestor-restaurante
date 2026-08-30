@@ -51,6 +51,9 @@ import {
   Search,
   Database,
   Receipt,
+  Tags,
+  Warehouse,
+  RefreshCw,
 } from "lucide-react"
 import { useObtenerConfiguracion } from "@/api/generated/configuracion/configuracion"
 
@@ -58,6 +61,11 @@ const navPrincipal = [
   { title: "Dashboard", url: "/", icon: <LayoutDashboard /> },
   { title: "Ventas", url: "/ventas", icon: <DollarSign /> },
   { title: "Gastos", url: "/gastos", icon: <BarChart3 /> },
+  { title: "Compras", url: "/bdp/compras", icon: <Receipt /> },
+  { title: "Stock", url: "/bdp/stock", icon: <Package /> },
+  { title: "Inventario", url: "/bdp/inventario", icon: <Warehouse /> },
+  { title: "Catálogo", url: "/bdp/catalogo", icon: <Tags /> },
+  { title: "Menús y Packs", url: "/bdp/explorador", icon: <Search /> },
   { title: "Reservas", url: "/reservas", icon: <ClipboardList /> },
   { title: "Calendario", url: "/reservas/calendario", icon: <Calendar /> },
   { title: "Clientes", url: "/clientes", icon: <Users /> },
@@ -67,16 +75,11 @@ const navPrincipal = [
   { title: "Campañas", url: "/marketing/campanas", icon: <Megaphone /> },
   { title: "Plantillas WA", url: "/marketing/plantillas", icon: <MessageSquare /> },
   { title: "Recordatorios", url: "/marketing/recordatorios", icon: <Bell /> },
+  { title: "Historial", url: "/bdp/historial", icon: <Database /> },
+  { title: "Sincronización", url: "/bdp/sincronizacion", icon: <RefreshCw /> },
   { title: "Trabajadores", url: "/trabajadores", icon: <Shield /> },
   { title: "Reseñas", url: "/resenas", icon: <Star /> },
   { title: "Inactividad", url: "/inactividad", icon: <Clock /> },
-]
-
-const navBdp = [
-  { title: "BDP Stock", url: "/bdp/stock", icon: <Package /> },
-  { title: "BDP Explorador", url: "/bdp/explorador", icon: <Search /> },
-  { title: "BDP Historial", url: "/bdp/historial", icon: <Database /> },
-  { title: "BDP Compras", url: "/bdp/compras", icon: <Receipt /> },
 ]
 
 const navSecundario = [
@@ -132,7 +135,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={navPrincipal} />
-        <NavSecondary items={navBdp} label="Integración BDP" className="mt-auto" />
         <NavSecondary items={navSecundario} />
         <SidebarGroup>
           <SidebarGroupContent>

@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [128A-1/F8] Tests de integración de permisos operativos por acción (D8, M17).
  *
  * Enforcement en backend: con el default 'admin', un trabajador recibe 403 al

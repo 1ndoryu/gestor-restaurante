@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [276A-4.2] Servicio de polling BDP — consulta periódicamente el estado de comandas
  * enviadas al POS para detectar facturación (Status=3) u otros estados finales.
  *
@@ -40,7 +42,7 @@ impl BdpOrderPollerService {
     ) -> Result<usize, String> {
         let configs = sqlx::query_as::<_, ConfiguracionRestaurante>(
             "SELECT * FROM configuracion_restaurante \
-             WHERE bdp_poll_enabled = TRUE AND bdp_sync_enabled = TRUE \
+             WHERE bdp_poll_enabled = TRUE \
                AND bdp_base_url <> '' AND modo_operacion <> 'standalone' \
                ORDER BY user_id LIMIT 100",
         )
@@ -91,7 +93,7 @@ impl BdpOrderPollerService {
     ) -> Result<usize, String> {
         /* [128A-1/F1-1] M1: standalone nunca llama a BDP. [F1-2] M2: si el
          * modo degradó por fallos consecutivos, el poller también se detiene. */
-        if !config.bdp_sync_enabled || servicio.modo_efectivo_sin_red(config) != ModoEfectivo::Bdp {
+        if servicio.modo_efectivo_sin_red(config) != ModoEfectivo::Bdp {
             return Ok(0);
         }
 

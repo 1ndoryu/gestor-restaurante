@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [247A-9] Tests de integración DB para el ledger de pagos parciales BDP.
  * Usa #[sqlx::test(migrations = "./migrations")] — BD temporal, migraciones automáticas.
  * NO contacta al servidor BDP — solo valida operaciones CRUD contra PostgreSQL. */

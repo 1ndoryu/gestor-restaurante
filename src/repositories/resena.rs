@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [094A-4] Repositorio de reseñas — queries dinámicas para SQLX_OFFLINE. */
 
 use sqlx::PgPool;

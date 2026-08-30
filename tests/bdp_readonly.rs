@@ -39,6 +39,11 @@ fn bdp_config_from_env() -> Option<ConfiguracionRestaurante> {
     Some(ConfiguracionRestaurante {
         id: Uuid::new_v4(),
         user_id: Uuid::new_v4(),
+        push_modalidad: "automatico".to_string(),
+        bdp_tav_map: serde_json::json!({}),
+        bdp_almacen_default: 1,
+        bdp_codreg_default: 1,
+        bdp_articulo_rango_inicial: 90_000_000,
         reserva_email_obligatorio: false,
         reserva_telefono_obligatorio: true,
         reserva_nombre_obligatorio: true,

@@ -134,6 +134,13 @@ export function BdpMenuLocalModal({
     setLineas((prev) => prev.filter((l) => l.key !== key));
   }
 
+  /* Normaliza decimales con coma (formato español) a punto antes de enviar;
+   * el backend espera `Decimal` con punto (serde). [208A-2/F7] */
+  function normalizarDecimal(valor: string): string {
+    const limpio = valor.trim().replace(/\s/g, '');
+    return limpio.replace(',', '.');
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const nombreTrim = nombre.trim();
@@ -146,8 +153,8 @@ export function BdpMenuLocalModal({
       .map((l) => ({
         articulo_codigo: l.articulo_codigo.trim() || undefined,
         descripcion: l.descripcion.trim(),
-        cantidad: l.cantidad !== '' ? l.cantidad : undefined,
-        precio_unitario: l.precio_unitario !== '' ? l.precio_unitario : undefined,
+        cantidad: l.cantidad !== '' ? normalizarDecimal(l.cantidad) : undefined,
+        precio_unitario: l.precio_unitario !== '' ? normalizarDecimal(l.precio_unitario) : undefined,
       }));
     if (lineasValidas.length === 0) {
       setError('Añade al menos una línea con descripción');
@@ -158,7 +165,7 @@ export function BdpMenuLocalModal({
       tipo,
       nombre: nombreTrim,
       descripcion: descripcion.trim() || undefined,
-      precio: precio.trim() || undefined,
+      precio: precio.trim() ? normalizarDecimal(precio) : undefined,
       activo,
       lineas: lineasValidas,
     };

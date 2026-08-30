@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [Fase 7.1+7.2] Handlers para sync bidireccional de clientes Glory ↔ BDP.
  * POST /api/bdp/customers/import     — Importar clientes desde BDP a Glory (ExportCustomers)
  * POST /api/clientes/:id/bdp-sync    — Push de un cliente Glory a BDP (CreateCustomer)

@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [128A-1/F5] Tests de integración DB de las correcciones de compras locales:
  * F5-1 serie local forzada al prefijo reservado (M18) + sync que nunca pisa
  * locales, F5-2 numeración secuencial por (user_id, serie) con reintento,

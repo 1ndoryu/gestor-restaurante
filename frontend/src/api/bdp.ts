@@ -654,3 +654,315 @@ export function useAnularVenta(queryClient?: QueryClient, options?: UseMutationO
     },
   });
 }
+
+/* ── [198A-1] Propina por venta (D8) ─────────────────────────────────────── */
+
+export interface AgregarPropinaRequest {
+  amount: string;
+  /** true suma a la propina existente en BDP, false la sustituye (D8). */
+  add_tip?: boolean;
+}
+
+export async function agregarPropinaVenta(
+  ventaId: string,
+  req: AgregarPropinaRequest,
+): Promise<Record<string, unknown>> {
+  const resp = await customInstance(`/api/ventas/${ventaId}/propina`, {
+    method: 'POST',
+    body: JSON.stringify(req),
+  }) as { data: Record<string, unknown> };
+  return resp.data;
+}
+
+export function useAgregarPropinaVenta(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: ({ ventaId, req }: { ventaId: string; req: AgregarPropinaRequest }) =>
+      agregarPropinaVenta(ventaId, req),
+    onSuccess: () => {
+      queryClient?.invalidateQueries({ queryKey: ['listarVentas'] });
+    },
+  });
+}
+
+/* ── [198A-1] Puntos de fidelización (D9) ─────────────────────────────────── */
+
+export interface PuntoCliente {
+  id: string;
+  user_id: string;
+  cliente_id: string;
+  bdp_customer_code: number;
+  points_added: string;
+  reason: string;
+  created_at: string;
+}
+
+export interface PuntosClienteResponse {
+  saldo: string;
+  historial: PuntoCliente[];
+}
+
+export interface SumarPuntosRequest {
+  /** Positivo suma, negativo resta. */
+  points_added: string;
+  reason: string;
+}
+
+export async function fetchPuntosCliente(clienteId: string): Promise<PuntosClienteResponse> {
+  const resp = await customInstance(`/api/clientes/${clienteId}/puntos`, {
+    method: 'GET',
+  }) as { data: PuntosClienteResponse };
+  return resp.data;
+}
+
+export async function sumarPuntosCliente(
+  clienteId: string,
+  req: SumarPuntosRequest,
+): Promise<PuntoCliente> {
+  const resp = await customInstance(`/api/clientes/${clienteId}/puntos`, {
+    method: 'POST',
+    body: JSON.stringify(req),
+  }) as { data: PuntoCliente };
+  return resp.data;
+}
+
+export function usePuntosCliente(clienteId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ['cliente-puntos', clienteId],
+    queryFn: () => fetchPuntosCliente(clienteId!),
+    enabled: !!clienteId && enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useSumarPuntosCliente(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: ({ clienteId, req }: { clienteId: string; req: SumarPuntosRequest }) =>
+      sumarPuntosCliente(clienteId, req),
+    onSuccess: (_data, variables) => {
+      queryClient?.invalidateQueries({ queryKey: ['cliente-puntos', variables.clienteId] });
+    },
+  });
+}
+
+/* ── [198A-1] Catálogo: departamentos/familias (D7) ───────────────────────── */
+
+export type BdpCatalogoTipo = 'departamento' | 'familia';
+
+export interface BdpCatalogoClasificacion {
+  id: string;
+  user_id: string;
+  tipo: BdpCatalogoTipo;
+  code: number;
+  nombre: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CrearBdpClasificacionRequest {
+  tipo: BdpCatalogoTipo;
+  nombre: string;
+}
+
+export async function fetchBdpCatalogo(tipo: BdpCatalogoTipo): Promise<BdpCatalogoClasificacion[]> {
+  const resp = await customInstance(`/api/bdp/catalogo/${tipo}`, {
+    method: 'GET',
+  }) as { data: BdpCatalogoClasificacion[] };
+  return resp.data;
+}
+
+export async function crearBdpClasificacion(
+  req: CrearBdpClasificacionRequest,
+): Promise<BdpCatalogoClasificacion> {
+  const resp = await customInstance('/api/bdp/catalogo', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  }) as { data: BdpCatalogoClasificacion };
+  return resp.data;
+}
+
+export function useBdpCatalogo(tipo: BdpCatalogoTipo, enabled = true) {
+  return useQuery({
+    queryKey: ['bdp-catalogo', tipo],
+    queryFn: () => fetchBdpCatalogo(tipo),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+export function useCrearBdpClasificacion(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: crearBdpClasificacion,
+    onSuccess: (_data, variables) => {
+      queryClient?.invalidateQueries({ queryKey: ['bdp-catalogo', variables.tipo] });
+    },
+  });
+}
+
+/* ── [198A-1] CallWaiter (D10) ────────────────────────────────────────────── */
+
+export async function llamarCamarero(mesaId: string): Promise<{ mensaje: string }> {
+  const resp = await customInstance(`/api/plano-sala/mesas/${mesaId}/llamar-camarero`, {
+    method: 'POST',
+  }) as { data: { mensaje: string } };
+  return resp.data;
+}
+
+export function useLlamarCamarero() {
+  return useMutation({ mutationFn: llamarCamarero });
+}
+
+/* ── [198A-1] Inventario (D6=A) ───────────────────────────────────────────── */
+
+export interface InventarioLineaRequest {
+  articulo_glory_codigo: string;
+  unidades_contadas: string;
+}
+
+export interface RegistrarInventarioRequest {
+  articulos: InventarioLineaRequest[];
+}
+
+export interface RegistrarInventarioResponse {
+  enviados: number;
+  omitidos_sin_bdp: number;
+}
+
+export async function registrarInventario(
+  req: RegistrarInventarioRequest,
+): Promise<RegistrarInventarioResponse> {
+  const resp = await customInstance('/api/bdp/inventario', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  }) as { data: RegistrarInventarioResponse };
+  return resp.data;
+}
+
+export function useRegistrarInventario() {
+  return useMutation({ mutationFn: registrarInventario });
+}
+
+/* ── [208A-2/C3] Conteos de inventario persistidos (D3/D4) ────────────────── */
+
+export interface BdpConteoInventario {
+  id: string;
+  fecha: string;
+  observaciones: string;
+  estado: string;
+  creado_el: string;
+  total_lineas: number;
+}
+
+export interface BdpConteoInventarioLinea {
+  id: string;
+  articulo_glory_codigo: string;
+  esperado: number;
+  contado: number;
+  diferencia: number;
+  aplicado_al_stock: boolean;
+}
+
+export interface ConteoInventarioCreado {
+  conteo: BdpConteoInventario;
+  lineas: BdpConteoInventarioLinea[];
+  reutilizado: boolean;
+  aplicadas: number;
+  encolados: number;
+  omitidos_sin_bdp: number;
+}
+
+export async function listarConteosInventario(): Promise<BdpConteoInventario[]> {
+  const resp = await customInstance('/api/bdp/inventario/conteos', {
+    method: 'GET',
+  }) as { data: BdpConteoInventario[] };
+  return resp.data;
+}
+
+export function useListarConteosInventario() {
+  return useQuery({ queryKey: ['/api/bdp/inventario/conteos'], queryFn: listarConteosInventario });
+}
+
+export async function crearConteoInventario(req: {
+  observaciones?: string;
+  idempotency_key?: string;
+  articulos: InventarioLineaRequest[];
+}): Promise<ConteoInventarioCreado> {
+  const resp = await customInstance('/api/bdp/inventario/conteos', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  }) as { data: ConteoInventarioCreado };
+  return resp.data;
+}
+
+export function useCrearConteoInventario() {
+  return useMutation({ mutationFn: crearConteoInventario });
+}
+
+export async function obtenerConteoInventario(id: string): Promise<{
+  conteo: BdpConteoInventario;
+  lineas: BdpConteoInventarioLinea[];
+}> {
+  const resp = await customInstance(`/api/bdp/inventario/conteos/${id}`, {
+    method: 'GET',
+  }) as { data: { conteo: BdpConteoInventario; lineas: BdpConteoInventarioLinea[] } };
+  return resp.data;
+}
+
+/* ── [198A-1/F1] Sincronizar a BDP (flush manual, D1/D2) ──────────────────── */
+
+export interface BdpPushFlushResumen {
+  procesados: number;
+  sincronizados: number;
+  pendientes_suscripcion: number;
+  errores: number;
+  omitidos_standalone: number;
+  omitidos_manual: number;
+}
+
+/** Dispara el flush manual de la cola de push (POST /api/bdp/push/flush).
+ *  D2: el reintento tras bloqueo por suscripción es SOLO manual; este botón
+ *  procesa también las filas `pendiente_suscripcion`. */
+export async function flushBdpPush(): Promise<BdpPushFlushResumen> {
+  const resp = await customInstance('/api/bdp/push/flush', {
+    method: 'POST',
+  }) as { data: BdpPushFlushResumen };
+  return resp.data;
+}
+
+export function useFlushBdpPush() {
+  return useMutation({ mutationFn: flushBdpPush });
+}
+
+/* ── [208A-2/C4] Visibilidad de la cola (D5) ───────────────────────────────── */
+
+export interface BdpPushFila {
+  id: string;
+  dominio: string;
+  entidad_id: string;
+  operacion: string;
+  estado: string;
+  reintentos: number;
+  ultimo_error: string | null;
+  updated_at: string;
+}
+
+export async function listarPushFilas(): Promise<BdpPushFila[]> {
+  const resp = await customInstance('/api/bdp/push/pendientes', {
+    method: 'GET',
+  }) as { data: BdpPushFila[] };
+  return resp.data;
+}
+
+export function useListarPushFilas() {
+  return useQuery({ queryKey: ['/api/bdp/push/pendientes'], queryFn: listarPushFilas });
+}
+
+export async function reintentarPushFila(id: string): Promise<BdpPushFlushResumen> {
+  const resp = await customInstance(`/api/bdp/push/${id}/reintentar`, {
+    method: 'POST',
+  }) as { data: BdpPushFlushResumen };
+  return resp.data;
+}
+
+export function useReintentarPushFila() {
+  return useMutation({ mutationFn: reintentarPushFila });
+}

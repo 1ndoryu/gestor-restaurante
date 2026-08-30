@@ -284,7 +284,7 @@ function ListaVentas() {
                       />
                     </TableHead>
                   )}
-                  <TableHead className="w-28"></TableHead>
+                  <TableHead className="w-28 text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

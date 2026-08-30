@@ -3,7 +3,7 @@
  * Modo demo incluido para visualizar datos de prueba. */
 
 import { useMemo, useState } from 'react';
-import { Search, FilePen, CheckCircle, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Search, Plus, CheckCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -30,6 +30,7 @@ import type {
 import { mockPurchaseNotes } from './bdp-mocks';
 import { BdpComprasReconcileModal } from './BdpComprasReconcileModal';
 import { BdpComprasLocalModal } from './BdpComprasLocalModal';
+import { BdpPurchaseNoteRowActions } from './BdpPurchaseNoteRowActions';
 import { BdpPurchaseSyncControls } from './BdpPurchaseSyncControls';
 import { BdpPurchaseFeatureNotice } from './BdpPurchaseFeatureNotice';
 
@@ -202,8 +203,12 @@ function BdpCompras() {
       onSuccess: () => {
         toast.success('Albarán local eliminado');
       },
-      onError: () => {
-        toast.error('No se pudo eliminar el albarán local');
+      onError: (err) => {
+        /* [208A-2] Muestra el motivo real del backend (p. ej. albarán
+         * conciliado no eliminable) en vez de un mensaje genérico. */
+        const msg =
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        toast.error(msg ?? 'No se pudo eliminar el albarán local');
       },
     });
   }
@@ -274,9 +279,21 @@ function BdpCompras() {
           Error al cargar los albaranes. Revisa que la sesión esté activa y vuelve a intentarlo.
         </p>
       ) : notes.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No hay albaranes importados. Selecciona un rango de fechas y pulsa Sync albaranes, o pulsa Cargar demo.
-        </p>
+        <div className="flex flex-col items-start gap-3 rounded-md border border-dashed p-4">
+          <p className="text-sm text-muted-foreground">
+            No hay albaranes todavía. Puedes crear uno local (serie L-) o, si la integración BDP
+            está activa, sincronizarlos desde el terminal.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="default" size="sm" onClick={openNuevoAlbaran} disabled={!purchaseFeatureEnabled}>
+              <Plus className="mr-1 size-3.5" />
+              Nuevo albarán
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setDemoMode(true)}>
+              Cargar demo
+            </Button>
+          </div>
+        </div>
       ) : (
         <div className="rounded-md border overflow-x-auto">
           <Table>
@@ -289,7 +306,7 @@ function BdpCompras() {
                 <TableHead>Origen</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                <TableHead className="text-center">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -311,58 +328,19 @@ function BdpCompras() {
                   </TableCell>
                   <TableCell className="text-xs">{formatEstado(note.estado)}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {note.origen === 'local' && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openEditarAlbaran(note)}
-                            disabled={actualizarMutation.isPending}
-                          >
-                            <Pencil className="mr-1 size-3.5" />
-                            Editar
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEliminarLocal(note)}
-                            disabled={eliminarMutation.isPending}
-                          >
-                            <Trash2 className="mr-1 size-3.5" />
-                            Eliminar
-                          </Button>
-                        </>
-                      )}
-                      {note.estado === 'pendiente' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDraft(note)}
-                          disabled={draftMutation.isPending}
-                        >
-                          <FilePen className="mr-1 size-3.5" />
-                          Borrador
-                        </Button>
-                      )}
-                      {note.estado === 'borrador' && (
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => handleReconcile(note)}
-                          disabled={reconcileMutation.isPending}
-                        >
-                          <CheckCircle className="mr-1 size-3.5" />
-                          Conciliar
-                        </Button>
-                      )}
-                      {note.estado === 'conciliado' && (
-                        <Button variant="outline" size="sm" disabled>
-                          <CheckCircle className="mr-1 size-3.5" />
-                          Conciliado
-                        </Button>
-                      )}
-                    </div>
+                    <BdpPurchaseNoteRowActions
+                      note={note}
+                      isUpdating={
+                        actualizarMutation.isPending ||
+                        eliminarMutation.isPending ||
+                        draftMutation.isPending ||
+                        reconcileMutation.isPending
+                      }
+                      onEditar={openEditarAlbaran}
+                      onEliminar={handleEliminarLocal}
+                      onBorrador={handleDraft}
+                      onConciliar={handleReconcile}
+                    />
                   </TableCell>
                 </TableRow>
               ))}

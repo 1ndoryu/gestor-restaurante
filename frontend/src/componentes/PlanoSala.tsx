@@ -15,6 +15,8 @@ import { Pencil, Trash2, Download, Upload, ZoomIn, ZoomOut, RefreshCw } from 'lu
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useSyncTables } from '../api/generated/bdp-mapeos/bdp-mapeos';
+import { useObtenerConfiguracion } from '../api/generated/configuracion/configuracion';
+import { useLlamarCamarero } from '../api/bdp';
 import MesaDraggable from './plano-sala/MesaDraggable';
 import PanelConfigMesa from './plano-sala/PanelConfigMesa';
 import PanelConfigPared from './plano-sala/PanelConfigPared';
@@ -39,6 +41,26 @@ function PlanoSala() {
   const [dialogoSyncBdp, setDialogoSyncBdp] = useState(false);
   const [confirmacionSyncBdp, setConfirmacionSyncBdp] = useState('');
   const [previewSyncBdp, setPreviewSyncBdp] = useState<{ salones_bdp: number; zonas_creadas: number; mesas_creadas: number; applied: boolean } | null>(null);
+
+  /* [198A-1/D10] CallWaiter: push directo a BDP. El botón solo se muestra en
+   * modo BDP efectivo (misma lógica que el backend y el badge del header). */
+  const { data: configData } = useObtenerConfiguracion();
+  const llamarCamareroMutation = useLlamarCamarero();
+  const cfg = configData?.status === 200 ? (configData.data as unknown as Record<string, unknown>) : null;
+  const modoOperacion = String(cfg?.modo_operacion ?? 'auto');
+  const bdpSyncEnabled = Boolean(cfg?.bdp_sync_enabled ?? false);
+  const credencialesOk = Boolean(cfg?.bdp_base_url && cfg?.bdp_login && cfg?.bdp_password && cfg?.bdp_integrator_code);
+  const modoEfectivoBdp = modoOperacion === 'bdp' || (modoOperacion === 'auto' && bdpSyncEnabled && credencialesOk);
+
+  const handleLlamarCamarero = (mesaId: string) => {
+    llamarCamareroMutation.mutate(mesaId, {
+      onSuccess: () => toast.success('Aviso enviado al TPV'),
+      onError: (err) => {
+        const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message;
+        toast.error('No se pudo llamar al camarero', { description: message ?? 'Revisa la conexión BDP.' });
+      },
+    });
+  };
 
   const syncTablesMutation = useSyncTables({
     mutation: {
@@ -346,6 +368,8 @@ function PlanoSala() {
               onEliminar={handleEliminarMesa}
               onDuplicar={handleDuplicarMesa}
               onCerrar={() => setMesaSeleccionada(null)}
+              onLlamarCamarero={modoEfectivoBdp ? () => handleLlamarCamarero(mesaSeleccionada.id) : undefined}
+              llamarCamareroPending={llamarCamareroMutation.isPending}
             />
           </div>
         )}

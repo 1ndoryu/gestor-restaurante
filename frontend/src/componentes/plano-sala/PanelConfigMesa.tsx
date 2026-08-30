@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { ActualizarMesaRequest, Mesa } from '../../api/generated';
 import { Button } from '@/components/ui/button';
-import { Copy } from 'lucide-react';
+import { Bell, Copy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -15,9 +15,12 @@ interface PanelConfigMesaProps {
   onEliminar: (id: string) => void;
   onDuplicar: (mesa: Mesa) => void;
   onCerrar: () => void;
+  /* [198A-1/D10] Botón "Llamar camarero" — solo se pasa con BDP activo. */
+  onLlamarCamarero?: () => void;
+  llamarCamareroPending?: boolean;
 }
 
-function PanelConfigMesa({ mesa, onGuardar, onEliminar, onDuplicar, onCerrar }: PanelConfigMesaProps) {
+function PanelConfigMesa({ mesa, onGuardar, onEliminar, onDuplicar, onCerrar, onLlamarCamarero, llamarCamareroPending = false }: PanelConfigMesaProps) {
   const MIN_LADO_MESA = 30;
   const MAX_LADO_MESA = 400;
   const RATIO_RECTANGULAR = 1.8;
@@ -130,6 +133,12 @@ function PanelConfigMesa({ mesa, onGuardar, onEliminar, onDuplicar, onCerrar }: 
         <Switch id="cfg-activa" checked={form.activa} onCheckedChange={checked => set('activa', checked)} />
         <Label htmlFor="cfg-activa">Activa</Label>
       </div>
+      {/* [198A-1/D10] CallWaiter: push directo a BDP, oculto en standalone. */}
+      {onLlamarCamarero && (
+        <Button size="sm" variant="secondary" onClick={onLlamarCamarero} disabled={llamarCamareroPending}>
+          <Bell className="size-4 mr-1" /> Llamar camarero
+        </Button>
+      )}
       <div className="flex gap-2 pt-2">
         <Button size="sm" onClick={guardar}>Guardar</Button>
         <Button size="sm" variant="outline" onClick={() => onDuplicar(mesa)} title="Duplicar mesa">

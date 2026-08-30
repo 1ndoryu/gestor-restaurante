@@ -132,3 +132,18 @@
     @apply font-sans;
     }
 }
+
+/* [Centralizado] Botones de acciones de fila dentro de celdas de tabla: más compactos.
+ * Todos los botones de acción pasan por Button, que expone data-size (icon/default=32px);
+ * los wrappers de Radix (TooltipTrigger, DropdownMenuTrigger) renombran data-slot pero
+ * conservan data-size, así que el selector usa button[data-size]. Bajan a 28px en un solo
+ * sitio. Se excluyen botones con h-auto/p-0 (p. ej. el badge de estado de Reservas) y los
+ * size=sm/xs/icon-* que ya son compactos (Ajustar, Retomar, Reintentar, …).
+ * Regla sin @layer: gana a las utilidades de Tailwind (que sí van en capa). */
+[data-slot='table-cell'] button[data-size='icon']:not(.h-auto):not(.p-0) {
+  width: 1.75rem;   /* 28px en lugar de 32px */
+  height: 1.75rem;
+}
+[data-slot='table-cell'] button[data-size='default']:not(.h-auto):not(.p-0) {
+  height: 1.75rem;  /* 28px en lugar de 32px */
+}

@@ -809,6 +809,58 @@ class SimulatorTests(unittest.TestCase):
         self.assertEqual(len(order["Order"]["Payments"]), 1)
         self.assertEqual(order["Order"]["Payments"][0]["PaymentId"], "PAY-RECON")
 
+    # ═══════════════════════════════════════════════════════════════
+    # 16. ESCRITURAS BDP NUEVAS (198A-1)
+    # ═══════════════════════════════════════════════════════════════
+
+    def test_application_version_returns_subscription_info(self):
+        response = self.post("/Service/GetApplicationVersion", {"Application": 84}, auth=True)
+        self.assertEqual(response["ErrorMessage"], "")
+        self.assertEqual(response["Application"], 84)
+
+    def test_profiles_lists_are_available(self):
+        for path in ("/API/ProfilesLists/GetCreateArticleList",
+                     "/API/ProfilesLists/GetModifyArticleList",
+                     "/API/ProfilesLists/GetCreateDepartmentList"):
+            response = self.post(path, {}, auth=True)
+            self.assertEqual(response["ErrorMessage"], "")
+            self.assertIsInstance(response["ProfilesList"], list)
+
+    def test_create_article_and_reflect_in_export(self):
+        response = self.post("/API/Articles/CreateAndUpdateProfiles",
+                             {"AutomaticCode": False,
+                              "ArticleData": [{"ArtCode": 90000123, "ArtDescription": "Plato nuevo", "Price1": 9.5}]},
+                             auth=True)
+        self.assertEqual(response["ErrorMessage"], "")
+        export = self.post("/API/Articles/Export", {}, auth=True)
+        codes = [int(item["Code"]) for item in export["Articles"]]
+        self.assertIn(90000123, codes)
+
+    def test_create_department_family_subfamily(self):
+        self.assertEqual(self.post("/API/Departments/Create", {"Code": 77, "Description": "DEPTO", "Overwrite": True}, auth=True)["ErrorMessage"], "")
+        self.assertEqual(self.post("/API/Departments/CreateAndUpdateProfiles", {"Code": 78, "Description": "DEPTO2", "AllProfiles": True, "Overwrite": True}, auth=True)["ErrorMessage"], "")
+        self.assertEqual(self.post("/API/Warehouse/CreateFamily", {"Code": 55, "Description": "FAMILIA", "Overwrite": True}, auth=True)["ErrorMessage"], "")
+        self.assertEqual(self.post("/API/Warehouse/CreateSubfamily", {"Code": 88, "Description": "SUBFAMILIA", "Overwrite": True}, auth=True)["ErrorMessage"], "")
+
+    def test_stock_writes_update_stock_state(self):
+        self.post("/API/Warehouse/UpdateStock", {"Article": 1000000000001, "Altern": 0, "Units": 5.0, "CodReg": 1, "Store": 1, "DateReg": "2026-08-19T10:00:00"}, auth=True)
+        self.post("/API/Warehouse/Regularizations", {"Article": 1000000000001, "sD1": "", "sD2": "", "sD3": "", "Units": -2.0, "CodReg": 1, "Store": 1, "DateReg": "2026-08-19T10:00:00"}, auth=True)
+        self.post("/API/Warehouse/UpdateMassiveStock", {"CodReg": 1, "Store": 1, "DateReg": "2026-08-19T10:00:00", "ArticlesList": [{"Article": 1000000000001, "Units": 1.0}]}, auth=True)
+        stock = self.post("/API/Warehouse/GetStock", {}, auth=True)
+        self.assertEqual(stock["Stock"]["1000000000001"], 4.0)
+
+    def test_tip_points_and_waiter(self):
+        order_id = self.create_order(total=10)["OrderId"]
+        self.assertEqual(self.post("/API/Orders/Tip/Add", {"OrderIdentifier": {"OrderId": order_id}, "Amount": 2.0, "AddTip": True}, auth=True)["ErrorMessage"], "")
+        self.assertEqual(self.post("/API/Loyalty/AddPoints", {"Customer": 1, "PointsAdded": 7.0, "Reason": "GRATIFICACION"}, auth=True)["Points"], 7.0)
+        self.assertEqual(self.post("/API/Waiters/Call", {"Table": 2, "Room": 1}, auth=True)["ErrorMessage"], "")
+
+    def test_subscription_fault_rejects_new_writes(self):
+        """El bloqueo de suscripción se simula como remote_error en escrituras nuevas."""
+        self.post("/__simulator/fault", {"Path": "/API/Warehouse/UpdateStock", "remote_error": "Subscripción no activada"}, admin=True)
+        response = self.post("/API/Warehouse/UpdateStock", {"Article": 1, "Altern": 0, "Units": 1.0, "CodReg": 1, "Store": 1, "DateReg": "2026-08-19"}, auth=True)
+        self.assertEqual(response["ErrorMessage"], "Subscripción no activada")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -20,6 +20,7 @@ function FormularioReserva({ onExito, reserva }: Props) {
   const {
     campos, cambiarCampo, error, manejarEnvio, cargando, mesasDisponibles, esEdicion,
     sugerenciasClientes, autocompletarAbierto, setAutocompletarAbierto, seleccionarCliente,
+    marcarInteraccionCliente,
   } = useFormularioReserva(onExito, reserva);
   /* [034A-7] Ref del contenedor para cerrar autocomplete al hacer click fuera */
   const autocompleteRef = useRef<HTMLDivElement>(null);
@@ -50,8 +51,8 @@ function FormularioReserva({ onExito, reserva }: Props) {
               id="nombreCliente"
               type="text"
               value={campos.nombreCliente}
-              onChange={e => cambiarCampo('nombreCliente', e.target.value)}
-              onFocus={() => { if (sugerenciasClientes.length > 0) setAutocompletarAbierto(true); }}
+              onChange={e => { marcarInteraccionCliente(); cambiarCampo('nombreCliente', e.target.value); }}
+              onFocus={() => { marcarInteraccionCliente(); if (campos.nombreCliente.trim().length >= 2) setAutocompletarAbierto(true); }}
               onBlur={() => { setTimeout(() => setAutocompletarAbierto(false), 200); }}
               placeholder="Nombre"
               autoComplete="off"

@@ -73,17 +73,17 @@ export default function TablaHistorial() {
               {items.map((r: RecordatorioEnviadoDetalle) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.nombre_cliente}</TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="text-[13px]">
                     {new Date(r.fecha_reserva).toLocaleDateString('es-ES')} {r.hora_reserva?.toString().slice(0, 5)}
                   </TableCell>
-                  <TableCell className="text-sm">{r.regla_nombre}</TableCell>
+                  <TableCell className="text-[13px]">{r.regla_nombre}</TableCell>
                   <TableCell>{badgeCanal(r.canal)}</TableCell>
                   <TableCell>
                     <Badge variant={r.estado === 'enviado' ? 'default' : 'destructive'}>
                       {r.estado}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
+                  <TableCell className="text-muted-foreground text-[13px]">
                     {new Date(r.enviado_at).toLocaleString('es-ES')}
                   </TableCell>
                 </TableRow>

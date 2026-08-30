@@ -5,9 +5,11 @@ mod api_keys;
 mod auth;
 mod bdp_article_map;
 mod bdp_backup;
+mod bdp_catalogo;
 mod bdp_customer_sync;
 mod bdp_menu_local;
 mod bdp_purchase_note;
+mod bdp_push;
 
 pub use bdp_menu_local::{
     actualizar_menu_local, crear_menu_local, eliminar_menu_local, listar_menus_locales,
@@ -21,7 +23,14 @@ pub use bdp_purchase_note::{
 /* [128A-1/F8] Exposición para tests de integración de permisos (D8/M17). */
 pub use bdp_article_map::{
     actualizar_article_map, ajustar_stock, crear_article_map, eliminar_article_map,
+    registrar_inventario,
 };
+/* [208A-2/C3] Conteos de inventario persistidos (D3/D4) — exposición para tests. */
+pub use bdp_article_map::{crear_conteo_inventario, listar_conteos_inventario};
+/* [208A-2/C4] Cola de sincronización (D5) — exposición para tests. */
+pub use bdp_push::{flush_manual, listar_pendientes as listar_pendientes_push, reintentar_fila};
+/* [208A-2/C5] Normalización standalone+sync (H5) — exposición para tests. */
+pub use configuracion::actualizar_configuracion;
 pub use ventas::anular_venta;
 /* [128A-1/F8-1] Exposición para tests de integración: variantes locales de
  * F6 (pagos parciales y factura local) y el DELETE de ventas, protegidos por
@@ -539,9 +548,11 @@ fn api_routes() -> Router<AppState> {
         .merge(modo_operacion::routes())
         .merge(bdp_article_map::routes())
         .merge(bdp_backup::routes())
+        .merge(bdp_catalogo::routes())
         .merge(bdp_customer_sync::routes())
         .merge(bdp_menu_local::routes())
         .merge(bdp_purchase_note::routes())
+        .merge(bdp_push::routes())
         .merge(campanas::routes())
         .merge(plantillas_whatsapp::routes())
         .merge(recordatorios::routes())

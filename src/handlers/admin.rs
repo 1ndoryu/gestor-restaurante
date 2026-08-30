@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [283A-39] Handlers de administración para datos de prueba.
  * POST /api/admin/seed  — ejecuta el seed (recarga todos los datos demo).
  * POST /api/admin/reset — elimina todos los datos del usuario (sin borrar cuenta).

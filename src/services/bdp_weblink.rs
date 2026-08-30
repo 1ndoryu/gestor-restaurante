@@ -15,22 +15,34 @@ use tracing::warn;
 
 use crate::models::ConfiguracionRestaurante;
 use crate::services::bdp_weblink_catalog::{
-    BdpAddOrderPaymentRequest, BdpCancelOrderRequest, BdpCreateCustomerRequest,
-    BdpCreateOrderRequest, BdpDepartmentsExportFromProfileRequest, BdpEmptyRequest,
-    BdpExportArticlesRequest, BdpExportCustomersRequest, BdpExportDepartmentsRequest,
-    BdpExportPurchaseNotesRequest, BdpGetArticleRequest, BdpGetEmployeeRequest,
-    BdpGetEmployeesRequest, BdpGetFastfoodRequest, BdpGetListStockRequest, BdpGetMenuRequest,
-    BdpGetOrderRequest, BdpGetPackRequest, BdpGetPosArticlesRequest, BdpGetPosEmployeesRequest,
-    BdpGetPosRequest, BdpGetPosTendersRequest, BdpGetPricesArticlesRequest,
-    BdpGetRoomTablesRequest, BdpGetRoomsTablesRequest, BdpGetStockRequest, BdpInvoiceOrderRequest,
-    BDP_PATH_CANCEL_ORDER, BDP_PATH_CREATE_CUSTOMER, BDP_PATH_CREATE_ORDER,
-    BDP_PATH_EXPORT_ARTICLES, BDP_PATH_EXPORT_CUSTOMERS, BDP_PATH_EXPORT_DEPARTMENTS,
-    BDP_PATH_EXPORT_DEPARTMENTS_FROM_PROFILE, BDP_PATH_EXPORT_PURCHASE_NOTES, BDP_PATH_GET_ARTICLE,
-    BDP_PATH_GET_EMPLOYEE, BDP_PATH_GET_EMPLOYEES, BDP_PATH_GET_FASTFOOD, BDP_PATH_GET_LIST_STOCK,
-    BDP_PATH_GET_MENU, BDP_PATH_GET_ORDER, BDP_PATH_GET_PACK, BDP_PATH_GET_POS, BDP_PATH_GET_POSES,
-    BDP_PATH_GET_POS_ARTICLES, BDP_PATH_GET_POS_EMPLOYEES, BDP_PATH_GET_POS_TENDERS,
-    BDP_PATH_GET_PRICES_ARTICLES, BDP_PATH_GET_ROOMS_TABLES, BDP_PATH_GET_ROOM_TABLES,
-    BDP_PATH_GET_STOCK, BDP_PATH_GET_TENDERS, BDP_PATH_INVOICE_ORDER, BDP_PATH_ORDER_PAYMENT_ADD,
+    BdpAddOrderPaymentRequest, BdpAddOrderTipRequest, BdpAddPointsRequest, BdpCallWaiterRequest,
+    BdpCancelOrderRequest, BdpCreateArticlesRequest, BdpCreateCustomerRequest,
+    BdpCreateDepartmentProfilesRequest, BdpCreateDepartmentRequest, BdpCreateFamilyRequest,
+    BdpCreateOrderRequest, BdpCreateSubfamilyRequest, BdpDepartmentsExportFromProfileRequest,
+    BdpEmptyRequest, BdpExportArticlesRequest, BdpExportCustomersRequest,
+    BdpExportDepartmentsRequest, BdpExportPurchaseNotesRequest, BdpGetApplicationVersionRequest,
+    BdpGetArticleRequest, BdpGetEmployeeRequest, BdpGetEmployeesRequest, BdpGetFastfoodRequest,
+    BdpGetListStockRequest, BdpGetMenuRequest, BdpGetOrderRequest, BdpGetPackRequest,
+    BdpGetPointsRequest, BdpGetPosArticlesRequest, BdpGetPosEmployeesRequest, BdpGetPosRequest,
+    BdpGetPosTendersRequest, BdpGetPricesArticlesRequest, BdpGetRoomTablesRequest,
+    BdpGetRoomsTablesRequest, BdpGetStockRequest, BdpInvoiceOrderRequest, BdpMassiveStockRequest,
+    BdpModifyArticleRequest, BdpModifyPricesRequest, BdpRegularizationRequest, BdpTransferRequest,
+    BdpUpdateStockRequest, BDP_PATH_ADD_ORDER_TIP, BDP_PATH_ADD_POINTS, BDP_PATH_CALL_WAITER,
+    BDP_PATH_CANCEL_ORDER, BDP_PATH_CREATE_ARTICLES, BDP_PATH_CREATE_CUSTOMER,
+    BDP_PATH_CREATE_DEPARTMENT, BDP_PATH_CREATE_DEPARTMENT_PROFILES, BDP_PATH_CREATE_FAMILY,
+    BDP_PATH_CREATE_ORDER, BDP_PATH_CREATE_SUBFAMILY, BDP_PATH_EXPORT_ARTICLES,
+    BDP_PATH_EXPORT_CUSTOMERS, BDP_PATH_EXPORT_DEPARTMENTS,
+    BDP_PATH_EXPORT_DEPARTMENTS_FROM_PROFILE, BDP_PATH_EXPORT_PURCHASE_NOTES,
+    BDP_PATH_GET_APPLICATION_VERSION, BDP_PATH_GET_ARTICLE, BDP_PATH_GET_EMPLOYEE,
+    BDP_PATH_GET_EMPLOYEES, BDP_PATH_GET_FASTFOOD, BDP_PATH_GET_LIST_STOCK, BDP_PATH_GET_MENU,
+    BDP_PATH_GET_ORDER, BDP_PATH_GET_PACK, BDP_PATH_GET_POINTS, BDP_PATH_GET_POS,
+    BDP_PATH_GET_POSES, BDP_PATH_GET_POS_ARTICLES, BDP_PATH_GET_POS_EMPLOYEES,
+    BDP_PATH_GET_POS_TENDERS, BDP_PATH_GET_PRICES_ARTICLES, BDP_PATH_GET_ROOMS_TABLES,
+    BDP_PATH_GET_ROOM_TABLES, BDP_PATH_GET_STOCK, BDP_PATH_GET_TENDERS, BDP_PATH_INVOICE_ORDER,
+    BDP_PATH_MODIFY_ARTICLE, BDP_PATH_MODIFY_PRICES, BDP_PATH_ORDER_PAYMENT_ADD,
+    BDP_PATH_PROFILES_CREATE_ARTICLE_LIST, BDP_PATH_PROFILES_CREATE_DEPARTMENT_LIST,
+    BDP_PATH_PROFILES_MODIFY_ARTICLE_LIST, BDP_PATH_REGULARIZATIONS, BDP_PATH_TRANSFERS,
+    BDP_PATH_UPDATE_MASSIVE_INVENTORY, BDP_PATH_UPDATE_MASSIVE_STOCK, BDP_PATH_UPDATE_STOCK,
 };
 
 const BDP_SESSION_MINUTES: u8 = 59;
@@ -447,6 +459,181 @@ impl<'a> BdpWeblinkClient<'a> {
             .await
     }
 
+    /* [198A-1/F2] Lecturas de soporte para las escrituras BDP. */
+    pub async fn get_application_version(
+        &self,
+        request: &BdpGetApplicationVersionRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_GET_APPLICATION_VERSION, request)
+            .await
+    }
+
+    pub async fn get_profiles_create_article_list(&self) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_PROFILES_CREATE_ARTICLE_LIST, &BdpEmptyRequest {})
+            .await
+    }
+
+    pub async fn get_profile_list_modify_article_list(&self) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_PROFILES_MODIFY_ARTICLE_LIST, &BdpEmptyRequest {})
+            .await
+    }
+
+    pub async fn get_profiles_create_department_list(&self) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(
+            BDP_PATH_PROFILES_CREATE_DEPARTMENT_LIST,
+            &BdpEmptyRequest {},
+        )
+        .await
+    }
+
+    pub async fn get_points(
+        &self,
+        request: &BdpGetPointsRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_GET_POINTS, request)
+            .await
+    }
+
+    /* [198A-1/F3] Escrituras de artículos. */
+    pub async fn create_articles_and_update_profiles(
+        &self,
+        request: &BdpCreateArticlesRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_CREATE_ARTICLES, request)
+            .await
+    }
+
+    pub async fn modify_article_and_update_profile(
+        &self,
+        request: &BdpModifyArticleRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_MODIFY_ARTICLE, request)
+            .await
+    }
+
+    pub async fn modify_prices_articles(
+        &self,
+        request: &BdpModifyPricesRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_MODIFY_PRICES, request)
+            .await
+    }
+
+    /* [198A-1/F5] Escrituras de departamentos. */
+    pub async fn create_department(
+        &self,
+        request: &BdpCreateDepartmentRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_CREATE_DEPARTMENT, request)
+            .await
+    }
+
+    pub async fn create_department_and_update_profiles(
+        &self,
+        request: &BdpCreateDepartmentProfilesRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_CREATE_DEPARTMENT_PROFILES, request)
+            .await
+    }
+
+    /* [198A-1/F6] Escrituras de comandas y plano de sala. */
+    pub async fn add_order_tip(
+        &self,
+        request: &BdpAddOrderTipRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_ADD_ORDER_TIP, request)
+            .await
+    }
+
+    pub async fn call_waiter(
+        &self,
+        request: &BdpCallWaiterRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_CALL_WAITER, request)
+            .await
+    }
+
+    /* [198A-1/F7] Escritura de fidelización. */
+    pub async fn add_points(
+        &self,
+        request: &BdpAddPointsRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_ADD_POINTS, request)
+            .await
+    }
+
+    /* [198A-1/F4] Escrituras de almacén/stock. */
+    pub async fn create_family(
+        &self,
+        request: &BdpCreateFamilyRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_CREATE_FAMILY, request)
+            .await
+    }
+
+    pub async fn create_subfamily(
+        &self,
+        request: &BdpCreateSubfamilyRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_CREATE_SUBFAMILY, request)
+            .await
+    }
+
+    pub async fn regularize_stock(
+        &self,
+        request: &BdpRegularizationRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_REGULARIZATIONS, request)
+            .await
+    }
+
+    pub async fn transfer_stock(
+        &self,
+        request: &BdpTransferRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_TRANSFERS, request)
+            .await
+    }
+
+    pub async fn update_massive_stock(
+        &self,
+        request: &BdpMassiveStockRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_UPDATE_MASSIVE_STOCK, request)
+            .await
+    }
+
+    pub async fn update_stock(
+        &self,
+        request: &BdpUpdateStockRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_UPDATE_STOCK, request)
+            .await
+    }
+
+    pub async fn update_massive_inventory(
+        &self,
+        request: &BdpMassiveStockRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.ensure_write_target_allowed()?;
+        self.post_authenticated_json(BDP_PATH_UPDATE_MASSIVE_INVENTORY, request)
+            .await
+    }
+
     async fn post_authenticated_json<P>(
         &self,
         path: &str,
@@ -697,6 +884,11 @@ mod tests {
             permisos_anulacion_ventas: "admin".to_string(),
             permisos_pagos_locales: "admin".to_string(),
             permisos_facturacion_local: "admin".to_string(),
+            push_modalidad: "automatico".to_string(),
+            bdp_tav_map: serde_json::json!({}),
+            bdp_almacen_default: 1,
+            bdp_codreg_default: 1,
+            bdp_articulo_rango_inicial: 90_000_000,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
@@ -1105,4 +1297,77 @@ mod tests {
     /* [S16-H3] IPv6 loopback: reqwest::Url::parse host_str() incluye corchetes
      * en algunas plataformas. El test se valida contra localhost que ya cubre
      * el caso loopback. Verificar en CI si se necesita cubrir IPv6 explícitamente. */
+
+    /* [198A-1] Wiremock: las escrituras nuevas autentican y usan el path
+     * y payload PascalCase correctos; ensure_write_target_allowed pasa porque
+     * el MockServer escucha en loopback. */
+    #[tokio::test]
+    async fn add_order_tip_posts_pascal_case_payload() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/Auth/Login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": "",
+                "AuthSession": {"Token": "token-bdp", "ExpiresIn_InSecconds": 3540}
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/API/Orders/Tip/Add"))
+            .and(body_json(serde_json::json!({
+                "OrderIdentifier": {"OrderId": 123},
+                "Amount": "2.5",
+                "AddTip": true
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": ""
+            })))
+            .mount(&server)
+            .await;
+
+        use crate::services::bdp_weblink_catalog::BdpOrderIdentifier;
+
+        let config = config(server.uri());
+        let client = BdpWeblinkClient::new(&config);
+        let response = client
+            .add_order_tip(&BdpAddOrderTipRequest {
+                order_identifier: BdpOrderIdentifier::by_order_id(123),
+                amount: rust_decimal::Decimal::new(25, 1),
+                add_tip: true,
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(response["ErrorMessage"], "");
+    }
+
+    #[tokio::test]
+    async fn get_application_version_posts_application_code() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/Auth/Login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": "",
+                "AuthSession": {"Token": "token-bdp", "ExpiresIn_InSecconds": 3540}
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/Service/GetApplicationVersion"))
+            .and(body_json(serde_json::json!({ "Application": 84 })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "Version": 1, "ErrorMessage": ""
+            })))
+            .mount(&server)
+            .await;
+
+        let config = config(server.uri());
+        let client = BdpWeblinkClient::new(&config);
+        let response = client
+            .get_application_version(&BdpGetApplicationVersionRequest { application: 84 })
+            .await
+            .unwrap();
+
+        assert_eq!(response["Version"], 1);
+    }
 }

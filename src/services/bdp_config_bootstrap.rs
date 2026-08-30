@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [197A-3] Aprovisiona BDP desde secretos del servidor para una cuenta
  * explícita. Es idempotente, no sobrescribe valores confirmados y deja toda
  * escritura en solo lectura. */

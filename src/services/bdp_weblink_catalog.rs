@@ -4,7 +4,7 @@
  * contra datos reales de BDP-NET para no inventar contratos incompletos. */
 
 use rust_decimal::Decimal;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub const BDP_PATH_SERVICE_HEALTH: &str = "/Service/Health";
@@ -46,6 +46,29 @@ pub const BDP_PATH_GET_FASTFOOD: &str = "/API/FastFoods/Get";
 pub const BDP_PATH_GET_PACK: &str = "/API/Packs/Get";
 /* [247A-11] Fase 1 compras BDP: exportación de albaranes de compra. */
 pub const BDP_PATH_EXPORT_PURCHASE_NOTES: &str = "/API/ExportProfiles/PurchaseNotes";
+/* [198A-1/F2] Lecturas de soporte para escrituras BDP. */
+pub const BDP_PATH_GET_APPLICATION_VERSION: &str = "/Service/GetApplicationVersion";
+pub const BDP_PATH_PROFILES_CREATE_ARTICLE_LIST: &str = "/API/ProfilesLists/GetCreateArticleList";
+pub const BDP_PATH_PROFILES_MODIFY_ARTICLE_LIST: &str = "/API/ProfilesLists/GetModifyArticleList";
+pub const BDP_PATH_PROFILES_CREATE_DEPARTMENT_LIST: &str =
+    "/API/ProfilesLists/GetCreateDepartmentList";
+pub const BDP_PATH_GET_POINTS: &str = "/API/Loyalty/GetPoints";
+/* [198A-1/F3-F7] Escrituras BDP nuevas (catálogo, stock, departamentos, comandas, plano, fidelización). */
+pub const BDP_PATH_CREATE_ARTICLES: &str = "/API/Articles/CreateAndUpdateProfiles";
+pub const BDP_PATH_MODIFY_PRICES: &str = "/API/Articles/ModifyPrices";
+pub const BDP_PATH_MODIFY_ARTICLE: &str = "/API/Articles/ModifyAndUpdateProfiles";
+pub const BDP_PATH_CREATE_DEPARTMENT: &str = "/API/Departments/Create";
+pub const BDP_PATH_CREATE_DEPARTMENT_PROFILES: &str = "/API/Departments/CreateAndUpdateProfiles";
+pub const BDP_PATH_ADD_ORDER_TIP: &str = "/API/Orders/Tip/Add";
+pub const BDP_PATH_CALL_WAITER: &str = "/API/Waiters/Call";
+pub const BDP_PATH_ADD_POINTS: &str = "/API/Loyalty/AddPoints";
+pub const BDP_PATH_CREATE_FAMILY: &str = "/API/Warehouse/CreateFamily";
+pub const BDP_PATH_CREATE_SUBFAMILY: &str = "/API/Warehouse/CreateSubfamily";
+pub const BDP_PATH_REGULARIZATIONS: &str = "/API/Warehouse/Regularizations";
+pub const BDP_PATH_TRANSFERS: &str = "/API/Warehouse/Transfers";
+pub const BDP_PATH_UPDATE_MASSIVE_STOCK: &str = "/API/Warehouse/UpdateMassiveStock";
+pub const BDP_PATH_UPDATE_STOCK: &str = "/API/Warehouse/UpdateStock";
+pub const BDP_PATH_UPDATE_MASSIVE_INVENTORY: &str = "/API/Warehouse/UpdateMassiveInventory";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BdpEndpointArea {
@@ -60,6 +83,10 @@ pub enum BdpEndpointArea {
     Salones,
     Menus,
     Compras,
+    /* [198A-1] Áreas nuevas para las escrituras BDP. */
+    Perfiles,
+    Fidelizacion,
+    Almacen,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -261,7 +288,162 @@ pub const BDP_ENDPOINTS: &[BdpEndpointSpec] = &[
         path: BDP_PATH_EXPORT_PURCHASE_NOTES,
         purpose: "albaranes de compra",
     },
+    /* [198A-1/F2] Lecturas de soporte. */
+    BdpEndpointSpec {
+        name: "GetApplicationVersion",
+        area: BdpEndpointArea::Servicios,
+        path: BDP_PATH_GET_APPLICATION_VERSION,
+        purpose: "estado de suscripcion extendida",
+    },
+    BdpEndpointSpec {
+        name: "GetProfilesListCreateArticleList",
+        area: BdpEndpointArea::Perfiles,
+        path: BDP_PATH_PROFILES_CREATE_ARTICLE_LIST,
+        purpose: "perfiles para crear articulos",
+    },
+    BdpEndpointSpec {
+        name: "GetProfileListModifyArticleList",
+        area: BdpEndpointArea::Perfiles,
+        path: BDP_PATH_PROFILES_MODIFY_ARTICLE_LIST,
+        purpose: "perfiles para modificar articulos",
+    },
+    BdpEndpointSpec {
+        name: "GetProfilesListCreateDepartmentList",
+        area: BdpEndpointArea::Perfiles,
+        path: BDP_PATH_PROFILES_CREATE_DEPARTMENT_LIST,
+        purpose: "perfiles para crear departamentos",
+    },
+    BdpEndpointSpec {
+        name: "GetPoints",
+        area: BdpEndpointArea::Fidelizacion,
+        path: BDP_PATH_GET_POINTS,
+        purpose: "puntos de un cliente",
+    },
+    /* [198A-1/F3-F7] Escrituras BDP nuevas. */
+    BdpEndpointSpec {
+        name: "CreateArticlesAndUpdateProfiles",
+        area: BdpEndpointArea::Articulos,
+        path: BDP_PATH_CREATE_ARTICLES,
+        purpose: "crear articulo y perfiles",
+    },
+    BdpEndpointSpec {
+        name: "ModifyArticleAndUpdateProfile",
+        area: BdpEndpointArea::Articulos,
+        path: BDP_PATH_MODIFY_ARTICLE,
+        purpose: "modificar articulo y perfiles",
+    },
+    BdpEndpointSpec {
+        name: "ModifyPricesArticles",
+        area: BdpEndpointArea::Articulos,
+        path: BDP_PATH_MODIFY_PRICES,
+        purpose: "modificar precios de articulos",
+    },
+    BdpEndpointSpec {
+        name: "CreateDepartment",
+        area: BdpEndpointArea::Departamentos,
+        path: BDP_PATH_CREATE_DEPARTMENT,
+        purpose: "crear departamento",
+    },
+    BdpEndpointSpec {
+        name: "CreateDepartmentAndupdateProfiles",
+        area: BdpEndpointArea::Departamentos,
+        path: BDP_PATH_CREATE_DEPARTMENT_PROFILES,
+        purpose: "crear departamento y perfiles",
+    },
+    BdpEndpointSpec {
+        name: "AddOrderTip",
+        area: BdpEndpointArea::Comandas,
+        path: BDP_PATH_ADD_ORDER_TIP,
+        purpose: "propina de comanda",
+    },
+    BdpEndpointSpec {
+        name: "CallWaiter",
+        area: BdpEndpointArea::Salones,
+        path: BDP_PATH_CALL_WAITER,
+        purpose: "reclamar atencion de camarero",
+    },
+    BdpEndpointSpec {
+        name: "AddPoints",
+        area: BdpEndpointArea::Fidelizacion,
+        path: BDP_PATH_ADD_POINTS,
+        purpose: "sumar/restar puntos de cliente",
+    },
+    BdpEndpointSpec {
+        name: "CreateFamily",
+        area: BdpEndpointArea::Almacen,
+        path: BDP_PATH_CREATE_FAMILY,
+        purpose: "crear familia",
+    },
+    BdpEndpointSpec {
+        name: "CreateSubfamily",
+        area: BdpEndpointArea::Almacen,
+        path: BDP_PATH_CREATE_SUBFAMILY,
+        purpose: "crear subfamilia",
+    },
+    BdpEndpointSpec {
+        name: "Regularizations",
+        area: BdpEndpointArea::Almacen,
+        path: BDP_PATH_REGULARIZATIONS,
+        purpose: "regularizacion de stock",
+    },
+    BdpEndpointSpec {
+        name: "Transfers",
+        area: BdpEndpointArea::Almacen,
+        path: BDP_PATH_TRANSFERS,
+        purpose: "traspaso entre almacenes",
+    },
+    BdpEndpointSpec {
+        name: "UpdateMassiveStock",
+        area: BdpEndpointArea::Almacen,
+        path: BDP_PATH_UPDATE_MASSIVE_STOCK,
+        purpose: "regularizacion masiva de stock",
+    },
+    BdpEndpointSpec {
+        name: "UpdateStock",
+        area: BdpEndpointArea::Almacen,
+        path: BDP_PATH_UPDATE_STOCK,
+        purpose: "actualizar stock de un articulo",
+    },
+    BdpEndpointSpec {
+        name: "UpdateMassiveInventory",
+        area: BdpEndpointArea::Almacen,
+        path: BDP_PATH_UPDATE_MASSIVE_INVENTORY,
+        purpose: "inventario masivo",
+    },
 ];
+
+/* [198A-1] Rutas de escritura BDP. Se usan para introspección/UI (badge de
+ * solo-lectura vs escritura) y para el kill-switch de destino por endpoint.
+ * La autoridad real de enforcement sigue siendo
+ * `BdpWeblinkClient::ensure_write_target_allowed`. */
+pub const BDP_WRITE_PATHS: &[&str] = &[
+    BDP_PATH_AUTH_LOGIN,
+    BDP_PATH_CREATE_CUSTOMER,
+    BDP_PATH_CREATE_ORDER,
+    BDP_PATH_CANCEL_ORDER,
+    BDP_PATH_ORDER_PAYMENT_ADD,
+    BDP_PATH_INVOICE_ORDER,
+    BDP_PATH_CREATE_ARTICLES,
+    BDP_PATH_MODIFY_PRICES,
+    BDP_PATH_MODIFY_ARTICLE,
+    BDP_PATH_CREATE_DEPARTMENT,
+    BDP_PATH_CREATE_DEPARTMENT_PROFILES,
+    BDP_PATH_ADD_ORDER_TIP,
+    BDP_PATH_CALL_WAITER,
+    BDP_PATH_ADD_POINTS,
+    BDP_PATH_CREATE_FAMILY,
+    BDP_PATH_CREATE_SUBFAMILY,
+    BDP_PATH_REGULARIZATIONS,
+    BDP_PATH_TRANSFERS,
+    BDP_PATH_UPDATE_MASSIVE_STOCK,
+    BDP_PATH_UPDATE_STOCK,
+    BDP_PATH_UPDATE_MASSIVE_INVENTORY,
+];
+
+#[must_use]
+pub fn es_escritura_bdp(path: &str) -> bool {
+    BDP_WRITE_PATHS.contains(&path)
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "PascalCase")]
@@ -567,7 +749,7 @@ pub struct BdpCreateOrderRequest {
     pub order: Value,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct BdpOrderIdentifier {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -623,7 +805,7 @@ pub struct BdpGetOrderRequest {
     pub order_identifier: BdpOrderIdentifier,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct BdpCancelOrderRequest {
     pub pos_id: i32,
@@ -957,6 +1139,222 @@ pub struct BdpExportPurchaseNotesResponse {
     pub error_message: String,
 }
 
+/* ===== [198A-1/F2] Lecturas de soporte ===== */
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetApplicationVersionRequest {
+    pub application: i32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpGetPointsRequest {
+    pub customer: i64,
+}
+
+/* ===== [198A-1] Escrituras: comandas, plano, fidelización ===== */
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpAddOrderTipRequest {
+    pub order_identifier: BdpOrderIdentifier,
+    pub amount: Decimal,
+    pub add_tip: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpCallWaiterRequest {
+    pub table: i32,
+    pub room: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpAddPointsRequest {
+    pub customer: i64,
+    pub points_added: Decimal,
+    pub reason: String,
+}
+
+/* ===== [198A-1] Escrituras: departamentos ===== */
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpCreateDepartmentRequest {
+    pub code: i32,
+    pub description: String,
+    pub short_description: String,
+    pub graph_description1: String,
+    pub graph_description2: String,
+    pub graph_description3: String,
+    pub overwrite: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpCreateDepartmentProfilesRequest {
+    pub code: i32,
+    pub description: String,
+    pub short_description: String,
+    pub graph_description1: String,
+    pub graph_description2: String,
+    pub graph_description3: String,
+    pub overwrite: bool,
+    pub all_profiles: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_list: Option<Value>,
+}
+
+/* ===== [198A-1] Escrituras: artículos ===== */
+
+/// Un artículo en el cuerpo de `CreateArticlesAndUpdateProfiles` y
+/// `ModifyArticleAndUpdateProfile` (subconjunto de `ArticleListDataType`).
+/// Los campos no mapeados pueden añadirse en `extra` sin romper el contrato.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpArticleData {
+    pub art_code: i64,
+    pub art_description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dept_code: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dept_description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tav_code: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tav_per: Option<Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price1: Option<Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price2: Option<Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price3: Option<Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price4: Option<Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price5: Option<Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub web_article: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_inventoriable: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modifiable_price: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub menu_dish: Option<bool>,
+    /// Campos adicionales de `ArticleListDataType` (combinados, impresoras...).
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpCreateArticlesRequest {
+    pub automatic_code: bool,
+    pub article_data: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profiles_list: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub all_profiles: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpModifyArticleRequest {
+    pub article_data: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profiles_list: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub all_profiles: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpModifyPricesRequest {
+    pub articles_data_list: Value,
+}
+
+/* ===== [198A-1] Escrituras: almacén/stock ===== */
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpCreateFamilyRequest {
+    pub code: i32,
+    pub description: String,
+    pub overwrite: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpCreateSubfamilyRequest {
+    pub code: i32,
+    pub description: String,
+    pub overwrite: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpUpdateStockRequest {
+    pub article: i64,
+    pub altern: i32,
+    pub units: Decimal,
+    pub cod_reg: i32,
+    pub store: i32,
+    pub date_reg: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpRegularizationRequest {
+    pub article: i64,
+    #[serde(rename = "sD1")]
+    pub sd1: String,
+    #[serde(rename = "sD2")]
+    pub sd2: String,
+    #[serde(rename = "sD3")]
+    pub sd3: String,
+    pub units: Decimal,
+    pub cod_reg: i32,
+    pub store: i32,
+    pub date_reg: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpTransferRequest {
+    pub article: i64,
+    #[serde(rename = "sD1")]
+    pub sd1: String,
+    #[serde(rename = "sD2")]
+    pub sd2: String,
+    #[serde(rename = "sD3")]
+    pub sd3: String,
+    pub units: Decimal,
+    pub cod_transfer: i32,
+    pub store_from: i32,
+    pub store_to: i32,
+    pub date_transfer: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpStockInfoEntry {
+    pub article: i64,
+    pub units: Decimal,
+}
+
+/// Cuerpo compartido de `UpdateMassiveStock` y `UpdateMassiveInventory`
+/// (`ArticlesList` de `InfoStock`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpMassiveStockRequest {
+    pub cod_reg: i32,
+    pub store: i32,
+    pub date_reg: String,
+    pub articles_list: Vec<BdpStockInfoEntry>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -976,9 +1374,105 @@ mod tests {
             BdpEndpointArea::Salones,
             BdpEndpointArea::Menus,
             BdpEndpointArea::Compras,
+            BdpEndpointArea::Perfiles,
+            BdpEndpointArea::Fidelizacion,
+            BdpEndpointArea::Almacen,
         ] {
             assert!(BDP_ENDPOINTS.iter().any(|endpoint| endpoint.area == area));
         }
+    }
+
+    /* [198A-1] Inventario de escrituras BDP nuevas. */
+    #[test]
+    fn new_write_endpoints_are_registered_and_marked_as_writes() {
+        for name in [
+            "CreateArticlesAndUpdateProfiles",
+            "ModifyArticleAndUpdateProfile",
+            "ModifyPricesArticles",
+            "CreateDepartment",
+            "CreateDepartmentAndupdateProfiles",
+            "AddOrderTip",
+            "CallWaiter",
+            "AddPoints",
+            "CreateFamily",
+            "CreateSubfamily",
+            "Regularizations",
+            "Transfers",
+            "UpdateMassiveStock",
+            "UpdateStock",
+            "UpdateMassiveInventory",
+        ] {
+            let endpoint = BDP_ENDPOINTS
+                .iter()
+                .find(|endpoint| endpoint.name == name)
+                .unwrap_or_else(|| panic!("falta endpoint {name} en el catálogo"));
+            assert!(
+                es_escritura_bdp(endpoint.path),
+                "{name} debe estar marcado como escritura"
+            );
+        }
+        for name in [
+            "GetApplicationVersion",
+            "GetProfilesListCreateArticleList",
+            "GetProfileListModifyArticleList",
+            "GetProfilesListCreateDepartmentList",
+            "GetPoints",
+        ] {
+            let endpoint = BDP_ENDPOINTS
+                .iter()
+                .find(|endpoint| endpoint.name == name)
+                .unwrap_or_else(|| panic!("falta endpoint {name} en el catálogo"));
+            assert!(!es_escritura_bdp(endpoint.path), "{name} es una lectura");
+        }
+    }
+
+    /* [198A-1] Serialización PascalCase de los contratos nuevos (M6: fechas ISO). */
+    #[test]
+    fn new_write_requests_serialize_pascal_case() {
+        let tip = serde_json::to_value(BdpAddOrderTipRequest {
+            order_identifier: BdpOrderIdentifier::by_order_id(123),
+            amount: Decimal::from_str("2.5").unwrap(),
+            add_tip: true,
+        })
+        .unwrap();
+        assert_eq!(tip["OrderIdentifier"]["OrderId"], 123);
+        /* El proyecto serializa Decimal como string (serde-with-str), igual que
+         * BdpOrderPayment.amount. El número vs string en BDP real queda como
+         * verificación diferida (048A-11). */
+        assert_eq!(tip["Amount"], "2.5");
+        assert_eq!(tip["AddTip"], true);
+
+        let reg = serde_json::to_value(BdpRegularizationRequest {
+            article: 1001,
+            sd1: String::new(),
+            sd2: String::new(),
+            sd3: String::new(),
+            units: Decimal::from_str("-2.0").unwrap(),
+            cod_reg: 1,
+            store: 1,
+            date_reg: "2026-08-19T10:00:00".into(),
+        })
+        .unwrap();
+        assert_eq!(reg["sD1"], "");
+        assert_eq!(reg["CodReg"], 1);
+        assert_eq!(reg["DateReg"], "2026-08-19T10:00:00");
+
+        let waiter = serde_json::to_value(BdpCallWaiterRequest { table: 2, room: 1 }).unwrap();
+        assert_eq!(waiter["Table"], 2);
+        assert_eq!(waiter["Room"], 1);
+
+        let stock = serde_json::to_value(BdpUpdateStockRequest {
+            article: 1001,
+            altern: 0,
+            units: Decimal::from_str("5.0").unwrap(),
+            cod_reg: 1,
+            store: 1,
+            date_reg: "2026-08-19T10:00:00".into(),
+        })
+        .unwrap();
+        assert_eq!(stock["Article"], 1001);
+        assert_eq!(stock["Altern"], 0);
+        assert_eq!(stock["Store"], 1);
     }
 
     #[test]

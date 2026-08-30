@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [128A-1/F4] Tests de integración DB de la fase 4 de independencia BDP:
  * delete D5 (checks per-venta antes que guard de config BDP), anulación local
  * con usuario siempre derivado de auth (F4-3), `total_periodo` por modalidad

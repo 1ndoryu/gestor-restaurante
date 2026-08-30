@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [064A-5] Servicio de sincronización unidireccional con Haddock POS API.
  * Envía ventas a Haddock cuando se crean o actualizan en nuestra plataforma.
  * API: https://pos-api.haddock.app (Basic Auth, POST /orders/, POST /catalog/)
@@ -443,6 +445,7 @@ mod tests {
             facturada_local: false,
             factura_numero: None,
             factura_fecha: None,
+            propina: Decimal::ZERO,
         }
     }
 
@@ -505,6 +508,11 @@ mod tests {
             permisos_anulacion_ventas: "admin".to_string(),
             permisos_pagos_locales: "admin".to_string(),
             permisos_facturacion_local: "admin".to_string(),
+            push_modalidad: "automatico".to_string(),
+            bdp_tav_map: serde_json::json!({}),
+            bdp_almacen_default: 1,
+            bdp_codreg_default: 1,
+            bdp_articulo_rango_inicial: 90_000_000,
             google_review_url: String::new(),
             telefono_restaurante: String::new(),
             url_reservas: String::new(),
@@ -1281,6 +1289,11 @@ mod tests {
             permisos_anulacion_ventas: None,
             permisos_pagos_locales: None,
             permisos_facturacion_local: None,
+            push_modalidad: None,
+            bdp_tav_map: None,
+            bdp_almacen_default: None,
+            bdp_codreg_default: None,
+            bdp_articulo_rango_inicial: None,
         };
         ConfiguracionRepository::actualizar(pool, user_id, &req)
             .await

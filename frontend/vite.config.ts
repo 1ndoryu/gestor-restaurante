@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
+/* [198A-2] Target del backend configurable para levantar stacks de prueba aislados
+ * sin tocar el puerto fijo. Default http://localhost:3000 (comportamiento histórico). */
+const apiTarget = process.env.VITE_API_TARGET || 'http://localhost:3000';
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -20,15 +24,15 @@ export default defineConfig({
     /* Proxy API requests al backend Rust en desarrollo */
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: apiTarget,
         changeOrigin: true,
       },
       '/swagger-ui': {
-        target: 'http://localhost:3000',
+        target: apiTarget,
         changeOrigin: true,
       },
       '/api-docs': {
-        target: 'http://localhost:3000',
+        target: apiTarget,
         changeOrigin: true,
       },
     },

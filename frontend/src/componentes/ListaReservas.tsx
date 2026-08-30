@@ -173,7 +173,7 @@ function ListaReservas() {
                     />
                   </TableHead>
                   <TableHead>Teléfono</TableHead>
-                  <TableHead className="w-10"></TableHead>
+                  <TableHead className="w-10 text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -230,19 +230,21 @@ function ListaReservas() {
                     </TableCell>
                     <TableCell>{r.telefono || '—'}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center justify-center gap-1">
                         {/* [024A-5] Botón para editar todos los campos de la reserva */}
                         <TooltipButton
-                          variant="ghost"
+                          variant="outline"
                           size="icon"
+                          className="bg-muted/40 hover:bg-muted"
                           onClick={() => abrirEdicion(r)}
                           tooltip="Editar reserva"
                         >
                           <Pencil className="size-4" />
                         </TooltipButton>
                         <TooltipButton
-                          variant="ghost"
+                          variant="outline"
                           size="icon"
+                          className="bg-muted/40 hover:bg-muted"
                           onClick={() => eliminarMutation.mutate({ id: r.id })}
                           disabled={eliminarMutation.isPending}
                           tooltip="Eliminar reserva"

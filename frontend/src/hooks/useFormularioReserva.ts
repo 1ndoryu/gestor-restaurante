@@ -79,6 +79,10 @@ function useFormularioReserva(onExito?: () => void, reservaExistente?: Reserva) 
   const [busquedaCliente, setBusquedaCliente] = useState('');
   const [autocompletarAbierto, setAutocompletarAbierto] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /* [FIX-autocomplete] Al abrir el modal en edición el nombre llega pre-rellenado
+   * (≥2 chars) y el debounce abría la lista sin interacción del usuario.
+   * Solo se abre si el usuario escribió o enfocó el campo. */
+  const interaccionClienteRef = useRef(false);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -89,10 +93,13 @@ function useFormularioReserva(onExito?: () => void, reservaExistente?: Reserva) 
     }
     debounceRef.current = setTimeout(() => {
       setBusquedaCliente(campos.nombreCliente);
-      setAutocompletarAbierto(true);
+      /* Buscar siempre (para tener sugerencias listas), abrir solo con interacción. */
+      if (interaccionClienteRef.current) setAutocompletarAbierto(true);
     }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [campos.nombreCliente]);
+
+  const marcarInteraccionCliente = () => { interaccionClienteRef.current = true; };
 
   const { data: clientesData } = useListarClientes(
     { busqueda: busquedaCliente, per_page: 8 },
@@ -204,6 +211,7 @@ function useFormularioReserva(onExito?: () => void, reservaExistente?: Reserva) 
     autocompletarAbierto,
     setAutocompletarAbierto,
     seleccionarCliente,
+    marcarInteraccionCliente,
   };
 }
 

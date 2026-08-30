@@ -16,7 +16,10 @@ use crate::models::{
     CrearMesaRequest, CrearParedRequest, CrearZonaRequest, Mesa, ParedSala, PlanoExport,
     PlanoOcupacion, PlanoOcupacionQuery, PlanoSala, ZonaSala,
 };
-use crate::services::PlanoSalaService;
+use crate::services::bdp_weblink_catalog::BdpCallWaiterRequest;
+use crate::services::{
+    BdpWeblinkClient, ConfiguracionService, ModoEfectivo, PlanoSalaService, ServicioModoOperacion,
+};
 use crate::AppState;
 
 /* ========== Plano completo ========== */
@@ -485,6 +488,52 @@ pub async fn actualizar_posiciones_paredes(
     Ok(StatusCode::OK)
 }
 
+/* [198A-1/D10] Llamar camarero: push directo a BDP (no va a la cola). En
+ * standalone no está disponible (la UI oculta el botón con el motivo). */
+#[utoipa::path(
+    post,
+    path = "/api/plano-sala/mesas/{id}/llamar-camarero",
+    tag = "PlanoSala",
+    params(("id" = Uuid, Path, description = "ID de la mesa")),
+    responses(
+        (status = 200, description = "Aviso enviado al TPV"),
+        (status = 403, description = "No disponible en modo standalone", body = ErrorResponse),
+        (status = 404, description = "Mesa no encontrada", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn llamar_camarero(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let (table, room) = crate::repositories::PlanoSalaRepository::codigos_mesa_para_bdp(
+        &state.pool,
+        id,
+        auth.user_id,
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("Mesa no encontrada".into()))?;
+
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    let modo = ServicioModoOperacion::modo_efectivo_desde_config(&config);
+    if modo == ModoEfectivo::Standalone {
+        return Err(AppError::Forbidden(
+            "Llamar camarero no está disponible sin BDP (modo standalone)".into(),
+        ));
+    }
+
+    let client = BdpWeblinkClient::new(&config);
+    client
+        .call_waiter(&BdpCallWaiterRequest { table, room })
+        .await
+        .map_err(|e| AppError::Internal(format!("Error llamando camarero: {e}")))?;
+
+    Ok(Json(
+        serde_json::json!({ "mensaje": "Aviso enviado al TPV" }),
+    ))
+}
+
 /* ========== Router ========== */
 
 pub fn routes() -> Router<AppState> {
@@ -498,6 +547,10 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/plano-sala/mesas", post(crear_mesa))
         .route("/plano-sala/mesas/posiciones", patch(actualizar_posiciones))
+        .route(
+            "/plano-sala/mesas/:id/llamar-camarero",
+            post(llamar_camarero),
+        )
         .route(
             "/plano-sala/mesas/:id",
             patch(actualizar_mesa).delete(eliminar_mesa),

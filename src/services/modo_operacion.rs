@@ -293,6 +293,11 @@ mod tests {
             permisos_anulacion_ventas: "admin".to_string(),
             permisos_pagos_locales: "admin".to_string(),
             permisos_facturacion_local: "admin".to_string(),
+            push_modalidad: "automatico".to_string(),
+            bdp_tav_map: serde_json::json!({}),
+            bdp_almacen_default: 1,
+            bdp_codreg_default: 1,
+            bdp_articulo_rango_inicial: 90_000_000,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

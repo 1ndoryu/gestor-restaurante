@@ -38,6 +38,10 @@ export function BdpPurchaseSyncControls({
   const { purchaseProfileId, saveProfile, isSaving } = useBdpReadProfiles();
   const [profileCode, setProfileCode] = useState(purchaseProfileId ? String(purchaseProfileId) : '');
   const [profileProblem, setProfileProblem] = useState('');
+  /* [208A-2] El aviso del perfil NO se muestra por defecto: solo aparece
+   * cuando el usuario intenta sincronizar con BDP en Compras y falta el
+   * perfil (o BDP lo rechaza), y se puede ocultar de nuevo con la X. */
+  const [showProfileSetting, setShowProfileSetting] = useState(false);
 
   useEffect(() => {
     if (purchaseProfileId) setProfileCode(String(purchaseProfileId));
@@ -53,6 +57,7 @@ export function BdpPurchaseSyncControls({
     const code = Number(profileCode);
     if (!Number.isInteger(code) || code <= 0) {
       setProfileProblem('Indica el código numérico de la plantilla de Compras configurada en BDP.');
+      setShowProfileSetting(true);
       return;
     }
     if (!fechaDesde || !fechaHasta) {
@@ -66,11 +71,15 @@ export function BdpPurchaseSyncControls({
         {
           onSuccess: (result) => {
             setProfileProblem('');
+            setShowProfileSetting(false);
             toast.success(`Sync completado: ${result.procesados} albaranes procesados de ${result.total_bdp}`);
           },
           onError: (error) => {
             const message = getErrorMessage(error);
-            if (/plantilla|perfil|exportpurchasenotes/i.test(message)) setProfileProblem(message);
+            if (/plantilla|perfil|exportpurchasenotes/i.test(message)) {
+              setProfileProblem(message);
+              setShowProfileSetting(true);
+            }
             toast.error('BDP no pudo consultar los albaranes', { description: message });
           },
         },
@@ -80,7 +89,9 @@ export function BdpPurchaseSyncControls({
     }
   }
 
-  const requiresConfiguration = !purchaseProfileId || !!profileProblem;
+  /* [208A-2] Ya no se fuerza por `!purchaseProfileId`: el aviso solo se
+   * muestra cuando se intentó usar la integración (showProfileSetting). */
+  const requiresConfiguration = showProfileSetting;
 
   return (
     <div className="flex w-full flex-col gap-3">
@@ -117,6 +128,10 @@ export function BdpPurchaseSyncControls({
           saving={syncMutation.isPending || isSaving}
           onChange={setProfileCode}
           onSave={syncWithSavedProfile}
+          onDismiss={() => {
+            setShowProfileSetting(false);
+            setProfileProblem('');
+          }}
         />
       )}
     </div>

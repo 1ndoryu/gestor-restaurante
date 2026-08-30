@@ -15,7 +15,11 @@ use crate::repositories::{
     BdpPagoRepository, ConfiguracionRepository, VentaLineaRepository, VentaRepository,
 };
 
-use super::{BdpSyncService, HaddockService};
+use super::bdp_push::{DOMINIO_VENTA, OPERACION_CANCELAR};
+use super::{
+    payload_cancelar, BdpPushService, BdpSyncService, HaddockService, ModoEfectivo,
+    ServicioModoOperacion,
+};
 
 pub struct VentaService;
 
@@ -328,6 +332,10 @@ impl VentaService {
         .await
         .map_err(Self::map_anular_error)?;
 
+        /* Anulación fresca (vs reintento idempotente): solo el primer éxito
+         * encola el push; el replay idempotente no debe duplicarlo. */
+        let anulacion_fresca = resultado_previo.is_none();
+
         /* Idempotencia C1: reintento con la misma clave y resultado previo
          * 'exito' es éxito idempotente; cualquier otro resultado es conflicto. */
         if let Some(resultado) = resultado_previo {
@@ -335,6 +343,27 @@ impl VentaService {
                 return Err(AppError::Conflict(format!(
                     "idempotency_key ya usada (resultado previo: {resultado})"
                 )));
+            }
+        }
+
+        /* [198A-1/F6] CancelOrder como push programado: si la venta anulada
+         * tiene comanda BDP (bdp_order_id), se encola `venta/cancelar`. En
+         * standalone el worker no envía nada (no-op); en bdp, si la suscripción
+         * rechaza queda `pendiente_suscripcion` con reintento solo manual (D2).
+         * M16: sin bdp_order_id no se encola (comanda no sincronizada). */
+        if anulacion_fresca {
+            if let Some(order_id) = venta.bdp_order_id {
+                let payload = payload_cancelar(&config, order_id).map_err(AppError::Internal)?;
+                BdpPushService::encolar(
+                    pool,
+                    user_id,
+                    DOMINIO_VENTA,
+                    &order_id.to_string(),
+                    OPERACION_CANCELAR,
+                    &payload,
+                )
+                .await
+                .map_err(AppError::Internal)?;
             }
         }
 
@@ -507,9 +536,9 @@ impl VentaService {
             .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
 
         let config = ConfiguracionRepository::obtener_o_crear(pool, user_id).await?;
-        if !config.bdp_sync_enabled {
+        if ServicioModoOperacion::modo_efectivo_desde_config(&config) != ModoEfectivo::Bdp {
             return Err(AppError::Validation(
-                "La sincronización con BDP no está habilitada.".into(),
+                "BDP no está habilitado o configurado.".into(),
             ));
         }
         if config.bdp_sync_mode != "unidirectional" {

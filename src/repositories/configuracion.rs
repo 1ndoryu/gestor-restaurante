@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [263A-17] Repositorio de configuración del restaurante.
  * Upsert: si no existe, crea con defaults; si existe, actualiza parcialmente.
  * [094A-4] Convertido a queries dinámicas para evitar problemas con SQLX_OFFLINE
@@ -45,7 +47,10 @@ const UPDATE_CONFIG_SQL: &str = "UPDATE configuracion_restaurante SET \
     permisos_albaranes_gestion = COALESCE($53, permisos_albaranes_gestion), \
     permisos_anulacion_ventas = COALESCE($54, permisos_anulacion_ventas), \
     permisos_pagos_locales = COALESCE($55, permisos_pagos_locales), \
-    permisos_facturacion_local = COALESCE($56, permisos_facturacion_local), updated_at = NOW() \
+    permisos_facturacion_local = COALESCE($56, permisos_facturacion_local), \
+    push_modalidad = COALESCE($57, push_modalidad), bdp_tav_map = COALESCE($58, bdp_tav_map), \
+    bdp_almacen_default = COALESCE($59, bdp_almacen_default), bdp_codreg_default = COALESCE($60, bdp_codreg_default), \
+    bdp_articulo_rango_inicial = COALESCE($61, bdp_articulo_rango_inicial), updated_at = NOW() \
     WHERE user_id = $1 RETURNING *";
 
 pub struct ConfiguracionRepository;
@@ -150,6 +155,11 @@ impl ConfiguracionRepository {
             .bind(req.permisos_anulacion_ventas.as_deref())
             .bind(req.permisos_pagos_locales.as_deref())
             .bind(req.permisos_facturacion_local.as_deref())
+            .bind(req.push_modalidad.as_deref())
+            .bind(req.bdp_tav_map.as_ref())
+            .bind(req.bdp_almacen_default)
+            .bind(req.bdp_codreg_default)
+            .bind(req.bdp_articulo_rango_inicial)
             .fetch_one(pool)
             .await
     }

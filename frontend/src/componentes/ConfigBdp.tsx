@@ -7,7 +7,8 @@
  *          directamente. Selector de modo autorización integrado. */
 
 import { useState } from 'react';
-import { Activity, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Loader2, XCircle, BookOpen, Settings, Radio, Shield, ToggleLeft, Info } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Activity, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Loader2, XCircle, BookOpen, Settings, Radio, Shield, ToggleLeft, Info, ArrowRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import axios from '@/api/axios-instance';
@@ -56,6 +57,7 @@ interface ConfigBdpProps {
 }
 
 function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: ConfigBdpProps) {
+  const navigate = useNavigate();
   const [estadoBdp, setEstadoBdp] = useState<BdpUiState>({
     diagnostico: null,
     dryRun: null,
@@ -212,16 +214,23 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
           </div>
         </div>
 
-        {/* [237A-3] Catálogo BDP — sección visible de primer nivel */}
+        {/* [208A-2/C1] El CRUD de artículos ya no vive en Configuración (D1/D6):
+         * se gestiona en la página Catálogo del menú. Aquí solo queda el aviso
+         * y un enlace para no romper el acceso a quien lo buscaba aquí. */}
         <div className="border-t pt-4">
           <div className="flex items-center gap-2 mb-3">
             <BookOpen className="size-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Catálogo de artículos BDP</span>
+            <span className="text-sm font-medium">Catálogo de artículos</span>
           </div>
           <p className="mb-3 text-xs text-muted-foreground">
-            Sincroniza el catálogo de artículos desde BDP a la Aplicación Web. Crea mapeos automáticos por código y actualiza precios.
+            Los artículos (alta, edición, precios, IVA, activar/desactivar) se gestionan en la página
+            <strong> Catálogo</strong> del menú lateral, junto a departamentos y familias. Desde allí también
+            puedes sincronizar el catálogo desde BDP cuando la integración esté activa.
           </p>
-          <ConfigBdpMapeos config={config} cambiarCampo={cambiarCampo} soloArticulos />
+          <Button type="button" variant="outline" size="sm" onClick={() => navigate('/bdp/catalogo')}>
+            Ir a Catálogo
+            <ArrowRight className="ml-1 size-3.5" />
+          </Button>
         </div>
 
         {/* [237A-3] Polling automático — visible en vista principal */}
@@ -280,7 +289,7 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
               <p className="mb-4 rounded-md border p-3 text-xs text-muted-foreground">
                 Estos valores no son universales: formas de pago y canales pueden ser distintos en cada BDP.
               </p>
-              <ConfigBdpMapeos config={config} cambiarCampo={cambiarCampo} soloMapeosTecnicos />
+              <ConfigBdpMapeos config={config} cambiarCampo={cambiarCampo} />
             </div>
           )}
         </div>

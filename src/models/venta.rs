@@ -93,6 +93,10 @@ pub struct Venta {
     pub facturada_local: bool,
     pub factura_numero: Option<String>,
     pub factura_fecha: Option<DateTime<Utc>>,
+    /* [198A-1/D8] Propina de la venta. `sqlx(default)` para que los SELECT
+     * con columnas explícitas (que no la incluyen) sigan mapeando. */
+    #[sqlx(default)]
+    pub propina: rust_decimal::Decimal,
 }
 
 /// Request para crear una venta
@@ -186,6 +190,9 @@ pub struct VentaConCliente {
     pub facturada_local: bool,
     pub factura_numero: Option<String>,
     pub factura_fecha: Option<DateTime<Utc>>,
+    /* [198A-1/D8] Propina — mismos campos que `Venta`. */
+    #[sqlx(default)]
+    pub propina: rust_decimal::Decimal,
 }
 
 /* [128A-1/F4] Request de anulación local de ventas.

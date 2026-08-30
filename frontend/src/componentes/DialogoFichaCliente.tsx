@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Pencil } from 'lucide-react';
 import { Cliente } from '../api/generated';
 import FormularioCliente from './FormularioCliente';
+import PuntosCliente from './PuntosCliente';
 
 interface Props {
   clienteId: string | null;
@@ -87,6 +88,8 @@ function DialogoFichaCliente({ clienteId, onClose, clienteDetalle, clienteCargan
                 <p className="font-medium">{clienteDetalle.notas}</p>
               </div>
             )}
+            {/* [198A-1/D9] Fidelización: saldo y movimientos de puntos. */}
+            <PuntosCliente clienteId={clienteDetalle.id} />
             <Button variant="outline" className="self-end mt-2" onClick={() => setEditando(true)}>
               <Pencil className="size-4 mr-1.5" /> Editar cliente
             </Button>

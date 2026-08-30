@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [263A-17] Handlers de configuración del restaurante.
  * GET /api/configuracion — obtener config actual (crea defaults si no existe).
  * PATCH /api/configuracion — actualizar campos parcialmente.
@@ -211,6 +213,22 @@ pub async fn actualizar_configuracion(
         req.bdp_sync_mode = Some("read_only".to_string());
     }
 
+    /* [208A-2/C5] H5: no se puede persistir un estado contradictorio
+     * (modo_operacion=standalone con bdp_sync_enabled=true). Si el resultado
+     * final del PATCH sería ese, se fuerza bdp_sync_enabled=false: el modo
+     * independiente no sincroniza con BDP, por mucho que el interruptor
+     * general siga activo por compatibilidad (M1 ya hacía ganar al switch
+     * maestro en runtime; aquí se corrige el almacenamiento). */
+    let stored = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    let modo_final = req
+        .modo_operacion
+        .clone()
+        .unwrap_or_else(|| stored.modo_operacion.clone());
+    let sync_final = req.bdp_sync_enabled.unwrap_or(stored.bdp_sync_enabled);
+    if modo_final == "standalone" && sync_final {
+        req.bdp_sync_enabled = Some(false);
+    }
+
     let mut config = ConfiguracionService::actualizar(&state.pool, auth.user_id, &req).await?;
     if invalida_armado_bdp {
         /* [187A-1] Cambiar cualquier dato que afecte destino o payload anula
@@ -266,8 +284,24 @@ pub struct CambiarBdpSyncModeRequest {
     pub target_entity_id: Option<Uuid>,
 }
 
-const VALID_BDP_WRITE_SCOPES: &[&str] =
-    &["create_order", "create_customer", "add_payment", "invoice"];
+const VALID_BDP_WRITE_SCOPES: &[&str] = &[
+    "create_order",
+    "create_customer",
+    "add_payment",
+    "invoice",
+    /* [198A-1/F1] Escrituras Glory -> BDP nuevas (catálogo, stock, deptos, comandas, plano, fidelización). */
+    "create_article",
+    "modify_article",
+    "modify_prices",
+    "create_department",
+    "create_family",
+    "regularize_stock",
+    "transfer_stock",
+    "inventory",
+    "cancel_order",
+    "add_tip",
+    "add_points",
+];
 
 /// Cambiar el modo de sincronización BDP (`read_only` / `unidirectional`)
 ///

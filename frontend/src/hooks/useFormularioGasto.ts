@@ -60,6 +60,10 @@ function useFormularioGasto(onExito?: () => void, gastoInicial?: Gasto) {
   const [busquedaProveedor, setBusquedaProveedor] = useState('');
   const [autocompletarAbierto, setAutocompletarAbierto] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /* [FIX-autocomplete] Al abrir el modal en edición el campo llega pre-rellenado
+   * (≥2 chars) y el debounce abría la lista sin interacción del usuario.
+   * Solo se abre si el usuario escribió o enfocó el campo. */
+  const interaccionProveedorRef = useRef(false);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -70,10 +74,13 @@ function useFormularioGasto(onExito?: () => void, gastoInicial?: Gasto) {
     }
     debounceRef.current = setTimeout(() => {
       setBusquedaProveedor(campos.proveedor);
-      setAutocompletarAbierto(true);
+      /* Buscar siempre (para tener sugerencias listas), abrir solo con interacción. */
+      if (interaccionProveedorRef.current) setAutocompletarAbierto(true);
     }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [campos.proveedor]);
+
+  const marcarInteraccionProveedor = () => { interaccionProveedorRef.current = true; };
 
   const { data: proveedoresData } = useListarProveedores(
     { busqueda: busquedaProveedor },
@@ -169,6 +176,7 @@ function useFormularioGasto(onExito?: () => void, gastoInicial?: Gasto) {
     autocompletarAbierto,
     setAutocompletarAbierto,
     seleccionarProveedor,
+    marcarInteraccionProveedor,
   };
 }
 

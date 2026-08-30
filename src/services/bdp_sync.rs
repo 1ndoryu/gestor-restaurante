@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [065A-5] Servicio de sincronización Glory → BDP WebLink REST API.
  * Crea comandas reales en el TPV cuando se registra una venta en Glory.
  * Usa exclusión local/distribuida y una única escritura con reconciliación;
@@ -96,10 +98,7 @@ impl BdpSyncService {
         /* [128A-1/F1-1] M1: el switch maestro modo_operacion también gatea los
          * caminos de escritura; 'standalone' nunca llama a BDP aunque
          * bdp_sync_enabled siga activo. */
-        if ServicioModoOperacion::modo_efectivo_desde_config(config) != ModoEfectivo::Bdp
-            || !config.bdp_sync_enabled
-            || !crate::services::bdp_sync_preflight::bdp_configurado(config)
-        {
+        if ServicioModoOperacion::modo_efectivo_desde_config(config) != ModoEfectivo::Bdp {
             return;
         }
 
@@ -1402,10 +1401,7 @@ impl BdpSyncService {
         idempotency_key: Option<&str>,
     ) -> Result<Option<String>, String> {
         /* [128A-1/F1-1] M1: el switch maestro gatea también los pagos. */
-        if ServicioModoOperacion::modo_efectivo_desde_config(config) != ModoEfectivo::Bdp
-            || !config.bdp_sync_enabled
-            || !crate::services::bdp_sync_preflight::bdp_configurado(config)
-        {
+        if ServicioModoOperacion::modo_efectivo_desde_config(config) != ModoEfectivo::Bdp {
             return Err("BDP no está habilitado o configurado".into());
         }
 
@@ -1744,10 +1740,7 @@ impl BdpSyncService {
         idempotency_key: Option<&str>,
     ) -> Result<String, String> {
         /* [128A-1/F1-1] M1: el switch maestro gatea también la facturación. */
-        if ServicioModoOperacion::modo_efectivo_desde_config(config) != ModoEfectivo::Bdp
-            || !config.bdp_sync_enabled
-            || !crate::services::bdp_sync_preflight::bdp_configurado(config)
-        {
+        if ServicioModoOperacion::modo_efectivo_desde_config(config) != ModoEfectivo::Bdp {
             return Err("BDP no está habilitado o configurado".into());
         }
 
@@ -2454,6 +2447,7 @@ mod tests {
             facturada_local: false,
             factura_numero: None,
             factura_fecha: None,
+            propina: Decimal::ZERO,
         }
     }
 
