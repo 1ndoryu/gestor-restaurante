@@ -7,7 +7,7 @@ use serde::Serialize;
 use tracing::warn;
 
 use crate::models::ConfiguracionRestaurante;
-use crate::services::bdp_weblink::BdpWeblinkClient;
+use crate::services::bdp_weblink::{BdpWeblinkClient, BdpWeblinkError};
 use crate::services::bdp_weblink_catalog::{
     BdpExportArticlesRequest, BdpExportCustomersRequest, BdpExportDepartmentsRequest,
     BdpGetEmployeesRequest, BdpGetRoomsTablesRequest,
@@ -77,102 +77,48 @@ impl BdpExplorerService {
         let client = BdpWeblinkClient::new(config);
 
         /* Artículos: ExportArticles con rango máximo (type_price=1 para IVA incluido) */
-        let articulos = match client
-            .export_articles(&BdpExportArticlesRequest::all_web_articles(1))
-            .await
-        {
-            Ok(val) => {
-                /* BDP puede usar "Articles", "ArticlesListData" o "ArticleListData" */
-                let count = val
-                    .get("ArticlesListData")
-                    .or_else(|| val.get("ArticleListData"))
-                    .or_else(|| val.get("Articles"))
-                    .and_then(serde_json::Value::as_array)
-                    .map_or(0, std::vec::Vec::len);
-                ExploracionCategoria::ok(count)
-            }
-            Err(e) => {
-                warn!("Exploración BDP - artículos falló: {e}");
-                ExploracionCategoria::err(&format!("{e}"))
-            }
-        };
+        let articulos = Self::explorar_categoria(
+            "artículos",
+            &["ArticlesListData", "ArticleListData", "Articles"],
+            client
+                .export_articles(&BdpExportArticlesRequest::all_web_articles(1))
+                .await,
+        );
 
         /* Clientes: ExportCustomers con rango completo */
-        let clientes = match client
-            .export_customers(&BdpExportCustomersRequest::default())
-            .await
-        {
-            Ok(val) => {
-                let count = val
-                    .get("Customers")
-                    .and_then(serde_json::Value::as_array)
-                    .map_or(0, std::vec::Vec::len);
-                ExploracionCategoria::ok(count)
-            }
-            Err(e) => {
-                warn!("Exploración BDP - clientes falló: {e}");
-                ExploracionCategoria::err(&format!("{e}"))
-            }
-        };
+        let clientes = Self::explorar_categoria(
+            "clientes",
+            &["Customers"],
+            client.export_customers(&BdpExportCustomersRequest::default()).await,
+        );
 
         /* Departamentos: ExportDepartments con rango completo */
-        let departamentos = match client
-            .export_departments(&BdpExportDepartmentsRequest::default())
-            .await
-        {
-            Ok(val) => {
-                let count = val
-                    .get("Departments")
-                    .or_else(|| val.get("Department"))
-                    .and_then(serde_json::Value::as_array)
-                    .map_or(0, std::vec::Vec::len);
-                ExploracionCategoria::ok(count)
-            }
-            Err(e) => {
-                warn!("Exploración BDP - departamentos falló: {e}");
-                ExploracionCategoria::err(&format!("{e}"))
-            }
-        };
+        let departamentos = Self::explorar_categoria(
+            "departamentos",
+            &["Departments", "Department"],
+            client
+                .export_departments(&BdpExportDepartmentsRequest::default())
+                .await,
+        );
 
         /* Salones: GetRoomsTables (todos los salones) */
-        let salones = match client
-            .get_rooms_tables(&BdpGetRoomsTablesRequest::default())
-            .await
-        {
-            Ok(val) => {
-                let count = val
-                    .get("Rooms")
-                    .and_then(serde_json::Value::as_array)
-                    .map_or(0, std::vec::Vec::len);
-                ExploracionCategoria::ok(count)
-            }
-            Err(e) => {
-                warn!("Exploración BDP - salones falló: {e}");
-                ExploracionCategoria::err(&format!("{e}"))
-            }
-        };
+        let salones = Self::explorar_categoria(
+            "salones",
+            &["Rooms"],
+            client.get_rooms_tables(&BdpGetRoomsTablesRequest::default()).await,
+        );
 
         /* Empleados: GetEmployees (sin filtro) */
-        let empleados = match client
-            .get_employees(&BdpGetEmployeesRequest {
-                ids: vec![],
-                only_salespeople: None,
-            })
-            .await
-        {
-            Ok(val) => {
-                let count = val
-                    .get("Employees")
-                    .or_else(|| val.get("Employee"))
-                    .and_then(serde_json::Value::as_array)
-                    .map_or(0, std::vec::Vec::len);
-                ExploracionCategoria::ok(count)
-            }
-            Err(e) => {
-                warn!("Exploración BDP - empleados falló: {e}");
-                ExploracionCategoria::err(&format!("{e}"))
-            }
-        };
+        let empleados = Self::explorar_categoria(
+            "empleados",
+            &["Employees", "Employee"],
+            client
+                .get_employees(&BdpGetEmployeesRequest {
+                    ids: vec![],
+                    only_salespeople: None,
+                })
+                .await,
+        );
 
         let errores = [&articulos, &clientes, &departamentos, &salones, &empleados]
             .iter()
@@ -203,6 +149,29 @@ impl BdpExplorerService {
             empleados,
             resumen,
             explorado_at: chrono::Utc::now().naive_utc(),
+        }
+    }
+
+    /* Unifica el patrón de exploración de cada categoría: cuenta registros por
+     * claves alternativas y degrada a error logueado cuando el endpoint falla. */
+    fn explorar_categoria(
+        etiqueta: &str,
+        claves: &[&str],
+        resultado: Result<serde_json::Value, BdpWeblinkError>,
+    ) -> ExploracionCategoria {
+        match resultado {
+            Ok(val) => {
+                let count = claves
+                    .iter()
+                    .find_map(|k| val.get(k))
+                    .and_then(serde_json::Value::as_array)
+                    .map_or(0, std::vec::Vec::len);
+                ExploracionCategoria::ok(count)
+            }
+            Err(e) => {
+                warn!("Exploración BDP - {etiqueta} falló: {e}");
+                ExploracionCategoria::err(&format!("{e}"))
+            }
         }
     }
 }
