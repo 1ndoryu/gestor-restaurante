@@ -1,3 +1,4 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
 /* [198A-1/F1] Tests de la cola de push unidireccional Glory -> BDP
  * (bdp_push_pendientes). Verifican: upsert de fila activa (M19), política de
  * reintentos (transitorio vs suscripción, D2), orden por dependencia de

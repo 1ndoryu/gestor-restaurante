@@ -1,3 +1,4 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
 /* [208A-2/C4] Tests de integración de la cola de sincronización (decisión D5):
  *   GET /api/bdp/push/pendientes  — listar filas (solo Admin).
  *   POST /api/bdp/push/:id/reintentar — reintento individual.

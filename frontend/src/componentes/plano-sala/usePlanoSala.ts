@@ -468,9 +468,9 @@ export function usePlanoSala() {
   const handleMoverPared = async (id: string, pos_x: number, pos_y: number) => {
     const pared = paredesZona.find(p => p.id === id);
     if (!pared) return;
-    /* =====================================================================
+    /*
      * CLAMP DE PAREDES — LECTURA OBLIGATORIA ANTES DE MODIFICAR
-     * =====================================================================
+     *
      * pos_x / pos_y = esquina top-left del rect SIN ROTAR (coords canónicas).
      * CSS aplica rotate(θ) alrededor del centro → la esquina top-left NO
      * representa ningún borde visual real cuando θ ≠ 0.
@@ -490,7 +490,7 @@ export function usePlanoSala() {
      *  bounding box   = { bbW = w|cosθ| + h|sinθ|, bbH = w|sinθ| + h|cosθ| }
      *  clamp centro   = [bbW/2, ∞) × [bbH/2, ∞)    ← sin límite superior
      *  top-left final = centro_clampado - (w/2, h/2)
-     * ===================================================================== */
+     **/
     const w = pared.ancho;
     const h = pared.alto;
     const rad = (pared.rotacion * Math.PI) / 180;

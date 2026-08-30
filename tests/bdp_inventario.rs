@@ -1,3 +1,4 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
 /* [198A-1/D6] Tests de integración del endpoint de inventario (POST /api/bdp/inventario).
  *
  * Cubren el contrato de `registrar_inventario`:

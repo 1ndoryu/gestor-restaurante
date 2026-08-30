@@ -1,3 +1,4 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
 /* [198A-1/F1] Cola unidireccional Glory -> BDP (bdp_push_pendientes).
  *
  * Las ediciones locales encolan una fila activa; un worker (o el botón

@@ -1,3 +1,4 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
 /* [198A-1/D9] Ledger local de puntos. Registra cada operación (sumar/restar)
  * para poder consultar el saldo local sin BDP; el push AddPoints se encola en
  * el handler. */

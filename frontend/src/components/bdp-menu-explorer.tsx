@@ -31,7 +31,7 @@ interface BdpDefinition {
   lines?: BdpDefLine[];
 }
 
-/* ========== Tipo de exploración ========== */
+/* Tipo de exploración */
 
 type ExploreType = 'menu' | 'fastfood' | 'pack';
 
@@ -41,7 +41,7 @@ const TIPOS: { value: ExploreType; label: string; desc: string }[] = [
   { value: 'pack', label: 'Pack', desc: 'Pack agrupado de artículos en BDP.' },
 ];
 
-/* ========== Renderizado de definición ========== */
+/* Renderizado de definición */
 
 function DefinitionDetail({ data }: { data: BdpDefinition }) {
   return (
@@ -70,7 +70,7 @@ function DefinitionDetail({ data }: { data: BdpDefinition }) {
   );
 }
 
-/* ========== Componente principal ========== */
+/* Componente principal */
 
 function BdpMenuExplorer() {
   const [tipo, setTipo] = useState<ExploreType>('menu');

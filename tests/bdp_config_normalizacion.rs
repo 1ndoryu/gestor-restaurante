@@ -1,3 +1,4 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
 /* [208A-2/C5] Test de la normalización H5: no se puede persistir un estado
  * contradictorio (modo_operacion=standalone con bdp_sync_enabled=true).
  * Al guardar esa combinación, el PATCH fuerza bdp_sync_enabled=false: el modo

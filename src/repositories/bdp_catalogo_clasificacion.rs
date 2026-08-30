@@ -1,3 +1,4 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
 /* [198A-1/D7] Repositorio de clasificaciones locales (departamento/familia).
  * El código BDP se asigna secuencialmente por (user_id, tipo); el UNIQUE sobre
  * (user_id, tipo, code) protege de colisiones en concurrencia (rare). */

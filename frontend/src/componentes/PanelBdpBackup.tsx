@@ -15,7 +15,7 @@ import {toast} from 'sonner';
 import {useBdpSnapshots, useBdpAudit, useCreateSnapshotCompleto, useCreateSnapshotParcial, useCreateSnapshotGlory, useDeleteSnapshot, useRestoreSnapshot, useSetSyncMode, type BdpSnapshot, type BdpAuditEntry, type SyncMode} from '@/api/bdp-backup';
 import type {EstadoConfiguracion} from '@/hooks/useConfiguracion';
 
-/* ========== Constantes ========== */
+/* Constantes */
 
 const SYNC_MODES: {value: SyncMode; label: string; desc: string}[] = [
     {value: 'read_only', label: 'Solo lectura (BDP → Aplicación Web)', desc: 'Permite consultas e importaciones; la Aplicación Web no crea ni modifica datos en BDP.'},
@@ -25,7 +25,7 @@ const SYNC_MODES: {value: SyncMode; label: string; desc: string}[] = [
 const SNAPSHOT_TIPOS_BDP = ['articulos', 'clientes', 'departamentos', 'salones', 'empleados'];
 const SNAPSHOT_TIPOS_GLORY = ['ventas', 'clientes', 'mapeos'];
 
-/* ========== Helpers ========== */
+/* Helpers */
 
 function formatDate(iso: string): string {
     return new Date(iso).toLocaleString('es-ES', {
@@ -87,7 +87,7 @@ function direccionLabel(direccion: string): string {
     return direccion;
 }
 
-/* ========== Sub-componentes ========== */
+/* Sub-componentes */
 
 interface SyncModeSelectorProps {
     currentMode: string;
@@ -434,7 +434,7 @@ function AuditTable({entries}: {entries: BdpAuditEntry[]}) {
     );
 }
 
-/* ========== Panel principal ========== */
+/* Panel principal */
 
 interface PanelBdpBackupProps {
     config: EstadoConfiguracion;

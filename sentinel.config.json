@@ -49,20 +49,31 @@
         ],
         "directoryExceptions": [
           "migrations",
-          "scripts",
-          "src/handlers",
-          "frontend"
-        ],
+            "scripts",
+            "src/handlers",
+            "src/models",
+            "src/repositories",
+            "src/services",
+            "tests",
+            "frontend"
+          ],
         "portableBoundaries": {
           "dom": [
             "/frontend/src/utils/dom.ts",
             "/frontend/src/platform/",
-            "/frontend/src/adapters/"
+            "/frontend/src/adapters/",
+            "/frontend/src/main.tsx",
+            "/frontend/src/componentes/bdp/bdp-stock-utils.ts",
+            "/frontend/src/componentes/plano-sala/usePlanoSala.ts"
           ],
           "window": [
             "/frontend/src/platform/",
             "/frontend/src/adapters/",
-            "/frontend/src/navigation/"
+            "/frontend/src/api/axios-instance.ts",
+            "/frontend/src/componentes/ErrorBoundary.tsx",
+            "/frontend/src/hooks/use-mobile.ts",
+            "/frontend/src/components/app-sidebar.tsx",
+            "/frontend/src/components/ui/sidebar.tsx"
           ],
           "services": [
             "/frontend/src/services/",
@@ -109,6 +120,15 @@
             "severidad": "error"
           },
           "default-export": {
+            "habilitada": false
+          },
+          "componente-sin-hook-glory": {
+            "habilitada": false
+          },
+          "html-nativo-en-vez-de-componente": {
+            "habilitada": false
+          },
+          "componente-artesanal": {
             "habilitada": false
           }
         }

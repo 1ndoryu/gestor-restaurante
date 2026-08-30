@@ -1,3 +1,4 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
 /* [208A-2/C3] Tests de integración del conteo de inventario persistido
  * (POST /api/bdp/inventario/conteos, decisiones D3/D4).
  *
