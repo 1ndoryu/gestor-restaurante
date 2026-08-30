@@ -28,6 +28,7 @@ import type {
   CrearBdpPurchaseNoteRequest,
 } from '@/api/bdp';
 import { mockPurchaseNotes } from './bdp-mocks';
+import { useFiltrosAlbaranes } from '@/hooks/useFiltrosAlbaranes';
 import { BdpComprasReconcileModal } from './BdpComprasReconcileModal';
 import { BdpComprasLocalModal } from './BdpComprasLocalModal';
 import { BdpPurchaseNoteRowActions } from './BdpPurchaseNoteRowActions';
@@ -54,21 +55,18 @@ function BdpCompras() {
   const queryClient = useQueryClient();
   const { demoMode, setDemoMode } = useBdpDemoMode();
   const { data: configResponse, isLoading: isLoadingConfig } = useObtenerConfiguracion();
-  const [proveedor, setProveedor] = useState('');
-  const [fechaDesde, setFechaDesde] = useState('');
-  const [fechaHasta, setFechaHasta] = useState('');
+  const {
+    proveedor,
+    setProveedor,
+    fechaDesde,
+    setFechaDesde,
+    fechaHasta,
+    setFechaHasta,
+    filtros: filters,
+  } = useFiltrosAlbaranes();
   const [reconcileNote, setReconcileNote] = useState<BdpPurchaseNote | null>(null);
   const [localModalOpen, setLocalModalOpen] = useState(false);
   const [localModalNote, setLocalModalNote] = useState<BdpPurchaseNote | null>(null);
-
-  const filters = useMemo(
-    () => ({
-      proveedor: proveedor || undefined,
-      fecha_desde: fechaDesde || undefined,
-      fecha_hasta: fechaHasta || undefined,
-    }),
-    [proveedor, fechaDesde, fechaHasta],
-  );
 
   /* [128A-1/F5][M12] Los flags BDP solo gatean en modo efectivo `bdp`.
    * En `standalone` el CRUD local siempre está disponible sin consultar flags. */
