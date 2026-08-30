@@ -5,7 +5,6 @@
  * encola ni envía nada (invariante 128A-1/198A-1). El código BDP es opcional:
  * sin él el artículo es 100% local. */
 
-import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
@@ -14,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCrearArticleMap } from '@/api/generated/bdp-mapeos/bdp-mapeos';
+import { useNuevoArticuloForm } from '@/hooks/useNuevoArticuloForm';
 
 interface NuevoArticuloDialogProps {
   open: boolean;
@@ -23,31 +23,34 @@ interface NuevoArticuloDialogProps {
 
 function NuevoArticuloDialog({ open, onOpenChange, onCreado }: NuevoArticuloDialogProps) {
   const queryClient = useQueryClient();
-  const [codigo, setCodigo] = useState('');
-  const [codigoBdp, setCodigoBdp] = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [precio, setPrecio] = useState('');
-  const [iva, setIva] = useState('');
+  const {
+    codigo,
+    codigoBdp,
+    descripcion,
+    precio,
+    iva,
+    setCodigo,
+    setCodigoBdp,
+    setDescripcion,
+    setPrecio,
+    setIva,
+    codigoValido,
+    descripcionValida,
+    limpiar,
+  } = useNuevoArticuloForm();
 
   const crearMutation = useCrearArticleMap({
     mutation: {
       onSuccess: () => {
         toast.success('Artículo creado');
         queryClient.invalidateQueries({ queryKey: ['/api/bdp/article-maps'] });
-        setCodigo('');
-        setCodigoBdp('');
-        setDescripcion('');
-        setPrecio('');
-        setIva('');
+        limpiar();
         onOpenChange(false);
         onCreado?.();
       },
       onError: () => toast.error('Error al crear artículo'),
     },
   });
-
-  const codigoValido = codigo.trim() !== '';
-  const descripcionValida = descripcion.trim() !== '';
 
   function crear() {
     if (!codigoValido || !descripcionValida) return;

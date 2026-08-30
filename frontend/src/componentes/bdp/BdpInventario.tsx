@@ -7,7 +7,7 @@
  * (ya no hay toast engañoso de "encolado"). Sección "Conteos anteriores" para
  * retomar/recontar. */
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,9 +17,10 @@ import { Warehouse, Save, History, RotateCcw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListarArticleMaps } from '@/api/generated/bdp-mapeos/bdp-mapeos';
-import { useBdpArticleStock, useCrearConteoInventario, useListarConteosInventario, obtenerConteoInventario } from '@/api/bdp';
+import { useBdpArticleStock, useCrearConteoInventario, useListarConteosInventario } from '@/api/bdp';
 import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
 import type { BdpArticleMap } from '@/api/generated/gestionRestauranteAPI.schemas';
+import { useConteoInventario } from '@/hooks/useConteoInventario';
 
 function toNumber(value?: string | null): number {
   const n = Number(value ?? 0);
@@ -58,14 +59,16 @@ function BdpInventario() {
     return map;
   }, [stockLocal]);
 
-  const [contadas, setContadas] = useState<Record<string, string>>({});
-  const [observaciones, setObservaciones] = useState('');
-  const [retomando, setRetomando] = useState<string | null>(null);
-  /* [208A-2/C3] Clave de idempotencia por sesión de conteo: se genera al
-   * montar y se regenera tras guardar con éxito; en un reintento tras un
-   * fallo ambiguo se reenvía la misma clave, de modo que el backend no aplica
-   * la diferencia dos veces (D4). */
-  const [conteoKey, setConteoKey] = useState(() => crypto.randomUUID());
+  const {
+    contadas,
+    observaciones,
+    setObservaciones,
+    retomando,
+    conteoKey,
+    setContada,
+    retomarConteo,
+    limpiar,
+  } = useConteoInventario();
 
   const esperada = (m: BdpArticleMap): number => toNumber(stockPorCodigo.get(m.articulo_glory_codigo) ?? m.stock_actual);
 
@@ -121,9 +124,7 @@ function BdpInventario() {
               description: 'Modo independiente: el conteo se guarda localmente y no se envía a BDP.',
             });
           }
-          setObservaciones('');
-          setContadas({});
-          setConteoKey(crypto.randomUUID());
+          limpiar();
           queryClient.invalidateQueries({ queryKey: ['/api/bdp/inventario/conteos'] });
           queryClient.invalidateQueries({ queryKey: ['/api/bdp/article-stock'] });
           refetchConteos();
@@ -137,19 +138,13 @@ function BdpInventario() {
   }
 
   async function retomar(conteoId: string) {
-    setRetomando(conteoId);
-    try {
-      const detalle = await obtenerConteoInventario(conteoId);
-      const mapa: Record<string, string> = {};
-      for (const l of detalle.lineas) mapa[l.articulo_glory_codigo] = String(l.contado);
-      setContadas(mapa);
+    const ok = await retomarConteo(conteoId);
+    if (ok) {
       toast.success('Conteo cargado', {
         description: 'Recuenta las unidades y pulsa "Guardar conteo": se guardará como un conteo nuevo y ajustará el stock de nuevo.',
       });
-    } catch {
+    } else {
       toast.error('No se pudo cargar el conteo anterior');
-    } finally {
-      setRetomando(null);
     }
   }
 
@@ -215,7 +210,7 @@ function BdpInventario() {
                       step="any"
                       className="w-24 ml-auto text-right"
                       value={contadas[m.articulo_glory_codigo] ?? ''}
-                      onChange={(ev) => setContadas((p) => ({ ...p, [m.articulo_glory_codigo]: ev.target.value }))}
+                      onChange={(ev) => setContada(m.articulo_glory_codigo, ev.target.value)}
                       placeholder="0"
                     />
                   </TableCell>
