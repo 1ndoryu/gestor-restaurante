@@ -11,6 +11,11 @@ import axios from '@/api/axios-instance';
 import { useZoomStore } from '../../stores/zoomStore';
 import type { CanvasTool } from './CanvasToolbar';
 import {
+  calcularClampPared,
+  calcularPreviewPared,
+  LARGO_MINIMO_PARED,
+} from './geometriaPared';
+import {
   useObtenerPlano,
   getObtenerOcupacionQueryKey,
   ActualizarMesaRequest,
@@ -228,32 +233,15 @@ export function usePlanoSala() {
    * Largo mínimo: 30px — por debajo se ignora el movimiento. */
   const handleWallDrawMove = useCallback((canvasX: number, canvasY: number) => {
     if (!wallDrawStart) return;
-    const dx = canvasX - wallDrawStart.x;
-    const dy = canvasY - wallDrawStart.y;
-    const isHorizontal = Math.abs(dx) >= Math.abs(dy);
-    const length = isHorizontal ? Math.abs(dx) : Math.abs(dy);
-    const MIN_WALL_LENGTH = 30;
-    if (length < 5) return;
-    const snappedAngle = isHorizontal
-      ? (dx >= 0 ? 0 : 180)
-      : (dy >= 0 ? 90 : -90);
-    const endX = wallDrawStart.x + (isHorizontal ? dx : 0);
-    const endY = wallDrawStart.y + (isHorizontal ? 0 : dy);
-    const midX = (wallDrawStart.x + endX) / 2;
-    const midY = (wallDrawStart.y + endY) / 2;
-    setWallDrawPreview({
-      x: midX - length / 2,
-      y: midY - 5,
-      w: Math.max(length, MIN_WALL_LENGTH),
-      rotation: snappedAngle,
-    });
+    const preview = calcularPreviewPared(wallDrawStart.x, wallDrawStart.y, canvasX, canvasY);
+    if (!preview) return;
+    setWallDrawPreview(preview);
   }, [wallDrawStart]);
 
   /* [154A-1] Largo mínimo 30px al crear. Si el usuario suelta antes de alcanzarlo,
    * se descarta silenciosamente en lugar de crear una pared diminuta. */
   const handleWallDrawEnd = useCallback(async () => {
-    const MIN_WALL_LENGTH = 30;
-    if (!wallDrawStart || !wallDrawPreview || !zonaActiva || wallDrawPreview.w < MIN_WALL_LENGTH) {
+    if (!wallDrawStart || !wallDrawPreview || !zonaActiva || wallDrawPreview.w < LARGO_MINIMO_PARED) {
       setWallDrawStart(null);
       setWallDrawPreview(null);
       return;
@@ -468,47 +456,12 @@ export function usePlanoSala() {
   const handleMoverPared = async (id: string, pos_x: number, pos_y: number) => {
     const pared = paredesZona.find(p => p.id === id);
     if (!pared) return;
-    /*
-     * CLAMP DE PAREDES — LECTURA OBLIGATORIA ANTES DE MODIFICAR
-     *
-     * pos_x / pos_y = esquina top-left del rect SIN ROTAR (coords canónicas).
-     * CSS aplica rotate(θ) alrededor del centro → la esquina top-left NO
-     * representa ningún borde visual real cuando θ ≠ 0.
-     *
-     * REGRESIONES HISTÓRICAS (no repetir):
-     *  ❌ Math.max(0, pos_x) directo → "límite horizontal imaginario": una pared
-     *     vertical tiene pos_x = centro_x - largo/2 < 0 aunque esté dentro
-     *     del plano. El clamp la mueve como si fuera horizontal.
-     *  ❌ Sin clamp ninguno → las paredes salen por arriba/izquierda.
-     *  ❌ Math.min(zonaW - bbW/2, ...) → bloquea también derecha/abajo, a diferencia
-     *     de las mesas que son libres en esa dirección. Inconsistente con el resto.
-     *  ✅ Solo Math.max(bbW/2, centro_x) → evita salir por arriba/izquierda,
-     *     libre hacia abajo/derecha. Igual que mesas pero sobre el centro rotado.
-     *
-     * FÓRMULA CORRECTA:
-     *  centro visual  = (pos_x + w/2, pos_y + h/2)
-     *  bounding box   = { bbW = w|cosθ| + h|sinθ|, bbH = w|sinθ| + h|cosθ| }
-     *  clamp centro   = [bbW/2, ∞) × [bbH/2, ∞)    ← sin límite superior
-     *  top-left final = centro_clampado - (w/2, h/2)
-     **/
-    const w = pared.ancho;
-    const h = pared.alto;
-    const rad = (pared.rotacion * Math.PI) / 180;
-    const bbW = w * Math.abs(Math.cos(rad)) + h * Math.abs(Math.sin(rad));
-    const bbH = w * Math.abs(Math.sin(rad)) + h * Math.abs(Math.cos(rad));
-    /* Solo límite inferior (arriba/izquierda): el centro no puede salir del canvas
-     * por la parte negativa. Sin límite superior → libres hacia abajo/derecha,
-     * igual que las mesas con Math.max(0, ...). zonaW/zonaH declarados arriba
-     * pero no se usan como límite superior para mantener consistencia con mesas. */
-    const cx = Math.max(bbW / 2, pos_x + w / 2);
-    const cy = Math.max(bbH / 2, pos_y + h / 2);
-    const clampedX = Math.round(cx - w / 2);
-    const clampedY = Math.round(cy - h / 2);
+    const clamp = calcularClampPared(pared, pos_x, pos_y);
     try {
       await actualizarParedApi(id, {
         ancho: pared.ancho, alto: pared.alto,
         rotacion: pared.rotacion,
-        pos_x: clampedX, pos_y: clampedY,
+        pos_x: clamp.x, pos_y: clamp.y,
       });
       refetchPlano();
     } catch {
