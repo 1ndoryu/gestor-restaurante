@@ -593,11 +593,56 @@ impl BdpBackupService {
             .map_err(|e| format!("Error iniciando tx de restauración: {e}"))?;
 
         /* Restaurar mapeos de artículos */
-        if let Some(mapeos) = snapshot
-            .datos
-            .get("mapeos")
-            .and_then(serde_json::Value::as_array)
         {
+            let (n, e, d) = Self::restaurar_mapeos(&mut tx, &snapshot.datos, user_id).await?;
+            registros_restaurados += n;
+            errores += e;
+            detalles.extend(d);
+        }
+
+        /* Restaurar campos BDP de clientes */
+        {
+            let (n, e, d) = Self::restaurar_clientes(&mut tx, &snapshot.datos, user_id).await?;
+            registros_restaurados += n;
+            errores += e;
+            detalles.extend(d);
+        }
+
+        tx.commit()
+            .await
+            .map_err(|e| format!("Error confirmando restauración: {e}"))?;
+
+        let detalles_str = if detalles.is_empty() {
+            format!("Restaurados {registros_restaurados} registros sin errores")
+        } else {
+            format!(
+                "Restaurados {registros_restaurados} registros, {errores} errores. {}",
+                detalles.join("; ")
+            )
+        };
+
+        Ok(RestoreResult {
+            snapshot_id,
+            tipo: snapshot.tipo,
+            registros_restaurados,
+            errores,
+            detalles: detalles_str,
+        })
+    }
+
+    /* Restaura los mapeos de artículos del snapshot dentro de la tx abierta.
+     * Devuelve (registros, errores, detalles) para que restaurar_glory los
+     * sume y no exceda el límite de líneas efectivas por función. */
+    async fn restaurar_mapeos(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        datos: &serde_json::Value,
+        user_id: Uuid,
+    ) -> Result<(u32, u32, Vec<String>), String> {
+        let mut registros = 0;
+        let mut errores = 0;
+        let mut detalles = Vec::new();
+
+        if let Some(mapeos) = datos.get("mapeos").and_then(serde_json::Value::as_array) {
             for mapeo in mapeos {
                 let Some(id) = mapeo.get("id").and_then(serde_json::Value::as_str) else {
                     continue;
@@ -626,12 +671,12 @@ impl BdpBackupService {
                 .bind(precio.and_then(|p| rust_decimal::Decimal::try_from(p).ok()))
                 .bind(iva.and_then(|i| rust_decimal::Decimal::try_from(i).ok()))
                 .bind(activo)
-                .execute(&mut *tx)
+                .execute(&mut **tx)
                 .await
                 .map_err(|e| format!("Error restaurando mapeo {id}: {e}"))?;
 
                 if r.rows_affected() > 0 {
-                    registros_restaurados += 1;
+                    registros += 1;
                 } else {
                     detalles.push(format!("Mapeo {id} no encontrado"));
                     errores += 1;
@@ -639,12 +684,20 @@ impl BdpBackupService {
             }
         }
 
-        /* Restaurar campos BDP de clientes */
-        if let Some(clientes) = snapshot
-            .datos
-            .get("clientes")
-            .and_then(serde_json::Value::as_array)
-        {
+        Ok((registros, errores, detalles))
+    }
+
+    /* Restaura los campos BDP de clientes dentro de la tx abierta. */
+    async fn restaurar_clientes(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        datos: &serde_json::Value,
+        user_id: Uuid,
+    ) -> Result<(u32, u32, Vec<String>), String> {
+        let mut registros = 0;
+        let mut errores = 0;
+        let mut detalles = Vec::new();
+
+        if let Some(clientes) = datos.get("clientes").and_then(serde_json::Value::as_array) {
             for cliente in clientes {
                 let Some(id) = cliente.get("id").and_then(serde_json::Value::as_str) else {
                     continue;
@@ -665,12 +718,12 @@ impl BdpBackupService {
                 .bind(id)
                 .bind(user_id)
                 .bind(bdp_code)
-                .execute(&mut *tx)
+                .execute(&mut **tx)
                 .await
                 .map_err(|e| format!("Error restaurando cliente {id}: {e}"))?;
 
                 if r.rows_affected() > 0 {
-                    registros_restaurados += 1;
+                    registros += 1;
                 } else {
                     detalles.push(format!("Cliente {id} no encontrado"));
                     errores += 1;
@@ -678,26 +731,7 @@ impl BdpBackupService {
             }
         }
 
-        tx.commit()
-            .await
-            .map_err(|e| format!("Error confirmando restauración: {e}"))?;
-
-        let detalles_str = if detalles.is_empty() {
-            format!("Restaurados {registros_restaurados} registros sin errores")
-        } else {
-            format!(
-                "Restaurados {registros_restaurados} registros, {errores} errores. {}",
-                detalles.join("; ")
-            )
-        };
-
-        Ok(RestoreResult {
-            snapshot_id,
-            tipo: snapshot.tipo,
-            registros_restaurados,
-            errores,
-            detalles: detalles_str,
-        })
+        Ok((registros, errores, detalles))
     }
 
     // =========================================================================
