@@ -16,10 +16,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import FormularioCliente from './FormularioCliente';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
-import { customInstance } from '@/api/axios-instance';
-import type { Cliente } from '@/api/generated';
 import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
+import { useIntegracionBdp } from '../hooks/useIntegracionBdp';
 
 function ListaClientes() {
   const {
@@ -54,68 +52,35 @@ function ListaClientes() {
 
   /* [263A-26] En el diálogo de merge el usuario elige quién sobrevive (destino) */
   const [destinoId, setDestinoId] = useState<string | null>(null);
-  const [clienteBdp, setClienteBdp] = useState<Cliente | null>(null);
-  const [codigoBdp, setCodigoBdp] = useState('');
-  const [confirmacionBdp, setConfirmacionBdp] = useState('');
-  const [sincronizandoBdp, setSincronizandoBdp] = useState(false);
-  const [importarBdpAbierto, setImportarBdpAbierto] = useState(false);
-  const [importandoBdp, setImportandoBdp] = useState(false);
-  const [confirmacionImportar, setConfirmacionImportar] = useState('');
-  const [previewImportar, setPreviewImportar] = useState<{ imported: number; updated: number; unchanged: number; conflicts: number; errors: number; total: number } | null>(null);
 
   const clientesSeleccionados = clientes?.items.filter((c) => seleccionados.includes(c.id)) ?? [];
+
+  /* Estado y handlers de la integración BDP (vincular/importar) viven en un hook
+   * custom para no superar el límite de useState (protocolo usestate-excesivo). */
+  const {
+    clienteBdp,
+    setClienteBdp,
+    codigoBdp,
+    setCodigoBdp,
+    confirmacionBdp,
+    setConfirmacionBdp,
+    sincronizandoBdp,
+    importarBdpAbierto,
+    setImportarBdpAbierto,
+    importandoBdp,
+    confirmacionImportar,
+    setConfirmacionImportar,
+    previewImportar,
+    setPreviewImportar,
+    sincronizarClienteBdp,
+    importarClientesBdp,
+  } = useIntegracionBdp(cerrarModalYRefrescar);
 
   const ejecutarMerge = () => {
     if (seleccionados.length !== 2 || !destinoId) return;
     const origenId = seleccionados.find((id) => id !== destinoId);
     if (!origenId) return;
     mergeMut.mutate({ data: { origen_id: origenId, destino_id: destinoId } });
-  };
-
-  const sincronizarClienteBdp = async () => {
-    if (!clienteBdp || confirmacionBdp !== `CREAR CLIENTE ${clienteBdp.nombre} ${clienteBdp.apellidos} ${codigoBdp}`) return;
-    setSincronizandoBdp(true);
-    try {
-      await customInstance(`/api/clientes/${clienteBdp.id}/bdp-sync`, {
-        method: 'POST',
-        body: JSON.stringify({
-          bdp_customer_code: Number(codigoBdp),
-          confirmacion: confirmacionBdp,
-        }),
-      });
-      toast.success('Cliente BDP vinculado o creado con código explícito');
-      setClienteBdp(null);
-      setCodigoBdp('');
-      setConfirmacionBdp('');
-      cerrarModalYRefrescar();
-    } catch (error) {
-      const message = (error as { response?: { data?: { message?: string } } }).response?.data?.message;
-      toast.error('Sincronización BDP bloqueada', { description: message ?? 'Revisa armado, código e identidad.' });
-    } finally {
-      setSincronizandoBdp(false);
-    }
-  };
-
-  const importarClientesBdp = async (aplicar: boolean) => {
-    setImportandoBdp(true);
-    try {
-      const response = await customInstance('/api/bdp/customers/import', {
-        method: 'POST',
-        body: JSON.stringify({ aplicar, confirmacion: aplicar ? confirmacionImportar : null }),
-      }) as { data: typeof previewImportar };
-      if (response.data) setPreviewImportar(response.data);
-      if (aplicar) {
-        toast.success('Importación local aplicada; no se escribió nada en BDP');
-        cerrarModalYRefrescar();
-      } else {
-        toast.success('Previsualización completada sin cambios locales');
-      }
-    } catch (error) {
-      const message = (error as { response?: { data?: { message?: string } } }).response?.data?.message;
-      toast.error('Importación BDP bloqueada', { description: message ?? 'No se aplicaron cambios.' });
-    } finally {
-      setImportandoBdp(false);
-    }
   };
 
   return (
