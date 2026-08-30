@@ -10,6 +10,13 @@
 
 /* [147A-F5.2] Columna BDP + filtro + polling manual — equivalentes a los de Haddock. */
 import useListaVentas from '../hooks/useListaVentas';
+import {
+  OPCIONES_TURNO,
+  OPCIONES_CANAL,
+  OPCIONES_METODO_PAGO,
+  OPCIONES_ESTADO_HADDOCK,
+  OPCIONES_ESTADO_BDP,
+} from './opcionesFiltrosVentas';
 import { Button } from '@/components/ui/button';
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Input } from '@/components/ui/input';
@@ -22,42 +29,6 @@ import ReservaViewer from './ReservaViewer';
 import ColumnFilterHeader from '@/components/column-filter-header';
 import { useNavigate } from 'react-router-dom';
 
-/* [147A-F5.2] Opciones de filtro extraídas a nivel módulo para reducir line count del componente. */
-const OPCIONES_TURNO = [
-  { value: 'manana', label: 'Mañana' },
-  { value: 'mediodia', label: 'Mediodía' },
-  { value: 'noche', label: 'Noche' },
-];
-
-const OPCIONES_CANAL = [
-  { value: 'comedor', label: 'Comedor' },
-  { value: 'barra', label: 'Barra' },
-  { value: 'terraza', label: 'Terraza' },
-  { value: 'delivery', label: 'Delivery' },
-  { value: 'just_eat', label: 'Just Eat' },
-  { value: 'eventos', label: 'Eventos' },
-];
-
-const OPCIONES_METODO_PAGO = [
-  { value: 'efectivo', label: 'Efectivo' },
-  { value: 'tarjeta', label: 'Tarjeta' },
-  { value: 'transferencia', label: 'Transferencia' },
-];
-
-const OPCIONES_ESTADO_HADDOCK = [
-  { value: 'synced', label: 'Sincronizada' },
-  { value: 'error', label: 'Con error' },
-  { value: 'pending', label: 'Pendiente' },
-];
-
-const OPCIONES_ESTADO_BDP = [
-  { value: 'synced', label: 'Sincronizada' },
-  { value: 'accepted', label: 'Aceptada' },
-  { value: 'invoiced', label: 'Facturada' },
-  { value: 'error', label: 'Con error' },
-  { value: 'pending', label: 'Pendiente' },
-  { value: 'cancelled', label: 'Cancelada' },
-];
 
 function ListaVentas() {
   const navigate = useNavigate();
