@@ -2,7 +2,6 @@
  * Solo aplica a la agrupación local; no se envía nada a BDP.
  * Las líneas referencian artículos del catálogo local (`useBdpArticleMaps`). */
 
-import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,21 +22,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useBdpArticleMaps } from '@/api/bdp';
+import { useBdpMenuLocalForm } from '@/hooks/useBdpMenuLocalForm';
 import type {
   ActualizarBdpMenuLocalRequest,
   BdpMenuLocalConLineas,
-  BdpMenuLocalLineaRequest,
   BdpMenuLocalTipo,
   CrearBdpMenuLocalRequest,
 } from '@/api/bdp';
-
-interface LineaForm {
-  key: number;
-  articulo_codigo: string;
-  descripcion: string;
-  cantidad: string;
-  precio_unitario: string;
-}
 
 interface BdpMenuLocalModalProps {
   open: boolean;
@@ -46,16 +37,6 @@ interface BdpMenuLocalModalProps {
   isSubmitting: boolean;
   onClose: () => void;
   onSubmit: (req: CrearBdpMenuLocalRequest | ActualizarBdpMenuLocalRequest) => void;
-}
-
-function lineasDesdeMenu(menu: BdpMenuLocalConLineas): LineaForm[] {
-  return menu.lineas.map((linea, index) => ({
-    key: index,
-    articulo_codigo: linea.articulo_codigo ?? '',
-    descripcion: linea.descripcion,
-    cantidad: String(linea.cantidad),
-    precio_unitario: String(linea.precio_unitario),
-  }));
 }
 
 export function BdpMenuLocalModal({
@@ -68,113 +49,25 @@ export function BdpMenuLocalModal({
   const isEdit = menu !== null;
   const { data: catalog } = useBdpArticleMaps();
 
-  const [tipo, setTipo] = useState<BdpMenuLocalTipo>('menu');
-  const [nombre, setNombre] = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [precio, setPrecio] = useState('');
-  const [activo, setActivo] = useState(true);
-  const [lineas, setLineas] = useState<LineaForm[]>([]);
-  const [nextLineaKey, setNextLineaKey] = useState(1);
-  const [error, setError] = useState('');
-
-  /* Sincroniza el formulario cada vez que se abre el modal. */
-  const [lastOpenedFor, setLastOpenedFor] = useState<string | null>(null);
-  const openedKey = isEdit ? menu.id : 'nuevo';
-  if (open && lastOpenedFor !== openedKey) {
-    setLastOpenedFor(openedKey);
-    setError('');
-    if (menu) {
-      setTipo(menu.tipo);
-      setNombre(menu.nombre);
-      setDescripcion(menu.descripcion ?? '');
-      setPrecio(menu.precio);
-      setActivo(menu.activo);
-      const iniciales = lineasDesdeMenu(menu);
-      setLineas(iniciales);
-      setNextLineaKey(iniciales.length + 1);
-    } else {
-      setTipo('menu');
-      setNombre('');
-      setDescripcion('');
-      setPrecio('');
-      setActivo(true);
-      setLineas([]);
-      setNextLineaKey(1);
-    }
-  }
-
-  function addLinea() {
-    setLineas((prev) => [
-      ...prev,
-      { key: nextLineaKey, articulo_codigo: '', descripcion: '', cantidad: '1', precio_unitario: '' },
-    ]);
-    setNextLineaKey((k) => k + 1);
-  }
-
-  function updateLinea(key: number, campo: keyof LineaForm, valor: string) {
-    setLineas((prev) => prev.map((l) => (l.key === key ? { ...l, [campo]: valor } : l)));
-  }
-
-  function seleccionarArticulo(key: number, articuloCodigo: string) {
-    const articulo = catalog?.find((a) => a.articulo_glory_codigo === articuloCodigo);
-    setLineas((prev) =>
-      prev.map((l) =>
-        l.key === key
-          ? {
-              ...l,
-              articulo_codigo: articuloCodigo,
-              descripcion: articulo?.articulo_bdp_nombre ?? l.descripcion,
-            }
-          : l,
-      ),
-    );
-  }
-
-  function removeLinea(key: number) {
-    setLineas((prev) => prev.filter((l) => l.key !== key));
-  }
-
-  /* Normaliza decimales con coma (formato español) a punto antes de enviar;
-   * el backend espera `Decimal` con punto (serde). [208A-2/F7] */
-  function normalizarDecimal(valor: string): string {
-    const limpio = valor.trim().replace(/\s/g, '');
-    return limpio.replace(',', '.');
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const nombreTrim = nombre.trim();
-    if (!nombreTrim) {
-      setError('Indica el nombre del menú/pack');
-      return;
-    }
-    const lineasValidas: BdpMenuLocalLineaRequest[] = lineas
-      .filter((l) => l.descripcion.trim() !== '')
-      .map((l) => ({
-        articulo_codigo: l.articulo_codigo.trim() || undefined,
-        descripcion: l.descripcion.trim(),
-        cantidad: l.cantidad !== '' ? normalizarDecimal(l.cantidad) : undefined,
-        precio_unitario: l.precio_unitario !== '' ? normalizarDecimal(l.precio_unitario) : undefined,
-      }));
-    if (lineasValidas.length === 0) {
-      setError('Añade al menos una línea con descripción');
-      return;
-    }
-
-    const base = {
-      tipo,
-      nombre: nombreTrim,
-      descripcion: descripcion.trim() || undefined,
-      precio: precio.trim() ? normalizarDecimal(precio) : undefined,
-      activo,
-      lineas: lineasValidas,
-    };
-    if (isEdit) {
-      onSubmit(base as ActualizarBdpMenuLocalRequest);
-    } else {
-      onSubmit(base as CrearBdpMenuLocalRequest);
-    }
-  }
+  const {
+    tipo,
+    setTipo,
+    nombre,
+    setNombre,
+    descripcion,
+    setDescripcion,
+    precio,
+    setPrecio,
+    activo,
+    setActivo,
+    lineas,
+    addLinea,
+    updateLinea,
+    seleccionarArticulo,
+    removeLinea,
+    error,
+    handleSubmit,
+  } = useBdpMenuLocalForm(open, isEdit, menu);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -188,7 +81,7 @@ export function BdpMenuLocalModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form id="menu-local-form" onSubmit={handleSubmit} className="space-y-4">
+        <form id="menu-local-form" onSubmit={(e) => handleSubmit(e, onSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="menu-tipo">Tipo</Label>
@@ -269,7 +162,7 @@ export function BdpMenuLocalModal({
                       onValueChange={(v) =>
                         v === 'sin-articulo'
                           ? updateLinea(linea.key, 'articulo_codigo', '')
-                          : seleccionarArticulo(linea.key, v)
+                          : seleccionarArticulo(linea.key, v, catalog)
                       }
                     >
                       <SelectTrigger aria-label="Artículo del catálogo">
