@@ -302,6 +302,33 @@ impl BdpPagoRepository {
         };
 
         /* Auditoría local obligatoria. */
+        let audit_id = Self::auditar_pago_local(
+            &mut tx,
+            venta.user_id,
+            venta_id,
+            amount,
+            tender_id,
+            pendiente,
+            &key,
+        )
+        .await?;
+
+        tx.commit().await.map_err(AppError::from)?;
+
+        Ok((pago, Some(audit_id)))
+    }
+
+    /* Auditoría local obligatoria del pago parcial. Aislada en un helper para
+     * que insertar_local no exceda el límite de líneas efectivas por función. */
+    async fn auditar_pago_local(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        user_id: Uuid,
+        venta_id: Uuid,
+        amount: Decimal,
+        tender_id: i32,
+        pendiente: Decimal,
+        key: &str,
+    ) -> Result<Uuid, AppError> {
         let audit_payload = serde_json::json!({
             "venta_id": venta_id,
             "amount": amount,
@@ -316,20 +343,18 @@ impl BdpPagoRepository {
                ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
                RETURNING id",
         )
-        .bind(venta.user_id)
+        .bind(user_id)
         .bind(audit_payload)
         .bind(venta_id)
         .bind(format!(
             "Pago parcial local de {amount:.2} sobre la venta {venta_id} — operación interna, no requiere autorización BDP"
         ))
-        .bind(&key)
-        .fetch_optional(&mut *tx)
+        .bind(key)
+        .fetch_optional(&mut **tx)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::Internal("No se pudo auditar el pago local".into()))?;
 
-        tx.commit().await.map_err(AppError::from)?;
-
-        Ok((pago, Some(audit_id)))
+        Ok(audit_id)
     }
 }
