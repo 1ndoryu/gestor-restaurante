@@ -102,7 +102,7 @@ impl BdpSyncPreflightService {
             &["Employees"],
         )
         .await;
-        Self::check_employee_is_allowed(config, &pos_employees, &mut response);
+        Self::check_employee_is_allowed(config, pos_employees.as_ref(), &mut response);
 
         let tenders = Self::capture(
             &mut response,
@@ -237,10 +237,9 @@ impl BdpSyncPreflightService {
         }
     }
 
-    #[allow(clippy::ref_option)]
     fn check_employee_is_allowed(
         config: &ConfiguracionRestaurante,
-        employees: &Option<Value>, // TODO: refactor a Option<&Value> en limpieza futura
+        employees: Option<&Value>,
         response: &mut BdpSyncDryRunResponse,
     ) {
         let Some(employees) = employees else {

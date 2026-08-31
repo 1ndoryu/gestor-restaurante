@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react';
 import axios from '@/api/axios-instance';
 import { toast } from 'sonner';
 import { useNotificacionStore, type Notificacion } from '@/stores/notificacionStore';
+import { logger } from '@/utils/logger';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -46,7 +47,7 @@ export function useNotificaciones() {
                     toast.info(notif.titulo, { description: notif.mensaje });
                 } catch (parseErr) {
                     /* [303A-2] Logear en vez de silenciar para diagnóstico */
-                    console.warn('Notificación SSE: JSON inválido', parseErr);
+                    logger.warn('Notificación SSE: JSON inválido', parseErr);
                 }
             });
 

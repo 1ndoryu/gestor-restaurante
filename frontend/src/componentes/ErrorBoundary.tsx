@@ -5,6 +5,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import axios from '@/api/axios-instance';
+import { logger } from '@/utils/logger';
 
 interface Props { children: ReactNode }
 interface State { hasError: boolean; error: Error | null }
@@ -17,7 +18,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary:', error, errorInfo);
+    logger.error('ErrorBoundary:', error, errorInfo);
   }
 
   handleReport = async () => {

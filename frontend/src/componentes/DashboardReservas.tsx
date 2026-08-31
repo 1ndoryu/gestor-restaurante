@@ -78,6 +78,9 @@ function DashboardReservas() {
     const dashboard = data?.status === 200 ? data.data : null;
 
     const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    /* [D-308A] Números de mes 1..12: identidad estable para las keys del select
+     * (el número de mes ES la identidad del item, no un índice de render). */
+    const MESES_NUM = Array.from({length: 12}, (_, i) => i + 1);
 
     /* [283A-12] Filtrar meses/años futuros — tarea 46 */
     const anioActual = ahora.getFullYear();
@@ -93,11 +96,11 @@ function DashboardReservas() {
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            {meses.map((nombre, i) => {
-                                const mesFuturo = anio === anioActual && (i + 1) > mesActual;
+                            {MESES_NUM.map((mesNum) => {
+                                const mesFuturo = anio === anioActual && mesNum > mesActual;
                                 return (
-                                    <SelectItem key={i + 1} value={String(i + 1)} disabled={mesFuturo}>
-                                        {nombre}
+                                    <SelectItem key={mesNum} value={String(mesNum)} disabled={mesFuturo}>
+                                        {meses[mesNum - 1]}
                                     </SelectItem>
                                 );
                             })}
@@ -288,8 +291,8 @@ function PanelResumen({data}: {data: ResumenReservas}) {
                             <ChartContainer config={CONFIG_SIMPLE} className="h-[220px] w-full">
                                 <PieChart margin={{left: 0, right: 0}}>
                                     <Pie data={data.por_canal} dataKey="total" nameKey="canal" cx="50%" cy="50%" outerRadius={80}>
-                                        {data.por_canal.map((_: AgrupacionCanal, i: number) => (
-                                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                                        {data.por_canal.map((ag: AgrupacionCanal, i: number) => (
+                                            <Cell key={ag.canal} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                                         ))}
                                     </Pie>
                                     <ChartTooltip content={<ChartTooltipContent />} />
