@@ -6,62 +6,6 @@
  *   --colorTextoSecundario → --muted-foreground
  *   --colorPrimario → --primary | --radio → --radius */
 
-.planoSala {
-  max-width: 1400px;
-}
-
-/* === Barra de herramientas superior === */
-.planoBarraHerramientas {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-}
-
-/* === Pestañas de zona === */
-.planoZonas {
-  display: flex;
-  gap: 0;
-  border-bottom: 2px solid var(--border);
-  margin-bottom: 1rem;
-  align-items: center;
-  overflow-x: auto;
-}
-
-.planoZonaTab {
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  border: none;
-  background: none;
-  color: var(--muted-foreground);
-  font-size: 0.85rem;
-  font-weight: 500;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  white-space: nowrap;
-  transition: all 0.15s;
-}
-
-.planoZonaTab:hover {
-  color: var(--foreground);
-}
-
-.planoZonaTab.activa {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
-}
-
-.planoZonaTabNueva {
-  color: var(--primary);
-  font-weight: 600;
-  opacity: 0.7;
-}
-
-.planoZonaTabNueva:hover {
-  opacity: 1;
-}
-
 /* === Canvas del plano === */
 /* [303A-11] Altura fija viene del store (canvasHeight), no depende del zoom.
  * El fondo cuadriculado se mueve al inner content (.planoCanvasContent).
@@ -251,93 +195,7 @@
   font-size: 0.65rem;
 }
 
-/* === Panel lateral de configuración === */
-.planoConfigPanel {
-  position: fixed;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 320px;
-  background: var(--card);
-  border-left: 1px solid var(--border);
-  padding: 1.5rem;
-  overflow-y: auto;
-  z-index: 200;
-  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.08);
-}
-
-.planoConfigPanel h3 {
-  margin: 0 0 1rem;
-  font-size: 1rem;
-}
-
-.planoConfigCampo {
-  margin-bottom: 0.75rem;
-}
-
-.planoConfigCampo label {
-  display: block;
-  font-size: 0.8rem;
-  color: hsl(var(--muted-foreground));
-  margin-bottom: 0.25rem;
-}
-
-.planoConfigAcciones {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-/* === Info de zona === */
-.planoZonaInfo {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.85rem;
-  color: var(--muted-foreground);
-}
-
-/* === Combinaciones === */
-.planoCombinaciones {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
-}
-
-.planoCombinacionItem {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 0.75rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  margin-bottom: 0.5rem;
-  font-size: 0.85rem;
-}
-
-.planoCombinacionMesas {
-  color: var(--muted-foreground);
-  font-size: 0.75rem;
-}
-
 /* === Responsive === */
-@media (max-width: 768px) {
-  .planoConfigPanel {
-    width: 100%;
-    position: fixed;
-    top: auto;
-    bottom: 0;
-    height: 50vh;
-    border-left: none;
-    border-top: 1px solid var(--border);
-  }
-
-  .planoBarraHerramientas {
-    gap: 0.5rem;
-  }
-}
 
 /* === [303A-12] Minimap — overlay posicionado sobre el canvas === */
 .planoMinimap {
@@ -403,13 +261,3 @@
   50% { opacity: 0.4; }
 }
 
-@media (max-width: 480px) {
-  .planoZonas {
-    gap: 0;
-  }
-
-  .planoZonaTab {
-    padding: 0.4rem 0.6rem;
-    font-size: 0.8rem;
-  }
-}
