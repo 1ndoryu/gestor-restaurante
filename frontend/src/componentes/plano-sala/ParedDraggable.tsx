@@ -5,6 +5,7 @@
  * funcione naturalmente en cualquier ángulo. */
 
 import { useRef, useState, useEffect } from 'react';
+import type { CSSProperties } from 'react';
 import { RotateCw } from 'lucide-react';
 import type { ParedSala } from '../../api/generated/gestionRestauranteAPI.schemas';
 import type { ActualizarParedRequest } from '../../api/generated';
@@ -177,22 +178,16 @@ export default function ParedDraggable({
   return (
     <div
       ref={divRef}
-      className="absolute select-none"
+      className="planoPared"
       style={{
-        left: previewX.current,
-        top: previewY.current,
-        width: previewW.current,
-        height: GROSOR * zoom,
-        background: 'var(--background)',
-        border: '2px solid var(--border)',
-        borderRadius: 'var(--radius)',
-        transform: previewRot.current ? `rotate(${previewRot.current}deg)` : undefined,
-        transformOrigin: 'center center',
-        boxShadow: seleccionada ? '0 0 0 2px hsl(var(--primary))' : undefined,
-        cursor: mode.current === 'move' ? 'grabbing' : mode.current === 'resize' ? resizeCursorForAngle(previewRot.current) : 'grab',
-        zIndex: 1,
-        touchAction: 'none',
-      }}
+        '--x': `${previewX.current}px`,
+        '--y': `${previewY.current}px`,
+        '--w': `${previewW.current}px`,
+        '--h': `${GROSOR * zoom}px`,
+        '--rot': previewRot.current ? `rotate(${previewRot.current}deg)` : 'none',
+        '--sombra': seleccionada ? '0 0 0 2px hsl(var(--primary))' : 'none',
+        '--cursor': mode.current === 'move' ? 'grabbing' : mode.current === 'resize' ? resizeCursorForAngle(previewRot.current) : 'grab',
+      } as CSSProperties}
       onPointerDown={onPointerDownBody}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -202,8 +197,7 @@ export default function ParedDraggable({
         <>
           {/* Handle de rotación — encima del centro */}
           <div
-            className="absolute -top-7 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-            style={{ zIndex: 3, touchAction: 'none', cursor: 'grab' }}
+            className="planoParedHandle planoParedHandleRotar absolute -top-7 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-md hover:scale-110 transition-transform"
             onPointerDown={onPointerDownRotate}
             title="Arrastrar para rotar (snap 15°)"
           >
@@ -211,8 +205,8 @@ export default function ParedDraggable({
           </div>
           {/* Handle resize largo (extremo derecho del bar) */}
           <div
-            className="absolute top-1/2 -right-1 -translate-y-1/2 w-2 h-5 rounded-sm bg-primary/80 hover:bg-primary"
-            style={{ zIndex: 3, touchAction: 'none', cursor: resizeCursorForAngle(previewRot.current) }}
+            className="planoParedHandle planoParedHandleResize absolute top-1/2 -right-1 -translate-y-1/2 w-2 h-5 rounded-sm bg-primary/80 hover:bg-primary"
+            style={{ '--cursorResize': resizeCursorForAngle(previewRot.current) } as CSSProperties}
             onPointerDown={onPointerDownResizeE}
             title="Arrastrar para cambiar largo"
           />

@@ -311,11 +311,11 @@ function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
       data-state={row.getIsSelected() && "selected"}
       data-dragging={isDragging}
       ref={setNodeRef}
-      className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
+      className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80 filaOrdenable"
       style={{
-        transform: CSS.Transform.toString(transform),
-        transition: transition,
-      }}
+        '--tr': transform ? CSS.Transform.toString(transform) : 'none',
+        '--trs': transition ?? 'none',
+      } as React.CSSProperties}
     >
       {row.getVisibleCells().map((cell) => (
         <TableCell key={cell.id}>

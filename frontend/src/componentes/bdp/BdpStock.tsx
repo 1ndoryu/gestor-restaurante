@@ -36,11 +36,15 @@ import NuevoArticuloDialog from './NuevoArticuloDialog';
 import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
 import type { BdpArticleMap } from '@/api/generated/gestionRestauranteAPI.schemas';
 
+/* Skeletons estáticos: filas sin identidad propia; claves de un array estable
+ * (no el índice del map) para reconciliación consistente. */
+const SKELETON_IDS = [0, 1, 2, 3, 4];
+
 function TableSkeleton() {
   return (
     <div className="space-y-2">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Skeleton key={i} className="h-10 w-full" />
+      {SKELETON_IDS.map((id) => (
+        <Skeleton key={id} className="h-10 w-full" />
       ))}
     </div>
   );

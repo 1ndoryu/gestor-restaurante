@@ -3,6 +3,7 @@
  * [263A-27] Fusionado con Inicio: tab "General" = acciones rápidas + resumen económico + reservas hoy. */
 
 import {useState} from 'react';
+import type {CSSProperties} from 'react';
 import {useDashboardReservas, useResumen, useConteoReservas, ResumenReservas, OcupacionReservas, AnalisisReservas, AgrupacionCanal} from '../api/generated';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
@@ -426,7 +427,7 @@ function PanelOcupacion({data}: {data: OcupacionReservas}) {
                                         <TableCell className="text-right">{c.porcentaje}%</TableCell>
                                         <TableCell>
                                             <div className="h-2 w-full max-w-[100px] rounded-full bg-muted">
-                                                <div className="h-2 rounded-full bg-primary" style={{width: `${Math.min(c.porcentaje, 100)}%`}} />
+                                                <div className="h-2 rounded-full bg-primary barraProgreso" style={{ '--ancho': `${c.porcentaje > 100 ? 100 : c.porcentaje}%` } as CSSProperties} />
                                             </div>
                                         </TableCell>
                                     </TableRow>

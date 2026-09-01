@@ -147,3 +147,40 @@
 [data-slot='table-cell'] button[data-size='default']:not(.h-auto):not(.p-0) {
   height: 1.75rem;  /* 28px en lugar de 32px */
 }
+:root {
+  /* [J-4] Contrato de variables dinámicas inyectadas desde JSX (style={{'--var': valor}}).
+   * Declaradas en :root para que VarSense las reconozca; los valores se sobrescriben
+   * por elemento desde el componente. Los defaults replican los fallbacks de PlanoSala/PlanoOcupacion. */
+  --alt: 480px;
+  --anchoC: 100%;
+  --altoC: 100%;
+  --desplazamiento: none;
+  --x: 0;
+  --y: 0;
+  --w: auto;
+  --h: auto;
+  --rot: none;
+  --sombra: none;
+  --cursor: grab;
+  --cursorResize: ew-resize;
+  --ancho: 0%;
+  --tr: none;
+  --trs: none;
+  --color: transparent;
+}
+
+/* [J-4] Reglas que reciben valores dinámicos vía CSS custom properties
+ * inyectadas desde JSX (style={{'--var': valor}}) — patrón eximido por
+ * inline-style-prohibido (styleInlineSoloCssVars). */
+.barraProgreso {
+  width: var(--ancho);
+}
+
+.filaOrdenable {
+  transform: var(--tr);
+  transition: var(--trs);
+}
+
+.chartLegendColor {
+  background-color: var(--color);
+}

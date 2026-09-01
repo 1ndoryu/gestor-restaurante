@@ -57,7 +57,7 @@ function DefinitionDetail({ data }: { data: BdpDefinition }) {
           <p className="text-xs font-medium mb-1">Líneas:</p>
           <div className="space-y-1">
             {data.lines.map((line: BdpDefLine, i: number) => (
-              <div key={i} className="flex items-center gap-2 text-xs rounded bg-muted/50 px-2 py-1">
+              <div key={`${line.article_code ?? line.article_name ?? 'linea'}-${i}`} className="flex items-center gap-2 text-xs rounded bg-muted/50 px-2 py-1">
                 <ChevronRight className="size-3 text-muted-foreground" />
                 <span>{line.article_name ?? line.article_code ?? `Línea ${i + 1}`}</span>
                 {line.quantity != null && <Badge variant="outline" className="ml-auto">x{line.quantity}</Badge>}

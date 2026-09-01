@@ -51,6 +51,10 @@ function formatCurrency(value: string | null) {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
 }
 
+/* Skeletons estáticos: filas sin identidad propia; claves de un array estable
+ * (no el índice del map) para reconciliación consistente. */
+const SKELETON_IDS = [0, 1, 2, 3, 4];
+
 function BdpCompras() {
   const queryClient = useQueryClient();
   const { demoMode, setDemoMode } = useBdpDemoMode();
@@ -268,8 +272,8 @@ function BdpCompras() {
 
       {isLoading && !demoMode ? (
         <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-10 w-full animate-pulse rounded bg-muted" />
+          {SKELETON_IDS.map((id) => (
+            <div key={id} className="h-10 w-full animate-pulse rounded bg-muted" />
           ))}
         </div>
       ) : error && !demoMode ? (

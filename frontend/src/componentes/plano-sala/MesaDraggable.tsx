@@ -5,6 +5,7 @@
  * Resize via useMesaResize mantiene su propio previewRect state. */
 
 import { useRef, useState, useEffect } from 'react';
+import type { CSSProperties } from 'react';
 import type { ActualizarMesaRequest, Mesa } from '../../api/generated';
 import { useMesaResize } from '../../hooks/useMesaResize';
 
@@ -135,12 +136,11 @@ function MesaDraggable({
       ref={divRef}
       className={clases}
       style={{
-        left: displayX,
-        top: displayY,
-        width: displayW,
-        height: displayH,
-        touchAction: 'none',
-      }}
+        '--x': `${displayX}px`,
+        '--y': `${displayY}px`,
+        '--w': `${displayW}px`,
+        '--h': `${displayH}px`,
+      } as CSSProperties}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

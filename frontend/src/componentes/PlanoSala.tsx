@@ -6,6 +6,7 @@
  * Lógica en usePlanoSala, mesa arrastrable en MesaDraggable, config en PanelConfigMesa. */
 
 import { useRef, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -154,6 +155,10 @@ function PlanoSala() {
    * [303A-20] Transform-based: panOffset state en vez de scrollLeft/scrollTop */
   const { panning, panOffset, setPanOffset, onPanMouseDown } = useCanvasPan(maxPanOffset, activeTool === 'pan');
 
+  /* [J-4] Traducido a variable para evitar comas dentro del valor (el analizador
+   * exime objetos con --vars y divide por comas). Mismo valor que antes: translate(pan). */
+  const desplazamiento = `translate(${-panOffset.x}px, ${-panOffset.y}px)`;
+
   /* [134A-15+16] Handlers del viewport delegados a useCanvasViewport */
   /* [134A-21] sensors/DndContext eliminados — mesa usa pointer events nativos. */
   const { onViewportClick, onViewportMouseDown, onViewportMouseMove } = useCanvasViewport({
@@ -215,7 +220,7 @@ function PlanoSala() {
       <div className="flex gap-4">
         <div className="flex-1 min-w-0">
           {zonaData ? (
-            <div style={{ position: 'relative' }}>
+            <div className="planoSalaWrapper">
               <div
                 ref={viewportRef}
                 className={`planoCanvas ${panning ? 'planoPanning' : ''} ${
@@ -223,7 +228,7 @@ function PlanoSala() {
                   activeTool === 'delete' ? 'planoCanvasDelete' :
                   (activeTool === 'mesa-cuadrada' || activeTool === 'mesa-redonda' || activeTool === 'pared') ? 'cursor-crosshair' : ''
                 }`}
-                style={{ height: canvasHeight }}
+                style={{ '--alt': `${canvasHeight}px` } as CSSProperties}
                 onClick={onViewportClick}
                 onMouseDown={onViewportMouseDown}
                 onMouseMove={onViewportMouseMove}
@@ -232,10 +237,10 @@ function PlanoSala() {
                   ref={canvasRef}
                   className="planoCanvasContent"
                   style={{
-                    width: contentBounds.w,
-                    height: contentBounds.h,
-                    transform: `translate(${-panOffset.x}px, ${-panOffset.y}px)`,
-                  }}
+                    '--anchoC': `${contentBounds.w}px`,
+                    '--altoC': `${contentBounds.h}px`,
+                    '--desplazamiento': desplazamiento,
+                  } as CSSProperties}
                 >
                   {/* [134A-3] Paredes arrastrables — mueve con drag, rota con handle circular. */}
                   {paredesZona.map(pared => {
@@ -270,18 +275,14 @@ function PlanoSala() {
                   {/* [134A-16] Preview de pared durante dibujo A→B */}
                   {wallDrawPreview && (
                     <div
-                      className="absolute pointer-events-none"
+                      className="planoParedPreview"
                       style={{
-                        left: wallDrawPreview.x * zoom,
-                        top: wallDrawPreview.y * zoom,
-                        width: wallDrawPreview.w * zoom,
-                        height: 10 * zoom,
-                        background: 'var(--foreground)',
-                        opacity: 0.3,
-                        transform: `rotate(${wallDrawPreview.rotation}deg)`,
-                        transformOrigin: 'center center',
-                        borderRadius: 'var(--radius)',
-                      }}
+                        '--x': `${wallDrawPreview.x * zoom}px`,
+                        '--y': `${wallDrawPreview.y * zoom}px`,
+                        '--w': `${wallDrawPreview.w * zoom}px`,
+                        '--h': `${10 * zoom}px`,
+                        '--rot': `rotate(${wallDrawPreview.rotation}deg)`,
+                      } as CSSProperties}
                     />
                   )}
                   {mesasZona.map(mesa => {
@@ -343,7 +344,7 @@ function PlanoSala() {
               />
             </div>
           ) : (
-            <div className="planoCanvas planoCanvasVacio" style={{ height: canvasHeight }}>
+            <div className="planoCanvas planoCanvasVacio" style={{ '--alt': `${canvasHeight}px` } as CSSProperties}>
               {plano && plano.zonas.length === 0
                 ? 'Crea tu primera zona para empezar a diseñar el plano'
                 : 'Selecciona una zona'}

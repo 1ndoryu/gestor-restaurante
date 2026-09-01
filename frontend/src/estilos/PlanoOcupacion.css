@@ -10,6 +10,8 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
+  height: var(--alt);
+  width: 100%;
 }
 
 /* [303A-12] Cursor pan cuando se hace shift+drag o middle-click */
@@ -26,6 +28,9 @@
   left: 0;
   min-width: 100%;
   min-height: 100%;
+  width: var(--anchoC);
+  height: var(--altoC);
+  transform: var(--desplazamiento);
   background: var(--background);
   padding-top: 4px;
 }
@@ -40,6 +45,10 @@
   cursor: default;
   transition: transform 0.1s, box-shadow 0.1s;
   z-index: 1;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  height: var(--h);
 }
 
 .mesaOcupacion.cuadrada {
@@ -102,6 +111,8 @@
 .mesaOcupacionTooltip {
   position: fixed;
   transform: translate(-50%, calc(-100% - 8px));
+  left: var(--x);
+  top: var(--y);
   background: var(--popover);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -136,4 +147,25 @@
     overflow: hidden;
     max-height: 300px;
   }
+}
+
+/* [J-4] Posicionamiento dinámico vía CSS custom properties (inyectadas desde JSX).
+ * El analizador exime style={{}} cuando todas sus propiedades son --vars. */
+.planoOcupacionWrapper {
+  position: relative;
+}
+
+.planoOcupacionPared {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  height: var(--h);
+  background: var(--background);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  transform: var(--rot);
+  transform-origin: center center;
+  pointer-events: none;
+  z-index: 0;
 }

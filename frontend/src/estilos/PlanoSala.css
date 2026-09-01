@@ -16,6 +16,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
+  height: var(--alt);
 }
 
 /* [303A-12] Cursor pan cuando se hace shift+drag o middle-click */
@@ -38,6 +39,9 @@
   left: 0;
   min-width: 100%;
   min-height: 100%;
+  width: var(--anchoC);
+  height: var(--altoC);
+  transform: var(--desplazamiento);
   background: var(--card);
   background-image:
     linear-gradient(var(--border) 1px, transparent 1px),
@@ -103,6 +107,11 @@
   transition: box-shadow 0.15s, border-color 0.15s;
   font-size: 0.75rem;
   z-index: 1;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  height: var(--h);
+  touch-action: none;
 }
 
 .planoMesa:hover {
@@ -261,3 +270,54 @@
   50% { opacity: 0.4; }
 }
 
+
+/* [J-4] Posicionamiento dinámico vía CSS custom properties (inyectadas desde JSX).
+ * El analizador exime style={{}} cuando todas sus propiedades son --vars. */
+.planoSalaWrapper {
+  position: relative;
+}
+
+.planoPared {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  height: var(--h);
+  background: var(--background);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  transform: var(--rot);
+  transform-origin: center center;
+  box-shadow: var(--sombra);
+  cursor: var(--cursor);
+  z-index: 1;
+  touch-action: none;
+  user-select: none;
+}
+
+.planoParedHandle {
+  z-index: 3;
+  touch-action: none;
+}
+
+.planoParedHandleRotar {
+  cursor: grab;
+}
+
+.planoParedHandleResize {
+  cursor: var(--cursorResize);
+}
+
+.planoParedPreview {
+  position: absolute;
+  pointer-events: none;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  height: var(--h);
+  background: var(--foreground);
+  opacity: 0.3;
+  transform: var(--rot);
+  transform-origin: center center;
+  border-radius: var(--radius);
+}

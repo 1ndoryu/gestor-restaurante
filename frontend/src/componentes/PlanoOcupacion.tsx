@@ -6,6 +6,7 @@
  * [303A-12] Pan, minimap, indicadores off-screen. */
 
 import { useState, useMemo, useEffect } from 'react';
+import type { CSSProperties } from 'react';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { TooltipButton } from '@/components/ui/tooltip-button';
@@ -109,6 +110,10 @@ function PlanoOcupacion({ fecha, turno }: Props) {
    * [303A-20] Transform-based + clamp al área real del plano. */
   const { panning, panOffset, setPanOffset, onPanMouseDown } = useCanvasPan(maxPanOffset);
 
+  /* [J-4] Traducido a variable para evitar comas dentro del valor (el analizador
+   * exime objetos con --vars y divide por comas). Mismo valor que antes: translate(pan). */
+  const desplazamiento = `translate(${-panOffset.x}px, ${-panOffset.y}px)`;
+
   if (isLoading) return <p className="text-sm text-muted-foreground text-center py-4">Cargando plano...</p>;
   if (!plano || plano.zonas.length === 0) return null;
 
@@ -147,39 +152,33 @@ function PlanoOcupacion({ fecha, turno }: Props) {
 
       {/* [303A-20] Canvas con overflow:hidden + transform para pan. */}
       {zonaData && (
-        <div style={{ position: 'relative' }}>
+        <div className="planoOcupacionWrapper">
           <div
             ref={viewportRef}
             className={`planoOcupacionCanvas ${panning ? 'planoPanning' : ''}`}
-            style={{ height: canvasHeight, width: '100%' }}
+            style={{ '--alt': `${canvasHeight}px` } as CSSProperties}
             onMouseDown={onPanMouseDown}
           >
             <div
               className="planoOcupacionContent"
               style={{
-                width: contentBounds.w,
-                height: contentBounds.h,
-                transform: `translate(${-panOffset.x}px, ${-panOffset.y}px)`,
-              }}
+                '--anchoC': `${contentBounds.w}px`,
+                '--altoC': `${contentBounds.h}px`,
+                '--desplazamiento': desplazamiento,
+              } as CSSProperties}
             >
               {/* [134A-12] Paredes read-only visibles en reservas */}
               {(zonaData.paredes ?? []).map((pared: ParedSala) => (
                 <div
                   key={pared.id}
-                  className="absolute"
+                  className="planoOcupacionPared"
                   style={{
-                    left: pared.pos_x * zoom,
-                    top: pared.pos_y * zoom,
-                    width: pared.ancho * zoom,
-                    height: pared.alto * zoom,
-                    background: 'var(--background)',
-                    border: '2px solid var(--border)',
-                    borderRadius: 'var(--radius)',
-                    transform: pared.rotacion ? `rotate(${pared.rotacion}deg)` : undefined,
-                    transformOrigin: 'center center',
-                    pointerEvents: 'none',
-                    zIndex: 0,
-                  }}
+                    '--x': `${pared.pos_x * zoom}px`,
+                    '--y': `${pared.pos_y * zoom}px`,
+                    '--w': `${pared.ancho * zoom}px`,
+                    '--h': `${pared.alto * zoom}px`,
+                    '--rot': pared.rotacion ? `rotate(${pared.rotacion}deg)` : 'none',
+                  } as CSSProperties}
                 />
               ))}
               {zonaData.mesas.map((mesa: MesaOcupacion) => {
@@ -191,11 +190,11 @@ function PlanoOcupacion({ fecha, turno }: Props) {
                     key={mesa.id}
                     className={`mesaOcupacion ${estado} ${mesa.forma} ${esHover ? 'hover' : ''}`}
                     style={{
-                      left: mesa.pos_x * zoom,
-                      top: mesa.pos_y * zoom,
-                      width: mesa.ancho * zoom,
-                      height: mesa.alto * zoom,
-                    }}
+                      '--x': `${mesa.pos_x * zoom}px`,
+                      '--y': `${mesa.pos_y * zoom}px`,
+                      '--w': `${mesa.ancho * zoom}px`,
+                      '--h': `${mesa.alto * zoom}px`,
+                    } as CSSProperties}
                     onMouseEnter={() => setMesaHover(mesa.id)}
                     onMouseLeave={() => setMesaHover(null)}
                   >
@@ -221,7 +220,7 @@ function PlanoOcupacion({ fecha, turno }: Props) {
             return (
               <div
                 className="mesaOcupacionTooltip"
-                style={{ left: tooltipLeft, top: tooltipTop }}
+                style={{ '--x': `${tooltipLeft}px`, '--y': `${tooltipTop}px` } as CSSProperties}
               >
                 {mesa.reservas.map((r) => (
                   <div key={r.reserva_id} className="mesaOcupacionReserva">
