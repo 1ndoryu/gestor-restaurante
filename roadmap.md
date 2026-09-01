@@ -148,6 +148,11 @@ deshabilitadas por otro agente. Acción propuesta (no ejecutada aquí, sin tocar
 reactivación tras la unificación de formularios del sistema declarativo de PT; requerirá autorización
 explícita para modificar `sentinel.config.json` de RESTAURANTE.
 
+**Nota (318A-4, 2026-09-01):** el fix F2 (rutas workspace de components/ui/shared en
+`reactComponentRules`) fue publicado en sentinel v0.7.6 (`fbb580f`) y v0.7.7 (`0559576`); los
+hallazgos `html-nativo` que se reactiven al habilitar la regla serán reales (con seam de migración
+si el sistema declarativo aplica). Solo doc, sin gate.
+
 ### Bloque 208A-2 — Corrección de la independencia BDP (H1–H8) (completado 2026-08-27)
 
 Plan archivado: `Agente/planes/completados/plan-correccion-independencia-bdp-2026-08-27.md`.
