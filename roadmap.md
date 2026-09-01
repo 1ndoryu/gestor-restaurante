@@ -140,6 +140,14 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Tareas pendientes
 
+### Seguimiento 318A-3 — Evaluar reactivación de reglas de consistencia de formularios (2026-09-01)
+
+Informe del cierre de PROYECTO TASKS (plan `PROYECTO TASKS/Agente/planes/` 318A-3): este proyecto
+tiene `html-nativo-en-vez-de-componente`, `componente-artesanal` y `componente-sin-hook-glory`
+deshabilitadas por otro agente. Acción propuesta (no ejecutada aquí, sin tocar el gate): revisar su
+reactivación tras la unificación de formularios del sistema declarativo de PT; requerirá autorización
+explícita para modificar `sentinel.config.json` de RESTAURANTE.
+
 ### Bloque 208A-2 — Corrección de la independencia BDP (H1–H8) (completado 2026-08-27)
 
 Plan archivado: `Agente/planes/completados/plan-correccion-independencia-bdp-2026-08-27.md`.
