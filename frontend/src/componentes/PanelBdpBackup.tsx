@@ -92,9 +92,12 @@ function direccionLabel(direccion: string): string {
 interface SyncModeSelectorProps {
     currentMode: string;
     bdpBaseUrl: string;
+    /* [039A-1/H-P1-03] En modo independiente el permiso de operación BDP
+     * no aplica: el selector se deshabilita con motivo visible. */
+    deshabilitado?: boolean;
 }
 
-function SyncModeSelector({currentMode, bdpBaseUrl}: SyncModeSelectorProps) {
+function SyncModeSelector({currentMode, bdpBaseUrl, deshabilitado = false}: SyncModeSelectorProps) {
     const setMode = useSetSyncMode();
     const effective = currentMode || 'read_only';
     const selectedMode = SYNC_MODES.find(mode => mode.value === effective) ?? SYNC_MODES[0];
@@ -169,7 +172,7 @@ function SyncModeSelector({currentMode, bdpBaseUrl}: SyncModeSelectorProps) {
     return (
         <div className="flex flex-col gap-2">
             <div className="flex items-center gap-3">
-            <Select value={effective} onValueChange={handleChange} disabled={setMode.isPending}>
+            <Select value={effective} onValueChange={handleChange} disabled={deshabilitado || setMode.isPending}>
                 <SelectTrigger className="w-full sm:w-[320px]">
                     <SelectValue />
                 </SelectTrigger>
@@ -188,7 +191,7 @@ function SyncModeSelector({currentMode, bdpBaseUrl}: SyncModeSelectorProps) {
     );
 }
 
-function SnapshotActions() {
+function SnapshotActions({bdpActivo}: {bdpActivo: boolean}) {
     const crearCompleto = useCreateSnapshotCompleto();
     const crearParcial = useCreateSnapshotParcial();
     const crearGlory = useCreateSnapshotGlory();
@@ -204,6 +207,16 @@ function SnapshotActions() {
 
     return (
         <div className="space-y-4">
+            {/* [039A-1/H-P1-03] Los snapshots "completo"/"parcial" descargan de
+             * BDP (red real): en modo independiente se deshabilitan con motivo,
+             * igual que el resto de controles BDP (P11.2); el snapshot local
+             * (0 llamadas BDP) y los listados siguen disponibles. */}
+            {!bdpActivo && (
+                <p className="text-xs text-muted-foreground rounded-md border bg-muted/40 p-2">
+                    Modo independiente: los snapshots de BDP requieren el modo BDP conectado
+                    (lectura real). El snapshot de la Aplicación Web es local y sigue disponible.
+                </p>
+            )}
             <div>
                 <label className="text-sm font-medium">Notas (opcional)</label>
                 <Textarea placeholder="Ej: antes de migración de artículos..." value={notas} onChange={e => setNotas(e.target.value)} className="mt-1" rows={2} />
@@ -220,7 +233,7 @@ function SnapshotActions() {
                             onError: (e: unknown) => toast.error('Error', {description: String(e)})
                         })
                     }
-                    disabled={anyLoading}>
+                    disabled={!bdpActivo || anyLoading}>
                     {crearCompleto.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Database className="h-4 w-4 mr-2" />}
                     Snapshot completo BDP
                 </Button>
@@ -237,7 +250,7 @@ function SnapshotActions() {
                 </div>
                 <Button
                     variant="secondary"
-                    disabled={tiposSeleccionados.length === 0 || anyLoading}
+                    disabled={!bdpActivo || tiposSeleccionados.length === 0 || anyLoading}
                     onClick={() =>
                         crearParcial.mutate(
                             {tipos: tiposSeleccionados, notas: notas || undefined},
@@ -443,6 +456,18 @@ interface PanelBdpBackupProps {
 export default function PanelBdpBackup({config}: PanelBdpBackupProps) {
     const {data: snapshots, isLoading: loadingSnapshots} = useBdpSnapshots();
     const {data: audit, isLoading: loadingAudit} = useBdpAudit();
+    /* [039A-1/H-P1-03] Mismo criterio que PlanoSala (modo efectivo BDP =
+     * solo configuración, sin red): controla los snapshots/permiso BDP. */
+    const modoEfectivoBdp =
+        config.modo_operacion === 'bdp' ||
+        (config.modo_operacion === 'auto' &&
+            config.bdp_sync_enabled &&
+            Boolean(
+                config.bdp_base_url &&
+                    config.bdp_login &&
+                    config.bdp_password &&
+                    config.bdp_integrator_code
+            ));
 
     return (
         <Card>
@@ -457,7 +482,11 @@ export default function PanelBdpBackup({config}: PanelBdpBackupProps) {
                     </div>
                     <div className="flex flex-col gap-1">
                         <span className="text-sm font-medium">Permiso de operación</span>
-                        <SyncModeSelector currentMode={config.bdp_sync_mode} bdpBaseUrl={config.bdp_base_url} />
+                        <SyncModeSelector
+                            currentMode={config.bdp_sync_mode}
+                            bdpBaseUrl={config.bdp_base_url}
+                            deshabilitado={!modoEfectivoBdp}
+                        />
                     </div>
                 </div>
             </CardHeader>
@@ -489,7 +518,7 @@ export default function PanelBdpBackup({config}: PanelBdpBackupProps) {
                     </TabsContent>
 
                     <TabsContent value="crear" className="mt-4">
-                        <SnapshotActions />
+                        <SnapshotActions bdpActivo={modoEfectivoBdp} />
                     </TabsContent>
 
                     <TabsContent value="auditoria" className="mt-4">

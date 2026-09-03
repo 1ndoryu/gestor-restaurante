@@ -7,6 +7,7 @@ mod bdp_article_map;
 mod bdp_backup;
 mod bdp_catalogo;
 mod bdp_customer_sync;
+mod bdp_guard;
 mod bdp_menu_local;
 mod bdp_purchase_note;
 mod bdp_push;
@@ -27,6 +28,14 @@ pub use bdp_article_map::{
 };
 /* [208A-2/C3] Conteos de inventario persistidos (D3/D4) — exposición para tests. */
 pub use bdp_article_map::{crear_conteo_inventario, listar_conteos_inventario};
+/* [039A-1/H-P1-02] Fail-closed por modo efectivo en handlers que conectan
+ * directo con BDP (login/export) — exposición para tests de regresión. */
+pub use bdp_article_map::{importar_catalogo, sync_catalog};
+pub use bdp_customer_sync::{importar_clientes_bdp, BdpCustomerImportRequest};
+/* [039A-1/H-P1-03] Fail-closed por modo efectivo en explorar/backup BDP
+ * (red real) — exposición para tests de regresión. */
+pub use bdp_backup::{explorar_bdp, snapshot_completo, snapshot_parcial, SnapshotParcialRequest};
+pub use bdp_guard::exigir_modo_bdp;
 /* [208A-2/C4] Cola de sincronización (D5) — exposición para tests. */
 pub use bdp_push::{flush_manual, listar_pendientes as listar_pendientes_push, reintentar_fila};
 /* [208A-2/C5] Normalización standalone+sync (H5) — exposición para tests. */

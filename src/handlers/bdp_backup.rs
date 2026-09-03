@@ -12,6 +12,8 @@ use crate::services::ConfiguracionService;
 use crate::services::{BdpAuditEntry, BdpBackupService, BdpSnapshot, RestoreResult};
 use crate::services::{BdpExploracionResultado, BdpExplorerService};
 
+use super::bdp_guard::exigir_modo_bdp; /* [039A-1/H-P1-03] Guard compartido (N1). */
+
 pub fn routes() -> Router<crate::handlers::AppState> {
     Router::new()
         .route("/bdp/explorar", get(explorar_bdp))
@@ -50,6 +52,9 @@ pub async fn explorar_bdp(
     State(state): State<crate::handlers::AppState>,
     auth: AuthUser,
 ) -> Result<Json<BdpExploracionResultado>, AppError> {
+    /* [039A-1/H-P1-03] Explorar BDP hace red real: en modo independiente se
+     * rechaza sin tocar red (N1), aunque haya credenciales configuradas. */
+    exigir_modo_bdp(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
@@ -63,9 +68,9 @@ pub async fn explorar_bdp(
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub(crate) struct SnapshotParcialRequest {
-    tipos: Vec<String>,
-    notas: Option<String>,
+pub struct SnapshotParcialRequest {
+    pub tipos: Vec<String>,
+    pub notas: Option<String>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -94,6 +99,9 @@ pub async fn snapshot_completo(
     auth: AuthUser,
     Json(notas): Json<Option<String>>,
 ) -> Result<Json<BdpSnapshot>, AppError> {
+    /* [039A-1/H-P1-03] El snapshot "completo" descarga de BDP (red real):
+     * en modo independiente se rechaza sin tocar red (N1). */
+    exigir_modo_bdp(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
@@ -133,6 +141,9 @@ pub async fn snapshot_parcial(
         ));
     }
 
+    /* [039A-1/H-P1-03] El snapshot parcial descarga de BDP (red real):
+     * en modo independiente se rechaza sin tocar red (N1). */
+    exigir_modo_bdp(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {

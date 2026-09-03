@@ -181,10 +181,15 @@ function PlanoSala() {
         <div className="ml-auto flex gap-2">
           <TooltipButton size="sm" variant="ghost" onClick={handleExportar} tooltip="Exportar el plano de sala a un archivo JSON"><Download className="size-4 mr-1" />Exportar</TooltipButton>
           <TooltipButton size="sm" variant="ghost" onClick={handleImportar} tooltip="Importar un plano de sala desde un archivo JSON"><Upload className="size-4 mr-1" />Importar</TooltipButton>
-          <TooltipButton size="sm" variant="outline" onClick={() => { setDialogoSyncBdp(true); setPreviewSyncBdp(null); setConfirmacionSyncBdp(''); }} disabled={sincronizandoMesas} tooltip="Importar salones y mesas desde BDP. Crea solo lo que falte, no modifica lo existente.">
-            {sincronizandoMesas ? <RefreshCw className="size-4 mr-1 animate-spin" /> : <RefreshCw className="size-4 mr-1" />}
-            Sync BDP
-          </TooltipButton>
+          {/* [039A-1/H-P1-02] Sync BDP exige modo BDP efectivo (mismo criterio
+           * que el backend y que CallWaiter D10): en standalone se oculta para
+           * no violar el invariante de red N1. */}
+          {modoEfectivoBdp && (
+            <TooltipButton size="sm" variant="outline" onClick={() => { setDialogoSyncBdp(true); setPreviewSyncBdp(null); setConfirmacionSyncBdp(''); }} disabled={sincronizandoMesas} tooltip="Importar salones y mesas desde BDP. Crea solo lo que falte, no modifica lo existente.">
+              {sincronizandoMesas ? <RefreshCw className="size-4 mr-1 animate-spin" /> : <RefreshCw className="size-4 mr-1" />}
+              Sync BDP
+            </TooltipButton>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <TooltipButton size="sm" variant="outline" onClick={() => setZoom(z => Math.max(0.5, +(z - 0.1).toFixed(2)))} tooltip="Alejar (zoom −10%)"><ZoomOut className="size-4" /></TooltipButton>

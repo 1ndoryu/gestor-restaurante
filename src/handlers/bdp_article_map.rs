@@ -40,6 +40,8 @@ use crate::services::{
 };
 use crate::AppState;
 
+use super::bdp_guard::exigir_modo_bdp; /* [039A-1] Guard compartido (N1). */
+
 #[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct SyncTablesRequest {
     #[serde(default)]
@@ -53,9 +55,12 @@ pub fn routes() -> Router<AppState> {
             "/bdp/article-maps",
             get(listar_article_maps).post(crear_article_map),
         )
+        .route("/bdp/article-stock", get(listar_article_stock))
+        /* [039A-1/H-P1-01] El ajuste vive en /ajustar (header, utoipa y
+         * frontend coinciden); el POST de la base quedaba huérfano. */
         .route(
-            "/bdp/article-stock",
-            get(listar_article_stock).post(ajustar_stock),
+            "/bdp/article-stock/ajustar",
+            axum::routing::post(ajustar_stock),
         )
         .route("/bdp/inventario", axum::routing::post(registrar_inventario))
         /* [208A-2/C3] Conteos persistidos (D3/D4): listar, guardar+aplicar, retomar. */
@@ -550,6 +555,7 @@ pub async fn importar_catalogo(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    exigir_modo_bdp(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
@@ -605,6 +611,7 @@ pub async fn sync_catalog(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<BdpCatalogSyncResult>, AppError> {
+    exigir_modo_bdp(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
@@ -653,6 +660,7 @@ async fn sync_prices(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<BdpCatalogSyncResult>, AppError> {
+    exigir_modo_bdp(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
         .await
         .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
@@ -695,6 +703,7 @@ async fn sync_tables(
     auth: AuthUser,
     Json(req): Json<SyncTablesRequest>,
 ) -> Result<Json<SyncTablesResult>, AppError> {
+    exigir_modo_bdp(&state, auth.user_id).await?;
     if req.aplicar && req.confirmacion.as_deref() != Some("IMPORTAR MESAS BDP") {
         return Err(AppError::Validation(
             "Aplicación bloqueada: escriba exactamente IMPORTAR MESAS BDP. No se realizaron cambios."
@@ -742,6 +751,7 @@ async fn get_menu_definition(
     auth: AuthUser,
     Path(id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    exigir_modo_bdp(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
         .await
         .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
@@ -784,6 +794,7 @@ async fn get_fastfood_definition(
     auth: AuthUser,
     Path(id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    exigir_modo_bdp(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
         .await
         .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
@@ -826,6 +837,7 @@ async fn get_pack_definition(
     auth: AuthUser,
     Path(id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    exigir_modo_bdp(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
         .await
         .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;

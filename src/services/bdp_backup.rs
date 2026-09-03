@@ -314,7 +314,11 @@ impl BdpBackupService {
                     let val: serde_json::Value = sqlx::query_scalar(
                         r"SELECT COALESCE(json_agg(row_to_json(v)), '[]'::json)
                         FROM (
-                            SELECT id, user_id, cliente_id, canal, total, estado,
+                            SELECT id, user_id, cliente_id, canal,
+                                   importe_base, importe_iva,
+                                   (importe_base + importe_iva) AS total,
+                                   propina, fecha, turno, metodo_pago,
+                                   anulada, facturada_local, factura_numero,
                                    bdp_synced, bdp_order_id, bdp_order_status,
                                    bdp_sync_error, bdp_invoiced
                             FROM ventas

@@ -32,6 +32,8 @@ use crate::services::{
 };
 use crate::AppState;
 
+use super::bdp_guard::exigir_modo_bdp; /* [039A-1] Guard compartido (N1). */
+
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/bdp/customers/import", post(importar_clientes_bdp))
@@ -91,6 +93,7 @@ pub async fn importar_clientes_bdp(
     auth: AuthUser,
     Json(req): Json<BdpCustomerImportRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    exigir_modo_bdp(&state, auth.user_id).await?;
     if req.aplicar && req.confirmacion.as_deref() != Some("IMPORTAR CLIENTES BDP") {
         return Err(AppError::Validation(
             "Aplicación bloqueada: escriba exactamente IMPORTAR CLIENTES BDP. No se modificó Glory ni BDP."
@@ -332,6 +335,7 @@ pub async fn sincronizar_cliente_bdp(
     Path(id): Path<Uuid>,
     Json(sync_req): Json<BdpCustomerSyncRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    exigir_modo_bdp(&state, auth.user_id).await?;
     let cliente = ClienteRepository::find_by_id(&state.pool, id, auth.user_id)
         .await
         .map_err(|e| AppError::Internal(format!("Error buscando cliente: {e}")))?
