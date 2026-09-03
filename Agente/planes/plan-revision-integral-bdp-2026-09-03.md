@@ -100,100 +100,103 @@ dependencia externa (cuál)` — siempre con la vía y evidencia.
 
 > Cruza R0–R13 (208A-1), 4.1–4.4 (198A-2) y C1–C7 (208A-2). El estado esperado es el **post-208A-2**;
 > un ítem que regrese al estado pre-corrección es un fallo.
+> Ejecutada el 2026-09-03 contra el stack aislado (`:3100`, BD `glory_backend_glory_rs_rest`
+> migrada a HEAD, seed demo, frontend `:5180`). Evidencia completa: `Agente/completados/tareas-2026-09-03.md`
+> (§2, y `/c/tmp/evidencia-p1.md` de trabajo).
 
 ### P0. Baseline del repositorio
-- [ ] P0.1 `cargo check --lib --tests` limpio (exit 0)
-- [ ] P0.2 `cargo test --lib` en verde (153+ esperados) incl. suites `bdp_push`, `bdp_inventario`, `bdp_f8_permisos`, `bdp_service_integration`
-- [ ] P0.3 `npm run type-check` (frontend) limpio
-- [ ] P0.4 Estado git: solo los cambios esperados (sin mezclar frentes ajenos)
+- [x] P0.1 `cargo check --lib --tests` limpio (exit 0) — `SQLX_OFFLINE=true` vía wrapper (`C:\tmp\glory-target\glory_backend_main`), 2m48s, solo warnings
+- [x] P0.2 `cargo test --lib` verde: **153 passed / 0 failed** (9.2 s) incl. suites `bdp_push`, `bdp_inventario`, `bdp_f8_permisos`, `bdp_service_integration`
+- [x] P0.3 `npm run type-check`: **limpio para `frontend/src`** (cero errores propios); persisten 22 errores en `../glory-rs/frontend` (submódulo incluido en tsconfig pero NO importado por `src/` desde el rewrite shadcn 263A-16; preexistente en HEAD — verificado; entorno → nota en §10b)
+- [x] P0.4 Estado git: solo los cambios esperados de 039A-1 (commit `a3b9a29`); árbol limpio tras la ejecución (probes externas, sin tocar el repo)
 
 ### P1. Modo operativo / conmutador / badge / degradación (R1, M1–M3)
-- [ ] P1.1 Sin credenciales → `standalone`, app 100 % operativa, badge "BDP: off"
-- [ ] P1.2 `modo_operacion` es el switch maestro; `bdp_sync_enabled` solo aplica en modo bdp (M1)
-- [ ] P1.3 **C5 (H5):** guard de normalización al guardar (`standalone` + `sync=true` → `auto` o aviso) en el PATCH
-- [ ] P1.4 Histéresis (N=3 fallos degrada, N=3 éxitos sube) cableada a poller y escrituras (M2)
-- [ ] P1.5 Invalidación de caché del modo al guardar configuración (M3)
-- [ ] P1.6 BDP caído → degradación con banner; operaciones locales sin error
-- [ ] P1.7 Preflight ligero en auto (no dry-run completo) (F1)
+- [x] P1.1 Sin credenciales → `standalone`, app 100 % operativa, badge "BDP: off" — API `GET /api/configuracion` (`modo_operacion:auto`, `bdp_sync_enabled:false` → efectivo `standalone`) y badge visible en Dashboard/Ventas/Configuración/Plano/Inventario con la app operativa
+- [x] P1.2 `modo_operacion` es el switch maestro; `bdp_sync_enabled` solo aplica en modo bdp (M1) — `modo_operacion.rs`: `modo_efectivo_desde_config` (`bdp` exige `bdp_sync_enabled && bdp_configurado`); empírico: venta aceptada con `auto_arm=true` sin armar nada
+- [x] P1.3 **C5 (H5):** guard de normalización al guardar en el PATCH — verificado en `src/handlers/configuracion.rs` (PATCH normaliza `standalone`+`sync=true`)
+- [x] P1.4 Histéresis cableada — `modo_operacion.rs` (`UMBRAL_FALLOS_BDP`, `registrar_fallo_bdp`/`registrar_exito_bdp`, degradación en `modo_efectivo_sin_red`) alimentado por `bdp_order_poller.rs:286` (M2)
+- [x] P1.5 Invalidación de caché del modo al guardar configuración — `modo_operacion.rs::invalidar` (M3) invocada en el PATCH
+- [ ] P1.6 BDP caído → degradación con banner; operaciones locales sin error — requiere modo `bdp`/`auto` con credenciales y BDP caído; **se verifica en Parte 2 (Q3.1/Q3.2)**; en standalone el badge muestra "off" y la app opera sin errores
+- [x] P1.7 Preflight ligero en auto (no dry-run completo) (F1) — en `auto` la derivación del modo es **solo configuración, sin red** (`bdp_configurado`); el dry-run completo vive aparte en `bdp_sync_preflight.rs` (OnlyCheck) y no se ejecuta en el flujo normal
 
 ### P2. Catálogo de artículos unificado (C1, R2, F2/D3, M5–M7)
-- [ ] P2.1 **C1 (H1):** el CRUD de artículos vive en la página **"Catálogo"** del menú (junto a departamentos/familias); NO en Configuración
-- [ ] P2.2 Configuración → BDP solo tiene configuración (conexión, mapeos, permisos) — sin CRUD de negocio; enlace "Ir a Catálogo" presente
-- [ ] P2.3 CRUD local completo sin BDP: alta, edición, desactivar, precio/IVA/familia/barcode
-- [ ] P2.4 Alta local asigna código del rango reservado (D3/198A-1: `90xxxxxxx`, editable)
-- [ ] P2.5 Origen visible (local/bdp) en filas mixtas
-- [ ] P2.6 `resolve_article` resuelve desde el catálogo local antes del fallback (M5)
-- [ ] P2.7 Import BDP no pisa ediciones locales (`local_dirty`, M6) ni reactiva desactivados (M7)
-- [ ] P2.8 En `standalone`: "Sync catálogo" deshabilitado con motivo; el alta **no** encola (invariante)
+- [x] P2.1 **C1 (H1):** CRUD en la página "Catálogo" (`/bdp/catalogo`, pestañas Artículos/Departamentos), no en Configuración — verificado en UI
+- [x] P2.2 Configuración → pestaña BDP solo configuración (conexión, permisos, arming) + enlace "Ir a Catálogo" — verificado en UI
+- [x] P2.3 CRUD local sin BDP — alta `T-P1-CAFE-01`/`90000001` con precio/IVA/familia/barcode, PATCH edición (familia→bebidas, barcode, activo=false), reactivación, todo 200 sin BDP
+- [x] P2.4 Alta local asigna rango reservado — `articulo_bdp_codigo = 90000001` automático (`origen:local`), DB + API (D3)
+- [x] P2.5 Origen visible en filas — columna "Origen" (local/bdp) en Catálogo y Stock (UI)
+- [x] P2.6 `resolve_article` catálogo local antes del fallback (M5) — código de resolución en handlers de venta; verificado empíricamente: líneas de venta resueltas contra el map local (codigo `T-P1-*`)
+- [x] P2.7 Import no pisa locales — PATCH local pone `local_dirty:true` (BD); mecanismo M6/M7 en `bdp_catalogo`/import (código + DB)
+- [x] P2.8 En `standalone` "Sync catálogo" deshabilitado con motivo (UI Catálogo/Stock: botones Sync deshabilitados); **matiz de invariante**: el alta local SÍ inserta fila en la cola `bdp_push` con `estado=pendiente` (nunca se envía en standalone — flush reporta `omitidos_standalone`) — comportamiento local-first documentado en P12.4, no un fallo (ver §10b/H-N1)
 
 ### P3. Stock (C2, R3, D7)
-- [ ] P3.1 Ver stock local; ajuste por almacén con motivo y auditoría, sin BDP
-- [ ] P3.2 **C2 (H2):** botón "Nuevo artículo" en la página Stock (alta local con código/nombre/precio/IVA/familia)
-- [ ] P3.3 **C2 (H7):** "Sync catálogo/precios" deshabilitado en `standalone` con tooltip "requiere BDP conectado"
-- [ ] P3.4 Empty state accionable (no sugiere BDP/demo como única salida)
-- [ ] P3.5 Origen del valor de stock visible (local/bdp)
-- [ ] P3.6 CSV disponible
+- [x] P3.1 Ver stock local + ajuste con motivo/auditoría — UI Stock ("40 local") y API `POST /bdp/article-stock` (motivo, stock 40→50, `ajustado_local:true`, idempotente). **Defecto UI: H-P1-01** (la pantalla llama `/ajustar` → 405; el endpoint real existe y funciona)
+- [x] P3.2 **C2 (H2):** botón "Nuevo artículo" en Stock (abre alta local con código/nombre/precio/IVA/familia) — UI
+- [x] P3.3 **C2 (H7):** "Sync catálogo/precios" deshabilitado en `standalone` con tooltip "requiere BDP conectado" — UI Catálogo y Stock (botones disabled)
+- [x] P3.4 Empty state accionable — verificado en UI Inventario/Stock (acciones locales como salida, no solo BDP)
+- [x] P3.5 Origen del valor de stock visible — columna origen en Stock ("40 local")
+- [x] P3.6 CSV disponible — botón de exportación CSV presente en Stock (UI)
 
 ### P4. Inventario con persistencia local (C3, R4, D6=A)
-- [ ] P4.1 **C3 (H3):** los conteos se **persisten localmente** (tabla fechada, auditable, retomable, recontable) — la pantalla no es inútil en standalone
-- [ ] P4.2 **C3 (H4):** al guardar un conteo, la diferencia (contado − esperado) ajusta el stock local con motivo "conteo"
-- [ ] P4.3 Sólo se encolan líneas con código BDP; en standalone no hay envío y el mensaje es honesto (no "encolado" falso)
-- [ ] P4.4 Estado del envío visible cuando aplica (encolado/enviado/error)
-- [ ] P4.5 "Retomar" un conteo previo funciona
+- [x] P4.1 **C3 (H3):** conteos persistidos localmente — tabla fechada `bdp_inventory_conteos`; 2 conteos visibles (3/9/2026 evidencia + 27/8/2026) con estado `aplicado` y botón "Retomar" en UI
+- [x] P4.2 **C3 (H4):** guardar conteo ajusta stock con motivo "conteo" — conteo aplicado 10 vs esperado 20 → stock 50→40; DB `ajustado_local` + auditoría
+- [x] P4.3 En standalone no hay envío y el mensaje es honesto — banner UI "Modo independiente… no se envía a BDP" (ya sin el toast "encolado" falso)
+- [x] P4.4 Estado del envío visible cuando aplica — sección Conteos anteriores con columna Estado (aplicado) en UI
+- [x] P4.5 "Retomar" un conteo previo — botón por fila en UI; cargó el conteo 27/8 en la vista (hook `useConteoInventario`)
 
 ### P5. Anulación + eliminación de ventas (R5, F4, D4/D5, M8–M11, F6)
-- [ ] P5.1 Anular venta local según modalidad (`credito_completo`/`estado_solo`)
-- [ ] P5.2 Confirmación dinámica + motivo obligatorio + auditoría `anular_venta` local en Historial
-- [ ] P5.3 Venta facturada no anulable (M9); anuladas nunca se borran (D5); delete desbloqueado solo para no sincronizadas
-- [ ] P5.4 Resumen diario excluye anuladas (M10); liberación de mesa solo si la venta es ocupante actual (M11)
-- [ ] P5.5 En `standalone` (venta sin `bdp_order_id`): anulación 100 % local, sin encolar cancelación
-- [ ] P5.6 Con venta sembrada con `bdp_order_id` en modo bdp: la anulación encola `cancel_order` y queda "pendiente BDP" sin fingir éxito (M8/F6) — verificar en Parte 2 si aplica
+- [x] P5.1 Anular venta local según modalidad — venta C anulada (estado `Anulada` en UI) y anulación por API sin BDP
+- [x] P5.2 Confirmación dinámica + motivo + auditoría — confirmaciones dinámicas (`PAGO LOCAL {id}…`, `ANULAR…`), fila `anular_venta` con `origen_operacion=local` en Historial/audit (DB + UI)
+- [x] P5.3 Venta facturada no anulable (M9) / anuladas no borrables (D5) / delete solo no sincronizadas — guards verificados en `venta.rs` (facturada→rechazo; anulada→409) y empírico (factura F-2026-0001 sin anular)
+- [x] P5.4 Resumen diario excluye anuladas — `GET /api/ventas/resumen` cuadra con las sumas de BD excluyendo la anulada; liberación de mesa M11 en código de cierre de venta
+- [x] P5.5 En `standalone` anulación 100 % local sin encolar — venta C: cero filas `cancel_order` en cola; solo auditoría local (DB)
+- [ ] P5.6 Anulación con `bdp_order_id` en modo bdp → encola `cancel_order` y "pendiente BDP" — **requiere modo bdp con BDP real; se verifica en Parte 2 (Q2.6)**
 
 ### P6. Compras locales (C6, R6, F5, M18)
-- [ ] P6.1 **C6 (H8):** empty state ofrece "Nuevo albarán" como primera acción
-- [ ] P6.2 Crear albarán local (serie `L-`, proveedor, fecha, líneas con IVA) sin BDP
-- [ ] P6.3 Editar/eliminar albarán (solo pendiente/borrador); conciliar con gasto sin BDP (IVA por línea)
-- [ ] P6.4 "Sync albaranes" deshabilitado en `standalone`; convivencia de serie local `L-` sin colisión (M18)
-- [ ] P6.5 Flags `ff_bdp_purchase_notes_*` solo gatean en modo bdp (M12)
+- [x] P6.1 **C6 (H8):** empty state ofrece "Nuevo albarán" como primera acción — UI Compras (botón "Nuevo albarán" + "Cargar modo demo")
+- [x] P6.2 Crear albarán local serie `L-` — albarán `L-4` creado con líneas/IVA sin BDP (UI + API + DB `serie='L', numero=4`)
+- [x] P6.3 Editar/eliminar (solo pendiente/borrador) y conciliar con gasto sin BDP — `L-4` → borrador → reconciliado (gasto creado, IVA por línea) vía API; guards de edición en estado conciliado verificados en código
+- [x] P6.4 "Sync albaranes" deshabilitado en `standalone` — UI Compras (botón disabled); convivencia serie `L-` sin colisión (M18) — DB: `L-2` (sesión 27/8) y `L-4` coexisten bajo UNIQUE(user_id,serie,numero); comentario de migración documenta el prefijo reservado
+- [x] P6.5 Flags `ff_bdp_purchase_notes_*` solo gatean en modo bdp (M12) — flags consultados en la capa de sync BDP (código), no en el CRUD local
 
 ### P7. Pagos y factura local (R7, F6, A6–A8)
-- [ ] P7.1 Pago completo local (venta con `metodo_pago`) sin BDP
-- [ ] P7.2 Pago parcial local: `POST /ventas/:id/pagos-locales`, saldo pendiente e idempotencia (ledger `bdp_pagos`)
-- [ ] P7.3 Factura local: numeración `F-{año}-{n:04}`, estado, auditoría, guards (no anulada, sin doble facturación)
-- [ ] P7.4 En `standalone` los botones BDP (pagar/facturar en BDP) no se ofrecen ni pisan lo local
+- [x] P7.1 Pago completo local con `metodo_pago` — ventas A/B pagadas (Efectivo) sin BDP
+- [x] P7.2 Pago parcial local + idempotencia (ledger `bdp_pagos`) — pagos parciales sobre ventas A/D/E: ledger 2+ filas, reintento NO duplicó; saldo pendiente correcto (DB + API)
+- [x] P7.3 Factura local `F-{año}-{n:04}` — venta B facturada `F-2026-0001`, estado `Facturada` en UI, auditoría, guard de doble facturación en código
+- [x] P7.4 En `standalone` botones BDP no se ofrecen — banner UI Ventas ("las columnas y acciones de BDP no se muestran") + código `useVentaRowActions`: `puedePagar` exige `bdpSyncEnabled && bdp_synced && bdp_order_id…` (falso en standalone); se ofrecen `puedePagoLocal`/`puedeFacturaLocal`
 
 ### P8. Menús y packs locales + Explorador (R8, F7, D2=A)
-- [ ] P8.1 CRUD local de menús/packs sobre catálogo local sin BDP; precio recalculado por líneas
-- [ ] P8.2 Convivencia con definiciones BDP de referencia en el Explorador, origen visible
+- [x] P8.1 CRUD local de menús/packs + precio recalculado — menú local creado/actualizado/borrado vía `/api/bdp/menus-locales` con precio recalculado por líneas (API + DB, sin BDP)
+- [x] P8.2 Convivencia con definiciones BDP en el Explorador, origen visible — Explorador ("Menús y Packs") separa definiciones BDP (solo lectura/consulta) de los menús locales; origen visible (código + UI)
 
 ### P9. Historial / auditoría (R9)
-- [ ] P9.1 Operaciones locales visibles con `origen_operacion='local'` (anulación, ajuste stock, CRUD catálogo, pagos parciales, factura local, conteos)
-- [ ] P9.2 Snapshots de configuración visibles sin BDP; filtros y badge de origen
+- [x] P9.1 Operaciones locales con `origen_operacion='local'` — filas de anulación, ajuste stock, alta/edición catálogo, pagos parciales, factura local y conteos en tabla de auditoría con `origen_operacion=local` (DB + UI Historial con badge "Local")
+- [x] P9.2 Snapshots de configuración sin BDP + filtros/badge — `/api/bdp/backup/snapshots` 200 en standalone; UI Historial con chips Todos/Local/BDP + búsqueda
 
 ### P10. Permisos operativos (R10, F8, M17)
-- [ ] P10.1 Enforcement backend real: rol trabajador recibe **403** en acciones sin permiso (anulación, ajuste stock, alta catálogo, push/flush, gestión albaranes)
-- [ ] P10.2 6 permisos configurables; el alta de artículo queda cubierto por `catalogo_edicion` (R10.4)
-- [ ] P10.3 UI de permisos en Configuración refleja y cambia el acceso; trabajador puede leer configuración (200)
+- [x] P10.1 Enforcement backend real 403 — rol trabajador sin permiso recibe 403 en anulación/ajuste stock/flush; con `catalogo_edicion` puede alta de artículo (200) — verificado con token de trabajador creado ad hoc (API)
+- [x] P10.2 6 permisos configurables, `catalogo_edicion` cubre el alta — selectores de 6 permisos en Configuración→BDP (UI) + enforcement por permiso en middleware/handlers (código)
+- [x] P10.3 UI de permisos refleja/cambia acceso; trabajador lee configuración 200 — verificado (UI selectores + GET configuración con rol trabajador = 200)
 
 ### P11. Invariante central de red (N1–N2)
-- [ ] P11.1 Tras recorrer P1–P10 completo: **cero** peticiones a `100.83.196.35` / `:8068` (network)
-- [ ] P11.2 Lista de controles dependientes de BDP **ocultos o deshabilitados** en `standalone`, verificados uno a uno: CallWaiter (D10), "Sincronizar a BDP"/flush (W7), "Sync catálogo" (P3.3), "Sync albaranes" (P6.4), envío de inventario (P4.3), pagar/facturar en BDP (P7.4), botones del dropdown del badge (W7/198A-2), **sección "Sincronización" del menú** (C4/H6), **botón "Sync BDP" de Plano de Sala**, botones de fidelización/puntos (D9) y de propina/pago BDP en la ficha de venta
-- [ ] P11.3 `POST /api/bdp/push/flush` forzado en standalone: `sincronizados=0`, sin consumo de cola (invariante, existe test)
+- [x] P11.1 Tras recorrer P1–P10 completo: **cero** peticiones a `100.83.196.35`/`:8068` — `netstat`: cero conexiones establecidas al host BDP (con Tailscale conectado); log backend sin hits BDP salvo el caso controlado de Plano de Sala (**H-P1-02**, solo ante clic explícito del usuario en "Sync BDP")
+- [x] P11.2 Controles BDP ocultos/deshabilitados en `standalone`, uno a uno: CallWaiter D10 oculto (`onLlamarCamarero` solo con `modoEfectivoBdp`) · flush W7/badge: sin acciones en el badge (solo pill de estado) · "Sync catálogo" P3.3 y "Sync albaranes" P6.4 deshabilitados · envío inventario P4.3: no se ofrece (banner honesto) · pagar/facturar BDP P7.4: no se ofrecen · sección "Sincronización": visible con banner honesto + botones deshabilitados (C4) · botones de puntos/propina BDP en ficha de venta: no presentes (pago/factura/propina local) · **"Sync BDP" de Plano de Sala: NO cumple — visible y activo → H-P1-02**
+- [x] P11.3 `POST /api/bdp/push/flush` forzado en standalone — respuesta `sincronizados:0`, `omitidos_standalone:1`, cola sin consumir (API + BD); invariante consistente con la suite `bdp_push` en verde
 
 ### P12. Integridad de datos e independencia real (R13)
-- [ ] P12.1 Migraciones aditivas con defaults (M15): sin borrar/renombrar columnas
-- [ ] P12.2 Sin colisiones: serie local `L-` vs series BDP (M18); rango reservado de códigos (M11/198A-1)
-- [ ] P12.3 `venta::delete` considera Haddock (M14) — documentado
-- [ ] P12.4 Cola local: filas pendientes persisten y se enviarían al conectar BDP (comportamiento local-first, no bug — verificado en 208A-1)
-- [ ] P12.5 Los datos creados en P2–P8 persisten en BD tras recargar (no solo estado de UI)
+- [x] P12.1 Migraciones aditivas con defaults (M15) — sin `DROP`/`RENAME` en las últimas 25 migraciones `.up` (solo los `.down` de reversión los contienen)
+- [x] P12.2 Sin colisiones — serie `L-`: `L-2` y `L-4` bajo `UNIQUE(user_id,serie,numero)` (migración 20260816 documenta prefijo reservado); rango `90xxxxxxx` aplicado en el alta local `90000001` (M11)
+- [x] P12.3 `venta::delete` considera Haddock (M14) — `VentaService::delete` bloquea con 409 mientras `haddock_sync_enabled` ("No se pueden eliminar ventas…")
+- [x] P12.4 Cola local local-first — fila `bdp_push` `estado=pendiente` del alta/ajuste persiste en BD; flush la omite en standalone (`omitidos_standalone`) sin borrarla; se enviaría al conectar BDP (comportamiento documentado 208A-1)
+- [x] P12.5 Persistencia tras recarga — tras reiniciar el backend (caída y arranque), artículos `T-P1-*`/`90000001`, albarán `L-4`, conteos, ventas A–E, pagos y factura `F-2026-0001` siguen en BD y UI (no era estado de UI)
 
 ### P13. Efectos locales de los controles de escritura 198A-1 en `standalone` (198A-2 §4.3, D7–D10)
 > Añadido en la Ronda de creación 1 (cruce 198A-1/198A-2): los efectos *locales* de cada control de
 > escritura tenían cobertura suelta en P5/P7; se agrupan aquí para que la Parte 1 no deje ninguno fuera.
-- [ ] P13.1 Alta local de **departamento/familia** funciona en `standalone` con código secuencial local; la asignación automática para BDP (D7) solo aplica en modo bdp (Parte 2 → Q2.3)
-- [ ] P13.2 **Propina (D8):** en `standalone` el control es configurable (sumar/sustituir) y persiste local en `ventas.propina`; no hay envío ni "encolado" fingido
-- [ ] P13.3 **Puntos de cliente (D9):** gating por módulo honesto en `standalone` — el control no se ofrece o muestra estado `pendiente_suscripcion` sin escribir
-- [ ] P13.4 **Arming/permiso de operación temporal** (`ff_bdp_auto_arm`): en `standalone` sin credenciales falla cerrado (no arma, no escribe); la UI de Configuración no sugiere habilitar escritura sin BDP
+- [x] P13.1 Alta local de departamento/familia con código secuencial local — departamento "P1-Departamento Local" creado desde Catálogo→Departamentos en UI standalone, código auto `2` (tras Bebidas=1); hint honesto "sin BDP, queda local"
+- [x] P13.2 Propina (D8) configurable sumar/sustituir y persistida en `ventas.propina` — propinas 2,00/3,00 aplicadas (sumar) en ventas D/E sin envío; columna `propina` en BD (DB + UI acciones de fila)
+- [x] P13.3 Puntos de cliente (D9) gating honesto — módulo de puntos sin suscripción activa no ofrece escritura (estado/oculto); verificado en código (gating por módulo) y sin filas de puntos escritas en standalone
+- [x] P13.4 Arming `ff_bdp_auto_arm` fail-closed — venta con `auto_arm=true` aceptada localmente pero **cero filas** en `bdp_write_arming` y cero trazas BDP (guard `bdp_write_guard.rs` exige credenciales/modo efectivo); UI Configuración→BDP con switch de arming visible pero sin sugerir escritura sin BDP
 
 ---
 
@@ -378,7 +381,9 @@ Reglas de las rondas:
 
 | ID | Área | Hallazgo (evidencia) | Severidad | Corrección propuesta | Estado |
 | --- | --- | --- | --- | --- | --- |
-| — | — | — | — | — | — |
+| H-P1-01 | Stock (P3.1, UI) | "Ajustar" de Stock llama `POST /api/bdp/article-stock/ajustar` → **405**; el backend solo monta `POST /api/bdp/article-stock` (sin `/ajustar`). Evidencia: toast "Error al ajustar el stock" en UI + network log 405 + stock sin cambio (BD). El endpoint real funciona por API (stock 40→50, `ajustado_local:true`). Localizado: `frontend/src/api/bdp.ts:154` vs `src/handlers/bdp_article_map.rs` (mount sin `/ajustar`). | Alta (funcionalidad de UI rota) | Alinear ruta del frontend con el mount real (o montar también `/ajustar` con test) | Abierto |
+| H-P1-02 | Plano de Sala (P11.1/P11.2, N1) | Botón "Sync BDP" de Plano de Sala **activo en `standalone`** (no deshabilitado/oculto como exige P11.2). Al hacer clic en modo standalone con credenciales presentes en el sandbox: `POST /api/bdp/sync-tables` → **intento real de `Auth/Login` contra `100.83.196.35:8068`** → error de transporte (Tailscale caído en ese momento) → 500 tras ~20 s. El handler `sync_tables` solo exige credenciales, **nunca consulta `modo_efectivo`/`bdp_sync_enabled`**. NO se re-disparó con Tailscale arriba (habría autenticado contra el BDP real). CallWaiter D10 en el mismo componente sí está gateado por `modoEfectivoBdp`. | Alta (viola el invariante de red N1 bajo clic explícito) | Gatear el botón y el handler por modo efectivo (ocultar/deshabilitar en standalone, como C4/P3.3/P6.4); test de regresión sin red | Abierto |
+| H-N1 | Cola local-first (P2.8/P12.4) | Matiz de invariante, no fallo: el alta local SÍ inserta fila `bdp_push` `estado=pendiente` (comportamiento local-first de 208A-1); en standalone nunca se envía — `flush` reporta `omitidos_standalone:1`, `sincronizados:0`, la fila persiste y se enviaría al conectar BDP. | Info (documentado) | Ninguna; mantener documentado en P12.4 para que no se lea como "envío en standalone" | Cerrado (comportamiento esperado) |
 
 ## 11. Criterios de aceptación (Definition of Done)
 
@@ -408,15 +413,22 @@ Reglas de las rondas:
 ## 13. Estado y siguiente paso verificable
 
 - **Estado:** plan creado y revisado 3 veces al crearlo (§14 Rondas 1–3, 2026-09-03, 8 adiciones
-  aplicadas) y **re-revisado en una 2.ª pasada** (§14 Ronda 4, 2026-09-03, por pedido del usuario):
-  las escrituras BDP quedan **solo en la etapa final S3** (fase F5) con autorización por operación;
-  la **Parte 3 (§8)** simula al cliente con la app completa (S1 independiente → S2 con BDP solo
-  lecturas → S3 escrituras); las rondas de ejecución vuelven a ser 3 (§9) y las secciones quedaron
-  renumeradas (§8–§14, fases F0–F7). Los 3 planes activos fuente quedaron archivados en
-  `completados/` con nota. Pendiente la ejecución: Ronda 1 formal (F0) y fases F1–F7.
-- **Siguiente paso:** confirmar con el usuario la disponibilidad del BDP real del restaurante
-  (online + credenciales + suscripción de pago) — determina si la Parte 2 (F3) se ejecuta o queda
-  `⏸` documentada y si la etapa S3 (F5) podrá ejecutarse — y arrancar F0 (stack aislado + Ronda 1).
+  aplicadas) y re-revisado en una 2.ª pasada (§14 Ronda 4, 2026-09-03): escrituras BDP solo en la
+  etapa final S3 (F5) con autorización por operación; Parte 3 (§8) simula al cliente con la app
+  completa; 3 rondas de ejecución (§9); fases F0–F7. Los 3 planes activos fuente quedaron archivados.
+- **F0 y Parte 1 EJECUTADAS (2026-09-03, stack aislado :3100/:5180, BD `glory_backend_glory_rs_rest`):**
+  P0 baseline verde (`cargo check` offline 2m48s, `cargo test --lib` 153/0, type-check limpio en
+  `frontend/src`, submodule glory-rs preexistente); P1–P13 ejecutados con evidencia por caso (vías
+  A/U/B/T) — checklist completo marcado en §6; P11.1 invariante de red verificado con Tailscale
+  CONECTADO (cero conexiones establecidas al host BDP); P12.5 persistencia tras reinicio del backend
+  verificado. **Hallazgos: H-P1-01 y H-P1-02 (tabla §10b, ambos abiertos)** + matiz H-N1 cerrado.
+  Diferidos con motivo explícito (no fallo): P1.6 y P5.6 → se verifican en Parte 2 (Q3.1/Q3.2, Q2.6).
+- **Siguiente paso (F2 — Ronda 2):** cruce contra la implementación real (código Rust + frontend por
+  dominio) para confirmar que ninguna funcionalidad implementada quedó sin caso, cerrar la Ronda 2 y
+  pasar a F3 (Parte 2). La Parte 2 requiere además: confirmar con el usuario la disponibilidad del BDP
+  real (online + credenciales integrador + suscripción de pago) y **autorización explícita por
+  operación para cualquier escritura (S3/F5)** — mientras tanto se ejecuta solo la parte de lecturas
+  (Q1) o queda `⏸` documentada.
 
 ## 14. Rondas de revisión de la CREACIÓN (2026-09-03, cumplidas al crear este plan)
 
