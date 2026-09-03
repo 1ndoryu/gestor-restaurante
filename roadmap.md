@@ -140,6 +140,21 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Tareas pendientes
 
+### Bloque 039A-1 — Revisión integral BDP: independencia funcional + integración completa (3 rondas) (plan activo 2026-09-03)
+
+Plan activo: `Agente/planes/plan-revision-integral-bdp-2026-09-03.md`. Plan **centralizado** que
+absorbe y reemplaza los 6 planes de la cadena 128A-1 → 208A-2 (independencia, escrituras,
+pruebas de interfaz, lecturas reales, auditoría 1×1 y correcciones H1–H8) — los 6 archivados en
+`Agente/planes/completados/`. Prueba **todo lo construido** en dos partes: **Parte 1 —
+funcionalidad independiente** (`standalone`: catálogo, stock, inventario, anulación, compras,
+pagos/factura local, menús/packs, historial, permisos; controles BDP ocultos/deshabilitados;
+**cero tráfico a BDP**) y **Parte 2 — integración completa** contra el **BDP real del
+restaurante** (las 24 funciones de lectura "en uso" + escrituras autorizadas una a la vez con
+arming + polling/estados + convivencia con datos locales). Incluye **3 rondas de revisión**
+(cobertura de fuentes → cobertura de código → cobertura de ejecución) para no dejar nada por
+fuera. Dependencia externa de la Parte 2: BDP online + credenciales + suscripción de pago del
+cliente. **Siguiente paso:** F0 (stack aislado + Ronda 1) y confirmar disponibilidad del BDP real.
+
 ### Seguimiento 318A-3 — Evaluar reactivación de reglas de consistencia de formularios (2026-09-01)
 
 Informe del cierre de PROYECTO TASKS (plan `PROYECTO TASKS/Agente/planes/` 318A-3): este proyecto
@@ -175,7 +190,8 @@ cero tráfico a BDP). Trabajo sin commitear.
 
 ### Bloque 208A-1 — Auditoría integral independencia BDP, revisión 1×1 (auditado 2026-08-27)
 
-Plan activo: `Agente/planes/plan-auditoria-independencia-bdp-2026-08-27.md`. El usuario detectó
+Plan archivado (2026-09-03, bloque 039A-1):
+`Agente/planes/completados/plan-auditoria-independencia-bdp-2026-08-27.md`. El usuario detectó
 que la UX no refleja la independencia (Stock no crea artículos, Inventario no persiste conteos,
 el CRUD de artículos está escondido en Configuración, Compras bajo sospecha). **Regla: NO se
 implementa nada durante la auditoría** — se verifica 1×1 cada dominio (modo operativo, catálogo,
@@ -196,17 +212,20 @@ standalone (filas pendientes que se envían al conectar BDP), test de invariante
 migraciones aditivas, serie L-, rango reservado. **Siguiente paso:** decidir el plan de
 corrección (decisiones del usuario en §6 del plan) — NO se ha implementado nada todavía.
 
-### Bloque 138A-2 — Verificación LECTURA REAL de las 24 lecturas BDP "en uso" (en curso)
+### Bloque 138A-2 — Verificación LECTURA REAL de las 24 lecturas BDP "en uso" (absorbido por 039A-1, 2026-09-03)
 
-Plan activo: `Agente/planes/plan-prueba-lecturas-bdp-2026-08-18.md`. Verificar contra el **BDP
+Plan archivado (bloque 039A-1): `Agente/planes/completados/plan-prueba-lecturas-bdp-2026-08-18.md`.
+El objetivo queda encomendado a la Parte 2 del plan centralizado 039A-1 (bloque Q1). Verificar contra el **BDP
 REAL del restaurante** (`100.83.196.35:8068`, solo lecturas, cero escrituras) que las 24 funciones
 de lectura marcadas "en uso" en el inventario final (64 funciones) siguen respondiendo tras
 F0–F10 (128A-1). Sin simulador (descartado por decisión del usuario), sin escrituras, sin deploy.
-Pendiente de confirmar BDP online + credenciales antes de ejecutar.
+Pendiente de confirmar BDP online + credenciales — condición heredada por la Parte 2 del plan
+centralizado 039A-1.
 
 ### Bloque 198A-2 — Pruebas de interfaz: independencia + escritura (sin BDP real) (completado 2026-08-19)
 
-Plan activo: `Agente/planes/plan-pruebas-interfaz-bdp-2026-08-19.md`. Verificar a nivel de
+Plan archivado (2026-09-03, bloque 039A-1):
+`Agente/planes/completados/plan-pruebas-interfaz-bdp-2026-08-19.md`. Verificar a nivel de
 **interfaz** (navegador + backend local + BD de rama) que la independencia (128A-1) y los
 efectos locales de la integración de escritura (198A-1) funcionan en `standalone`, y que
 **ninguna** funcionalidad ofrece ni envía nada a BDP (cero tráfico a `100.83.196.35:8068`).

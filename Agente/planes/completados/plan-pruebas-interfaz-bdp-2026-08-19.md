@@ -1,5 +1,9 @@
 # Plan — Pruebas de interfaz: independencia BDP + integración de escritura (sin BDP real)
 
+> **ARCHIVADO 2026-09-03 (bloque 039A-1):** dos pasadas completadas con evidencia (matriz
+> I/W/N, cero tráfico a BDP, 403 real). Su matriz queda absorbida por el plan centralizado
+> `Agente/planes/plan-revision-integral-bdp-2026-09-03.md` (Parte 1 — independencia funcional),
+
 > **Fecha:** 2026-08-19
 > **Rama:** `glory-rs-rest` (git pendiente de reparación por otro agente — sin operaciones git)
 > **Alcance:** probar a nivel de **interfaz** todo lo que NO requiere BDP real: la

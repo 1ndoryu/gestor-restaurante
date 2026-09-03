@@ -1,5 +1,11 @@
 # Plan — Verificación de las 24 funciones de lectura BDP "en uso" (LECTURA REAL)
 
+> **ARCHIVADO 2026-09-03 (bloque 039A-1):** pendiente de BDP online + credenciales del
+> restaurante; su objetivo (24 funciones de lectura contra el BDP real) queda absorbido por el
+> plan centralizado `Agente/planes/plan-revision-integral-bdp-2026-09-03.md` (Parte 2 —
+> integración completa, bloque Q1). No se pierde el inventario: la tabla de las 24 funciones
+> sigue siendo la fuente de la Parte 2.
+
 > **Fecha:** 2026-08-18
 > **Rama:** `glory-rs-rest` (git pendiente de reparación por otro agente — sin operaciones git)
 > **Alcance:** comprobar contra el **BDP REAL del restaurante** que las 24 funciones de lectura marcadas "✅ En uso" en la tabla final responden correctamente. **Solo lecturas — cero escrituras, cero cambios en BDP, sin deploy.**

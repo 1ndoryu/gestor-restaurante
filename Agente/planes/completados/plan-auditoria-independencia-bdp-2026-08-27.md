@@ -1,5 +1,10 @@
 # Plan — Auditoría integral de la independencia BDP (revisión 1×1, sin parches)
 
+> **ARCHIVADO 2026-09-03 (bloque 039A-1):** auditoría completada; sus hallazgos H1–H8 se
+> corrigieron en el bloque 208A-2 (plan archivado `plan-correccion-independencia-bdp-2026-08-27.md`).
+> La verificación final de todo lo corregido queda absorbida por el plan centralizado
+> `Agente/planes/plan-revision-integral-bdp-2026-09-03.md` (Parte 1 — independencia funcional).
+
 > **Fecha:** 2026-08-27
 > **Rama:** `glory-rs-rest`
 > **ID de bloque:** `208A-1` (auditoría) — provisional hasta confirmar en roadmap
