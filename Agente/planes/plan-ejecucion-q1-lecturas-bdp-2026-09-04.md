@@ -23,6 +23,10 @@
 6. **Clasificación:** "Subscripción no activada" y similares = bloqueo externo `⏸`. Paths
    especulativos rechazados por el contrato real (Q1.22/23) = "especulativo", no defecto. Sin id
    real disponible → `⏸` (nunca inventar ids).
+7. **Presupuesto de tiempo:** cada llamada de red del cliente tiene timeout de **20 s**
+   (`bdp_weblink.rs:52`); el preflight hace 8 llamadas → peor caso **~160 s** con BDP inalcanzable
+   (200 + `health_ok:false`, no error HTTP). Registrar el timeout como bloqueo `⏸`, sin reintento
+   en ráfaga.
 
 ## 2. Parámetros reales (BD local `glory_backend_glory_rs_rest`, 2026-09-04)
 
@@ -49,16 +53,17 @@ en la tabla §4; el **PASS/FAIL** se evalúa sobre la respuesta de la app.
 
 ### Q1.1 — ServiceHealth ✅ pre-validado
 - **Ruta/Body:** `POST {base}/Service/Health` · `{}` · público → `{ "IsAlive": bool }`
-- **Vía app:** `GET /api/configuracion/bdp/diagnostico` (paso 1 preflight). ⚠️ la app expone
-  `health_ok`, no `IsAlive`; con BDP configurado pero inalcanzable este paso tarda **~20 s**
-  (timeout cliente `bdp_weblink.rs:52`) y responde **200 con `health_ok:false`** + mensaje honesto
-  — no es error HTTP.
+- **Vía app:** `GET /api/configuracion/bdp/diagnostico` (check **«Health»** del preflight). ⚠️ la
+  app expone `health_ok`, no `IsAlive`; con BDP configurado pero inalcanzable este paso tarda
+  **~20 s** (timeout cliente `bdp_weblink.rs:52`) y responde **200 con `health_ok:false`** + mensaje
+  honesto — no es error HTTP.
 - **PASS:** 200 + `health_ok:true`. **FAIL:** `health_ok:false`/timeout → bloqueo externo ⏸.
 
 ### Q1.2 — GetVersion ✅ pre-validado
 - **Ruta/Body:** `POST {base}/Service/GetVersion` · `{}` · Bearer
 - **Respuesta:** `BdpVersionResponse { Version, Subversion, Revision, Application, ApplicationDescription, ErrorMessage }`
-- **Vía app:** mismo diagnóstico (paso 2). **PASS:** 200 + `ErrorMessage` vacío + `Version` > 0.
+- **Vía app:** mismo diagnóstico (check **«Sesion y version»** del preflight). **PASS:** 200 +
+  `ErrorMessage` vacío + `Version` > 0.
   **FAIL:** `ErrorMessage` no vacío → hallazgo.
 
 ### Q1.3 — Login ✅ pre-validado
@@ -95,7 +100,8 @@ en la tabla §4; el **PASS/FAIL** se evalúa sobre la respuesta de la app.
   → `{ "Art1":1, "Art2":9999999999999, "Dept1":1, "Dept2":999, "Description":"", "DescriptionQueryType":0,
   "ItemsPerPage":1, "ActualPage":1, "nField":1, "nOrder":0, "ProfileCode":1 }` · Bearer
 - **Respuesta:** keys aceptadas: `ArticlesListData | ArticleListData | Articles | ArticleList`
-- **Vía app:** preflight (`sync-dry-run`, paso 6) · resolución de artículo (`bdp_sync.rs:782`).
+- **Vía app:** preflight (`sync-dry-run`, check **«Articulos del perfil»**) · resolución de
+  artículo (`bdp_sync.rs:782`).
   **PASS:** 200 + `ErrorMessage` vacío + colección presente (vacía válida).
 
 ### Q1.8 — ExportCustomers ✅ pre-validado
@@ -124,7 +130,8 @@ en la tabla §4; el **PASS/FAIL** se evalúa sobre la respuesta de la app.
 
 ### Q1.11 — DepartmentsExportFromProfile
 - **Ruta/Body:** `POST {base}/API/Departments/ExportFromProfile` · `{ "ProfileId": 1 }` · Bearer
-- **Respuesta:** `Departamentos | Departments`. **Vía app:** preflight (paso 5).
+- **Respuesta:** `Departamentos | Departments`. **Vía app:** preflight (check
+  **«Departamentos del perfil»**).
 - **PASS:** 200 + `ErrorMessage` vacío + colección presente.
 
 ### Q1.12/13/14 — GetMenuDefinition / GetFastfoodDefinition / GetPackDefinition
@@ -136,17 +143,19 @@ en la tabla §4; el **PASS/FAIL** se evalúa sobre la respuesta de la app.
 
 ### Q1.15 — GetPOS
 - **Ruta/Body:** `POST {base}/API/POS/Get` · `{ "Id": 31 }` · Bearer
-- **Respuesta:** key `POS`. **Vía app:** preflight (paso 3).
+- **Respuesta:** key `POS`. **Vía app:** preflight (check **«Terminal POS»**).
 - **PASS:** 200 + `ErrorMessage` vacío + `POS` con id 31.
 
 ### Q1.16 — GetPOSes ⚠️ sin caller en la app
 - **Ruta/Body:** `POST {base}/API/POSes/Get` · `{}` · Bearer
 - **Respuesta:** lista de terminales (contrastar en vivo; key tipo `POSes`/lista).
-- **Sin vía app** (método definido, sin uso): **por defecto `⏸` documentada** — no se añade harness.
+- **Sin vía app** (método definido, sin uso): **por defecto `⏸` documentada** — no se añade
+  harness. **Desbloqueo (fuera de alcance):** ruta app nueva de solo lectura en un bloque futuro
+  (S3/Parte 3) que exponga este método.
 
 ### Q1.17 — GetEmployee
 - **Ruta/Body:** `POST {base}/API/Employee/Get` · `{ "Id": 1 }` · Bearer
-- **Respuesta:** key `Employee`. **Vía app:** preflight (paso 4).
+- **Respuesta:** key `Employee`. **Vía app:** preflight (check **«Empleado BDP»**).
 - **PASS:** 200 + `ErrorMessage` vacío + `Employee` id 1. **Redacción:** datos personales enmascarados.
 
 ### Q1.18 — GetEmployees
@@ -157,12 +166,14 @@ en la tabla §4; el **PASS/FAIL** se evalúa sobre la respuesta de la app.
 
 ### Q1.19 — GetPOSEmployees
 - **Ruta/Body:** `POST {base}/API/POS/Employees/Get` · `{ "POSId": 31 }` · Bearer
-- **Respuesta:** key `Employees`. **Vía app:** preflight (paso 4, valida employee 1 en POS 31).
+- **Respuesta:** key `Employees`. **Vía app:** preflight (check **«Empleados del POS»**, valida
+  employee 1 en POS 31).
 - **PASS:** 200 + colección presente + el empleado configurado aparece.
 
 ### Q1.20 — GetPOSTenderList ✅ pre-validado
 - **Ruta/Body:** `POST {base}/API/Tenders/GetPOSList` · `{ "POSId": 31 }` · Bearer
-- **Respuesta:** `TenderList | Tenders`. **Vía app:** preflight (paso 4, valida `bdp_tender_map`).
+- **Respuesta:** `TenderList | Tenders`. **Vía app:** preflight (check **«Formas de pago del POS»**,
+  valida `bdp_tender_map`).
 - **PASS:** 200 + colección presente. (Complemento sin caller: `POST /API/Tenders/GetList` con `{}` —
   contrato wiremock verificado.)
 
@@ -185,6 +196,8 @@ en la tabla §4; el **PASS/FAIL** se evalúa sobre la respuesta de la app.
   `BdpGetListStockResponse { Stock:[{ Article, Altern, Units, ErrorMessage }], ErrorMessage }` · Bearer
 - **Sin vía app** (métodos probados con wiremock, sin caller en producción): **por defecto `⏸`**
   documentada. Si el contrato real rechaza path/contrato → marcar **"especulativo"**, no defecto.
+  **Desbloqueo (fuera de alcance):** ruta app nueva de solo lectura en un bloque futuro (S3/Parte
+  3) que exponga estos métodos.
 - **PASS:** 200 + `ErrorMessage` vacío + `Stock` presente.
 
 ### Q1.24 — GetRoomTables / GetRoomsTables (plano de sala, F9.4)
@@ -212,7 +225,13 @@ en la tabla §4; el **PASS/FAIL** se evalúa sobre la respuesta de la app.
 
 Cola `bdp_push_pendientes` sin filas nuevas, `bdp_audit_log` sin entradas de escritura en la ventana,
 config restaurada (snapshot previo). Cero datos en BDP por construcción (solo lecturas) + auditoría local.
-Evidencia redactada por lectura en §10b del plan padre, checklist Q1 marcado, completados, commit local.
+Checklist Q1 marcado en §7 del plan padre, completados, commit local.
+
+### Plantilla de evidencia (una fila por lectura, en §10b del plan padre)
+
+| Lectura | Vía app | HTTP | `ErrorMessage` | Check clave | Redacción aplicada | Resultado |
+| --- | --- | --- | --- | --- | --- | --- |
+| Q1.N | endpoint §4 | 200 / timeout / `⏸` | vacío / texto | valor verificado (id, key, contador) | qué se enmascaró | PASS / `⏸` / hallazgo H-Q1-xx |
 
 ## 6. Validación previa (2026-09-04, sin tocar BDP)
 
