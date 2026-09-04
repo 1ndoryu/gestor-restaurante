@@ -161,6 +161,10 @@ con los 4 hallazgos H-P1-01..04 corregidos (guard fail-closed + 8 tests de regre
 escenas (a)–(j) verificadas en BD real local, barrido S1.3 de toda la app, S1.5 cero tráfico a
 BDP; nuevo hallazgo H-S1-01 (CSV/filtro stock usaban el snapshot) corregido en `BdpStock.tsx`.
 Checklist §8 S0/S1 marcado con evidencia; evidencia en `Agente/completados/tareas-2026-09-04.md`.
+**Prep F3 (2026-09-04):** paquete de ejecución de lecturas Q1 listo en
+`Agente/planes/plan-ejecucion-q1-lecturas-bdp-2026-09-04.md` (24 lecturas con endpoint/payload/
+forma esperada/redacción/criterios, parámetros reales verificados en BD local, validación de
+contrato vía suite wiremock ya verde; re-run bloqueado por disco C:).
 **Siguiente paso:** F3 — Parte 2 (Q1 lecturas contra el BDP real, luego S3 escrituras **con
 autorización explícita por operación**). Requiere BDP online + credenciales integrador +
 suscripción de pago; mientras tanto S2/lecturas quedan `⏸`.

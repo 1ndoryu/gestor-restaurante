@@ -494,10 +494,20 @@ Reglas de las rondas:
   descartaron como artefactos de sesión el diálogo "+Venta" del Dashboard persistente y los diálogos
   "colgados" (residuo Radix data-state=closed tras cierre real; 1 sola fila en BD en cada repro).
   Checklist §8 S0/S1 marcado con evidencia.
-- **Siguiente paso (F3 — Parte 2):** requiere confirmar con el usuario la disponibilidad del BDP
-  real (online + credenciales integrador + suscripción de pago) y **autorización explícita por
-  operación para cualquier escritura (S3/F5)** — mientras tanto se ejecuta solo la parte de lecturas
-  (Q1) o queda `⏸` documentada.
+- **PREP F3 EJECUTADA (2026-09-04, sin tocar el BDP):** paquete de ejecución de lecturas Q1 listo
+  en `Agente/planes/plan-ejecucion-q1-lecturas-bdp-2026-09-04.md` — entrada por lectura (Q1.1–Q1.24)
+  con ruta BDP exacta (constantes `BDP_PATH_*`), método POST, auth (público/Bearer), payload
+  PascalCase con los parámetros reales verificados en BD local (POS 31, empleado 1, perfil 1,
+  type_price 1, almacén 1, `bdp_purchase_notes_profile_id=NULL` → Q1.21 exige perfil explícito),
+  forma de respuesta esperada (structs tipados/keys aceptadas), reglas de redacción (Q5.3) y
+  criterios PASS/FAIL; flujos Q1.25 por dominio con su endpoint de la app; Q1.26 limpieza.
+  Especulativos N6 (Q1.22/23) y limitación de GetOrder (Q1.9) marcados según el plan. Validación
+  previa: suite wiremock verde (153/0) con el código actual del cliente (sin cambios desde
+  `188f6b3`); re-run bloqueado por disco (`C:\tmp` 6,4 GB, libre 5,9 GB < umbral del wrapper);
+  cero contacto de red con el BDP real.
+- **Siguiente paso (F3 — Parte 2):** ejecutar el paquete Q1 cuando el usuario confirme BDP online +
+  credenciales; **autorización explícita por operación para cualquier escritura (S3/F5)** — mientras
+  tanto las lecturas quedan `⏸` documentadas.
 
 ## 14. Rondas de revisión de la CREACIÓN (2026-09-03, cumplidas al crear este plan)
 
