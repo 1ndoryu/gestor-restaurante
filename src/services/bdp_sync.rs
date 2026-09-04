@@ -2042,7 +2042,41 @@ impl BdpSyncService {
         let response: BdpExportArticlesResponse = serde_json::from_value(articles_json)
             .map_err(|e| format!("Error parseando ExportArticles: {e}"))?;
 
-        let articles = response.articles;
+        let mut articles = response.articles;
+        let mut fuente = "ExportArticles";
+
+        /* [039A-1/H-Q1-03] El BDP real devuelve ExportArticles vacío cuando no
+         * tiene artículos web contratados, aunque el perfil de items (el que
+         * CreateOrder puede referenciar) sí tenga artículos. Si el rango export
+         * llega vacío, se importa el universo del perfil vía GetPOSList en vez
+         * de dejar el catálogo Glory silenciosamente vacío. Si el fallback de
+         * perfil falla, el sync falla alto: nunca cerrar verde con 0 sin saber
+         * si el BDP no tiene catálogo o no se pudo leer. */
+        if articles.is_empty() {
+            match client.list_profile_articles().await {
+                Ok(perfil) if !perfil.is_empty() => {
+                    info!(
+                        "[039A-1/H-Q1-03] ExportArticles vacío → catálogo importado desde \
+                         GetPOSList del perfil ({} artículos)",
+                        perfil.len()
+                    );
+                    articles = perfil;
+                    fuente = "GetPOSList perfil (fallback H-Q1-03)";
+                }
+                Ok(_) => {
+                    info!(
+                        "[039A-1/H-Q1-03] ExportArticles vacío y perfil sin artículos: \
+                         el BDP no expone catálogo"
+                    );
+                }
+                Err(e) => {
+                    return Err(format!(
+                        "ExportArticles devolvió 0 y el fallback de perfil falló: {e}"
+                    ));
+                }
+            }
+        }
+
         let total_bdp = articles.len();
         let mut creados: u32 = 0;
         let mut actualizados: u32 = 0;
@@ -2104,9 +2138,11 @@ impl BdpSyncService {
 
         /* [237A-4] Info si ningún artículo trajo stock — probablemente el módulo
          * de almacén de BDP no está activo. Se usa info! en vez de warn! para
-         * evitar spam: es un estado esperado si el módulo no está contratado. */
+         * evitar spam: es un estado esperado si el módulo no está contratado.
+         * Con el fallback de perfil (H-Q1-03) GetPOSList no trae CurrentStock
+         * por diseño: ese caso no dispara el aviso de ExportArticles. */
         let stock_populado = articles.iter().any(|a| a.effective_stock().is_some());
-        if !stock_populado && total_bdp > 0 {
+        if !stock_populado && total_bdp > 0 && fuente == "ExportArticles" {
             info!(
                 "[237A-4] Ningún artículo de ExportArticles trajo CurrentStock. \
                  Si el módulo de almacén de BDP no está activo, la columna Stock \
@@ -2115,7 +2151,7 @@ impl BdpSyncService {
         }
 
         info!(
-            "[157A-7] sync_catalog completado: {} artículos BDP → {creados} creados, {actualizados} actualizados, {sin_cambios} sin cambios, {omitidos_ediciones_locales} omitidos por edición local, {desactivados_localmente} desactivados localmente, {errores} errores, stock_disponible={stock_populado}",
+            "[157A-7] sync_catalog completado ({fuente}): {} artículos BDP → {creados} creados, {actualizados} actualizados, {sin_cambios} sin cambios, {omitidos_ediciones_locales} omitidos por edición local, {desactivados_localmente} desactivados localmente, {errores} errores, stock_disponible={stock_populado}",
             total_bdp
         );
 

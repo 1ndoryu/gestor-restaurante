@@ -19,7 +19,7 @@ use crate::services::bdp_weblink_catalog::{
     BdpCancelOrderRequest, BdpCreateArticlesRequest, BdpCreateCustomerRequest,
     BdpCreateDepartmentProfilesRequest, BdpCreateDepartmentRequest, BdpCreateFamilyRequest,
     BdpCreateOrderRequest, BdpCreateSubfamilyRequest, BdpDepartmentsExportFromProfileRequest,
-    BdpEmptyRequest, BdpExportArticlesRequest, BdpExportCustomersRequest,
+    BdpEmptyRequest, BdpExportArticleItem, BdpExportArticlesRequest, BdpExportCustomersRequest,
     BdpExportDepartmentsRequest, BdpExportPurchaseNotesRequest, BdpGetApplicationVersionRequest,
     BdpGetArticleRequest, BdpGetEmployeeRequest, BdpGetEmployeesRequest, BdpGetFastfoodRequest,
     BdpGetListStockRequest, BdpGetMenuRequest, BdpGetOrderRequest, BdpGetPackRequest,
@@ -44,6 +44,7 @@ use crate::services::bdp_weblink_catalog::{
     BDP_PATH_PROFILES_MODIFY_ARTICLE_LIST, BDP_PATH_REGULARIZATIONS, BDP_PATH_TRANSFERS,
     BDP_PATH_UPDATE_MASSIVE_INVENTORY, BDP_PATH_UPDATE_MASSIVE_STOCK, BDP_PATH_UPDATE_STOCK,
 };
+use crate::services::bdp_weblink_catalog::parse_articles_value;
 
 const BDP_SESSION_MINUTES: u8 = 59;
 
@@ -232,6 +233,47 @@ impl<'a> BdpWeblinkClient<'a> {
     ) -> Result<Value, BdpWeblinkError> {
         self.post_authenticated_json(BDP_PATH_GET_POS_ARTICLES, request)
             .await
+    }
+
+    /* [039A-1/H-Q1-03] Lista completa de artículos del perfil de items vía
+     * GetPOSList, paginando hasta página corta. Es exactamente el universo
+     * que CreateOrder/items_profile_id puede referenciar: ExportArticles
+     * devuelve vacío en BDP reales sin artículos web contratados, así que
+     * esta lectura es el fallback honesto del import de catálogo. */
+    pub async fn list_profile_articles(
+        &self,
+    ) -> Result<Vec<BdpExportArticleItem>, BdpWeblinkError> {
+        /* Mismo tamaño de página que el preflight (BDP_DRY_RUN_PAGE_SIZE=10):
+         * es la llamada GetPOSList probada contra el BDP real. Página mayor
+         * devolvió vacío en la primera validación, así que se replica el
+         * contrato conocido. */
+        const PAGE_SIZE: i32 = 10;
+        const MAX_PAGES: i32 = 1000;
+        let mut items: Vec<BdpExportArticleItem> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for page in 1..=MAX_PAGES {
+            let mut request =
+                BdpGetPosArticlesRequest::first_page(self.config.bdp_items_profile_id, PAGE_SIZE);
+            request.actual_page = page;
+            let raw = self.get_pos_articles(&request).await?;
+            let page_items = parse_articles_value(&raw);
+            let total_en_pagina = page_items.len();
+            let mut nuevos = 0usize;
+            for item in page_items {
+                let Some(code) = item.art_code() else {
+                    continue;
+                };
+                if seen.insert(code.to_string()) {
+                    nuevos += 1;
+                    items.push(item);
+                }
+            }
+            /* Página corta (o sin ítems nuevos: fin del catálogo). */
+            if nuevos == 0 || total_en_pagina < PAGE_SIZE as usize {
+                break;
+            }
+        }
+        Ok(items)
     }
 
     pub async fn export_customers(

@@ -490,12 +490,16 @@ pub struct BdpArticlePriceEntry {
     pub current_stock: Option<Decimal>,
 }
 
-/// Un artículo individual del array `Articles` en la respuesta de `ExportArticles`.
+/// Un artículo individual de una colección BDP de artículos.
+/// Endpoints que la producen: `ExportArticles` (clave `Articles`) y
+/// `GetPOSList` por perfil (claves `ArticleListData`/`ArticlesListData`,
+/// con `ArtCode`/`ArtDescription`/`TAVPer` en vez de `Code`/`Description`/`Tax1`).
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct BdpExportArticleItem {
-    /// Código del artículo (puede venir como string o número en BDP)
-    #[serde(default, deserialize_with = "deserialize_optional_string")]
+    /// Código del artículo (puede venir como string o número en BDP).
+    /// `ArtCode` es la clave real de GetPOSList; `Code` la de ExportArticles.
+    #[serde(default, alias = "ArtCode", deserialize_with = "deserialize_optional_string")]
     pub code: Option<String>,
     /// Fallback: algunos endpoints usan `ItemCode` en vez de `Code`
     #[serde(
@@ -504,8 +508,8 @@ pub struct BdpExportArticleItem {
         deserialize_with = "deserialize_optional_string"
     )]
     pub item_code: Option<String>,
-    /// Descripción / nombre del artículo
-    #[serde(default, alias = "Description")]
+    /// Descripción / nombre del artículo (`ArtDescription` en GetPOSList)
+    #[serde(default, alias = "ArtDescription", alias = "Description")]
     pub name: Option<String>,
     /// Código de familia
     #[serde(default)]
@@ -516,8 +520,8 @@ pub struct BdpExportArticleItem {
     /// Código de departamento
     #[serde(default)]
     pub department: Option<i32>,
-    /// Porcentaje IVA 1 (venta)
-    #[serde(default)]
+    /// Porcentaje IVA 1 (venta). En GetPOSList el IVA llega como `TAVPer`.
+    #[serde(default, alias = "TAVPer")]
     pub tax1: Option<Decimal>,
     /// Porcentaje IVA 2
     #[serde(default)]
@@ -598,6 +602,112 @@ impl BdpExportArticleItem {
 pub struct BdpExportArticlesResponse {
     #[serde(default)]
     pub articles: Vec<BdpExportArticleItem>,
+}
+
+/* [039A-1/H-Q1-03] Claves de colección de artículos según el endpoint:
+ * ExportArticles → `Articles`; GetPOSList por perfil → `ArticleListData`
+ * (alias observados `ArticlesListData`/`ArticleList`). Se prueban en orden
+ * para parsear cualquier respuesta de artículos BDP. */
+pub const BDP_ARTICLE_LIST_KEYS: &[&str] = &[
+    "ArticlesListData",
+    "ArticleListData",
+    "Articles",
+    "ArticleList",
+];
+
+/// Parsea el array de artículos de una respuesta cruda de BDP hacia
+/// `BdpExportArticleItem`, probando las claves de colección conocidas.
+/// Devuelve vacío (nunca errora) si la respuesta no trae colección.
+/// Por ítem se intenta primero el parseo estricto (riqueza completa de
+/// ExportArticles); si un campo desconocido con tipo raro lo tumbaría, se
+/// cae a un mapeo laxo de los campos esenciales para que un ítem legítimo
+/// nunca desaparezca silenciosamente del import.
+#[must_use]
+pub fn parse_articles_value(raw: &Value) -> Vec<BdpExportArticleItem> {
+    let Some(items) = BDP_ARTICLE_LIST_KEYS
+        .iter()
+        .find_map(|key| raw.get(*key).and_then(Value::as_array))
+    else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .filter_map(|item| {
+            serde_json::from_value::<BdpExportArticleItem>(item.clone())
+                .ok()
+                .or_else(|| map_article_essential(item))
+        })
+        .collect()
+}
+
+/// Devuelve cuántos ítems crudos trae una respuesta de artículos (para que el
+/// llamador detecte parseos perdidos comparándolo con el parseo real).
+#[must_use]
+pub fn raw_article_items_len(raw: &Value) -> usize {
+    BDP_ARTICLE_LIST_KEYS
+        .iter()
+        .find_map(|key| raw.get(*key).and_then(Value::as_array))
+        .map_or(0, std::vec::Vec::len)
+}
+
+fn field_text(item: &Value, keys: &[&str]) -> Option<String> {
+    keys.iter().find_map(|key| match item.get(*key) {
+        Some(Value::String(value)) => {
+            let trimmed = value.trim();
+            (!trimmed.is_empty()).then(|| trimmed.to_string())
+        }
+        Some(Value::Number(value)) => Some(value.to_string()),
+        _ => None,
+    })
+}
+
+fn field_decimal(item: &Value, keys: &[&str]) -> Option<Decimal> {
+    keys.iter().find_map(|key| match item.get(*key) {
+        Some(Value::Number(value)) => {
+            value.as_f64().and_then(Decimal::from_f64_retain)
+        }
+        Some(Value::String(value)) => value.parse::<Decimal>().ok(),
+        _ => None,
+    })
+}
+
+fn field_int(item: &Value, keys: &[&str]) -> Option<i32> {
+    keys.iter().find_map(|key| match item.get(*key) {
+        Some(Value::Number(value)) => value.as_i64().and_then(|n| i32::try_from(n).ok()),
+        Some(Value::String(value)) => value.parse::<i32>().ok(),
+        _ => None,
+    })
+}
+
+fn field_bool(item: &Value, keys: &[&str]) -> Option<bool> {
+    keys.iter().find_map(|key| item.get(*key).and_then(Value::as_bool))
+}
+
+/* [039A-1/H-Q1-03] Mapeo laxo de los campos esenciales del import cuando el
+ * parseo estricto falla por un campo con tipo inesperado. Claves reales de
+ * GetPOSList: ArtCode/ArtDescription/Price1/TAVPer. */
+fn map_article_essential(item: &Value) -> Option<BdpExportArticleItem> {
+    let code = field_text(item, &["Code", "ArtCode", "ItemCode"])?;
+    Some(BdpExportArticleItem {
+        code: Some(code),
+        item_code: None,
+        name: field_text(item, &["Description", "ArtDescription", "Name"]),
+        family: field_int(item, &["Family"]),
+        subfamily: field_int(item, &["Subfamily"]),
+        department: field_int(item, &["Department", "DeptCode"]),
+        tax1: field_decimal(item, &["Tax1", "TAVPer"]),
+        tax2: field_decimal(item, &["Tax2"]),
+        price1: field_decimal(item, &["Price1", "Price"]),
+        price2: field_decimal(item, &["Price2"]),
+        price3: field_decimal(item, &["Price3"]),
+        price4: field_decimal(item, &["Price4"]),
+        price5: field_decimal(item, &["Price5"]),
+        discount: field_decimal(item, &["Discount"]),
+        bar_code: field_text(item, &["BarCode", "Barcode"]),
+        active: field_bool(item, &["Active"]).unwrap_or(true),
+        current_stock: field_decimal(item, &["CurrentStock", "Stock"]),
+        prices_table_data: Vec::new(),
+    })
 }
 
 fn deserialize_optional_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
@@ -1528,5 +1638,68 @@ mod tests {
         }))
         .unwrap();
         assert!(parsed.articles[0].effective_stock().is_none());
+    }
+}
+
+/* [039A-1/H-Q1-03] Tests del parseo compartido de colecciones de artículos:
+ * ExportArticles (Articles/Code/Description) y GetPOSList por perfil
+ * (ArticleListData/ArtCode/ArtDescription/TAVPer). */
+#[cfg(test)]
+mod tests_article_list_parser {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn parses_get_pos_list_real_shape() {
+        let raw = json!({
+            "ArticleListData": [{
+                "ArtCode": 1001,
+                "ArtDescription": "COCA-COLA",
+                "Price1": 1.05,
+                "TAVPer": 10.0
+            }]
+        });
+        let items = parse_articles_value(&raw);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].art_code(), Some("1001"));
+        assert_eq!(items[0].description(), "COCA-COLA");
+        assert_eq!(items[0].tax1.unwrap(), Decimal::from(10));
+        assert_eq!(items[0].price1.unwrap(), Decimal::new(105, 2));
+    }
+
+    #[test]
+    fn parses_export_articles_shape_and_aliases_list_key() {
+        let raw = json!({
+            "ArticlesListData": [{
+                "Code": "A7",
+                "Description": "MENU",
+                "Price1": 12,
+                "Active": false
+            }]
+        });
+        let items = parse_articles_value(&raw);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].art_code(), Some("A7"));
+        assert!(!items[0].active);
+    }
+
+    #[test]
+    fn empty_or_missing_collection_returns_empty() {
+        assert!(parse_articles_value(&json!({"ArticleListData": []})).is_empty());
+        assert!(parse_articles_value(&json!({"ErrorMessage": "x"})).is_empty());
+        assert!(parse_articles_value(&json!({"ArticleListData": "no-array"})).is_empty());
+    }
+
+    #[test]
+    fn items_missing_optional_fields_parse_with_defaults() {
+        let raw = json!({
+            "ArticleListData": [{"ArtCode": 2, "ArtDescription": "SIN IVA"}]
+        });
+        let items = parse_articles_value(&raw);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].art_code(), Some("2"));
+        assert!(items[0].tax1.is_none());
+        assert_eq!(items[0].price1, None);
+        assert!(items[0].active);
     }
 }

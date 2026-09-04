@@ -224,13 +224,13 @@ dependencia externa (cuál)` — siempre con la vía y evidencia.
 - [x] Q1.1 `ServiceHealth` — ✅ `diagnostico` 200 en 1.14 s: `health_ok:true` (check «Health» del preflight, `IsAlive=true`)
 - [x] Q1.2 `GetVersion` — ✅ check «Sesion y version»: login y versión correctos (versión 36; redactado)
 - [x] Q1.3 `Login` — ✅ login OK contra BDP real (evidencia redactada: "login OK, expira 59 min")
-- [x] Q1.4 `GetArticle` — `⏸` no ejercitado: `ExportArticles` devuelve 0 → `sync-catalog` no procesó códigos (depende de H-Q1-03)
+- [x] Q1.4 `GetArticle` — `⏸` sin vía de solo lectura: su único caller es `resolve_article` (ruta de escritura Q2, requiere autorización); con H-Q1-03 corregido ya hay 556 códigos reales en `bdp_article_map` para cuando se monte la ruta
 - [x] Q1.5 `GetPricesArticles` — ✅ `sync-prices`: 3 artículos reales mapeados (S1-TE-01→90000002…), arrays de 5 precios parseados; 3 omitidos por edición local (guard local-manda)
-- [x] Q1.6 `ExportArticles` — ✅ 200 + `ErrorMessage` vacío, pero `Articles` **0** (vs 10 del perfil vía Q1.7) → **hallazgo H-Q1-03** abierto
+- [x] Q1.6 `ExportArticles` — ✅ 200 + `ErrorMessage` vacío, pero `Articles` **0** (vs 10 del perfil vía Q1.7) → **H-Q1-03 corregido** (fallback a perfil, 556 importados el 2026-09-04)
 - [x] Q1.7 `GetPOSArticlesList` — ✅ preflight «Articulos del perfil»: 10 artículos (perfil 1)
 - [x] Q1.8 `ExportCustomers` — ✅ 5 clientes (`customers/import` + explorar); datos personales enmascarados (redacción Q5.3)
 - [x] Q1.9 `GetOrder` — `⏸` sin id real: 0 `bdp_order_id` en `ventas` (los ids nacen en S3/Q2.4; limitación API gratuita a `Status` documentada)
-- [x] Q1.10 `ExportDepartment` — ✅ 200 + colección presente pero **0** (vs 19 del perfil vía Q1.11) → **hallazgo H-Q1-04** abierto
+- [x] Q1.10 `ExportDepartment` — ✅ 200 + colección presente pero **0** (vs 19 del perfil vía Q1.11) → **H-Q1-04 cerrado por decisión**: misma causa raíz que H-Q1-03 (export sin artículos web contratados); el perfil es la fuente canónica y el fix del catálogo ya la usa
 - [x] Q1.11 `DepartmentsExportFromProfile` — ✅ preflight «Departamentos del perfil»: 19 departamentos
 - [x] Q1.12 `GetMenuDefinition` — Q1.13 `GetFastfoodDefinition` — Q1.14 `GetPackDefinition` — `⏸` sin id real (catálogo export 0; `bdp_menus_locales` sin columna de código BDP; nunca inventar ids)
 - [x] Q1.15 `GetPOS` — ✅ preflight «Terminal POS»: POS id 31
@@ -444,8 +444,8 @@ Reglas de las rondas:
 | H-S1-01 | Stock CSV/filtro/orden (S1.3, S1.2e) | La tabla de Stock mostraba el **stock local efectivo** ("43 local") pero el CSV, el filtro "Con/sin stock" y el orden por stock usaban el snapshot `stock_actual` (0) → exportación y filtros incoherentes con lo visible. Localizado: `BdpStock.tsx` pasaba `stock_actual` a `exportToCsv`/filtro mientras la fila muestra el merge local-manda. | Media (incoherencia UI vs exportación/filtros) | Usar el mismo merge efectivo (stock local cuando existe, si no `stock_actual`) en CSV, filtro y orden | Corregido 2026-09-04: `BdpStock.tsx` usa el stock efectivo en todo el pipeline; verificado por UI — CSV exporta 43,00+8,00 (antes 0s) y filtro "Con stock" incluye T-P1-CAFE-01 |
 | H-Q1-01 | Backup/parcial (Q1, backup) | `POST /api/bdp/backup/parcial` → **500** con BDP real: snapshot con todos los tipos compone `tipo = parcial_articulos_clientes_departamentos_empleados_salones` (58 chars) que desborda `bdp_snapshots.tipo VARCHAR(50)` ("valor demasiado largo"). Latente: nunca ejercitado con el BDP real devolviendo datos. | Alta (ruta de pre-write rota con datos reales) | Migración aditiva de ancho (inmutabilidad M18, precedente 198A-1) | Corregido 2026-09-04: `migrations/20260904100000_bdp_snapshot_tipo_ancho` ensancha `tipo` a VARCHAR(100). Verificado: backup/parcial → **200** en 2.67 s y snapshot persistido (id df7f4aec, tipo 58 chars) |
 | H-Q1-02 | sync-tables (Q1.24, plano de sala) | `POST /api/bdp/sync-tables` con el bloqueo externo conocido («Subscripción no activada» en salones) devolvía **500 genérico** (`AppError::Internal`), ocultando la causa. Explorar/backup ya lo tratan como WARN; sync-tables no. | Media (clasificación honesta) | Clasificar el bloqueo externo de suscripción como 409 con mensaje honesto en el handler | Corregido 2026-09-04: `src/handlers/bdp_article_map.rs` (`sync_tables`) → **409** "Salones BDP no disponibles para esta conexión (Subscripción no activada). No se realizaron cambios." Verificado por API; el error ocurre en GetRoomsTables, antes de cualquier escritura |
-| H-Q1-03 | Catálogo (Q1.6/Q1.7, integración) | **Discrepancia real con BDP online:** `ExportArticles` (vía `sync-catalog`, `all_web_articles`) devuelve **0 artículos** (200, ErrorMessage vacío) mientras `GetPOSArticlesList` del mismo perfil (1, `sync-dry-run` check «Articulos del perfil») devuelve **10**. Consecuencia: `sync-catalog` importa 0 silenciosamente (`synccat.json`: total_bdp 0) y la UI queda vacía pese a que el perfil tiene artículos. | Alta (sync de catálogo silenciosamente vacío con BDP real) | Decisión: mapear `sync-catalog` a la lectura por perfil (`GetPOSArticlesList`+detalle) o verificar en BDP la suscripción de artículos web (`ExportArticles`) | Abierto — requiere decisión del usuario; bloquea Q1.4 |
-| H-Q1-04 | Explorador/catálogo (Q1.10/Q1.11, integración) | Mismo patrón que H-Q1-03 para departamentos: `ExportDepartment` → **0** mientras `DepartmentsExportFromProfile` (perfil 1) → **19**. El explorador y el backup persisten departamentos vacíos con los datos reales. | Media (misma clase H-Q1-03) | Misma decisión: usar lectura por perfil para departamentos o verificar suscripción | Abierto — se resolverá junto con H-Q1-03 |
+| H-Q1-03 | Catálogo (Q1.6/Q1.7, integración) | **Discrepancia real con BDP online:** `ExportArticles` (vía `sync-catalog`, `all_web_articles`) devuelve **0 artículos** (200, ErrorMessage vacío) mientras `GetPOSArticlesList` del mismo perfil (1, `sync-dry-run` check «Articulos del perfil») devuelve **10**. Consecuencia: `sync-catalog` importa 0 silenciosamente (`synccat.json`: total_bdp 0) y la UI queda vacía pese a que el perfil tiene artículos. | Alta (sync de catálogo silenciosamente vacío con BDP real) | Decisión aplicada: `sync-catalog` usa el perfil (`GetPOSList` paginado, `list_profile_articles`) como **fallback** cuando `ExportArticles` llega vacío; si el fallback falla, el sync falla alto (nunca verde silencioso con 0). | **Corregido (2026-09-04):** 556 artículos importados del perfil real (log `[039A-1/H-Q1-03]`), 0 errores; tests de parseo en `bdp_weblink_catalog.rs` (4 casos) + 157/157 lib. Validación read-only contra BDP real; config restaurada. Q1.4 ya no depende de esto (quedan códigos reales en el mapa); su `⏸` ahora es por falta de vía de solo lectura. |
+| H-Q1-04 | Explorador/catálogo (Q1.10/Q1.11, integración) | Mismo patrón que H-Q1-03 para departamentos: `ExportDepartment` → **0** mientras `DepartmentsExportFromProfile` (perfil 1) → **19**. El explorador y el backup persisten departamentos vacíos con los datos reales. | Media (misma clase H-Q1-03) | Decisión: **cerrar sin cambio de código**. Misma causa raíz verificada (sin artículos web contratados, el export de rango va vacío; el perfil es la fuente canónica y es la que ya usan preflight y el fix H-Q1-03). Explorador/backup persisten conteos de diagnóstico; la persistencia pre-escritura no se altera para no tocar semántica de snapshot sin necesidad. | **Cerrado por decisión (2026-09-04):** documentado en §13; si un día el explorador necesita navegar departamentos BDP se monta la lectura por perfil con la misma técnica del catálogo. |
 
 ## 11. Criterios de aceptación (Definition of Done)
 
@@ -495,10 +495,15 @@ Reglas de las rondas:
   versión 36, POS 31, empleado 1, 19 departamentos, 10 artículos perfil, 10 tenders, 3 empleados,
   5 clientes; CreateOrder OnlyCheck bloqueado por destino = escrituras fail-closed). **Hallazgos
   nuevos: H-Q1-01 y H-Q1-02 corregidos** (migración `20260904100000_bdp_snapshot_tipo_ancho` +
-  `sync_tables` 409 honesto), **H-Q1-03/H-Q1-04 abiertos** (Export* devuelve 0 con BDP real vs
-  lecturas por perfil 10/19 — decisión de sync pendiente). Paquete de ejecución en
+  `sync_tables` 409 honesto), **H-Q1-03 corregido y H-Q1-04 cerrado por decisión**
+  (2026-09-04): `sync-catalog` cae al perfil (`GetPOSList` paginado) cuando `ExportArticles`
+  devuelve 0 → **556 artículos reales importados** (antes 0 silencioso), con log de origen
+  `[039A-1/H-Q1-03]` y fallo alto si el fallback falla; tests de parseo (4) + 157/157 lib;
+  validación read-only contra BDP real con config restaurada. Q1.4 queda `⏸` por falta de vía
+  de solo lectura (su único caller es la ruta de escritura), ya sin depender de H-Q1-03.
+  Paquete de ejecución en
   `Agente/planes/plan-ejecucion-q1-lecturas-bdp-2026-09-04.md` (corregido: `/api/bdp/catalogo` =
-  CRUD local, no lectura BDP). Siguiente: resolver H-Q1-03/04 (decisión), luego S2 (Parte 3,
+  CRUD local, no lectura BDP). Siguiente: S2 (Parte 3,
   lecturas) y S3 (escrituras Q2, solo con autorización por operación).
 - **CORRECCIÓN DE HALLAZGOS + F2 / Ronda 2 EJECUTADAS (2026-09-03):** los 4 hallazgos de la tabla §10b
   quedaron corregidos y cerrados con test de regresión (suite `tests/bdp_modo_standalone_fail_closed.rs`,
