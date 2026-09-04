@@ -92,7 +92,9 @@ en la tabla §4; el **PASS/FAIL** se evalúa sobre la respuesta de la app.
   → `{ "Dept1":1, "Dept2":999, "Art1":1, "Art2":9999999999999, "Modified":false, "TypePrice":1, "Disc":0 }` · Bearer
 - **Respuesta:** `BdpExportArticlesResponse { Articles:[{ Code|ItemCode, Name|Description, Family, Subfamily,
   Department, Tax1, Tax2, Price1..5, Discount, BarCode, Active, CurrentStock|Stock, PricesTableData }] }`
-- **Vía app:** `POST /api/bdp/catalogo` · `/api/bdp/article-maps/sync-catalog` · explorar · backup parcial.
+- **Vía app:** `POST /api/bdp/article-maps/sync-catalog` · explorar · backup parcial. ⚠️
+  `POST /api/bdp/catalogo` NO dispara esta lectura: es el CRUD local de clasificaciones
+  (crear `{tipo, nombre}`), no una lectura BDP.
 - **PASS:** 200 + `ErrorMessage` vacío + `Articles` array (vacío válido). **Redacción:** ≤3 items, contadores.
 
 ### Q1.7 — GetPOSArticlesList ✅ pre-validado (uso interno)
@@ -213,7 +215,7 @@ en la tabla §4; el **PASS/FAIL** se evalúa sobre la respuesta de la app.
 
 | Flujo | Vía app | Lecturas |
 | --- | --- | --- |
-| Catálogo | `POST /api/bdp/catalogo` · `/api/bdp/article-maps/sync-catalog` · `sync-prices` | Q1.6, Q1.4, Q1.5 |
+| Catálogo | `POST /api/bdp/article-maps/sync-catalog` · `sync-prices` (⚠️ `/api/bdp/catalogo` = CRUD local, no lectura BDP) | Q1.6, Q1.4, Q1.5 |
 | Clientes | `POST /api/bdp/customers/import` | Q1.8 |
 | Explorador | `GET /api/bdp/explorar` | Q1.6, Q1.8, Q1.10, Q1.24, Q1.18 |
 | Plano de sala | `POST /api/bdp/sync-tables` | Q1.24 |

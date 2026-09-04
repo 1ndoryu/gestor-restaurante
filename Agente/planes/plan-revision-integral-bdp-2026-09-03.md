@@ -215,20 +215,35 @@ dependencia externa (cuál)` — siempre con la vía y evidencia.
 - [ ] Q0.5 Checklist de datos de prueba: usar artículos/clientes/ventas de prueba y limpiar tras verificar
 
 ### Q1. Las 24 funciones de lectura "en uso" (fuente: plan 138A-2) — **solo lecturas, cero escrituras**
-- [ ] Q1.1 `ServiceHealth` (health) — Q1.2 `GetVersion` — Q1.3 `Login`
-- [ ] Q1.4 `GetArticle` — Q1.5 `GetPricesArticles` — Q1.6 `ExportArticles`
-- [ ] Q1.7 `GetPOSArticlesList` — Q1.8 `ExportCustomers`
-- [ ] Q1.9 `GetOrder` (documentar limitación API gratuita: solo `Status`)
-- [ ] Q1.10 `ExportDepartment` — Q1.11 `DepartmentsExportFromProfile`
-- [ ] Q1.12 `GetMenuDefinition` — Q1.13 `GetFastfoodDefinition` — Q1.14 `GetPackDefinition`
-- [ ] Q1.15 `GetPOS` — Q1.16 `GetPOSes`
-- [ ] Q1.17 `GetEmployee` — Q1.18 `GetEmployees` — Q1.19 `GetPOSEmployees`
-- [ ] Q1.20 `GetPOSTenderList`
-- [ ] Q1.21 `ExportPurchaseNotes` (Compras)
-- [ ] Q1.22 `GetStock` — Q1.23 `GetListStock` (paths especulativos N6: marcar "especulativo" si el contrato real rechaza)
-- [ ] Q1.24 `GetRoomTables` / `GetRoomsTables` (plano de sala)
-- [ ] Q1.25 Verificación por flujo: catálogo (6), clientes (8), explorador (12–14), plano (24), compras (21), preflight (1/2/3/7/15/17/18/19/20)
-- [ ] Q1.26 Limpieza: ninguna escritura ejecutada, ningún dato creado/modificado en BDP
+
+> **EJECUTADO 2026-09-04** contra BDP real (`100.83.196.35:8068`, vía app :3100, Tailscale
+> activo). Evidencia por lectura en `Agente/completados/tareas-2026-09-04.md` §Q1; hallazgos
+> H-Q1-01..04 en §10b. Clasificación: ✅ ejercitado y verificado · `⏸` bloqueo externo/diseño con
+> motivo concreto (nunca se inventan ids ni se sustituye por simulador).
+
+- [x] Q1.1 `ServiceHealth` — ✅ `diagnostico` 200 en 1.14 s: `health_ok:true` (check «Health» del preflight, `IsAlive=true`)
+- [x] Q1.2 `GetVersion` — ✅ check «Sesion y version»: login y versión correctos (versión 36; redactado)
+- [x] Q1.3 `Login` — ✅ login OK contra BDP real (evidencia redactada: "login OK, expira 59 min")
+- [x] Q1.4 `GetArticle` — `⏸` no ejercitado: `ExportArticles` devuelve 0 → `sync-catalog` no procesó códigos (depende de H-Q1-03)
+- [x] Q1.5 `GetPricesArticles` — ✅ `sync-prices`: 3 artículos reales mapeados (S1-TE-01→90000002…), arrays de 5 precios parseados; 3 omitidos por edición local (guard local-manda)
+- [x] Q1.6 `ExportArticles` — ✅ 200 + `ErrorMessage` vacío, pero `Articles` **0** (vs 10 del perfil vía Q1.7) → **hallazgo H-Q1-03** abierto
+- [x] Q1.7 `GetPOSArticlesList` — ✅ preflight «Articulos del perfil»: 10 artículos (perfil 1)
+- [x] Q1.8 `ExportCustomers` — ✅ 5 clientes (`customers/import` + explorar); datos personales enmascarados (redacción Q5.3)
+- [x] Q1.9 `GetOrder` — `⏸` sin id real: 0 `bdp_order_id` en `ventas` (los ids nacen en S3/Q2.4; limitación API gratuita a `Status` documentada)
+- [x] Q1.10 `ExportDepartment` — ✅ 200 + colección presente pero **0** (vs 19 del perfil vía Q1.11) → **hallazgo H-Q1-04** abierto
+- [x] Q1.11 `DepartmentsExportFromProfile` — ✅ preflight «Departamentos del perfil»: 19 departamentos
+- [x] Q1.12 `GetMenuDefinition` — Q1.13 `GetFastfoodDefinition` — Q1.14 `GetPackDefinition` — `⏸` sin id real (catálogo export 0; `bdp_menus_locales` sin columna de código BDP; nunca inventar ids)
+- [x] Q1.15 `GetPOS` — ✅ preflight «Terminal POS»: POS id 31
+- [x] Q1.16 `GetPOSes` — `⏸` por diseño: método sin caller en la app (desbloqueo = ruta futura de solo lectura, fuera de alcance)
+- [x] Q1.17 `GetEmployee` — ✅ preflight «Empleado BDP»: empleado 1 (datos enmascarados)
+- [x] Q1.18 `GetEmployees` — ✅ explorar: 3 empleados (enmascarados)
+- [x] Q1.19 `GetPOSEmployees` — ✅ preflight «Empleados del POS»: 3 empleados del POS 31 + «Empleado permitido en POS» ✓
+- [x] Q1.20 `GetPOSTenderList` — ✅ preflight «Formas de pago del POS»: 10 formas
+- [x] Q1.21 `ExportPurchaseNotes` (Compras) — `⏸` 422 honesto fail-closed: `ff_bdp_purchase_notes_read=false` (y `bdp_purchase_notes_profile_id` NULL) — cero contacto BDP en esta llamada
+- [x] Q1.22 `GetStock` — Q1.23 `GetListStock` (paths especulativos N6) — `⏸` por diseño: sin caller (desbloqueo = ruta futura de solo lectura, fuera de alcance)
+- [x] Q1.24 `GetRoomTables` / `GetRoomsTables` (plano de sala) — `⏸` bloqueo externo real: BDP devuelve «Subscripción no activada» (explorar/backup lo registran como WARN); `sync-tables` ahora clasifica **409 honesto** (H-Q1-02)
+- [x] Q1.25 Verificación por flujo — ✅ preflight (1/2/3/7/15/17/19/20/11) y diagnóstico en 2.96 s/1.14 s; catálogo (6 vía `sync-catalog`, 5 vía `sync-prices`); clientes (8); explorador (6/8/10/18/24); plano (24 `⏸`); compras (21 `⏸`). ⚠️ `/api/bdp/catalogo` = CRUD local, no lectura BDP (corregido en paquete Q1)
+- [x] Q1.26 Limpieza — ✅ **cero escrituras**: `bdp_push_pendientes` sin filas nuevas (10 previas del 2026-09-03), `bdp_audit_log` 0 entradas en la ventana, config restaurada (`bdp_sync_enabled=false`, `read_only`, poll off), preflight confirma CreateOrder OnlyCheck bloqueado por destino. Solo lecturas ejecutadas
 
 ### Q2. Escrituras reales — bloque **DIFERIDO a la etapa final S3** (Parte 3, §8; fase F5)
 > Esta especificación queda aquí para trazabilidad (ids Q2.1–Q2.13 estables). **Durante la Parte 2
@@ -427,6 +442,10 @@ Reglas de las rondas:
 | H-P1-04 | Backup local ventas (Ronda 2) | "Crear snapshot local" (0 llamadas BDP) fallaba al exportar ventas: SQL obsoleto selecciona `total`/`estado` que **nunca existieron** en `ventas` (esquema real: `importe_base`, `importe_iva`) → error "no existe la columna «total»". Latente desde el día uno (nunca ejercitado hasta esta ronda); las ramas clientes/mapeos sí eran válidas. | Media (función local rota) | `src/services/bdp_backup.rs`: SQL alineado al esquema real con `total` derivado (`importe_base + importe_iva`) | Corregido 2026-09-03: snapshot ventas exporta filas reales con `total` derivado correcto (2.42 = 2.00+0.42); test de regresión |
 | H-N1 | Cola local-first (P2.8/P12.4) | Matiz de invariante, no fallo: el alta local SÍ inserta fila `bdp_push` `estado=pendiente` (comportamiento local-first de 208A-1); en standalone nunca se envía — `flush` reporta `omitidos_standalone:1`, `sincronizados:0`, la fila persiste y se enviaría al conectar BDP. | Info (documentado) | Ninguna; mantener documentado en P12.4 para que no se lea como "envío en standalone" | Cerrado (comportamiento esperado) |
 | H-S1-01 | Stock CSV/filtro/orden (S1.3, S1.2e) | La tabla de Stock mostraba el **stock local efectivo** ("43 local") pero el CSV, el filtro "Con/sin stock" y el orden por stock usaban el snapshot `stock_actual` (0) → exportación y filtros incoherentes con lo visible. Localizado: `BdpStock.tsx` pasaba `stock_actual` a `exportToCsv`/filtro mientras la fila muestra el merge local-manda. | Media (incoherencia UI vs exportación/filtros) | Usar el mismo merge efectivo (stock local cuando existe, si no `stock_actual`) en CSV, filtro y orden | Corregido 2026-09-04: `BdpStock.tsx` usa el stock efectivo en todo el pipeline; verificado por UI — CSV exporta 43,00+8,00 (antes 0s) y filtro "Con stock" incluye T-P1-CAFE-01 |
+| H-Q1-01 | Backup/parcial (Q1, backup) | `POST /api/bdp/backup/parcial` → **500** con BDP real: snapshot con todos los tipos compone `tipo = parcial_articulos_clientes_departamentos_empleados_salones` (58 chars) que desborda `bdp_snapshots.tipo VARCHAR(50)` ("valor demasiado largo"). Latente: nunca ejercitado con el BDP real devolviendo datos. | Alta (ruta de pre-write rota con datos reales) | Migración aditiva de ancho (inmutabilidad M18, precedente 198A-1) | Corregido 2026-09-04: `migrations/20260904100000_bdp_snapshot_tipo_ancho` ensancha `tipo` a VARCHAR(100). Verificado: backup/parcial → **200** en 2.67 s y snapshot persistido (id df7f4aec, tipo 58 chars) |
+| H-Q1-02 | sync-tables (Q1.24, plano de sala) | `POST /api/bdp/sync-tables` con el bloqueo externo conocido («Subscripción no activada» en salones) devolvía **500 genérico** (`AppError::Internal`), ocultando la causa. Explorar/backup ya lo tratan como WARN; sync-tables no. | Media (clasificación honesta) | Clasificar el bloqueo externo de suscripción como 409 con mensaje honesto en el handler | Corregido 2026-09-04: `src/handlers/bdp_article_map.rs` (`sync_tables`) → **409** "Salones BDP no disponibles para esta conexión (Subscripción no activada). No se realizaron cambios." Verificado por API; el error ocurre en GetRoomsTables, antes de cualquier escritura |
+| H-Q1-03 | Catálogo (Q1.6/Q1.7, integración) | **Discrepancia real con BDP online:** `ExportArticles` (vía `sync-catalog`, `all_web_articles`) devuelve **0 artículos** (200, ErrorMessage vacío) mientras `GetPOSArticlesList` del mismo perfil (1, `sync-dry-run` check «Articulos del perfil») devuelve **10**. Consecuencia: `sync-catalog` importa 0 silenciosamente (`synccat.json`: total_bdp 0) y la UI queda vacía pese a que el perfil tiene artículos. | Alta (sync de catálogo silenciosamente vacío con BDP real) | Decisión: mapear `sync-catalog` a la lectura por perfil (`GetPOSArticlesList`+detalle) o verificar en BDP la suscripción de artículos web (`ExportArticles`) | Abierto — requiere decisión del usuario; bloquea Q1.4 |
+| H-Q1-04 | Explorador/catálogo (Q1.10/Q1.11, integración) | Mismo patrón que H-Q1-03 para departamentos: `ExportDepartment` → **0** mientras `DepartmentsExportFromProfile` (perfil 1) → **19**. El explorador y el backup persisten departamentos vacíos con los datos reales. | Media (misma clase H-Q1-03) | Misma decisión: usar lectura por perfil para departamentos o verificar suscripción | Abierto — se resolverá junto con H-Q1-03 |
 
 ## 11. Criterios de aceptación (Definition of Done)
 
@@ -466,6 +485,21 @@ Reglas de las rondas:
   CONECTADO (cero conexiones establecidas al host BDP); P12.5 persistencia tras reinicio del backend
   verificado. **Hallazgos: H-P1-01 y H-P1-02 (tabla §10b, ambos abiertos)** + matiz H-N1 cerrado.
   Diferidos con motivo explícito (no fallo): P1.6 y P5.6 → se verifican en Parte 2 (Q3.1/Q3.2, Q2.6).
+- **F2 / Ronda 2 y S1 EJECUTADAS** — ver entradas previas de §13 y §8; S0/S1 completas con BD
+  real local; S2/S3 pendientes (requieren BDP + autorización).
+- **PARTE 2 / Q1 EJECUTADA (2026-09-04, BDP real online vía Tailscale, solo lecturas):**
+  checklist Q1 completo en §7 con evidencia por lectura: 17 lecturas ✅/⏸ clasificadas (Q1.1–Q1.24),
+  flujos Q1.25 ejecutados por vía app, Q1.26 cierre con **cero escrituras** (cola sin filas nuevas —
+  10 previas del 2026-09-03; audit 0 en ventana; config restaurada `bdp_sync_enabled=false`/
+  `read_only`/poll off). Diagnóstico y preflight en 1.14 s/2.96 s contra BDP real (health OK,
+  versión 36, POS 31, empleado 1, 19 departamentos, 10 artículos perfil, 10 tenders, 3 empleados,
+  5 clientes; CreateOrder OnlyCheck bloqueado por destino = escrituras fail-closed). **Hallazgos
+  nuevos: H-Q1-01 y H-Q1-02 corregidos** (migración `20260904100000_bdp_snapshot_tipo_ancho` +
+  `sync_tables` 409 honesto), **H-Q1-03/H-Q1-04 abiertos** (Export* devuelve 0 con BDP real vs
+  lecturas por perfil 10/19 — decisión de sync pendiente). Paquete de ejecución en
+  `Agente/planes/plan-ejecucion-q1-lecturas-bdp-2026-09-04.md` (corregido: `/api/bdp/catalogo` =
+  CRUD local, no lectura BDP). Siguiente: resolver H-Q1-03/04 (decisión), luego S2 (Parte 3,
+  lecturas) y S3 (escrituras Q2, solo con autorización por operación).
 - **CORRECCIÓN DE HALLAZGOS + F2 / Ronda 2 EJECUTADAS (2026-09-03):** los 4 hallazgos de la tabla §10b
   quedaron corregidos y cerrados con test de regresión (suite `tests/bdp_modo_standalone_fail_closed.rs`,
   8 tests verdes): H-P1-01 (ruta `/ajustar` montada; verificado por UI 200), H-P1-02 (guard

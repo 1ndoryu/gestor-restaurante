@@ -726,9 +726,23 @@ async fn sync_tables(
         .await
         .map_err(|e| AppError::Internal(format!("Error login BDP: {e}")))?;
 
+    /* [039A-1/Q1] Bloqueo externo conocido (plan Q1.24): BDP sin suscripción de
+     * salones responde "Subscripción no activada"; se clasifica como 409 honesto
+     * (⏸ externo) en vez de 500 genérico. El error ocurre en la primera llamada
+     * (GetRoomsTables), antes de cualquier escritura. */
     let result = BdpSyncService::sync_tables(&client, &state.pool, auth.user_id, req.aplicar)
         .await
-        .map_err(AppError::Internal)?;
+        .map_err(|e| {
+            if e.contains("Subscripción no activada") {
+                AppError::Conflict(
+                    "Salones BDP no disponibles para esta conexión (Subscripción no activada). \
+                     No se realizaron cambios."
+                        .into(),
+                )
+            } else {
+                AppError::Internal(e)
+            }
+        })?;
 
     Ok(Json(result))
 }
