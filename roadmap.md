@@ -153,7 +153,17 @@ restaurante** (las 24 funciones de lectura "en uso" + escrituras autorizadas una
 arming + polling/estados + convivencia con datos locales). Incluye **3 rondas de revisión**
 (cobertura de fuentes → cobertura de código → cobertura de ejecución) para no dejar nada por
 fuera. Dependencia externa de la Parte 2: BDP online + credenciales + suscripción de pago del
-cliente. **Siguiente paso:** F0 (stack aislado + Ronda 1) y confirmar disponibilidad del BDP real.
+cliente.
+
+**Progreso (2026-09-03/04):** F0 + Parte 1 (P0–P13) ejecutadas con evidencia; F2/Ronda 2 cerrada
+con los 4 hallazgos H-P1-01..04 corregidos (guard fail-closed + 8 tests de regresión); **S1
+(Parte 3) ejecutada 2026-09-04** — simulación del cliente 100 % independiente con la app completa,
+escenas (a)–(j) verificadas en BD real local, barrido S1.3 de toda la app, S1.5 cero tráfico a
+BDP; nuevo hallazgo H-S1-01 (CSV/filtro stock usaban el snapshot) corregido en `BdpStock.tsx`.
+Checklist §8 S0/S1 marcado con evidencia; evidencia en `Agente/completados/tareas-2026-09-04.md`.
+**Siguiente paso:** F3 — Parte 2 (Q1 lecturas contra el BDP real, luego S3 escrituras **con
+autorización explícita por operación**). Requiere BDP online + credenciales integrador +
+suscripción de pago; mientras tanto S2/lecturas quedan `⏸`.
 
 ### Seguimiento 318A-3 — Evaluar reactivación de reglas de consistencia de formularios (2026-09-01)
 

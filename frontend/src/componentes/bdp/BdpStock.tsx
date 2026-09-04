@@ -154,7 +154,11 @@ function BdpStock() {
   const stockLocal = stockLocalQuery.data ?? [];
 
   /* [128A-1/F3] Merge: el stock local (bdp_article_stock) manda sobre el
-   * snapshot BDP (stock_actual). El badge indica el origen del valor. */
+   * snapshot BDP (stock_actual). El badge indica el origen del valor.
+   * [H-S1] El stock EFECTIVO (local primero) es la única fuente para la
+   * tabla, los filtros con/sin stock, el orden por stock y el export CSV:
+   * antes el CSV/filtros usaban el snapshot BDP (0) aunque la UI mostrase
+   * el stock local (p.ej. 43 local), exportando ceros engañosos. */
   const stockPorCodigo = useMemo(() => {
     const map = new Map<string, string>();
     for (const s of stockLocal) {
@@ -162,6 +166,17 @@ function BdpStock() {
     }
     return map;
   }, [stockLocal]);
+
+  const codigosStockLocal = useMemo(() => new Set(stockLocal.map((s) => s.articulo_glory_codigo)), [stockLocal]);
+
+  const mapeosConStockEfectivo = useMemo(
+    () =>
+      mapeos.map((m) => ({
+        ...m,
+        stock_actual: stockPorCodigo.get(m.articulo_glory_codigo) ?? m.stock_actual,
+      })),
+    [mapeos, stockPorCodigo],
+  );
 
   const [ajustarArticulo, setAjustarArticulo] = useState<BdpArticleMap | null>(null);
   const [ajusteOpen, setAjusteOpen] = useState(false);
@@ -214,7 +229,7 @@ function BdpStock() {
     paginated,
     sorted,
     filteredCount,
-  } = useBdpStockFilters(mapeos);
+  } = useBdpStockFilters(mapeosConStockEfectivo);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -232,7 +247,7 @@ function BdpStock() {
   }
 
   function handleExport() {
-    exportToCsv(mapeos, sorted, {
+    exportToCsv(mapeosConStockEfectivo, sorted, {
       allRows: false,
       filterLabel: stockFilter !== 'all' ? stockFilter : undefined,
     });
@@ -376,7 +391,7 @@ function BdpStock() {
               <TableBody>
                 {paginated.map((m) => {
                   const stockLocalVal = stockPorCodigo.get(m.articulo_glory_codigo);
-                  const origen = stockLocalVal !== undefined ? 'local' : 'bdp';
+                  const origen = codigosStockLocal.has(m.articulo_glory_codigo) ? 'local' : 'bdp';
                   const stock = formatStock(stockLocalVal ?? m.stock_actual);
                   return (
                     <TableRow key={m.id}>

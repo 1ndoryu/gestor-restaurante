@@ -292,28 +292,68 @@ dependencia externa (cuál)` — siempre con la vía y evidencia.
 > S3 empieza sin la autorización explícita del usuario para esa operación concreta.
 
 ### S0. Persona, guion e inventario del producto
-- [ ] S0.1 Persona: dueño (admin) y trabajador (camarero); qué haría cada uno en un día real
-- [ ] S0.2 Inventario de **TODA la app navegable**: menú/nav real → cada página → cada modal/diálogo
+- [x] S0.1 Persona: dueño (admin) y trabajador (camarero); qué haría cada uno en un día real — admin
+      `a8d1ef20…` y trabajadora Sara López (`sara.lopez@demo.com`) ambas autenticadas y operando en S1
+- [x] S0.2 Inventario de **TODA la app navegable**: menú/nav real → cada página → cada modal/diálogo
       accesible desde ella (incluye las pantallas no-BDP: ventas/POS, mesas, resumen diario,
-      configuración general, usuarios/permisos, etc.)
-- [ ] S0.3 Guion del día de operación armado sobre ese inventario (escenas de S1.2)
-- [ ] S0.4 Datos de la simulación: usar el seed demo y datos identificables como de prueba; anotar
-      lo que persista para no contaminar el estado real
+      configuración general, usuarios/permisos, etc.) — nav completo recorrido en S1.3: Dashboard,
+      Ventas, Gastos, Compras, Stock, Inventario, Catálogo, Menús/Packs, Reservas, Calendario,
+      Clientes, Canales, No-Shows, Plano de Sala, Campañas, Plantillas WA, Recordatorios, Historial,
+      Sincronización, Trabajadores, Reseñas, Inactividad, Configuración (tabs General/BDP)
+- [x] S0.3 Guion del día de operación armado sobre ese inventario (escenas de S1.2) — escenas (a)–(j)
+      de S1.2 ejecutadas y verificadas en BD real (`glory_backend_glory_rs_rest`)
+- [x] S0.4 Datos de la simulación: usar el seed demo y datos identificables como de prueba; anotar
+      lo que persista para no contaminar el estado real — prefijos de prueba `S1-*`/`T-P1-*`,
+      artículos `S1-TE-01`/`T-P1-CAFE-01`; una duplicación accidental de venta (artefacto de sesión
+      caída) eliminada de BD para dejar el dataset honesto
 
 ### S1. Día de operación 100 % independiente (sin BDP) — todas las funcionalidades
-- [ ] S1.1 Login como admin y como trabajador; permisos y navegación general
-- [ ] S1.2 Escenas del día: (a) apertura y plano de sala / mesas; (b) venta en mesa y para llevar
+- [x] S1.1 Login como admin y como trabajador; permisos y navegación general — trabajadora Sara
+      (`demo1234`… `trabajador123`) opera: venta registrada desde UI con IVA correcto (DB),
+      lecturas OK; acción admin-only (anular por API) → **403 honesto** (permisos config fail-closed
+      `admin` en `permisos.rs`); cierre de sesión y re-login admin OK
+- [x] S1.2 Escenas del día: (a) apertura y plano de sala / mesas; (b) venta en mesa y para llevar
       (líneas, cantidades, modificaciones); (c) pago (efectivo/tarjeta), propina local y factura
       local; (d) catálogo: alta/edición/desactivación de artículos, departamentos/familias;
       (e) stock: ajuste con motivo y export CSV; (f) inventario: conteo, guardar y retomar;
       (g) compras: albarán `L-` y conciliación con gasto; (h) menús/packs; (i) historial,
       auditoría y resumen diario; (j) configuración y permisos
-- [ ] S1.3 Barrido de completitud: recorrer las páginas y controles que el guion no tocó (empty
+      — (a) Plano de Sala render (6 mesas, zonas, BDP off); (b) mesa 5 (20,35 €) y para llevar
+      web-tarjeta (34,65 €), repro limpio (27,50 €) → DB; (c) propina 3,50 € delivery + 2,50 €
+      mesa 5 y factura local `F-2026-0002` sobre la venta delivery → DB; (d) `S1-TE-01` alta
+      (auto-código 90000002) → edición precio 2,50 → desactivar → reactivar → BD; (e) ajuste stock
+      TEST-1 5→8 con motivo + export CSV (tras fix H-S1 exporta stock efectivo local 43+8);
+      (f) conteo TEST-1 8→7 `ajustado_local=true` + "Retomar" carga conteo; (g) albarán `L-5`
+      Distribuciones S1 SL 44,11 € (2 líneas, IVA por línea) → borrador → **conciliado** con gasto
+      creado 44,11 € (tipo `albaran`) → DB + UI; (h) pack local con 2 líneas (3,10+2,50=5,60 €,
+      recálculo al dejar precio en blanco); (i) Historial con rastro S1 (`menu_local`,
+      `factura_local`, `stock_ajuste`…) y Dashboard cuadra con SQL (ventas 1976,50 / gastos 571,60
+      tras conciliar L-5); (j) Configuración tabs General/BDP render sin escribir; badge "BDP: off"
+      visible en todas las páginas
+- [x] S1.3 Barrido de completitud: recorrer las páginas y controles que el guion no tocó (empty
       states, búsquedas, filtros, exportaciones, recarga persistente) y anotar hallazgo si algo
-      no funciona — la meta es "recorrí la app completa", no solo las escenas
-- [ ] S1.4 Cierre como cliente: recargar y verificar que lo operado persiste; resumen del día
-      coherente
-- [ ] S1.5 Cero tráfico a BDP en toda la simulación (re-verificación de P11.1 con la app completa)
+      no funciona — la meta es "recorrí la app completa", no solo las escenas — recorridas:
+      Gastos (34 registros, filtros Desde/Hasta, conciliado L-5 visible), No-Shows (85/7/8,2 %,
+      desglose por canal), Campañas (3, filtro estado), Plantillas WA (3, filtro estado),
+      Recordatorios (3 reglas, tabs Reglas/Historial), Trabajadores (3, Sara "Sin permisos" =
+      fail-closed), Reseñas (4, acciones Solicitar/Enviar), Inactividad (3 reglas),
+      Sincronización (cola 10 pendientes, banner honesto "Requiere BDP conectado", botones
+      deshabilitados por modo), Configuración BDP (mensaje honesto: activar no concede permiso de
+      escritura). **Fix H-S1:** CSV/filtro/orden de Stock usaban el snapshot `stock_actual` mientras
+      la tabla mostraba stock local → ahora stock efectivo local-manda (verificado: CSV exporta 43+8,
+      filtro "Con stock" incluye T-P1-CAFE-01). Artefacto descartado con repro limpia: diálogo
+      "+Venta" del Dashboard persistía abierto en sesión degradada (máx. depth Navigate + HMR); en
+      repro limpia un único submit cierra el diálogo con 1 sola fila en BD
+- [x] S1.4 Cierre como cliente: recargar y verificar que lo operado persiste; resumen del día
+      coherente — recarga completa de la app: ventas del día, propinas, factura `F-2026-0002`,
+      albarán L-5 conciliado, conteo, clientes/reservas/canales creados persisten tras reload;
+      Dashboard reconciliado contra SQL por usuario (ventas 1976,50 / gastos 571,60 / margen
+      1404,90 €); el 534,00 previo era caché cliente stale, no defecto
+- [x] S1.5 Cero tráfico a BDP en toda la simulación (re-verificación de P11.1 con la app completa)
+      — backend `glory_backend_glory_rs_rest` en loopback 127.0.0.1:3100 log "Bootstrap BDP
+      dirigido no configurado"; netstat sin conexiones 100.x (Tailscale no usado); red del
+      navegador 100 % localhost:5180→:3100 (incl. `bdp/backup/snapshots`, `bdp/audit`,
+      `bdp/push/pendientes` servidos fail-closed local)
 
 ### S2. Mismo día con BDP conectado — integración real, solo lecturas
 - [ ] S2.1 Encender modo bdp con las credenciales reales (Q0) y ver el estado/badge como el cliente
@@ -386,6 +426,7 @@ Reglas de las rondas:
 | H-P1-03 | Backup/restore (Ronda 2) | Clase H-P1-02 repetida en `bdp_backup.rs`: los 3 handlers de red (`backup/glory/*`) gatean solo por credenciales, nunca por `modo_efectivo`; en standalone habrían contactado el BDP real. UI: `PanelBdpBackup` mostraba acciones de snapshot **activas** en standalone. | Alta (misma clase N1) | Aplicar el guard compartido a `bdp_backup.rs`; gatear la UI (acciones BDP deshabilitadas sin modo efectivo) | Corregido 2026-09-03: guard en los 3 handlers (verificado: respuesta rápida ≤18 ms, cero contacto con `100.83.196.35`); `PanelBdpBackup.tsx` deshabilita las acciones BDP en standalone con nota honesta; la ruta local ("Crear snapshot local", 0 llamadas BDP) sigue activa. 3 tests de regresión añadidos |
 | H-P1-04 | Backup local ventas (Ronda 2) | "Crear snapshot local" (0 llamadas BDP) fallaba al exportar ventas: SQL obsoleto selecciona `total`/`estado` que **nunca existieron** en `ventas` (esquema real: `importe_base`, `importe_iva`) → error "no existe la columna «total»". Latente desde el día uno (nunca ejercitado hasta esta ronda); las ramas clientes/mapeos sí eran válidas. | Media (función local rota) | `src/services/bdp_backup.rs`: SQL alineado al esquema real con `total` derivado (`importe_base + importe_iva`) | Corregido 2026-09-03: snapshot ventas exporta filas reales con `total` derivado correcto (2.42 = 2.00+0.42); test de regresión |
 | H-N1 | Cola local-first (P2.8/P12.4) | Matiz de invariante, no fallo: el alta local SÍ inserta fila `bdp_push` `estado=pendiente` (comportamiento local-first de 208A-1); en standalone nunca se envía — `flush` reporta `omitidos_standalone:1`, `sincronizados:0`, la fila persiste y se enviaría al conectar BDP. | Info (documentado) | Ninguna; mantener documentado en P12.4 para que no se lea como "envío en standalone" | Cerrado (comportamiento esperado) |
+| H-S1-01 | Stock CSV/filtro/orden (S1.3, S1.2e) | La tabla de Stock mostraba el **stock local efectivo** ("43 local") pero el CSV, el filtro "Con/sin stock" y el orden por stock usaban el snapshot `stock_actual` (0) → exportación y filtros incoherentes con lo visible. Localizado: `BdpStock.tsx` pasaba `stock_actual` a `exportToCsv`/filtro mientras la fila muestra el merge local-manda. | Media (incoherencia UI vs exportación/filtros) | Usar el mismo merge efectivo (stock local cuando existe, si no `stock_actual`) en CSV, filtro y orden | Corregido 2026-09-04: `BdpStock.tsx` usa el stock efectivo en todo el pipeline; verificado por UI — CSV exporta 43,00+8,00 (antes 0s) y filtro "Con stock" incluye T-P1-CAFE-01 |
 
 ## 11. Criterios de aceptación (Definition of Done)
 
@@ -438,6 +479,21 @@ Reglas de las rondas:
   la clase N1 eliminado de raíz con el helper único. Validación F7 parcial: `cargo check` offline,
   `cargo test --lib` 153/0, 8 tests de integración fail-closed verdes, type-check `frontend/src`
   limpio (solo 22 errores preexistentes del submódulo glory-rs).
+- **S1 (PARTE 3) EJECUTADA (2026-09-04, stack aislado :3100/:5180):** simulación del cliente con la
+  app completa 100 % independiente (sin BDP) cerrada con evidencia por escena en BD real
+  `glory_backend_glory_rs_rest`: S1.1 login admin/trabajador con permisos (403 honesto en acción
+  admin-only como Sara), S1.2 escenas (a)–(j) (venta mesa/para llevar, pago/propina/factura local
+  `F-2026-0002`, catálogo alta/edición/desactivación `S1-TE-01`, stock ajuste+CSV, inventario
+  conteo+retomar, albarán `L-5` conciliado con gasto 44,11 €, menú/pack 5,60 €, historial y
+  resumen diario cuadrados con SQL), S1.3 barrido de completitud de toda la app (Gastos, No-Shows,
+  Campañas, Plantillas WA, Recordatorios, Trabajadores, Reseñas, Inactividad, Configuración tabs,
+  Sincronización cola), S1.4 recarga/persistencia, S1.5 cero tráfico a BDP (loopback, sin conexiones
+  100.x, red 100 % localhost). **Nuevo hallazgo corregido: H-S1-01** (Stock: CSV/filtro/orden usaban
+  el snapshot `stock_actual` mientras la tabla mostraba el stock local → stock efectivo local-manda;
+  verificado por UI: CSV exporta 43+8 y filtro "Con stock" correcto). Reproducciones limpias
+  descartaron como artefactos de sesión el diálogo "+Venta" del Dashboard persistente y los diálogos
+  "colgados" (residuo Radix data-state=closed tras cierre real; 1 sola fila en BD en cada repro).
+  Checklist §8 S0/S1 marcado con evidencia.
 - **Siguiente paso (F3 — Parte 2):** requiere confirmar con el usuario la disponibilidad del BDP
   real (online + credenciales integrador + suscripción de pago) y **autorización explícita por
   operación para cualquier escritura (S3/F5)** — mientras tanto se ejecuta solo la parte de lecturas
