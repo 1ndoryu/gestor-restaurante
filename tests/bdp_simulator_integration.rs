@@ -182,6 +182,7 @@ fn simulator_config() -> glory_backend::models::ConfiguracionRestaurante {
         bdp_login: "local".to_string(),
         bdp_password: "secret".to_string(),
         bdp_integrator_code: "SIM".to_string(),
+        bdp_configurado: true,
         bdp_sync_enabled: true,
         bdp_pos_id: 1,
         bdp_employee_id: 1,

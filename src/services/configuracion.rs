@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::models::{ActualizarConfiguracionRequest, ConfiguracionRestaurante};
 use crate::repositories::ConfiguracionRepository;
+use crate::services::bdp_sync_preflight::bdp_configurado;
 
 pub struct ConfiguracionService;
 
@@ -18,7 +19,7 @@ impl ConfiguracionService {
         user_id: Uuid,
     ) -> Result<ConfiguracionRestaurante, AppError> {
         let config = Repo::obtener_o_crear(pool, user_id).await?;
-        Ok(config)
+        Ok(completar_bdp_configurado(config))
     }
 
     pub async fn actualizar(
@@ -102,6 +103,12 @@ impl ConfiguracionService {
         /* Asegurar que existe antes de actualizar */
         Repo::obtener_o_crear(pool, user_id).await?;
         let config = Repo::actualizar(pool, user_id, req).await?;
-        Ok(config)
+        Ok(completar_bdp_configurado(config))
     }
+}
+
+/// [H-S2-01] Rellena el flag público `bdp_configurado` (no es columna BD).
+fn completar_bdp_configurado(mut config: ConfiguracionRestaurante) -> ConfiguracionRestaurante {
+    config.bdp_configurado = bdp_configurado(&config);
+    config
 }

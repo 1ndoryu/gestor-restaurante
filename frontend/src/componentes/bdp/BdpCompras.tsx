@@ -283,8 +283,9 @@ function BdpCompras() {
       ) : notes.length === 0 ? (
         <div className="flex flex-col items-start gap-3 rounded-md border border-dashed p-4">
           <p className="text-sm text-muted-foreground">
-            No hay albaranes todavía. Puedes crear uno local (serie L-) o, si la integración BDP
-            está activa, sincronizarlos desde el terminal.
+            {purchaseFeatureEnabled
+              ? "No hay albaranes todavía. Puedes crear uno local (serie L-) o, si la integración BDP está activa, sincronizarlos desde el terminal."
+              : "No hay albaranes todavía. La lectura de albaranes de BDP está desactivada: hasta que la actives, no se pueden crear ni consultar albaranes."}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button variant="default" size="sm" onClick={openNuevoAlbaran} disabled={!purchaseFeatureEnabled}>

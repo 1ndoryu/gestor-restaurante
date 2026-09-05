@@ -65,6 +65,7 @@ fn bdp_config_from_env() -> Option<ConfiguracionRestaurante> {
         bdp_login: login,
         bdp_password: password,
         bdp_integrator_code: integrator_code,
+        bdp_configurado: true,
         bdp_sync_enabled: true,
         bdp_pos_id: std::env::var("BDP_POS_ID")
             .ok()

@@ -38,6 +38,7 @@ export function useConfiguracionSync(datos: ConfigServerData | undefined) {
       bdp_login: config.bdp_login || '',
       bdp_password: config.bdp_password || '',
       bdp_integrator_code: config.bdp_integrator_code || '',
+      bdp_configurado: Boolean(d.bdp_configurado),
       bdp_sync_enabled: Boolean(d.bdp_sync_enabled ?? false),
       bdp_pos_id: Number(d.bdp_pos_id ?? 1),
       bdp_employee_id: Number(d.bdp_employee_id ?? 1),

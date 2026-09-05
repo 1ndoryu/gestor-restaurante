@@ -729,6 +729,7 @@ mod tests {
             bdp_login: "usuario".to_string(),
             bdp_password: "secreto".to_string(),
             bdp_integrator_code: "INTEGRADOR".to_string(),
+            bdp_configurado: true,
             bdp_sync_enabled: true,
             bdp_pos_id: 31,
             bdp_employee_id: 1,

@@ -474,6 +474,7 @@ mod tests {
             bdp_login: String::new(),
             bdp_password: String::new(),
             bdp_integrator_code: String::new(),
+            bdp_configurado: false,
             bdp_sync_enabled: false,
             bdp_pos_id: 1,
             bdp_employee_id: 1,

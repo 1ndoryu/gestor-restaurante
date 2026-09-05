@@ -1020,6 +1020,7 @@ mod tests {
             bdp_login: "user".to_string(),
             bdp_password: "pass".to_string(),
             bdp_integrator_code: "INT".to_string(),
+            bdp_configurado: true,
             bdp_sync_enabled: true,
             bdp_pos_id: 1,
             bdp_employee_id: 1,

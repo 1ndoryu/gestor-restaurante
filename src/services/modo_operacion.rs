@@ -258,6 +258,7 @@ mod tests {
             } else {
                 String::new()
             },
+            bdp_configurado: credenciales,
             bdp_sync_enabled: sync_enabled,
             bdp_pos_id: 31,
             bdp_employee_id: 1,

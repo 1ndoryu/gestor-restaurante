@@ -371,14 +371,38 @@ dependencia externa (cuál)` — siempre con la vía y evidencia.
       `bdp/push/pendientes` servidos fail-closed local)
 
 ### S2. Mismo día con BDP conectado — integración real, solo lecturas
-- [ ] S2.1 Encender modo bdp con las credenciales reales (Q0) y ver el estado/badge como el cliente
-- [ ] S2.2 Repetir el día con datos BDP visibles en los flujos: catálogo integrado (origen visible),
+- [x] S2.1 Encender modo bdp con las credenciales reales (Q0) y ver el estado/badge como el cliente —
+      PATCH guardado (`bdp_sync_enabled=true`, `read_only`, poll off); badge **"BDP: lectura"** con
+      menú honesto ("Solo lectura… sin escrituras"). **Fix H-S2-01:** el badge dependía de campos de
+      credencial que el endpoint redacta (`skip_serializing`) → nuevo flag server-truthful
+      `bdp_configurado` computado en `ConfiguracionService` (reusa `bdp_configurado()` de preflight),
+      expuesto en el payload de config y consumido por el header (API verificado: `bdp_configurado:true`
+      con secretos redactados; type-check frontend limpio)
+- [x] S2.2 Repetir el día con datos BDP visibles en los flujos: catálogo integrado (origen visible),
       clientes, plano de sala real, albaranes importados, stock BDP consultado, historial mixto
-      — todo por lectura (Q1 cubre cada llamada; aquí se ve el flujo completo)
-- [ ] S2.3 Los flujos que terminarían escribiendo se recorren **hasta el punto anterior a la
-      escritura** y se completan en S3 con el mismo escenario (nada escribe antes de la etapa final)
-- [ ] S2.4 Estados y degradación visibles al cliente (badge, banners, mensajes honestos) sin escribir
-- [ ] S2.5 Evidencia redactada (sin secretos ni datos personales completos)
+      — todo por lectura (Q1 cubre cada llamada; aquí se ve el flujo completo) — escenas verificadas en
+      BD real `glory_backend_glory_rs_rest` por página: **Catálogo** 556 artículos `origen=bdp` reales
+      (precios/IVA; +3 locales intactos), **Clientes** "Importar BDP" con previsualización real
+      (5 clientes: 1 válido nuevo importado y vinculado `900001`, 4 inválidos por campos faltantes,
+      0 conflictos — conteos honestos; BD: 10 locales + 1 vinculado), **Stock** 559 filas con códigos/
+      precios BDP visibles (endpoint autoritativo devuelve filas sync), **Plano de Sala** 1 zona/6 mesas,
+      **Historial** 22 registros + filtros Local/BDP + 2 snapshots, **Sincronización** 10 pendientes
+      (0 nuevos hoy; nota honesta de reintento manual), **Menús y Packs** explorador con consulta real
+      al BDP por código (1001 → "No se encontró un menu" — respuesta honesta, 1001 es artículo).
+      **Fix H-S2-02** (Compras): el texto de vacío prometía "crear uno local (serie L-)" con el botón
+      bloqueado por el flag de lectura de albaranes → texto condicional honesto
+- [x] S2.3 Los flujos que terminarían escribiendo se recorren **hasta el punto anterior a la
+      escritura** y se completan en S3 con el mismo escenario (nada escribe antes de la etapa final) —
+      "+Venta" del Dashboard: línea con artículo BDP (código 1001, columna BDP visible, lookup contra
+      el mapa local sincronizado sin red) hasta el formulario de guardado; diálogo cerrado **sin
+      guardar** → cero escrituras (cola sin filas nuevas; audit 0 en la ventana)
+- [x] S2.4 Estados y degradación visibles al cliente (badge, banners, mensajes honestos) sin escribir —
+      badge/menú "BDP: lectura", Configuración → BDP honesta (credenciales redactadas, modo
+      Solo lectura, "Cancelar comandas: Bloqueado por BDP"), Compras "Compras BDP está desactivado"
+      coherente tras H-S2-02
+- [x] S2.5 Evidencia redactada (sin secretos ni datos personales completos) — credenciales nunca en
+      logs/evidencia (payload de config redactado), datos de prueba `S1-*`/`T-P1-*`/`900001` (registro
+      de prueba del 2026-08-04), clientes con campos personales no expuestos
 
 ### S3. Escrituras BDP — etapa final, una a una y con autorización (bloque Q2, §7)
 > **Regla dura:** S3 no empieza hasta cerrar S1 y S2. Dentro de S3 no hay lotes ni prisa: **una
@@ -544,9 +568,21 @@ Reglas de las rondas:
   previa: suite wiremock verde (153/0) con el código actual del cliente (sin cambios desde
   `188f6b3`); re-run bloqueado por disco (`C:\tmp` 6,4 GB, libre 5,9 GB < umbral del wrapper);
   cero contacto de red con el BDP real.
-- **Siguiente paso (F3 — Parte 2):** ejecutar el paquete Q1 cuando el usuario confirme BDP online +
-  credenciales; **autorización explícita por operación para cualquier escritura (S3/F5)** — mientras
-  tanto las lecturas quedan `⏸` documentadas.
+- **S2 (PARTE 3) EJECUTADA (2026-09-04, BDP real online vía Tailscale, solo lecturas):** el mismo
+  día de S1 con BDP conectado en modo `read_only` — checklist §8 S2 completo con evidencia por
+  escena (badge "BDP: lectura" honesto, catálogo 556 BDP reales, importación de cliente con
+  previsualización real, stock/historial/snapshots/plano verificados en BD, explorador de menús con
+  consulta real, flujos de escritura recorridos hasta antes de guardar y cerrados sin guardar).
+  **Fixes: H-S2-01** (flag `bdp_configurado` server-truthful en el payload de config; el badge ya no
+  depende de campos redactados — `src/models/configuracion.rs` + `src/services/configuracion.rs` +
+  `frontend/src/components/site-header.tsx` + tipos del hook) y **H-S2-02** (texto de vacío de
+  Compras condicional al flag de lectura de albaranes — `frontend/src/componentes/bdp/BdpCompras.tsx`).
+  Validación: `cargo test --lib` 157/157 verdes, type-check `frontend/src` limpio, API
+  `bdp_configurado:true`, cero escrituras (cola sin filas nuevas). Config restaurada
+  `bdp_sync_enabled=false`/`read_only`/poll off.
+- **Siguiente paso (S3 — Parte 3, F5):** escrituras BDP (bloque Q2, §7) — **una operación a la vez,
+  cada una con autorización explícita del usuario y arming**; nada se ejecuta antes. Mientras tanto
+  las escrituras quedan `⏸` documentadas en §7.
 
 ## 14. Rondas de revisión de la CREACIÓN (2026-09-03, cumplidas al crear este plan)
 

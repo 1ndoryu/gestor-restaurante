@@ -52,6 +52,12 @@ pub struct ConfiguracionRestaurante {
     pub bdp_password: String,
     #[serde(skip_serializing)]
     pub bdp_integrator_code: String,
+    /* [H-S2-01] Flag público derivado (nunca almacenado): credenciales BDP
+     * completas en BD. Se calcula en ConfiguracionService al servir la config;
+     * la UI lo usa para el badge sin recibir secretos. */
+    #[serde(default)]
+    #[sqlx(default)]
+    pub bdp_configurado: bool,
     pub bdp_sync_enabled: bool,
     pub bdp_pos_id: i32,
     pub bdp_employee_id: i32,

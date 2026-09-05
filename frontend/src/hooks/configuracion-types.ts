@@ -31,6 +31,7 @@ export interface EstadoConfiguracion {
   bdp_login: string;
   bdp_password: string;
   bdp_integrator_code: string;
+  bdp_configurado: boolean;
   bdp_sync_enabled: boolean;
   bdp_pos_id: number;
   bdp_employee_id: number;
@@ -93,6 +94,7 @@ export const DEFAULTS: EstadoConfiguracion = {
   bdp_login: '',
   bdp_password: '',
   bdp_integrator_code: '',
+  bdp_configurado: false,
   bdp_sync_enabled: false,
   bdp_pos_id: 1,
   bdp_employee_id: 1,

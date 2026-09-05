@@ -77,11 +77,11 @@ function BdpStatusIndicator() {
   const syncMode = String(cfg?.bdp_sync_mode ?? configSync?.bdp_sync_mode ?? 'read_only')
   const modoOperacion = String(cfg?.modo_operacion ?? configSync?.modo_operacion ?? 'auto')
 
-  const credencialesOk =
-    Boolean(cfg?.bdp_base_url ?? configSync?.bdp_base_url) &&
-    Boolean(cfg?.bdp_login ?? configSync?.bdp_login) &&
-    Boolean(cfg?.bdp_password ?? configSync?.bdp_password) &&
-    Boolean(cfg?.bdp_integrator_code ?? configSync?.bdp_integrator_code)
+  /* [H-S2-01] El backend redacta bdp_login/password/integrator_code del
+   * payload; derivar credencialesOk de esos campos era siempre false tras
+   * recargar (badge mentía "BDP: off" con la integración activa). El flag
+   * bdp_configurado es la verdad del servidor sin exponer secretos. */
+  const credencialesOk = Boolean(cfg?.bdp_configurado ?? configSync?.bdp_configurado ?? false)
 
   /* [128A-1/F1/M1] 'standalone' es el switch maestro: aunque bdp_sync_enabled
    * siga activo por compatibilidad, se trata como inactivo y el badge muestra
