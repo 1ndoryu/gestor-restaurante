@@ -32,6 +32,8 @@ function badgeEstado(estado: string) {
       return <Badge variant="outline">pendiente</Badge>;
     case 'pendiente_suscripcion':
       return <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400">suscripción</Badge>;
+    case 'rechazado':
+      return <Badge variant="destructive" className="bg-rose-700 dark:bg-rose-800">rechazado</Badge>;
     case 'error':
       return <Badge variant="destructive">error</Badge>;
     case 'sincronizado':
@@ -79,6 +81,8 @@ function BdpSincronizacion() {
           toast.success('Sincronizado con BDP', { description: `${r.sincronizados} operación(es) enviada(s).` });
         } else if (r.pendientes_suscripcion > 0) {
           toast.warning('Pendiente de suscripción BDP', { description: `${r.pendientes_suscripcion} operación(es) requieren la suscripción WebLink.` });
+        } else if (r.rechazados > 0) {
+          toast.error('Operación(es) rechazadas por BDP', { description: `${r.rechazados} operación(es) con payload inválido o conflicto: corregir el dato local y reintentar manualmente.` });
         } else if (r.errores > 0) {
           toast.error('Errores al sincronizar', { description: `${r.errores} operación(es) fallaron.` });
         } else if (r.omitidos_standalone > 0) {
@@ -103,6 +107,8 @@ function BdpSincronizacion() {
           toast.success('Operación sincronizada');
         } else if (r.pendientes_suscripcion > 0) {
           toast.warning('Pendiente de suscripción BDP', { description: 'La suscripción WebLink aún no está activa.' });
+        } else if (r.rechazados > 0) {
+          toast.error('Operación rechazada por BDP', { description: 'El BDP rechazó el payload: corregir el dato local y reintentar.' });
         } else if (r.omitidos_standalone > 0) {
           toast.info('Modo independiente', { description: 'La cola no se envía mientras no haya BDP conectado.' });
         } else {

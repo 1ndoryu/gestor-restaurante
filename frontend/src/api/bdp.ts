@@ -913,6 +913,7 @@ export interface BdpPushFlushResumen {
   procesados: number;
   sincronizados: number;
   pendientes_suscripcion: number;
+  rechazados: number;
   errores: number;
   omitidos_standalone: number;
   omitidos_manual: number;

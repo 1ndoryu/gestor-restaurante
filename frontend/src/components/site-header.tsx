@@ -234,6 +234,10 @@ function BdpStatusIndicator() {
                   toast.warning('Pendiente de suscripción BDP', {
                     description: `${r.pendientes_suscripcion} operación(es) no se enviaron: suscripción no activada.`,
                   })
+                } else if (r.rechazados > 0) {
+                  toast.error('Operación(es) rechazadas por BDP', {
+                    description: `${r.rechazados} operación(es) con payload inválido o conflicto: corregir el dato local y reintentar manualmente.`,
+                  })
                 } else if (r.errores > 0) {
                   toast.error('Errores al sincronizar', {
                     description: `${r.errores} operación(es) fallaron.`,

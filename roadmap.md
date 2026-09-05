@@ -198,9 +198,15 @@ delay 25 s > timeout 20 s → fila `error` transitorio reintentos=1 + auditoría
 una sola llamada HTTP + límite `REINTENTOS_MAX` sin bucle) y simulador 32/0 (timeout
 detectado → `Http` honesto; caída tras aceptar → reconciliación sin duplicado). **H-W-2
 cerrado como limitación documentada** (la cola no reconcilia automáticamente; la
-reconciliación real vive en el poller de `create_order`).
-Siguiente: S5–S8 (payload inválido, duplicado deliberado, inventario masivo borde,
-cola/reintento manual) y luego Ronda 3 antes de cualquier escritura real.
+reconciliación real vive en el poller de `create_order`). **Fase 2: S5 PASS** — payload
+inválido: push 16/0 con test end-to-end nuevo (wiremock 422 → fila `rechazado` sin
+reintentos, auditoría `error` no `ambiguo`, flush automático no toca la fila, una sola
+llamada HTTP, re-edición refresca a `pendiente`) + simulador 33/0 (`http_status 422` →
+`Api 422` y cero filas fantasma) + lib 166/0. **Defecto real corregido H-S5-01**: 4xx es
+rechazo **definitivo** — nuevo estado `rechazado` (migración `20260905100000`; 5xx sigue
+transitorio; cuerpo redactado [287A-4]).
+Siguiente: S6–S8 (duplicado deliberado, inventario masivo borde, cola/reintento manual) y
+luego Ronda 3 antes de cualquier escritura real.
 
 ### Seguimiento 318A-3 — Evaluar reactivación de reglas de consistencia de formularios (2026-09-01)
 

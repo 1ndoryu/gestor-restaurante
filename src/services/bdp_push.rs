@@ -6,7 +6,10 @@
  * política de reintentos distingue (D2 resuelta):
  *   - error transitorio  -> reintento automático acotado (tope en config);
  *   - "Subscripción no activada" -> 'pendiente_suscripcion' SIN reintento
- *     automático (la suscripción puede no activarse nunca); solo manual.
+ *     automático (la suscripción puede no activarse nunca); solo manual;
+ *   - rechazo definitivo (HTTP 4xx: payload inválido o conflicto) ->
+ *     'rechazado' SIN reintento automático (el error no va a desaparecer
+ *     solo); solo manual, y solo tras corregir el dato local.
  *
  * Concurrencia (M19): UNIQUE parcial sobre filas activas + upsert; una sola
  * fila por (user_id, dominio, entidad_id, operacion). */
@@ -50,13 +53,22 @@ pub const OPERACION_PROPINA: &str = "propina";
 pub const ESTADO_PENDIENTE: &str = "pendiente";
 pub const ESTADO_PENDIENTE_SUSCRIPCION: &str = "pendiente_suscripcion";
 pub const ESTADO_ERROR: &str = "error";
+pub const ESTADO_RECHAZADO: &str = "rechazado";
 pub const ESTADO_SINCRONIZADO: &str = "sincronizado";
 pub const ESTADO_DESCARTADO: &str = "descartado";
 
 /* [M21] Tope de reintentos automáticos por operación (solo errores transitorios). */
 pub const REINTENTOS_MAX: i32 = 5;
 
-const ESTADOS_ACTIVOS: &[&str] = &[ESTADO_PENDIENTE, ESTADO_PENDIENTE_SUSCRIPCION, ESTADO_ERROR];
+/* [049A-1/S5] 'rechazado' (4xx definitivo) entra en las filas activas para que
+ * el flush la vea y la salte salvo reintento manual, igual que
+ * 'pendiente_suscripcion'; una re-edición local (encolar) la refresca. */
+const ESTADOS_ACTIVOS: &[&str] = &[
+    ESTADO_PENDIENTE,
+    ESTADO_PENDIENTE_SUSCRIPCION,
+    ESTADO_ERROR,
+    ESTADO_RECHAZADO,
+];
 
 /// Fila pendiente de push (proyección mínima para el worker).
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -447,6 +459,7 @@ pub struct BdpPushFlushResumen {
     pub procesados: usize,
     pub sincronizados: usize,
     pub pendientes_suscripcion: usize,
+    pub rechazados: usize,
     pub errores: usize,
     pub omitidos_standalone: usize,
     pub omitidos_manual: usize,
@@ -493,6 +506,11 @@ impl BdpPushFlushService {
                 resumen.pendientes_suscripcion += 1;
                 continue;
             }
+            /* [049A-1/S5] Rechazo definitivo (4xx) -> solo reintento manual. */
+            if pendiente.estado == ESTADO_RECHAZADO && !forzar_manual {
+                resumen.rechazados += 1;
+                continue;
+            }
             /* M21: no reintentar indefinidamente errores transitorios. */
             if pendiente.reintentos >= REINTENTOS_MAX {
                 resumen.errores += 1;
@@ -504,6 +522,7 @@ impl BdpPushFlushService {
             {
                 Ok(ESTADO_SINCRONIZADO) => resumen.sincronizados += 1,
                 Ok(ESTADO_PENDIENTE_SUSCRIPCION) => resumen.pendientes_suscripcion += 1,
+                Ok(ESTADO_RECHAZADO) => resumen.rechazados += 1,
                 Ok(_) | Err(_) => resumen.errores += 1,
             }
         }
@@ -540,6 +559,7 @@ impl BdpPushFlushService {
         match Self::procesar_uno(pool, &config, &client, user_id, &pendiente, true).await {
             Ok(ESTADO_SINCRONIZADO) => resumen.sincronizados += 1,
             Ok(ESTADO_PENDIENTE_SUSCRIPCION) => resumen.pendientes_suscripcion += 1,
+            Ok(ESTADO_RECHAZADO) => resumen.rechazados += 1,
             Ok(_) | Err(_) => resumen.errores += 1,
         }
         Ok(resumen)
@@ -766,7 +786,13 @@ fn entidad_uuid(dominio: &str, entidad_id: &str) -> Uuid {
 fn es_transitorio(error: &BdpWeblinkError) -> bool {
     matches!(
         error,
-        BdpWeblinkError::Http(_) | BdpWeblinkError::Api { .. } | BdpWeblinkError::Throttled(_)
+        BdpWeblinkError::Http(_) | BdpWeblinkError::Throttled(_)
+    ) || matches!(
+        error,
+        /* [049A-1/S5] 4xx es rechazo definitivo del BDP (payload inválido,
+         * conflicto de negocio): reintentarlo en bucle es inútil y puede
+         * enmascarar un dato local roto. Solo 5xx es transitorio. */
+        BdpWeblinkError::Api { status, .. } if *status >= 500
     )
 }
 
@@ -783,6 +809,12 @@ fn clasificar_error(error: &BdpWeblinkError) -> (&'static str, bool) {
             || normalizado.contains("suscripcion no activada")
         {
             return (ESTADO_PENDIENTE_SUSCRIPCION, false);
+        }
+    }
+    if let BdpWeblinkError::Api { status, .. } = error {
+        /* [049A-1/S5] Rechazo definitivo: 4xx no se reintenta en bucle. */
+        if *status < 500 {
+            return (ESTADO_RECHAZADO, false);
         }
     }
     if es_transitorio(error) {
@@ -828,6 +860,38 @@ mod clasificacion_error_tests {
             body: "boom".into(),
         };
         assert_eq!(clasificar_error(&error), (ESTADO_ERROR, true));
+    }
+
+    #[test]
+    fn error_api_422_payload_invalido_es_rechazo_definitivo() {
+        let error = BdpWeblinkError::Api {
+            status: 422,
+            body: "el campo code es obligatorio".into(),
+        };
+        assert_eq!(clasificar_error(&error), (ESTADO_RECHAZADO, false));
+        assert_eq!(es_transitorio(&error), false);
+    }
+
+    #[test]
+    fn error_api_400_y_409_tambien_son_rechazo() {
+        for status in [400, 409] {
+            let error = BdpWeblinkError::Api {
+                status,
+                body: "conflicto de negocio".into(),
+            };
+            assert_eq!(clasificar_error(&error), (ESTADO_RECHAZADO, false));
+            assert_eq!(es_transitorio(&error), false);
+        }
+    }
+
+    #[test]
+    fn error_api_5xx_sigue_siendo_transitorio() {
+        let error = BdpWeblinkError::Api {
+            status: 503,
+            body: "servidor ocupado".into(),
+        };
+        assert_eq!(clasificar_error(&error), (ESTADO_ERROR, true));
+        assert_eq!(es_transitorio(&error), true);
     }
 
     #[test]

@@ -1675,3 +1675,56 @@ async fn simulator_subscription_blocked_payment_invoice_cancel() {
         "No debe haber factura asignada"
     );
 }
+
+/* [049A-1/S5] Payload inválido (HTTP 422) contra el simulador: el cliente
+ * clasifica el 422 como `Api` (rechazo definitivo del BDP, no transitorio) y
+ * el simulador NO crea ningún artículo fantasma: la exportación posterior no
+ * contiene el código rechazado. */
+#[tokio::test]
+#[ignore = "requiere el simulador BDP local en 127.0.0.1"]
+async fn simulator_payload_invalido_422_no_crea_fantasma() {
+    skip_if_no_simulator!(_g);
+    inject_fault(
+        "/API/Articles/CreateAndUpdateProfiles",
+        json!({"http_status": 422}),
+    )
+    .await;
+
+    let config = simulator_config();
+    let client = BdpWeblinkClient::new(&config);
+
+    let result = client
+        .create_articles_and_update_profiles(&BdpCreateArticlesRequest {
+            automatic_code: false,
+            article_data: json!({
+                "ArtCode": 920422,
+                "ArtDescription": "Articulo rechazado S5",
+                "DeptCode": 2,
+                "Price1": 1.00,
+            }),
+            profiles_list: None,
+            all_profiles: Some(true),
+        })
+        .await;
+
+    match result {
+        Err(BdpWeblinkError::Api { status, .. }) => assert_eq!(status, 422),
+        other => panic!("Esperaba Api 422 (rechazo definitivo), obtuvo: {other:?}"),
+    }
+
+    /* Cero filas fantasma: el 422 no debe haber creado el artículo. */
+    let exported = client
+        .export_articles(&BdpExportArticlesRequest::all_web_articles(1))
+        .await
+        .unwrap();
+    let codes: Vec<i64> = exported["Articles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|a| a["Code"].as_str().and_then(|c| c.parse().ok()))
+        .collect();
+    assert!(
+        !codes.contains(&920422),
+        "El artículo rechazado no debe existir en el simulador"
+    );
+}
