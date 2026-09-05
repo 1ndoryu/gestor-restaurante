@@ -186,8 +186,13 @@ esa operación.
 **Progreso (2026-09-05):** Rondas 1–2 y auditoría Fase 1 cerradas (H-W-1/H-W-3 corregidos con
 prueba, 169 verdes). **Fase 2: S1 PASS** — baseline completo: lib 163/0 (Vía T, wiremock
 contrato), fail-closed 8/0, push 13/0, guard 4/0; `bdp_readonly` 7 ignorados por diseño.
-Siguiente: S2 — happy path Q2.1–Q2.13 contra el simulador Python (:18765) con verificación
-local por operación (mapa/cola/ledger/auditoría).
+**Fase 2: S2 PASS** — happy path Q2.1–Q2.13 contra el simulador Python (:18765): suite
+`bdp_simulator_integration` 32/0 con 8 tests nuevos de la matriz (artículo, modificar+precios,
+departamento, propina, puntos, stock+inventario masivo, call waiter, suscripción bloqueada con
+cero daño); pago/factura/cancel simulados como `pendiente_suscripcion` (bloqueo externo `⏸`).
+Siguiente: S3 — suscripción inactiva con reintento manual único explícito por operación, y
+luego S4–S8 (timeout a mitad de escritura, payload inválido, duplicado, inventario borde,
+cola/reintento manual).
 
 ### Seguimiento 318A-3 — Evaluar reactivación de reglas de consistencia de formularios (2026-09-01)
 

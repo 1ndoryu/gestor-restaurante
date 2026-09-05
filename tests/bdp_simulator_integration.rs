@@ -18,9 +18,13 @@ use std::time::Duration;
 use glory_backend::services::bdp_weblink::BdpWeblinkClient;
 use glory_backend::services::bdp_weblink::BdpWeblinkError;
 use glory_backend::services::bdp_weblink_catalog::{
-    BdpAddOrderPaymentRequest, BdpCancelOrderRequest, BdpCreateCustomerRequest,
-    BdpCreateOrderRequest, BdpExportArticlesRequest, BdpExportCustomersRequest, BdpGetOrderRequest,
-    BdpInvoiceOrderRequest, BdpOrderIdentifier, BdpOrderPayment,
+    BdpAddOrderPaymentRequest, BdpAddOrderTipRequest, BdpAddPointsRequest, BdpCallWaiterRequest,
+    BdpCancelOrderRequest, BdpCreateArticlesRequest, BdpCreateCustomerRequest,
+    BdpCreateDepartmentRequest, BdpCreateOrderRequest, BdpExportArticlesRequest,
+    BdpExportCustomersRequest, BdpExportDepartmentsRequest, BdpGetOrderRequest, BdpGetPointsRequest,
+    BdpGetStockRequest, BdpInvoiceOrderRequest, BdpMassiveStockRequest, BdpModifyArticleRequest,
+    BdpModifyPricesRequest, BdpOrderIdentifier, BdpOrderPayment, BdpStockInfoEntry,
+    BdpUpdateStockRequest,
 };
 
 use chrono::{NaiveTime, Utc};
@@ -153,6 +157,21 @@ async fn inject_fault(path: &str, fault: serde_json::Value) {
     let mut payload = fault;
     payload["Path"] = json!(path);
     admin_post("/__simulator/fault", payload).await;
+}
+
+/* ── Helper: stock actual de un artículo en el simulador ─────────── */
+async fn simulator_stock_of(client: &BdpWeblinkClient<'_>, article: i64) -> f64 {
+    client
+        .get_stock(&BdpGetStockRequest {
+            article,
+            altern: 0,
+            store: 1,
+        })
+        .await
+        .unwrap()["Stock"]
+        .get(article.to_string())
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0)
 }
 
 /* ── Helper: configuración apuntando al simulador ──────────────── */
@@ -1190,4 +1209,469 @@ async fn simulator_fault_delay_ms_causes_timeout() {
             panic!("El test colgó >22s — el timeout del HTTP_CLIENT no funciona: {elapsed}");
         }
     }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+ * 16. [049A-1/FASE 2/S2] HAPPY PATH Q2.1–Q2.13 CONTRA EL SIMULADOR
+ *
+ * Matriz de las 13 escrituras del padre (039A-1 §7 Q2):
+ *   Q2.1  CreateArticlesAndUpdateProfiles  → simulator_create_article_happy_path
+ *   Q2.2  ModifyArticleAndUpdateProfile +
+ *         ModifyPricesArticles              → simulator_modify_article_and_prices_happy_path
+ *   Q2.3  CreateDepartment                  → simulator_create_department_happy_path
+ *   Q2.4  CreateOrder (comanda)             → simulator_create_order (+ idempotente)
+ *   Q2.5  AddOrderPayment                   → simulator_full_lifecycle… (contrato) +
+ *                                            simulator_subscription_blocked_* (⏸ suscripción)
+ *   Q2.6  InvoiceOrder                      → ídem
+ *   Q2.7  AddOrderTip                       → simulator_add_order_tip_happy_path
+ *   Q2.8  AddPoints                         → simulator_add_points_happy_path
+ *   Q2.9  UpdateStock + UpdateMassiveInventory → simulator_stock_update_and_massive_happy_path
+ *   Q2.10 CallWaiter                        → simulator_call_waiter_happy_path
+ *   Q2.11 CancelOrder                       → simulator_cancel_order (contrato) +
+ *                                            simulator_subscription_blocked_* (⏸ suscripción)
+ *   Q2.12 Reintento manual desde Sincronización → suite `tests/bdp_push.rs` (13 tests, cola:
+ *                                            pendiente → reintento manual único → error visible,
+ *                                            sin auto-flush); escenario UI completo en S8.
+ *   Q2.13 push_modalidad + arming           → suite `tests/bdp_write_guard.rs` (4 tests: arm →
+ *                                            consumir → auditar → cerrar a read_only antes del
+ *                                            HTTP; cupo 1; expiry 5 min; lock advisory).
+ *
+ * Verificación local por operación: estado del simulador (vía lecturas del
+ * propio cliente) + asserts de no-duplicación. La verificación de mapa/cola/
+ * ledger/auditoría local por op vive en las suites bdp_push/bdp_write_guard.
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* Q2.1 — CreateArticlesAndUpdateProfiles: alta de artículo con código propio
+ * y verificación de que el simulador lo guarda exactamente una vez. */
+#[tokio::test]
+#[ignore = "requiere el simulador BDP local en 127.0.0.1"]
+async fn simulator_create_article_happy_path() {
+    skip_if_no_simulator!(_g);
+    let config = simulator_config();
+    let client = BdpWeblinkClient::new(&config);
+
+    let resp = client
+        .create_articles_and_update_profiles(&BdpCreateArticlesRequest {
+            automatic_code: false,
+            article_data: json!({
+                "ArtCode": 910001,
+                "ArtDescription": "Articulo S2 Q2.1",
+                "DeptCode": 2,
+                "DeptDescription": "Test S2",
+                "Price1": 3.50,
+                "WebArticle": true,
+            }),
+            profiles_list: None,
+            all_profiles: Some(true),
+        })
+        .await
+        .expect("create article should succeed");
+    assert_eq!(resp["ErrorMessage"].as_str().unwrap_or(""), "");
+    assert!(
+        resp["ListaErroresArticulo"].as_array().is_some(),
+        "Respuesta debe incluir ListaErroresArticulo"
+    );
+
+    /* Verificar en el simulador (lectura vía el propio cliente) */
+    let exported = client
+        .export_articles(&BdpExportArticlesRequest::all_web_articles(1))
+        .await
+        .unwrap();
+    let codes: Vec<i64> = exported["Articles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|a| a["Code"].as_str().and_then(|c| c.parse().ok()))
+        .collect();
+    assert!(
+        codes.contains(&910001),
+        "Artículo 910001 debe existir en el simulador"
+    );
+    assert_eq!(
+        codes.iter().filter(|c| **c == 910001).count(),
+        1,
+        "Sin duplicados: 910001 exactamente una vez"
+    );
+}
+
+/* Q2.2 — ModifyArticleAndUpdateProfile + ModifyPricesArticles: modificar
+ * descripción y precios de un artículo recién creado. */
+#[tokio::test]
+#[ignore = "requiere el simulador BDP local en 127.0.0.1"]
+async fn simulator_modify_article_and_prices_happy_path() {
+    skip_if_no_simulator!(_g);
+    let config = simulator_config();
+    let client = BdpWeblinkClient::new(&config);
+
+    client
+        .create_articles_and_update_profiles(&BdpCreateArticlesRequest {
+            automatic_code: false,
+            article_data: json!({
+                "ArtCode": 910002,
+                "ArtDescription": "Articulo S2 Q2.2",
+                "DeptCode": 2,
+                "Price1": 4.00,
+            }),
+            profiles_list: None,
+            all_profiles: Some(true),
+        })
+        .await
+        .expect("create article should succeed");
+
+    /* Modificar descripción */
+    let mod_resp = client
+        .modify_article_and_update_profile(&BdpModifyArticleRequest {
+            article_data: json!({
+                "ArtCode": 910002,
+                "ArtDescription": "Modificado S2",
+            }),
+            profiles_list: None,
+            all_profiles: Some(true),
+        })
+        .await
+        .expect("modify article should succeed");
+    assert_eq!(mod_resp["ErrorMessage"].as_str().unwrap_or(""), "");
+
+    /* Modificar precios */
+    let prices_resp = client
+        .modify_prices_articles(&BdpModifyPricesRequest {
+            articles_data_list: json!([{"Article": 910002, "Price1": 5.25}]),
+        })
+        .await
+        .expect("modify prices should succeed");
+    assert_eq!(prices_resp["ErrorMessage"].as_str().unwrap_or(""), "");
+
+    /* Verificar descripción actualizada en el simulador */
+    let exported = client
+        .export_articles(&BdpExportArticlesRequest::all_web_articles(1))
+        .await
+        .unwrap();
+    let item = exported["Articles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["Code"].as_str() == Some("910002"))
+        .expect("Artículo 910002 debe existir");
+    assert_eq!(
+        item["ArtDescription"].as_str().unwrap_or(""),
+        "Modificado S2",
+        "La descripción debe reflejar la modificación"
+    );
+}
+
+/* Q2.3 — CreateDepartment: alta de departamento y verificación en export. */
+#[tokio::test]
+#[ignore = "requiere el simulador BDP local en 127.0.0.1"]
+async fn simulator_create_department_happy_path() {
+    skip_if_no_simulator!(_g);
+    let config = simulator_config();
+    let client = BdpWeblinkClient::new(&config);
+
+    let resp = client
+        .create_department(&BdpCreateDepartmentRequest {
+            code: 910001,
+            description: "Depto S2 Q2.3".into(),
+            short_description: "S2".into(),
+            graph_description1: String::new(),
+            graph_description2: String::new(),
+            graph_description3: String::new(),
+            overwrite: false,
+        })
+        .await
+        .expect("create department should succeed");
+    assert_eq!(resp["ErrorMessage"].as_str().unwrap_or(""), "");
+
+    let exported = client
+        .export_departments(&BdpExportDepartmentsRequest::default())
+        .await
+        .unwrap();
+    let codes: Vec<i64> = exported["Departments"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|d| d["Code"].as_i64())
+        .collect();
+    assert!(
+        codes.contains(&910001),
+        "Departamento 910001 debe existir en el simulador"
+    );
+    assert_eq!(
+        codes.iter().filter(|c| **c == 910001).count(),
+        1,
+        "Sin duplicados: 910001 exactamente una vez"
+    );
+}
+
+/* Q2.7 — AddOrderTip: propina sobre una comanda creada. */
+#[tokio::test]
+#[ignore = "requiere el simulador BDP local en 127.0.0.1"]
+async fn simulator_add_order_tip_happy_path() {
+    skip_if_no_simulator!(_g);
+    let config = simulator_config();
+    let client = BdpWeblinkClient::new(&config);
+
+    let order_resp = client
+        .create_order(&BdpCreateOrderRequest {
+            employee_id: 1,
+            items_profile_id: 1,
+            order_end_type: 0,
+            order_operation_type: 0,
+            invoice: Some(false),
+            order: json!({
+                "MarketId": 77,
+                "MarketplaceOrderId": "GS2TIP00000001",
+                "PosId": 1, "Total": 10.0,
+                "Items": [{"Id": 1001, "Name": "Test", "Units": 1, "Price": 10.0, "Total": 10.0}]
+            }),
+        })
+        .await
+        .unwrap();
+    let order_id = order_resp["OrderId"].as_i64().unwrap();
+
+    let tip_resp = client
+        .add_order_tip(&BdpAddOrderTipRequest {
+            order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+            amount: Decimal::from(2),
+            add_tip: true,
+        })
+        .await
+        .expect("add tip should succeed");
+    assert_eq!(tip_resp["ErrorMessage"].as_str().unwrap_or(""), "");
+
+    let get_resp = client
+        .get_order(&BdpGetOrderRequest {
+            order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+        })
+        .await
+        .unwrap();
+    assert!(
+        (get_resp["Order"]["Tip"].as_f64().unwrap_or(-1.0) - 2.0).abs() < 0.01,
+        "Propina debe quedar registrada en la comanda"
+    );
+}
+
+/* Q2.8 — AddPoints: puntos de fidelización y verificación por GetPoints. */
+#[tokio::test]
+#[ignore = "requiere el simulador BDP local en 127.0.0.1"]
+async fn simulator_add_points_happy_path() {
+    skip_if_no_simulator!(_g);
+    let config = simulator_config();
+    let client = BdpWeblinkClient::new(&config);
+
+    let resp = client
+        .add_points(&BdpAddPointsRequest {
+            customer: 100,
+            points_added: Decimal::new(55, 1),
+            reason: "S2 Q2.8 test".into(),
+        })
+        .await
+        .expect("add points should succeed");
+    assert_eq!(resp["ErrorMessage"].as_str().unwrap_or(""), "");
+    assert!(
+        (resp["Points"].as_f64().unwrap_or(-1.0) - 5.5).abs() < 0.01,
+        "Respuesta debe reflejar los puntos acumulados"
+    );
+
+    let get_resp = client
+        .get_points(&BdpGetPointsRequest { customer: 100 })
+        .await
+        .unwrap();
+    assert!(
+        (get_resp["Points"].as_f64().unwrap_or(-1.0) - 5.5).abs() < 0.01,
+        "GetPoints debe devolver los puntos acumulados"
+    );
+}
+
+/* Q2.10 — CallWaiter: llamada de camarero desde el plano de sala. */
+#[tokio::test]
+#[ignore = "requiere el simulador BDP local en 127.0.0.1"]
+async fn simulator_call_waiter_happy_path() {
+    skip_if_no_simulator!(_g);
+    let config = simulator_config();
+    let client = BdpWeblinkClient::new(&config);
+
+    let resp = client
+        .call_waiter(&BdpCallWaiterRequest { table: 1, room: 1 })
+        .await
+        .expect("call waiter should succeed");
+    assert_eq!(resp["ErrorMessage"].as_str().unwrap_or(""), "");
+}
+
+/* Q2.9 — UpdateStock + UpdateMassiveInventory: deltas de stock verificados
+ * por GetStock (relativos, sin asumir el stock inicial del fixture). */
+#[tokio::test]
+#[ignore = "requiere el simulador BDP local en 127.0.0.1"]
+async fn simulator_stock_update_and_massive_happy_path() {
+    skip_if_no_simulator!(_g);
+    let config = simulator_config();
+    let client = BdpWeblinkClient::new(&config);
+
+    let article: i64 = 1_000_000_000_001;
+    let before = simulator_stock_of(&client, article).await;
+
+    client
+        .update_stock(&BdpUpdateStockRequest {
+            article,
+            altern: 0,
+            units: Decimal::from(3),
+            cod_reg: 1,
+            store: 1,
+            date_reg: "2026-09-05T10:00:00".into(),
+        })
+        .await
+        .expect("update stock should succeed");
+    let after_single = simulator_stock_of(&client, article).await;
+    assert!(
+        (after_single - before - 3.0).abs() < 0.01,
+        "UpdateStock debe sumar 3 unidades ({before} → {after_single})"
+    );
+
+    client
+        .update_massive_inventory(&BdpMassiveStockRequest {
+            cod_reg: 1,
+            store: 1,
+            date_reg: "2026-09-05T10:05:00".into(),
+            articles_list: vec![BdpStockInfoEntry {
+                article,
+                units: Decimal::from(2),
+            }],
+        })
+        .await
+        .expect("update massive inventory should succeed");
+    let after_massive = simulator_stock_of(&client, article).await;
+    assert!(
+        (after_massive - after_single - 2.0).abs() < 0.01,
+        "UpdateMassiveInventory debe sumar 2 unidades ({after_single} → {after_massive})"
+    );
+}
+
+/* Q2.5/Q2.6/Q2.11 — Suscripción inactiva (bloqueo externo, padre §7):
+ * pago, factura y cancelación responden "Subscripción no activada" → el
+ * cliente devuelve Remote honesto y el simulador NO cambia estado (cero
+ * daño, cero reintentos: cada fault se consume en una sola llamada).
+ * La clasificación a `pendiente_suscripcion` SIN reintento automático la
+ * prueba la suite `tests/bdp_push.rs` (ESTADO_PENDIENTE_SUSCRIPCION,
+ * reintentos=1, solo manual). */
+#[tokio::test]
+#[ignore = "requiere el simulador BDP local en 127.0.0.1"]
+async fn simulator_subscription_blocked_payment_invoice_cancel() {
+    skip_if_no_simulator!(_g);
+    let config = simulator_config();
+    let client = BdpWeblinkClient::new(&config);
+
+    let order_resp = client
+        .create_order(&BdpCreateOrderRequest {
+            employee_id: 1,
+            items_profile_id: 1,
+            order_end_type: 0,
+            order_operation_type: 0,
+            invoice: Some(false),
+            order: json!({
+                "MarketId": 77,
+                "MarketplaceOrderId": "GS2SUB00000001",
+                "PosId": 1, "Total": 10.0,
+                "Items": [{"Id": 1001, "Name": "Test", "Units": 1, "Price": 10.0, "Total": 10.0}]
+            }),
+        })
+        .await
+        .unwrap();
+    let order_id = order_resp["OrderId"].as_i64().unwrap();
+
+    /* Q2.5 — pago bloqueado por suscripción */
+    inject_fault(
+        "/API/Orders/Payment/Add",
+        json!({"remote_error": "Subscripción no activada"}),
+    )
+    .await;
+    let pay_result = client
+        .add_order_payment(&BdpAddOrderPaymentRequest {
+            order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+            payment: BdpOrderPayment {
+                tender_id: 1,
+                amount: Decimal::from(10),
+                payment_id: "PSUB01".into(),
+            },
+            invoice: None,
+            pos_id: Some(1),
+            employee_id: Some(1),
+            invoice_parameters: None,
+        })
+        .await;
+    match pay_result {
+        Err(BdpWeblinkError::Remote(msg)) => {
+            assert!(
+                msg.contains("no activada"),
+                "Mensaje de suscripción esperado: {msg}"
+            );
+        }
+        other => panic!("Esperaba Remote por suscripción, obtuvo: {other:?}"),
+    }
+
+    /* Q2.6 — factura bloqueada por suscripción */
+    inject_fault(
+        "/API/Orders/Invoice",
+        json!({"remote_error": "Subscripción no activada"}),
+    )
+    .await;
+    let inv_result = client
+        .invoice_order(&BdpInvoiceOrderRequest {
+            pos_id: 1,
+            employee_id: 1,
+            order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+            invoice_parameters: None,
+        })
+        .await;
+    match inv_result {
+        Err(BdpWeblinkError::Remote(msg)) => {
+            assert!(
+                msg.contains("no activada"),
+                "Mensaje de suscripción esperado: {msg}"
+            );
+        }
+        other => panic!("Esperaba Remote por suscripción, obtuvo: {other:?}"),
+    }
+
+    /* Q2.11 — cancelación bloqueada por suscripción */
+    inject_fault(
+        "/API/Orders/Cancel",
+        json!({"remote_error": "Subscripción no activada"}),
+    )
+    .await;
+    let cancel_result = client
+        .cancel_order(&BdpCancelOrderRequest {
+            pos_id: 1,
+            order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+        })
+        .await;
+    match cancel_result {
+        Err(BdpWeblinkError::Remote(msg)) => {
+            assert!(
+                msg.contains("no activada"),
+                "Mensaje de suscripción esperado: {msg}"
+            );
+        }
+        other => panic!("Esperaba Remote por suscripción, obtuvo: {other:?}"),
+    }
+
+    /* Cero daño: la comanda sigue pendiente, sin pagos, sin factura */
+    let final_resp = client
+        .get_order(&BdpGetOrderRequest {
+            order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        final_resp["Order"]["Status"].as_i64().unwrap(),
+        0,
+        "La comanda debe seguir pendiente (Status=0): cero daño"
+    );
+    assert_eq!(
+        final_resp["Order"]["Payments"].as_array().unwrap().len(),
+        0,
+        "No debe haber pagos registrados"
+    );
+    assert!(
+        final_resp["Order"]["InvoiceNumber"].is_null(),
+        "No debe haber factura asignada"
+    );
 }
