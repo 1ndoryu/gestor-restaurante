@@ -193,9 +193,14 @@ cero daño); pago/factura/cancel simulados como `pendiente_suscripcion` (bloqueo
 **Fase 2: S3 PASS** — suscripción inactiva por operación: simulador 32/0 (Q2.5/Q2.6/Q2.11 con
 fault por endpoint, cero daño) + push 14/0 con test end-to-end nuevo (encolar → flush →
 `pendiente_suscripcion`, reintentos=0, error honesto, segundo flush automático no toca la fila).
-Siguiente: S3 — suscripción inactiva con reintento manual único explícito por operación, y
-luego S4–S8 (timeout a mitad de escritura, payload inválido, duplicado, inventario borde,
-cola/reintento manual).
+**Fase 2: S4 PASS** — timeout a mitad de escritura: push 15/0 con test nuevo (escritura con
+delay 25 s > timeout 20 s → fila `error` transitorio reintentos=1 + auditoría `ambiguo` +
+una sola llamada HTTP + límite `REINTENTOS_MAX` sin bucle) y simulador 32/0 (timeout
+detectado → `Http` honesto; caída tras aceptar → reconciliación sin duplicado). **H-W-2
+cerrado como limitación documentada** (la cola no reconcilia automáticamente; la
+reconciliación real vive en el poller de `create_order`).
+Siguiente: S5–S8 (payload inválido, duplicado deliberado, inventario masivo borde,
+cola/reintento manual) y luego Ronda 3 antes de cualquier escritura real.
 
 ### Seguimiento 318A-3 — Evaluar reactivación de reglas de consistencia de formularios (2026-09-01)
 

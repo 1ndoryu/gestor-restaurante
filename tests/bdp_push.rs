@@ -9,12 +9,14 @@ use glory_backend::services::bdp_push::{
     payload_propina, payload_puntos, payload_regularizacion, BdpPushService, DOMINIO_ARTICULO,
     DOMINIO_DEPARTAMENTO, DOMINIO_VENTA, ESTADO_ERROR, ESTADO_PENDIENTE,
     ESTADO_PENDIENTE_SUSCRIPCION, ESTADO_SINCRONIZADO, OPERACION_CANCELAR, OPERACION_CREAR,
+    REINTENTOS_MAX,
 };
 use glory_backend::services::bdp_weblink_catalog::BdpStockInfoEntry;
 use glory_backend::services::{BdpBackupService, BdpPushFlushService, ConfiguracionService};
 use rust_decimal::Decimal;
 use sqlx::PgPool;
 use std::str::FromStr;
+use std::time::Duration;
 use uuid::Uuid;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -557,4 +559,188 @@ async fn flush_suscripcion_inactiva_marca_pendiente_sin_reintentos(pool: PgPool)
     assert_eq!(resumen2.procesados, 0);
     assert_eq!(resumen2.pendientes_suscripcion, 1);
     assert_eq!(resumen2.errores, 0);
+}
+
+/* [049A-1/S4] Timeout a mitad de escritura (respuesta >20 s): la fila de cola
+ * se clasifica honestamente (estado `error` transitorio, reintentos +1,
+ * `ultimo_error` visible), la auditoría registra el intento como `ambiguo`
+ * (resultado desconocido: pudo haberse aplicado) y el flush NO reenvía dentro
+ * de la misma pasada (una sola llamada HTTP). El reintento queda acotado a
+ * REINTENTOS_MAX: al agotarlo el flush deja de enviar (error documentado,
+ * nunca bucle infinito). H-W-2 (crash a mitad de HTTP): en la cola no hay
+ * reconciliación automática — el límite + reintento manual + auditoría
+ * ambiguo es el runbook; la reconciliación automática real vive en el poller
+ * de `create_order` (simulator_reconcile_after_disconnect). */
+#[sqlx::test(migrations = "./migrations")]
+async fn flush_timeout_mid_write_estado_ambiguo_y_reintento_acotado(pool: PgPool) {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/Auth/Login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ErrorMessage": "",
+            "AuthSession": { "Token": "token-bdp", "ExpiresIn_InSecconds": 3540 }
+        })))
+        .mount(&server)
+        .await;
+    /* Escritura que nunca responde a tiempo (25 s > timeout 20 s del cliente). */
+    let create_mock = Mock::given(method("POST"))
+        .and(path("/API/Articles/CreateAndUpdateProfiles"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({}))
+                .set_delay(Duration::from_secs(25)),
+        );
+    create_mock.mount(&server).await;
+
+    let user = Uuid::new_v4();
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user)
+        .bind(format!("test-{user}@example.com"))
+        .bind("argon2_hash_placeholder")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let config = ConfiguracionService::actualizar(
+        &pool,
+        user,
+        &ActualizarConfiguracionRequest {
+            modo_operacion: Some("bdp".to_string()),
+            bdp_base_url: Some(server.uri()),
+            bdp_sync_enabled: Some(true),
+            bdp_auto_backup_before_write: Some(true),
+            bdp_login: Some("usuario".to_string()),
+            bdp_password: Some("secreto".to_string()),
+            bdp_integrator_code: Some("INTEGRADOR".to_string()),
+            bdp_pos_id: Some(1),
+            bdp_employee_id: Some(1),
+            bdp_items_profile_id: Some(1),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("config modo bdp");
+
+    /* Snapshot completo vigente: prerequisito del arming (auto_arm_inner). */
+    let target = BdpBackupService::canonical_target(&config).unwrap();
+    let fingerprint = BdpBackupService::connection_fingerprint(&config).unwrap();
+    sqlx::query(
+        "INSERT INTO bdp_snapshots \
+         (user_id, tipo, direccion, trigger_tipo, datos, target_base_url, connection_fingerprint) \
+         VALUES ($1, 'completo', 'bdp', 'manual', '{}'::jsonb, $2, $3)",
+    )
+    .bind(user)
+    .bind(&target)
+    .bind(&fingerprint)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let payload = serde_json::json!({
+        "AutomaticCode": false,
+        "ArticleData": { "ArtCode": 90000123, "ArtDescription": "Plato" },
+        "AllProfiles": true
+    });
+    BdpPushService::encolar(
+        &pool,
+        user,
+        DOMINIO_ARTICULO,
+        "90000123",
+        OPERACION_CREAR,
+        &payload,
+    )
+    .await
+    .unwrap();
+
+    /* 1er flush: el HTTP expira a los 20 s → estado honesto, sin doble envío. */
+    let resumen = BdpPushFlushService::flush(&pool, user, true)
+        .await
+        .expect("flush con timeout no debe fallar");
+    assert_eq!(resumen.procesados, 1);
+    assert_eq!(resumen.errores, 1);
+    assert_eq!(resumen.sincronizados, 0);
+
+    let (estado, reintentos, ultimo_error): (String, i32, Option<String>) = sqlx::query_as(
+        "SELECT estado, reintentos, ultimo_error FROM bdp_push_pendientes \
+         WHERE user_id = $1 AND dominio = 'articulo' AND entidad_id = '90000123'",
+    )
+    .bind(user)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(estado, ESTADO_ERROR);
+    assert_eq!(reintentos, 1);
+    let msg = ultimo_error.unwrap_or_default();
+    assert!(
+        msg.contains("timed out") || msg.contains("timeout") || msg.contains("error sending"),
+        "Mensaje honesto esperado: {msg}"
+    );
+
+    /* Auditoría: el intento queda registrado como ambiguo (pudo aplicarse). */
+    let (resultado, error_mensaje): (String, Option<String>) = sqlx::query_as(
+        "SELECT resultado, error_mensaje FROM bdp_audit_log \
+         WHERE user_id = $1 AND operacion = 'create_article' \
+         ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(user)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(resultado, "ambiguo");
+    /* reqwest muestra el nivel superior; la causa (timeout 20 s) queda en la
+     * cadena de error. El hecho de que el flush tardara >20 s ya lo demuestra. */
+    let msg_audit = error_mensaje.unwrap_or_default();
+    assert!(
+        msg_audit.contains("error sending") || msg_audit.contains("timed out"),
+        "Mensaje de auditoría honesto esperado: {msg_audit:?}"
+    );
+
+    /* Una sola llamada HTTP en esa pasada: sin doble envío. */
+    let envios = server
+        .received_requests()
+        .await
+        .iter()
+        .flatten()
+        .filter(|req| req.url.path() == "/API/Articles/CreateAndUpdateProfiles")
+        .count();
+    assert_eq!(envios, 1);
+
+    /* Reintento acotado: agotar REINTENTOS_MAX vía `marcar_resultado` (sin
+     * HTTP) y verificar que el siguiente flush no vuelve a enviar. */
+    for _ in 0..(REINTENTOS_MAX - 1) {
+        BdpPushService::marcar_resultado(
+            &pool,
+            user,
+            DOMINIO_ARTICULO,
+            "90000123",
+            OPERACION_CREAR,
+            ESTADO_ERROR,
+            Some("timeout simulado"),
+            true,
+        )
+        .await
+        .unwrap();
+    }
+    let reintentos_max: i32 =
+        sqlx::query_scalar("SELECT reintentos FROM bdp_push_pendientes WHERE user_id = $1")
+            .bind(user)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(reintentos_max, REINTENTOS_MAX);
+
+    let resumen_final = BdpPushFlushService::flush(&pool, user, true)
+        .await
+        .unwrap();
+    assert_eq!(resumen_final.procesados, 0);
+    assert_eq!(resumen_final.errores, 1);
+    /* Sin nuevos envíos: el límite detiene el reintento (nunca bucle infinito). */
+    let envios_finales = server
+        .received_requests()
+        .await
+        .iter()
+        .flatten()
+        .filter(|req| req.url.path() == "/API/Articles/CreateAndUpdateProfiles")
+        .count();
+    assert_eq!(envios_finales, 1);
 }

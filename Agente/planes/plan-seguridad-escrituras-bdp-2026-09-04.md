@@ -173,7 +173,7 @@ del padre §2).
 | S1 | Baseline: suite wiremock Vía T completa (153) y suite fail-closed (8) verdes sobre el código actual | `cargo test` (wrapper, offline) | **PASS 2026-09-05: lib 163/0** (153 baseline + 10 tests nuevos de H-Q1-03/H-W-3; incl. wiremock contrato) **+ fail-closed 8/0 + push 13/0 + guard 4/0**. `bdp_readonly` 7 ignorados por diseño (requieren BDP real + envs; vía F3/Q1 ya ejecutada por la app) |
 | S2 | Cada escritura Q2.1–Q2.13 en happy path contra el simulador + verificación local (mapa/cola/ledger/auditoría) | `tests/bdp_simulator_integration.rs` + endpoints app | **PASS 2026-09-05: simulador 32/0** (18 previos + 8 nuevos de la matriz S2). Q2.1/Q2.2/Q2.3/Q2.7/Q2.8/Q2.9/Q2.10 happy path con verificación en el simulador (lectura vía el propio cliente, sin duplicados); Q2.4 ya cubierto; Q2.5/Q2.6/Q2.11 simulan suscripción inactiva (`remote_error "Subscripción no activada"` → Remote honesto, comanda intacta Status=0 sin pagos ni factura; clasificación `pendiente_suscripcion` sin reintento en `tests/bdp_push.rs`); Q2.12 cubierto por suite push 13/0 (cola → reintento manual único, sin auto-flush); Q2.13 cubierto por guard 4/0 (arm→consumir→auditar→read_only antes del HTTP). Cero escrituras reales |
 | S3 | Suscripción inactiva: pago/factura/cancel responden "Subscripción no activada" → `pendiente_suscripcion`, cero reintentos | simulador + `bdp_push.rs` | **PASS 2026-09-05: simulador 32/0** (incl. `simulator_subscription_blocked_payment_invoice_cancel`: Q2.5/Q2.6/Q2.11 cada una con su fault → `Remote` honesto, comanda intacta Status=0 sin pagos ni factura) **+ push 14/0** (incl. nuevo `flush_suscripcion_inactiva_marca_pendiente_sin_reintentos` end-to-end: encolar `venta/cancelar` → flush → fault → fila `pendiente_suscripcion`, reintentos=0, `ultimo_error` honesto, segundo flush automático no la toca — solo manual D2) |
-| S4 | Timeout a mitad de escritura (respuesta >20 s o caída tras aceptar): ¿se detecta, se reconcilia, NO se duplica? | wiremock/simulador con delay | sin doble envío, estado honesto |
+| S4 | Timeout a mitad de escritura (respuesta >20 s o caída tras aceptar): ¿se detecta, se reconcilia, NO se duplica? | wiremock/simulador con delay | **PASS 2026-09-05: push 15/0** (incl. nuevo `flush_timeout_mid_write_estado_ambiguo_y_reintento_acotado`: escritura con delay 25 s > timeout 20 s del cliente → fila `error` transitorio con reintentos=1 y `ultimo_error` visible, auditoría `ambiguo` (pudo aplicarse) con mensaje honesto, **una sola llamada HTTP** en la pasada, y al agotar `REINTENTOS_MAX=5` el flush deja de enviar — sin bucle) **+ simulador 32/0** (`simulator_fault_delay_ms_causes_timeout`: timeout detectado → `Http` honesto; `simulator_reconcile_after_disconnect`: caída tras aceptar en `create_order` → reconciliación por GetOrder **sin duplicado**). H-W-2: en la cola no hay reconciliación automática → runbook = límite acotado + reintento manual + auditoría ambiguo; la reconciliación automática real vive en el poller de `create_order` (probada en el simulador) |
 | S5 | Payload inválido (tipos, precios negativos, IDs inexistentes, IVA fuera de rango): error honesto, cero daño | wiremock | 422/409 honesto, sin filas fantasmas |
 | S6 | Duplicado deliberado (mismo artículo/comanda dos veces): idempotencia | simulador | una sola entidad en BDP simulado |
 | S7 | Inventario masivo borde (0 ítems, stock negativo, motivo vacío): no sobreescribe stock real | simulador | rechazo o conteo honesto |
@@ -241,7 +241,13 @@ Tres pasadas sobre este plan antes de ejecutar la Fase 3:
   (Q2.5/Q2.6/Q2.11 con fault por operación, cero daño) + push 14/0 con el nuevo test
   end-to-end `flush_suscripcion_inactiva_marca_pendiente_sin_reintentos` (encolar → flush →
   `pendiente_suscripcion`, reintentos=0, error honesto, segundo flush automático no toca la
-  fila). Cero escrituras reales.
-- **Siguiente paso verificable:** **S4** — timeout a mitad de escritura (wiremock/simulador
-  con delay: respuesta >20 s o caída tras aceptar → detectar, reconciliar, sin doble envío,
-  estado honesto).
+  fila). **Fase 2: S4 PASS** (2026-09-05): push 15/0 con el nuevo test
+  `flush_timeout_mid_write_estado_ambiguo_y_reintento_acotado` (escritura con delay 25 s →
+  fila `error` transitorio reintentos=1 + auditoría `ambiguo` + una sola llamada HTTP +
+  límite `REINTENTOS_MAX` sin bucle) y simulador 32/0 (timeout detectado → `Http` honesto;
+  caída tras aceptar → reconciliación sin duplicado). **H-W-2 cerrado como limitación
+  documentada**: la cola no reconcilia automáticamente (runbook = límite + reintento manual +
+  auditoría ambiguo); la reconciliación automática real existe solo en el poller de
+  `create_order`. Cero escrituras reales.
+- **Siguiente paso verificable:** **S5** — payload inválido (tipos, precios negativos, IDs
+  inexistentes, IVA fuera de rango): 422/409 honesto, sin filas fantasmas.
