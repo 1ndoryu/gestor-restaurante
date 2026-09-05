@@ -110,6 +110,56 @@ dimensiones de desastre**:
 H-W clase con prueba). Cero escrituras reales mientras haya un defecto abierto que afecte a esa
 operación.
 
+### Rondas 1–2 completadas (2026-09-04) — inventario y hallazgos
+
+**Ronda 1 (cruce de fuentes):** plan padre 039A-1 §7 (Q2.1–Q2.13) y paquete Q1 — sin desviaciones
+(13 ops). Plan histórico de escrituras reales `plan-pruebas-escritura-bdp-real-2026-08-04.md` —
+técnicas reutilizables: probe de contrato antes de escribir, runbook de mitigaciones, datos de
+prueba existentes (cliente `900001`, comanda `5330`) y lecciones de la sesión del 2026-08-04.
+
+**Ronda 2 (inventario de código, sin cambios):**
+
+- **Cadena de guard** (`bdp_write_guard.rs`, 471 líneas): allowlist `VALID_BDP_WRITE_SCOPES` (16
+  scopes) · `check_idempotency` · `try_auto_arm` (interactivo, exige `confirmation_text` = destino
+  canónico) · `armar_push` (D1 `push_modalidad=automatico` / D2 `forzar_manual`) · `auto_arm_inner`
+  (advisory lock, snapshot completo <24 h, expiry 5 min, cupo 1, upsert) · `ensure_no_unresolved` ·
+  `authorize` (atómico: lock → check de ambigüedad → consume arming verificando config intacta →
+  INSERT audit `pendiente` con idempotencia `ON CONFLICT` → cierra `bdp_sync_mode=read_only` y
+  borra el arming **antes** del HTTP → devuelve `audit_id`).
+- **Ejecución de cola** (`bdp_push.rs`): `flush` → por fila `armar_push → preparar_snapshot_escritura
+  → authorize → dispatch (payload parseado a struct tipado) → actualizar_resultado + marcar_resultado`.
+  Estados `pendiente/pendiente_suscripcion/sincronizado/error`; `REINTENTOS_MAX=5`; `clasificar_error`
+  (match exacto `"Subscripción no activada"` → `pendiente_suscripcion`; `Http|Api|Throttled` →
+  transitorio → audit `ambiguo` + reintento; resto → `error`). Standalone: no-op total.
+- **Escrituras directas (fuera de cola):** `create_order` (ventas.rs `reintentar_sync_bdp`:
+  `check_idempotency` + `try_auto_arm` + `retry_bdp_sync` con `authorize`+idempotency_key y lock
+  distribuido `bdp-order:{id}`) · `add_payment`/`invoice` (bdp_sync.rs:527/636, con idempotency_key
+  y snapshot pre-write obligatorio de la orden) · `create_customer` (bdp_customer_sync.rs:470–530,
+  cadena completa) · **`call_waiter` (plano_sala.rs:513–537): solo modo≠standalone + allowlist del
+  cliente; SIN arming/authorize/auditoría** (hallazgo 1).
+- **Cliente** (`bdp_weblink.rs`): timeout 20 s, redirects off, throttle 2 concurrentes/base_url,
+  allowlist `BDP_WRITE_ALLOWED_ORIGINS` re-chequeada en cada método de escritura (287–674);
+  error→`Api{status,body}`, reqwest→`Http` (timeout cae aquí → `ambiguo`, correcto).
+- **Tests existentes:** `tests/bdp_write_guard.rs`, `bdp_push.rs`, `bdp_push_cola.rs` + suite
+  wiremock Vía T (153).
+
+#### Tabla de hallazgos Fase 1
+
+| ID | Op | Dimensión | Hallazgo | Clase | Evidencia |
+| --- | --- | --- | --- | --- | --- |
+| H-W-1 | Q2.10 | A1/A13 | `call_waiter` no pasa por arming/authorize/auditoría: no hay `bdp_audit_log`, no hay bloqueo por entidad ni snapshot. El cliente sí valida la allowlist. Riesgo: cero corrupción (notificación sin estado), pero sin trazabilidad. | Defecto real (bajo) | `plano_sala.rs:513–537` |
+| H-W-2 | cola (Q2.1/2.2/2.3/2.7/2.8/2.9/2.11) | A6 | Crash a mitad de HTTP → audit queda `pendiente`; el poller solo reconcilia `create_order/add_payment/invoice` (`bdp_order_poller.rs:388`). Fail-closed ✓ (authorize bloquea la reescritura de la entidad) pero no hay recuperación automática: requiere runbook manual. | Limitación (proceso) | `bdp_order_poller.rs:388` |
+| H-W-3 | Q2.5 | A12 | Clasificación de suscripción por match exacto `trim()=="Subscripción no activada"`. Variación de texto/casing → cae a `error` con reintentos hasta `REINTENTOS_MAX=5` (acotado, no desastre, sin bucle infinito). | Mejora (baja) | `bdp_push.rs:773–782` |
+| H-W-4 | Q2.4 | A4/A6 | Cadena completa verificada: `check_idempotency` + `authorize` `ON CONFLICT (user_id, idempotency_key)` + lock distribuido + `ensure_no_unresolved` + poller de reconciliación. | OK | `ventas.rs:266`, `bdp_sync.rs:215–340` |
+| H-W-5 | Q2.1–Q2.13 | A2/A10 | Arming completo: advisory lock, snapshot <24 h exigido, cupo 1, expiry 5 min, cierre a `read_only` antes del HTTP, config verificada intacta al consumir; timeout 20 s + throttle. | OK | `bdp_write_guard.rs:120–470` |
+| H-W-6 | Q2.5/Q2.6 | A13 | `preparar_snapshot_escritura` exige y captura snapshot de la orden para `add_payment`/`invoice` (obligatorio, falla sin `order_id`); resto de ops cubiertas por el snapshot completo <24 h del arming. | OK | `bdp_backup.rs:412–440` |
+| H-W-7 | Q2.12 | A5 | `reintentar_uno`: standalone no-op, suscripción reintentable solo manual, `REINTENTOS_MAX` no aplica a acción manual. | OK | `bdp_push.rs:533–574` |
+| H-W-8 | Q2.1 | A8 (precond.) | `BDP_WRITE_ALLOWED_ORIGINS` debe listar el BDP real antes de Fase 3; en sandbox localhost pasa sin env. Verificar en preflight de Fase 3 (config, no código). | Precondición | `bdp_weblink.rs:764–794` |
+
+**Estado Fase 1:** H-W-1 real y pequeño (a corregir en Fase 1, Ronda 3 valida); H-W-2 documentado
+como runbook en Fase 2 (S8); H-W-3 mejora candidata H-W clase (corregir con prueba); H-W-4..8 OK
+(evidencia de código). Cero escrituras reales; el bloqueo de Q2.10 (H-W-1) se levanta tras el fix.
+
 ## 5. FASE 2 — Simulaciones primero (antes de escribir realmente)
 
 Nada de lo que se va a escribir se prueba primero en BDP real: se prueba en el **simulador
@@ -181,8 +231,10 @@ Tres pasadas sobre este plan antes de ejecutar la Fase 3:
 
 ## 10. Estado y siguiente paso verificable
 
-- **Estado:** plan creado (2026-09-04) y registrado en `roadmap.md` (bloque 049A-1) y
-  `Agente/completados/tareas-2026-09-04.md`. Pendiente de las 3 rondas del §7.
-- **Siguiente paso verificable:** Ronda 1 de revisión (§7) + arranque de la **Fase 1**:
-  auditoría A-Q2.1 (alta artículo) con sus 13 dimensiones, sobre el código actual, sin ninguna
-  escritura real.
+- **Estado:** Rondas 1–2 completadas (cruce de fuentes + inventario de código, §4). Tabla de
+  hallazgos Fase 1 registrada: H-W-1 (call_waiter sin auditoría, real bajo) pendiente de fix;
+  H-W-2 (runbook de reconciliación manual) a documentar en Fase 2; H-W-3 (mejora clasificación
+  suscripción) candidata a corregir con prueba; H-W-4..8 OK. Cero escrituras reales.
+- **Siguiente paso verificable:** corregir H-W-1 (auditoría de `call_waiter` con prueba) y H-W-3
+  (normalización de clasificación de suscripción), luego **Fase 2**: baseline de la suite wiremock
+  Vía T (153) + fail-closed (8) + simulaciones S1–S8 contra el simulador Python en :18765.

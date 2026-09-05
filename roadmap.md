@@ -183,6 +183,11 @@ y con la suscripción activa cuando aplique (pago/factura/cancel = `pendiente_su
 externo documentado, sin reintentos). Regla dura: cero escrituras reales sin Fases 1–2 verdes de
 esa operación.
 
+**Progreso 2026-09-04:** Rondas 1–2 completadas; auditoría Fase 1 con tabla de hallazgos
+(H-W-1 `call_waiter` sin auditoría — real bajo, pendiente de fix; H-W-2 runbook reconciliación
+manual; H-W-3 mejora clasificación suscripción; H-W-4..8 OK). Siguiente: fix H-W-1/H-W-3 +
+Fase 2 simulaciones (suite wiremock baseline + simulador Python).
+
 **Progreso (2026-09-04):** plan creado y registrado; pendiente Rondas 1–3 del §7 y Fase 1.
 **Siguiente paso:** Ronda 1 (§7) + arranque de Fase 1 con A-Q2.1 (alta artículo).
 
