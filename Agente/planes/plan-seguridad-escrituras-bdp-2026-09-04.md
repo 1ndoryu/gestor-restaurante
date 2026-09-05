@@ -170,7 +170,7 @@ del padre §2).
 
 | # | Escenario | Vía | PASS |
 | --- | --- | --- | --- |
-| S1 | Baseline: suite wiremock Vía T completa (153) y suite fail-closed (8) verdes sobre el código actual | `cargo test` (wrapper, offline) | 0 fallos |
+| S1 | Baseline: suite wiremock Vía T completa (153) y suite fail-closed (8) verdes sobre el código actual | `cargo test` (wrapper, offline) | **PASS 2026-09-05: lib 163/0** (153 baseline + 10 tests nuevos de H-Q1-03/H-W-3; incl. wiremock contrato) **+ fail-closed 8/0 + push 13/0 + guard 4/0**. `bdp_readonly` 7 ignorados por diseño (requieren BDP real + envs; vía F3/Q1 ya ejecutada por la app) |
 | S2 | Cada escritura Q2.1–Q2.13 en happy path contra el simulador + verificación local (mapa/cola/ledger/auditoría) | `tests/bdp_simulator_integration.rs` + endpoints app | estado local consistente, sin duplicados |
 | S3 | Suscripción inactiva: pago/factura/cancel responden "Subscripción no activada" → `pendiente_suscripcion`, cero reintentos | simulador + `bdp_push.rs` | clasificación correcta (test existente + 1 por operación) |
 | S4 | Timeout a mitad de escritura (respuesta >20 s o caída tras aceptar): ¿se detecta, se reconcilia, NO se duplica? | wiremock/simulador con delay | sin doble envío, estado honesto |
@@ -232,10 +232,9 @@ Tres pasadas sobre este plan antes de ejecutar la Fase 3:
 
 ## 10. Estado y siguiente paso verificable
 
-- **Estado:** Rondas 1–2 completadas; Fase 1 con hallazgos H-W-1..8. H-W-1 y H-W-3 corregidos
-  con prueba (169 tests verdes, 8 nuevos); H-W-2 pendiente de runbook en Fase 2; H-W-4..8 OK.
-  Cero escrituras reales; bloqueo de Q2.10 levantado.
-- **Siguiente paso verificable:** **Fase 2** — baseline de la suite wiremock Vía T (153) +
-  fail-closed (8) + simulaciones S1–S8 contra el simulador Python en :18765 (happy path por
-  operación, suscripción inactiva, timeout a mitad de escritura, payload inválido, duplicado,
-  inventario masivo borde, cola/reintento manual, runbook H-W-2).
+- **Estado:** Fase 1 cerrada (H-W-1/H-W-3 corregidos con prueba, 169 verdes). **Fase 2: S1 PASS**
+  (baseline 2026-09-05): lib 163/0 incl. wiremock contrato, fail-closed 8/0, push 13/0, guard
+  4/0; `bdp_readonly` 7 ignorados por diseño. Cero escrituras reales.
+- **Siguiente paso verificable:** **S2** — happy path por operación Q2.1–Q2.13 contra el
+  simulador Python en :18765 (`tests/bdp_simulator_integration.rs` + endpoints app) con
+  verificación local (mapa/cola/ledger/auditoría) por operación.
