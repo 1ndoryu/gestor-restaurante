@@ -374,13 +374,26 @@ fn article_data_desde_map(
 }
 
 /* [M13] Mapeo IVA local (%) -> TAVCode BDP. Best-effort: se lee del mapa de
- * configuración; el auto-aprendizaje del mapa queda en F3. */
+ * configuración; el auto-aprendizaje del mapa queda en F3.
+ *
+ * [321A-4] La clave del mapa se busca normalizada: `iva_pct` llega de
+ * `numeric(6,2)` y `Decimal::to_string()` produce "10.00" (escala 2), pero la
+ * documentación (M13) y la UI configuran el mapa con claves canónicas sin
+ * decimales ("10" -> 1, "21" -> 2). Sin normalizar, el lookup fallaba siempre
+ * para IVAs con escala distinta de la clave configurada. `normalize()` quita
+ * los ceros finales conservando decimales significativos (10.00 -> "10",
+ * 10.50 -> "10.5"); se prueba primero la clave exacta para no romper mapas
+ * que ya usasen "10.00". */
 fn lookup_tav(config: &ConfiguracionRestaurante, iva_pct: Decimal) -> Option<i32> {
-    config
-        .bdp_tav_map
-        .get(iva_pct.to_string().as_str())
-        .and_then(Value::as_i64)
-        .and_then(|code| i32::try_from(code).ok())
+    let clave_exacta = iva_pct.to_string();
+    let clave_normalizada = iva_pct.normalize().to_string();
+    let mapa = &config.bdp_tav_map;
+    let resolver = |clave: &str| {
+        mapa.get(clave)
+            .and_then(Value::as_i64)
+            .and_then(|code| i32::try_from(code).ok())
+    };
+    resolver(&clave_exacta).or_else(|| resolver(&clave_normalizada))
 }
 
 fn fecha_hoy() -> String {
@@ -898,5 +911,64 @@ mod clasificacion_error_tests {
     fn error_http_timeout_es_transitorio() {
         let error = BdpWeblinkError::Http("timeout al conectar con BDP".into());
         assert_eq!(es_transitorio(&error), true);
+    }
+}
+
+#[cfg(test)]
+mod lookup_tav_tests {
+    use super::*;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    fn config_con_map(claves: &[&str], code: i32) -> ConfiguracionRestaurante {
+        let mut obj = serde_json::Map::new();
+        for clave in claves {
+            obj.insert(clave.to_string(), Value::from(code));
+        }
+        ConfiguracionRestaurante {
+            bdp_tav_map: Value::Object(obj),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn clave_canonica_entera_matchea_con_escala_2() {
+        /* [321A-4] El caso real: iva_pct = 10.00 (numeric(6,2)) y el mapa usa
+         * la clave canónica "10" (M13: 10 -> 1). */
+        let config = config_con_map(&["10"], 1);
+        assert_eq!(lookup_tav(&config, Decimal::from_str("10.00").unwrap()), Some(1));
+    }
+
+    #[test]
+    fn clave_con_decimales_significativos_matchea_normalizada() {
+        let config = config_con_map(&["10.5"], 3);
+        assert_eq!(
+            lookup_tav(&config, Decimal::from_str("10.50").unwrap()),
+            Some(3)
+        );
+    }
+
+    #[test]
+    fn clave_exacta_con_escala_2_sigue_funcionando() {
+        /* Compatibilidad: un mapa configurado manualmente con "10.00". */
+        let config = config_con_map(&["10.00"], 9);
+        assert_eq!(
+            lookup_tav(&config, Decimal::from_str("10.00").unwrap()),
+            Some(9)
+        );
+    }
+
+    #[test]
+    fn sin_mapa_devuelve_none() {
+        let config = ConfiguracionRestaurante {
+            ..Default::default()
+        };
+        assert_eq!(lookup_tav(&config, Decimal::from_str("10.00").unwrap()), None);
+    }
+
+    #[test]
+    fn iva_fuera_del_mapa_devuelve_none() {
+        let config = config_con_map(&["21"], 2);
+        assert_eq!(lookup_tav(&config, Decimal::from_str("4.00").unwrap()), None);
     }
 }

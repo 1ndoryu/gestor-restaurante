@@ -11,12 +11,18 @@ use crate::middleware::AuthUser;
 use crate::services::ConfiguracionService;
 use crate::services::{BdpAuditEntry, BdpBackupService, BdpSnapshot, RestoreResult};
 use crate::services::{BdpExploracionResultado, BdpExplorerService};
+use crate::services::bdp_weblink::BdpWeblinkClient;
+use crate::services::bdp_weblink_catalog::BdpDepartmentsExportFromProfileRequest;
 
 use super::bdp_guard::exigir_modo_bdp; /* [039A-1/H-P1-03] Guard compartido (N1). */
 
 pub fn routes() -> Router<crate::handlers::AppState> {
     Router::new()
         .route("/bdp/explorar", get(explorar_bdp))
+        /* [W-Q2.1/049A-1 F3] Lectura de solo lectura de los departamentos reales
+         * del perfil BDP (ExportFromProfile). No modifica nada en BDP; sirve
+         * para conocer los DeptCode válidos antes de un alta de artículo. */
+        .route("/bdp/departamentos/perfil", get(departamentos_del_perfil))
         .route(
             "/bdp/backup/completo",
             axum::routing::post(snapshot_completo),
@@ -65,6 +71,41 @@ pub async fn explorar_bdp(
 
     let resultado = BdpExplorerService::explorar_bdp_completo(&config).await;
     Ok(Json(resultado))
+}
+
+/// Lee los departamentos reales del perfil BDP configurado (solo lectura).
+/// [W-Q2.1/049A-1 F3] Expone `ExportDepartmentsFromProfile` para conocer los
+/// `DeptCode`/nombres válidos antes de un alta de artículo. No modifica BDP.
+#[utoipa::path(
+    get,
+    path = "/api/bdp/departamentos/perfil",
+    tag = "BDP Backup",
+    responses(
+        (status = 200, description = "Departamentos del perfil (respuesta cruda del BDP)", body = serde_json::Value),
+        (status = 400, description = "BDP no configurado"),
+        (status = 500, description = "Error interno"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn departamentos_del_perfil(
+    State(state): State<crate::handlers::AppState>,
+    auth: AuthUser,
+) -> Result<Json<serde_json::Value>, AppError> {
+    exigir_modo_bdp(&state, auth.user_id).await?;
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+
+    if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
+        return Err(AppError::Validation("BDP no está configurado.".into()));
+    }
+
+    let client = BdpWeblinkClient::new(&config);
+    let valor = client
+        .export_departments_from_profile(&BdpDepartmentsExportFromProfileRequest {
+            profile_id: config.bdp_items_profile_id,
+        })
+        .await
+        .map_err(|error| AppError::Internal(error.to_string()))?;
+    Ok(Json(valor))
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]

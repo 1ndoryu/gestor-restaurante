@@ -2032,26 +2032,59 @@ impl BdpSyncService {
             BdpCatalogSyncResult, BdpExportArticlesRequest, BdpExportArticlesResponse,
         };
 
-        /* 1. Llamar ExportArticles */
+        /* 1. Llamar ExportArticles. [200109] (incidente 2026-09-05): si un
+         * artículo web quedó con datos de validación rotos (p. ej. un alta de
+         * prueba con WebArticle=true que el export no puede validar), el BDP
+         * responde HTTP 200 con ErrorMessage `[200109]-ALGUNO DE LOS
+         * ARTÍCULOS CONTIENE ERRORES DE VALIDACIÓN`. Antes esto rompía
+         * sync-catalog para SIEMPRE (no hay DeleteArticle; el Modify del BDP
+         * tampoco pudo neutralizarlo — NRE con payload mínimo). La vía de
+         * escape es el mismo fallback de perfil H-Q1-03: GetPOSList del perfil
+         * de items sí devuelve el catálogo operativo. Solo este error concreto
+         * cae al fallback; cualquier otro error de ExportArticles (red, HTTP,
+         * parseo) sigue abortando para no enmascarar problemas reales. */
         let articles_json = client
             .export_articles(&BdpExportArticlesRequest::all_web_articles(type_price))
-            .await
-            .map_err(|e| format!("Error ExportArticles: {e}"))?;
+            .await;
 
-        /* 2. Parsear respuesta tipada */
-        let response: BdpExportArticlesResponse = serde_json::from_value(articles_json)
-            .map_err(|e| format!("Error parseando ExportArticles: {e}"))?;
+        /* [200109] (incidente 2026-09-05): si un artículo web quedó con datos
+         * de validación rotos que el export no puede validar, el BDP responde
+         * HTTP 200 con ErrorMessage `[200109]`. Marcar el motivo permite
+         * distinguir este caso del vacío legítimo de ExportArticles en el
+         * fallback de perfil (ver bloque H-Q1-03). */
+        let mut export_fallo_200109 = false;
+        let mut articles = match articles_json {
+            Ok(json) => {
+                let response: BdpExportArticlesResponse = serde_json::from_value(json)
+                    .map_err(|e| format!("Error parseando ExportArticles: {e}"))?;
+                response.articles
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                if !msg.contains("[200109]") {
+                    return Err(format!("Error ExportArticles: {msg}"));
+                }
+                export_fallo_200109 = true;
+                warn!(
+                    "[200109] ExportArticles con error de validación de artículo web → \
+                     sync_catalog se cae al fallback de perfil H-Q1-03"
+                );
+                Vec::new()
+            }
+        };
 
-        let mut articles = response.articles;
         let mut fuente = "ExportArticles";
 
-        /* [039A-1/H-Q1-03] El BDP real devuelve ExportArticles vacío cuando no
-         * tiene artículos web contratados, aunque el perfil de items (el que
-         * CreateOrder puede referenciar) sí tenga artículos. Si el rango export
-         * llega vacío, se importa el universo del perfil vía GetPOSList en vez
-         * de dejar el catálogo Glory silenciosamente vacío. Si el fallback de
-         * perfil falla, el sync falla alto: nunca cerrar verde con 0 sin saber
-         * si el BDP no tiene catálogo o no se pudo leer. */
+        /* [039A-1/H-Q1-03][200109] El BDP real devuelve ExportArticles vacío
+         * (o con error [200109]) cuando no puede servir el catálogo web
+         * (sin artículos web contratados, o uno roto), aunque el perfil de
+         * items (el que CreateOrder puede referenciar) sí tenga artículos.
+         * Si la lista llega vacía, se importa el universo del perfil vía
+         * GetPOSList en vez de dejar el catálogo Glory silenciosamente vacío.
+         * Si el fallback de perfil falla, el sync falla alto: nunca cerrar
+         * verde con 0 sin saber si el BDP no tiene catálogo o no se pudo leer
+         * (si el perfil devuelve vacío legítimo, se continúa con 0 y el aviso
+         * queda en el log, igual que antes de [200109]). */
         if articles.is_empty() {
             match client.list_profile_articles().await {
                 Ok(perfil) if !perfil.is_empty() => {
@@ -2064,6 +2097,17 @@ impl BdpSyncService {
                     fuente = "GetPOSList perfil (fallback H-Q1-03)";
                 }
                 Ok(_) => {
+                    if export_fallo_200109 {
+                        /* [200109] con perfil también vacío: sabemos que hay al
+                         * menos un artículo web roto (por eso falló ExportArticles),
+                         * así que cerrar verde con 0 ocultaría la corrupción. */
+                        return Err(
+                            "[200109] ExportArticles con error de validación y el perfil \
+                             no expone artículos: hay un artículo web roto que no se puede \
+                             leer"
+                                .to_string(),
+                        );
+                    }
                     info!(
                         "[039A-1/H-Q1-03] ExportArticles vacío y perfil sin artículos: \
                          el BDP no expone catálogo"

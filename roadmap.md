@@ -223,6 +223,33 @@ Siguiente: **preparar Fase 3** (escrituras reales W1–W13 contra el BDP, una a 
 autorización explícita del usuario por operación; Q2.5/Q2.6/Q2.11 `⏸` por suscripción
 inactiva, roadmap 1c).
 
+**Fase 3 (2026-09-05) — W-Q2.1 alta artículo real → INCIDENTE 200109 → fix local
+sync_catalog fallback (decisión del usuario):** la primera escritura real autorizada
+(W-Q2.1: alta de prueba `90000003` "PRUEBA W1 2026-09-05" con `WebArticle:true`) se aplicó
+en el BDP real (creates `f67fdb0b` y `64df3746/791502c5` `sincronizado`) y convirtió a
+`90000003` en el **primer y único artículo web** del BDP → `sync-catalog` empezó a fallar
+`[200109]-ALGUNO DE LOS ARTÍCULOS CONTIENE ERRORES DE VALIDACIÓN` (ExportArticles encuentra 1
+artículo web que no puede validar; HTTP 200 con ErrorMessage; antes devolvía vacío sin error).
+No hay DeleteArticle. La neutralización vía Modify (`WebArticle:false`, perfil + AllProfiles)
+**falló con NRE determinista del BDP real** en 4 intentos (2 remediación sobre `90000003` +
+1 variante ProfilesList + 1 control sobre `90000000` inexistente) → el endpoint
+`ModifyArticleAndUpdateProfile` del BDP real revienta con el payload mínimo de la app (~8
+campos; el manual exige ~100); `create` con el mismo payload sí funciona. **Nunca ha habido un
+`modify_article` exitoso contra el BDP real.** El BDP NO mutó con ninguna escritura de
+remediación (verificado: sync-catalog seguía 500/200109).
+**Decisión del usuario:** fix local `sync_catalog` fallback (ya que la neutralización quedó
+bloqueada por el BDP, es la única vía para restaurar sync-catalog). Implementado en
+`src/services/bdp_sync.rs`: el error de ExportArticles que contiene `[200109]` ya NO aborta —
+cae al fallback de perfil H-Q1-03 (GetPOSList, catálogo operativo de items); si además el
+perfil devuelve vacío, falla alto (fail-closed, no oculta el artículo web roto). Otros errores
+de ExportArticles (red/HTTP/parseo) siguen abortando. **Verificado funcional contra el BDP
+real (backend PID 35360):** `POST /api/bdp/article-maps/sync-catalog` → **200 OK**
+`{creados:1, sin_cambios:556, errores:0, total_bdp:557}` (fuente GetPOSList perfil, fallback
+H-Q1-03). `90000003` permanece en el BDP como está (web, sin más escrituras). W1–W13 siguen
+`⏸` a la espera de autorización por operación (una a una); esta incidencia recomienda revisar
+el contrato del Modify (payload completo ~100 campos) antes de reintentar escrituras de
+modificación. Evidencia: `Agente/completados/tareas-2026-09-05.md`.
+
 ### Seguimiento 318A-3 — Evaluar reactivación de reglas de consistencia de formularios (2026-09-01)
 
 Informe del cierre de PROYECTO TASKS (plan `PROYECTO TASKS/Agente/planes/` 318A-3): este proyecto

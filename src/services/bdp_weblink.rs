@@ -536,14 +536,21 @@ impl<'a> BdpWeblinkClient<'a> {
             .await
     }
 
-    /* [198A-1/F3] Escrituras de artículos. */
+    /* [198A-1/F3] Escrituras de artículos.
+     * [049A-1/H-W] El BDP responde HTTP 200 con `ErrorMessage` vacío pero con
+     * errores embebidos en `ListaErroresArticulo` (p. ej. DeptCode/TAVCode
+     * inexistentes). Sin validar esa lista, un alta rechazada se marcaría como
+     * `sincronizado` (falso positivo). Se valida SIEMPRE tras escribir. */
     pub async fn create_articles_and_update_profiles(
         &self,
         request: &BdpCreateArticlesRequest,
     ) -> Result<Value, BdpWeblinkError> {
         self.ensure_write_target_allowed()?;
-        self.post_authenticated_json(BDP_PATH_CREATE_ARTICLES, request)
-            .await
+        let response = self
+            .post_authenticated_json(BDP_PATH_CREATE_ARTICLES, request)
+            .await?;
+        ensure_embedded_errors_empty(&response)?;
+        Ok(response)
     }
 
     pub async fn modify_article_and_update_profile(
@@ -551,8 +558,11 @@ impl<'a> BdpWeblinkClient<'a> {
         request: &BdpModifyArticleRequest,
     ) -> Result<Value, BdpWeblinkError> {
         self.ensure_write_target_allowed()?;
-        self.post_authenticated_json(BDP_PATH_MODIFY_ARTICLE, request)
-            .await
+        let response = self
+            .post_authenticated_json(BDP_PATH_MODIFY_ARTICLE, request)
+            .await?;
+        ensure_embedded_errors_empty(&response)?;
+        Ok(response)
     }
 
     pub async fn modify_prices_articles(
@@ -854,6 +864,37 @@ pub fn response_error_message(value: &Value) -> Option<String> {
         .map(str::trim)
         .filter(|message| !message.is_empty())
         .map(ToOwned::to_owned)
+}
+
+/// Listas de errores embebidos que el BDP devuelve con HTTP 200 y
+/// `ErrorMessage` vacío. Si alguna tiene entradas, la operación NO se aplicó
+/// (o se aplicó parcialmente) y debe tratarse como rechazo, no como éxito.
+const BDP_EMBEDDED_ERROR_LISTS: &[&str] = &["ListaErroresArticulo"];
+
+/// [049A-1/H-W] Detecta errores embebidos del BDP en listas tipo
+/// `ListaErroresArticulo` (HTTP 200 + ErrorMessage vacío). Devuelve `Remote`
+/// con el primer error legible cuando la lista no está vacía.
+pub fn ensure_embedded_errors_empty(value: &Value) -> Result<(), BdpWeblinkError> {
+    for key in BDP_EMBEDDED_ERROR_LISTS {
+        if let Some(list) = value.get(key).and_then(Value::as_array) {
+            let mensajes: Vec<String> = list
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::trim)
+                .filter(|message| !message.is_empty())
+                .map(ToOwned::to_owned)
+                .collect();
+            if let Some(primero) = mensajes.first() {
+                let resumen = if mensajes.len() > 1 {
+                    format!("{primero} (+{} más)", mensajes.len() - 1)
+                } else {
+                    primero.clone()
+                };
+                return Err(BdpWeblinkError::Remote(resumen));
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1158,6 +1199,103 @@ mod tests {
         assert_eq!(
             response_error_message(&value),
             Some("[300041]-BDP error".to_string())
+        );
+    }
+
+    /* [049A-1/H-W] El BDP responde HTTP 200 con ErrorMessage vacío pero
+     * errores en ListaErroresArticulo (alta/modificación rechazadas). Sin
+     * detectarlo, la fila se marcaría `sincronizado` (falso positivo). */
+    #[test]
+    fn embedded_errors_detected_when_list_not_empty() {
+        let value = serde_json::json!({
+            "ErrorMessage": "",
+            "ListaErroresArticulo": [
+                "TAVCode: EL CÓDIGO DE IVA DE VENTA 0 NO EXISTE",
+                "DeptCode: EL DEPARTAMENTO 0 NO EXISTE"
+            ]
+        });
+
+        let error = ensure_embedded_errors_empty(&value).unwrap_err();
+        match error {
+            BdpWeblinkError::Remote(message) => {
+                assert!(message.contains("EL CÓDIGO DE IVA DE VENTA 0 NO EXISTE"));
+                assert!(message.contains("(+1 más)"));
+            }
+            other => panic!("se esperaba Remote, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn embedded_errors_ok_when_list_empty_or_absent() {
+        assert!(ensure_embedded_errors_empty(&serde_json::json!({
+            "ErrorMessage": "",
+            "ListaErroresArticulo": []
+        }))
+        .is_ok());
+        assert!(ensure_embedded_errors_empty(&serde_json::json!({
+            "ErrorMessage": "",
+            "Articles": []
+        }))
+        .is_ok());
+        assert!(ensure_embedded_errors_empty(&serde_json::json!({
+            "ErrorMessage": ""
+        }))
+        .is_ok());
+    }
+
+    #[tokio::test]
+    async fn create_article_detects_embedded_rejection() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/Auth/Login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": "",
+                "AuthSession": {
+                    "Token": "token-bdp",
+                    "ExpiresIn_InSecconds": 3540
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        /* [049A-1/H-W] El BDP real devuelve HTTP 200 con ErrorMessage vacío y
+         * la lista de errores por artículo; antes este caso se marcaba como
+         * éxito (falso positivo) en vez de rechazo. */
+        Mock::given(method("POST"))
+            .and(path("/API/Articles/CreateAndUpdateProfiles"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": "",
+                "ListaErroresArticulo": [
+                    "TAVCode: EL CÓDIGO DE IVA DE VENTA 0 NO EXISTE"
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let config = config(server.uri());
+        let client = BdpWeblinkClient::new(&config);
+        let error = client
+            .create_articles_and_update_profiles(&BdpCreateArticlesRequest {
+                automatic_code: false,
+                article_data: serde_json::json!({
+                    "ArtCode": 90000003,
+                    "ArtDescription": "PRUEBA W1",
+                    "DeptCode": 1,
+                    "TavCode": 1,
+                    "TavPer": 10.0,
+                    "Price1": 1.0,
+                    "WebArticle": true,
+                    "IsInventoriable": true
+                }),
+                profiles_list: None,
+                all_profiles: Some(true),
+            })
+            .await
+            .unwrap_err();
+
+        assert!(
+            matches!(&error, BdpWeblinkError::Remote(message) if message.contains("NO EXISTE")),
+            "el alta rechazada por BDP debe ser un rechazo Remote, got {error:?}"
         );
     }
 

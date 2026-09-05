@@ -1917,3 +1917,113 @@ async fn simulator_massive_inventory_bordes_no_sobreescriben_stock() {
          ({after_negativo} → {after_mixto})"
     );
 }
+
+/* Incidente 200109 (2026-09-05) — remediación simulada: neutralizar un
+ * artículo web (WebArticle:true → false) vía ModifyArticleAndUpdateProfile.
+ *
+ * Réplica local del incidente real: en el BDP del dueño se creó 90000003 con
+ * WebArticle:true (único artículo web), lo que rompió ExportArticles con
+ * [200109]-ALGUNO DE LOS ARTÍCULOS CONTIENE ERRORES DE VALIDACIÓN. Como no
+ * existe DeleteArticle, la única vía de remediación es ModifyArticle con
+ * WebArticle:false. Este test valida contra el simulador que:
+ *   1) un artículo creado WebArticle:true se puede neutralizar a false vía
+ *      ModifyArticleAndUpdateProfile (el merge del simulador lo aplica);
+ *   2) tras la neutralización el artículo ya NO aparece como web en el export.
+ *
+ * El simulador no replica la validación [200109] del export (devuelve todos
+ * los artículos sin filtrar), pero sirve como sanity de contrato de la vía
+ * Modify → WebArticle:false antes de la escritura real. */
+#[tokio::test]
+#[ignore = "requiere el simulador BDP local en 127.0.0.1"]
+async fn simulator_neutralize_web_article_via_modify() {
+    skip_if_no_simulator!(_g);
+    let config = simulator_config();
+    let client = BdpWeblinkClient::new(&config);
+
+    /* 1) Alta del artículo como WebArticle:true — réplica del payload real
+     *    de la fila f67fdb0b (ArtCode 90000003 en producción). */
+    client
+        .create_articles_and_update_profiles(&BdpCreateArticlesRequest {
+            automatic_code: false,
+            article_data: json!({
+                "ArtCode": 910003,
+                "ArtDescription": "PRUEBA W1 2026-09-05",
+                "DeptCode": 1,
+                "TavCode": 1,
+                "TavPer": "10.00",
+                "Price1": "1.0000",
+                "IsInventoriable": true,
+                "WebArticle": true,
+            }),
+            profiles_list: None,
+            all_profiles: Some(true),
+        })
+        .await
+        .expect("create article should succeed");
+
+    let created = client
+        .export_articles(&BdpExportArticlesRequest::all_web_articles(1))
+        .await
+        .unwrap();
+    let created_item = created["Articles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["Code"].as_str() == Some("910003"))
+        .expect("910003 debe existir tras el alta");
+    assert_eq!(
+        created_item["WebArticle"].as_bool(),
+        Some(true),
+        "910003 debe estar como WebArticle:true tras el alta"
+    );
+
+    /* 2) Neutralización: ModifyArticleAndUpdateProfile con WebArticle:false.
+     *    Payload equivalente al que se insertará en la cola de remediación
+     *    (payload_json artesanal con el resto de campos de la ficha).
+     *
+     *    [Incidente 200109] Se usa ProfilesList explícita (Profile 1) +
+     *    AllProfiles:false: es el patrón canónico que documenta el manual
+     *    (# WEBLINK RESTAPI.md, sección ModifyArticleAndUpdateProfile). El
+     *    BDP real devuelve NullReferenceException con AllProfiles:true en
+     *    Modify (2 intentos, determinista) aunque Create con AllProfiles:true
+     *    funciona; el simulador acepta ambas variantes. */
+    let mod_resp = client
+        .modify_article_and_update_profile(&BdpModifyArticleRequest {
+            article_data: json!({
+                "ArtCode": 910003,
+                "ArtDescription": "PRUEBA W1 2026-09-05",
+                "DeptCode": 1,
+                "TavCode": 1,
+                "TavPer": "10.00",
+                "Price1": "1.0000",
+                "IsInventoriable": true,
+                "WebArticle": false,
+            }),
+            profiles_list: Some(json!([{ "Profile": 1, "ProfileName": "PERFIL 1" }])),
+            all_profiles: Some(false),
+        })
+        .await
+        .expect("modify to WebArticle:false should succeed");
+    assert_eq!(
+        mod_resp["ErrorMessage"].as_str().unwrap_or(""),
+        "",
+        "La neutralización debe responder con ErrorMessage vacío"
+    );
+
+    /* 3) Verificación: tras la neutralización el artículo ya no es web. */
+    let exported = client
+        .export_articles(&BdpExportArticlesRequest::all_web_articles(1))
+        .await
+        .unwrap();
+    let item = exported["Articles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["Code"].as_str() == Some("910003"))
+        .expect("910003 debe seguir existiendo tras neutralizar");
+    assert_eq!(
+        item["WebArticle"].as_bool(),
+        Some(false),
+        "910003 debe quedar como WebArticle:false tras la neutralización"
+    );
+}
