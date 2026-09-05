@@ -474,6 +474,42 @@ impl BdpBackupService {
         Ok(())
     }
 
+    /// Registra una operación de escritura BDP directa (sin cadena de
+    /// arming/authorize) en `bdp_audit_log`, con su resultado final.
+    /// [049A-1/H-W-1] Se usa para `call_waiter`: notificación sin estado ni
+    /// riesgo de duplicación, que por diseño no consume armado ni snapshot,
+    /// pero exige trazabilidad en el ledger como el resto de escrituras.
+    pub async fn auditar_escritura_directa(
+        pool: &PgPool,
+        user_id: Uuid,
+        operacion: &str,
+        target_entity_type: &str,
+        target_entity_id: Uuid,
+        datos_enviados: &serde_json::Value,
+        resultado: &str,
+        error_mensaje: Option<&str>,
+    ) -> Result<(), String> {
+        sqlx::query(
+            r"INSERT INTO bdp_audit_log
+               (user_id, operacion, direccion, datos_enviados, resultado,
+                target_entity_type, target_entity_id, error_mensaje,
+                authorization_reason)
+               VALUES ($1, $2, 'glory_to_bdp', $3, $4, $5, $6, $7,
+                       'directa sin arming: operacion sin estado ni riesgo de duplicacion')",
+        )
+        .bind(user_id)
+        .bind(operacion)
+        .bind(datos_enviados)
+        .bind(resultado)
+        .bind(target_entity_type)
+        .bind(target_entity_id)
+        .bind(error_mensaje)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Error registrando auditoría BDP directa: {e}"))?;
+        Ok(())
+    }
+
     // =========================================================================
     // CONSULTAS
     // =========================================================================

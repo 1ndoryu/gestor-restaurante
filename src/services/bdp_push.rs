@@ -772,7 +772,16 @@ fn es_transitorio(error: &BdpWeblinkError) -> bool {
 
 fn clasificar_error(error: &BdpWeblinkError) -> (&'static str, bool) {
     if let BdpWeblinkError::Remote(mensaje) = error {
-        if mensaje.trim() == "Subscripción no activada" {
+        /* [049A-1/H-W-3] Match normalizado (case-insensitive y ambas grafías
+         * subscrip-/suscrip-) para no perder el bloqueo por suscripción si el
+         * BDP varía el texto exacto; si se pierde, caería a reintento transitorio
+         * (acotado a REINTENTOS_MAX, no desastre, pero sin la semántica manual). */
+        let normalizado = mensaje.trim().to_lowercase();
+        if normalizado.contains("subscripción no activada")
+            || normalizado.contains("subscripcion no activada")
+            || normalizado.contains("suscripción no activada")
+            || normalizado.contains("suscripcion no activada")
+        {
             return (ESTADO_PENDIENTE_SUSCRIPCION, false);
         }
     }
@@ -780,5 +789,50 @@ fn clasificar_error(error: &BdpWeblinkError) -> (&'static str, bool) {
         (ESTADO_ERROR, true)
     } else {
         (ESTADO_ERROR, false)
+    }
+}
+
+#[cfg(test)]
+mod clasificacion_error_tests {
+    use super::*;
+
+    #[test]
+    fn suscripcion_exacta_bdp() {
+        let error = BdpWeblinkError::Remote("Subscripción no activada".into());
+        assert_eq!(clasificar_error(&error), (ESTADO_PENDIENTE_SUSCRIPCION, false));
+    }
+
+    #[test]
+    fn suscripcion_con_variacion_case_y_grafia() {
+        let error = BdpWeblinkError::Remote("  SUSCRIPCION NO ACTIVADA ".into());
+        assert_eq!(clasificar_error(&error), (ESTADO_PENDIENTE_SUSCRIPCION, false));
+    }
+
+    #[test]
+    fn suscripcion_dentro_de_mensaje_mas_largo() {
+        let error =
+            BdpWeblinkError::Remote("Error: subscripción no activada para este POS".into());
+        assert_eq!(clasificar_error(&error), (ESTADO_PENDIENTE_SUSCRIPCION, false));
+    }
+
+    #[test]
+    fn error_remoto_ajeno_no_es_suscripcion() {
+        let error = BdpWeblinkError::Remote("Otro error de negocio".into());
+        assert_eq!(clasificar_error(&error), (ESTADO_ERROR, false));
+    }
+
+    #[test]
+    fn error_transitorio_api_incrementa_reintento() {
+        let error = BdpWeblinkError::Api {
+            status: 500,
+            body: "boom".into(),
+        };
+        assert_eq!(clasificar_error(&error), (ESTADO_ERROR, true));
+    }
+
+    #[test]
+    fn error_http_timeout_es_transitorio() {
+        let error = BdpWeblinkError::Http("timeout al conectar con BDP".into());
+        assert_eq!(es_transitorio(&error), true);
     }
 }

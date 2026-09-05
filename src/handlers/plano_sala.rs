@@ -524,14 +524,43 @@ pub async fn llamar_camarero(
     }
 
     let client = BdpWeblinkClient::new(&config);
-    client
+    let datos_enviados = serde_json::json!({ "mesa": table, "sala": room });
+    /* [049A-1/H-W-1] Trazabilidad en bdp_audit_log como el resto de escrituras:
+     * notificación sin estado, pero el ledger debe reflejarla con su resultado. */
+    match client
         .call_waiter(&BdpCallWaiterRequest { table, room })
         .await
-        .map_err(|e| AppError::Internal(format!("Error llamando camarero: {e}")))?;
-
-    Ok(Json(
-        serde_json::json!({ "mensaje": "Aviso enviado al TPV" }),
-    ))
+    {
+        Ok(_) => {
+            crate::services::BdpBackupService::auditar_escritura_directa(
+                &state.pool,
+                auth.user_id,
+                "call_waiter",
+                "mesa",
+                id,
+                &datos_enviados,
+                "exito",
+                None,
+            )
+            .await
+            .map_err(AppError::Internal)?;
+            Ok(Json(serde_json::json!({ "mensaje": "Aviso enviado al TPV" })))
+        }
+        Err(e) => {
+            let _ = crate::services::BdpBackupService::auditar_escritura_directa(
+                &state.pool,
+                auth.user_id,
+                "call_waiter",
+                "mesa",
+                id,
+                &datos_enviados,
+                "error",
+                Some(&e.to_string()),
+            )
+            .await;
+            Err(AppError::Internal(format!("Error llamando camarero: {e}")))
+        }
+    }
 }
 
 /* ========== Router ========== */

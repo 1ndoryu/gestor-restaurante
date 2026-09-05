@@ -279,3 +279,79 @@ async fn cambio_de_conexion_invalida_armado_sin_consumirlo(pool: PgPool) {
             .expect("contar auditoría");
     assert_eq!(audit_count, 0);
 }
+
+#[sqlx::test(migrations = "./migrations")]
+async fn auditoria_directa_call_waiter_registra_resultado(pool: PgPool) {
+    /* [049A-1/H-W-1] La auditoría directa (call_waiter) debe dejar una fila en
+     * bdp_audit_log con resultado y sin tocar arming ni snapshot. */
+    let user_id = create_test_user(&pool).await;
+    let mesa_id = Uuid::new_v4();
+    let datos = serde_json::json!({ "mesa": 5, "sala": "Principal" });
+
+    BdpBackupService::auditar_escritura_directa(
+        &pool,
+        user_id,
+        "call_waiter",
+        "mesa",
+        mesa_id,
+        &datos,
+        "exito",
+        None,
+    )
+    .await
+    .expect("auditoría directa exitosa");
+
+    let (operacion, resultado, dir, target, entity_id): (String, String, String, String, Uuid) =
+        sqlx::query_as(
+            "SELECT operacion, resultado, direccion, target_entity_type, target_entity_id \
+             FROM bdp_audit_log WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .expect("fila de auditoría");
+
+    assert_eq!(operacion, "call_waiter");
+    assert_eq!(resultado, "exito");
+    assert_eq!(dir, "glory_to_bdp");
+    assert_eq!(target, "mesa");
+    assert_eq!(entity_id, mesa_id);
+
+    let arming_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM bdp_write_arming WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("contar arming");
+    assert_eq!(arming_count, 0, "la auditoría directa no crea arming");
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn auditoria_directa_registra_error_sin_romper(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let mesa_id = Uuid::new_v4();
+
+    BdpBackupService::auditar_escritura_directa(
+        &pool,
+        user_id,
+        "call_waiter",
+        "mesa",
+        mesa_id,
+        &serde_json::json!({ "mesa": 3, "sala": "Terraza" }),
+        "error",
+        Some("BDP respondio HTTP 500: boom"),
+    )
+    .await
+    .expect("auditoría de error exitosa");
+
+    let (resultado, error_mensaje): (String, Option<String>) = sqlx::query_as(
+        "SELECT resultado, error_mensaje FROM bdp_audit_log WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .expect("fila de auditoría");
+
+    assert_eq!(resultado, "error");
+    assert!(error_mensaje.unwrap().contains("500"));
+}
