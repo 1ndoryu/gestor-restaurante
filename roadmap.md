@@ -205,8 +205,23 @@ llamada HTTP, re-edición refresca a `pendiente`) + simulador 33/0 (`http_status
 `Api 422` y cero filas fantasma) + lib 166/0. **Defecto real corregido H-S5-01**: 4xx es
 rechazo **definitivo** — nuevo estado `rechazado` (migración `20260905100000`; 5xx sigue
 transitorio; cuerpo redactado [287A-4]).
-Siguiente: S6–S8 (duplicado deliberado, inventario masivo borde, cola/reintento manual) y
-luego Ronda 3 antes de cualquier escritura real.
+**Fase 2: S6 PASS** — duplicado deliberado (artículo/departamento) → simulador **35/0**
+(una sola entidad en BDP simulado). **Fase 2: S7 PASS** — inventario masivo borde → test
+nuevo `simulator_massive_inventory_bordes_no_sobreescriben_stock`: inventario masivo es
+delta (no reemplazo); lista vacía = no-op, delta negativo legítimo aplicado, ítem
+inexistente no corrompe → simulador **36/0**. **Fase 2: S8 PASS** — cola/reintento manual
+→ test nuevo `cola_reintento_manual_uno_error_visible_sin_auto_flush`: mecanismo
+`reintentar_uno` de la UI Sincronización en modalidad `manual` (flush automático sin
+auto-flush, cero HTTP); 422 → fila `rechazado` visible (auditoría `error`, no `ambiguo`);
+re-edición M19 → `pendiente`; reintento 200 → `sincronizado` fuera de la cola, auditoría
+`exito`; una llamada HTTP por reintento → push **17/0**. H-W-2: el reintento tras
+`ambiguo` exige reconciliar la intención (runbook); el camino manual sin bloqueo es
+`rechazado` + re-edición.
+**Fase 2 CERRADA (S1–S8 PASS) + Ronda 3 anti-huecos hecha** (checklist §4 A-Q2.1–A-Q2.13
+marcado contra evidencia Fases 1–2). Cero escrituras reales.
+Siguiente: **preparar Fase 3** (escrituras reales W1–W13 contra el BDP, una a una con
+autorización explícita del usuario por operación; Q2.5/Q2.6/Q2.11 `⏸` por suscripción
+inactiva, roadmap 1c).
 
 ### Seguimiento 318A-3 — Evaluar reactivación de reglas de consistencia de formularios (2026-09-01)
 

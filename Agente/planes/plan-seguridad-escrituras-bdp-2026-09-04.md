@@ -92,19 +92,19 @@ dimensiones de desastre**:
 
 ### Operaciones a auditar (checklist)
 
-- [ ] A-Q2.1 Alta artículo → `CreateArticlesAndUpdateProfiles` (código devuelto → mapeo; doble alta)
-- [ ] A-Q2.2 Modificación artículo + precios → `ModifyArticleAndUpdateProfile`/`ModifyPricesArticles` (precio erróneo masivo)
-- [ ] A-Q2.3 Departamento/familia → `CreateDepartment`/`CreateDepartmentAndupdateProfiles` (código secuencial D7)
-- [ ] A-Q2.4 Comanda → `create_order` (líneas, `bdp_order_id`, polling; doble envío por timeout A6)
-- [ ] A-Q2.5 Pago → `AddOrderPayment` (A12: suscripción inactiva → `pendiente_suscripcion` documentado)
-- [ ] A-Q2.6 Factura → `InvoiceOrder` (A12: suscripción inactiva → documentado)
-- [ ] A-Q2.7 Propina → `AddOrderTip` (D8; suma sobre total, decimales)
-- [ ] A-Q2.8 Puntos → `AddPoints` (gating por módulo, `pendiente_suscripcion`)
-- [ ] A-Q2.9 Stock/inventario → `UpdateStock`/`UpdateMassiveInventory` (motivos/almacén; riesgo de sobreescribir stock real → A11/A8)
-- [ ] A-Q2.10 `CallWaiter` desde plano (solo modo bdp)
-- [ ] A-Q2.11 `CancelOrder` push (A12: suscripción inactiva; anular la orden equivocada → A7/A9)
-- [ ] A-Q2.12 Reintento manual desde Sincronización (estado por ítem, ver error, sin ráfaga)
-- [ ] A-Q2.13 `push_modalidad` + arming real (A2 verificado en al menos una escritura de prueba)
+- [x] A-Q2.1 Alta artículo → `CreateArticlesAndUpdateProfiles` (código devuelto → mapeo; doble alta) — H-W-4/5 OK; S2/S5/S6/S8 verdes
+- [x] A-Q2.2 Modificación artículo + precios → `ModifyArticleAndUpdateProfile`/`ModifyPricesArticles` (precio erróneo masivo) — S2 happy path verde
+- [x] A-Q2.3 Departamento/familia → `CreateDepartment`/`CreateDepartmentAndupdateProfiles` (código secuencial D7) — S2 happy + S6 duplicado verdes
+- [x] A-Q2.4 Comanda → `create_order` (líneas, `bdp_order_id`, polling; doble envío por timeout A6) — H-W-4 OK; S2/S4 verdes
+- [x] A-Q2.5 Pago → `AddOrderPayment` (A12: suscripción inactiva → `pendiente_suscripcion` documentado) — S2/S3 simulados (`⏸` externo)
+- [x] A-Q2.6 Factura → `InvoiceOrder` (A12: suscripción inactiva → documentado) — S2/S3 simulados (`⏸` externo)
+- [x] A-Q2.7 Propina → `AddOrderTip` (D8; suma sobre total, decimales) — S2 happy path verde
+- [x] A-Q2.8 Puntos → `AddPoints` (gating por módulo, `pendiente_suscripcion`) — S2 happy path verde
+- [x] A-Q2.9 Stock/inventario → `UpdateStock`/`UpdateMassiveInventory` (motivos/almacén; riesgo de sobreescribir stock real → A11/A8) — S2 happy + S7 bordes verdes
+- [x] A-Q2.10 `CallWaiter` desde plano (solo modo bdp) — H-W-1 corregido (auditoría directa); S2 happy verde
+- [x] A-Q2.11 `CancelOrder` push (A12: suscripción inactiva; anular la orden equivocada → A7/A9) — S3 simulado (`⏸` externo)
+- [x] A-Q2.12 Reintento manual desde Sincronización (estado por ítem, ver error, sin ráfaga) — S8 verde (17/0)
+- [x] A-Q2.13 `push_modalidad` + arming real (A2 verificado en al menos una escritura de prueba) — H-W-5 OK; guard 4/0
 
 **Salida de la Fase 1:** tabla de hallazgos por operación (seguro / riesgo mitigado / defecto
 H-W clase con prueba). Cero escrituras reales mientras haya un defecto abierto que afecte a esa
@@ -179,6 +179,29 @@ del padre §2).
 | S6 | Duplicado deliberado (mismo artículo/comanda dos veces): idempotencia | simulador | una sola entidad en BDP simulado |
 | S7 | Inventario masivo borde (0 ítems, stock negativo, motivo vacío): no sobreescribe stock real | simulador | rechazo o conteo honesto |
 | S8 | Cola: fila pendiente → reintento manual único → error visible → sin auto-flush | simulador + app Sincronización | estado por ítem correcto |
+
+**S6 PASS 2026-09-05:** duplicado deliberado de artículo y departamento contra el simulador →
+una sola entidad en BDP simulado (idempotencia por clave de dedup). Suite
+`bdp_simulator_integration` 35/0 (los tests ya existían en working tree; ejecutados y
+validados).
+
+**S7 PASS 2026-09-05:** nuevo test `simulator_massive_inventory_bordes_no_sobreescriben_stock`
+al final de `bdp_simulator_integration.rs`. Inventario masivo es **delta** (no reemplazo): lista
+vacía = no-op y el stock real queda intacto; delta negativo legítimo se aplica; ítem inexistente
+no corrompe. Suite `bdp_simulator_integration` **36/0**.
+
+**S8 PASS 2026-09-05:** nuevo test `cola_reintento_manual_uno_error_visible_sin_auto_flush` en
+`bdp_push.rs` — el mecanismo real de la UI Sincronización es `reintentar_uno`. Diseño honesto al
+guard fail-closed: un 5xx deja la intención `ambiguo` y `authorize` bloquea el reenvío hasta
+reconciliar (H-W-2) → el escenario se ejercita sobre un rechazo **4xx definitivo** (auditoría
+`error`, sin `ambiguo`, sin bloqueo anti-duplicación): fila `pendiente` → flush automático en
+modalidad `manual` NO envía nada (`omitidos_manual=1`, cero HTTP) → `reintentar_uno` contra 422 →
+fila `rechazado` con error visible (status 422, cuerpo redactado [287A-4]), auditoría `error`,
+cero reintentos consumidos, **una** llamada HTTP → re-edición local (M19) refresca a `pendiente`
+→ flush automático sigue sin tocarla → `reintentar_uno` con 200 → `sincronizado`, fuera de la
+cola activa, auditoría `exito`, **una** llamada HTTP. Suite `bdp_push` **17/0** (16 previos +
+S8). H-W-2 queda documentado como limitación: el reintento tras `ambiguo` exige reconciliar la
+intención (runbook); el reintento tras `rechazado`+re-edición es el camino manual sin bloqueo.
 
 **Salida de la Fase 2:** por operación, escenario simulado verde + registro de la vía. Las
 operaciones bloqueadas por suscripción quedan simuladas y documentadas (`⏸` externo), listas
@@ -259,3 +282,14 @@ Tres pasadas sobre este plan antes de ejecutar la Fase 3:
   Cero escrituras reales.
 - **Siguiente paso verificable:** **S6** — duplicado deliberado (mismo artículo/comanda dos
   veces): idempotencia, una sola entidad en BDP simulado.
+
+- **Estado actualizado (2026-09-05, cierre de Fase 2):** **S6 PASS** — `bdp_simulator_integration`
+  **35/0** (duplicado deliberado → una sola entidad en el simulador). **S7 PASS** — nuevo test
+  `simulator_massive_inventory_bordes_no_sobreescriben_stock` → **36/0** (inventario masivo como
+  delta; borde 0 ítems / stock negativo / ítem inexistente no sobreescriben stock real). **S8
+  PASS** — nuevo test `cola_reintento_manual_uno_error_visible_sin_auto_flush` → `bdp_push`
+  **17/0** (mecanismo `reintentar_uno` de la UI Sincronización en modalidad `manual`; flush
+  automático sin auto-flush; 422 → `rechazado` visible; re-edición M19 → `pendiente`; reintento
+  200 → `sincronizado` fuera de la cola; una llamada HTTP por reintento). **Ronda 3 anti-huecos
+  pendiente** (cruce checklist §8 completo contra evidencia Fases 1–2) antes de preparar Fase 3.
+  **Cero escrituras reales.**

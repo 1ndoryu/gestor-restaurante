@@ -920,3 +920,268 @@ async fn flush_payload_invalido_marca_rechazado_sin_reintento(pool: PgPool) {
     assert_eq!(estado2, ESTADO_PENDIENTE);
     assert_eq!(reintentos2, 0);
 }
+
+/* [049A-1/S8] Cola — reintento manual único desde Sincronización. Escenario
+ * del plan: fila pendiente → el flush automático (modalidad `manual`, sin
+ * forzar) NO envía nada (sin auto-flush) → el reintento manual individual
+ * (`reintentar_uno`, el mecanismo de la UI Sincronización) procesa la fila.
+ *
+ * Diseño honesto al guard fail-closed: un 5xx deja la intención `ambiguo`
+ * (pudo aplicarse) y `authorize` bloquea el reenvío hasta reconciliar (H-W-2)
+ * — por eso aquí el reintento manual se ejercita sobre un rechazo **4xx
+ * definitivo** (auditoría `error`, NO `ambiguo`, sin bloqueo anti-duplicación)
+ * que tras re-edición local (M19) vuelve a `pendiente` y puede reintentarse.
+ * Resultado: cada reintento manual hace UNA llamada HTTP, el flush automático
+ * ninguna, y el estado por ítem queda correcto (`pendiente` → `rechazado`
+ * visible → `pendiente` → `sincronizado`, fuera de la cola activa). */
+#[sqlx::test(migrations = "./migrations")]
+async fn cola_reintento_manual_uno_error_visible_sin_auto_flush(pool: PgPool) {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/Auth/Login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ErrorMessage": "",
+            "AuthSession": { "Token": "token-bdp", "ExpiresIn_InSecconds": 3540 }
+        })))
+        .mount(&server)
+        .await;
+    /* El BDP rechaza de forma definitiva (422) el primer envío y acepta (200)
+     * el reintento tras corregir el dato. El 422 se consume UNA sola vez. */
+    Mock::given(method("POST"))
+        .and(path("/API/Articles/CreateAndUpdateProfiles"))
+        .respond_with(
+            ResponseTemplate::new(422).set_body_json(serde_json::json!({
+                "ErrorMessage": "El código de artículo ya existe"
+            })),
+        )
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/API/Articles/CreateAndUpdateProfiles"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": ""
+            })),
+        )
+        .mount(&server)
+        .await;
+
+    let user = Uuid::new_v4();
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user)
+        .bind(format!("test-{user}@example.com"))
+        .bind("argon2_hash_placeholder")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    /* Config modo BDP con `push_modalidad = manual`: el flush automático
+     * (sin forzar) no debe enviar nada (sin auto-flush); el reintento manual
+     * individual es el único mecanismo. */
+    let config = ConfiguracionService::actualizar(
+        &pool,
+        user,
+        &ActualizarConfiguracionRequest {
+            modo_operacion: Some("bdp".to_string()),
+            bdp_base_url: Some(server.uri()),
+            bdp_sync_enabled: Some(true),
+            bdp_auto_backup_before_write: Some(true),
+            bdp_login: Some("usuario".to_string()),
+            bdp_password: Some("secreto".to_string()),
+            bdp_integrator_code: Some("INTEGRADOR".to_string()),
+            bdp_pos_id: Some(1),
+            bdp_employee_id: Some(1),
+            bdp_items_profile_id: Some(1),
+            push_modalidad: Some("manual".to_string()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("config modo bdp");
+
+    /* Snapshot completo vigente: prerequisito del arming (auto_arm_inner). */
+    let target = BdpBackupService::canonical_target(&config).unwrap();
+    let fingerprint = BdpBackupService::connection_fingerprint(&config).unwrap();
+    sqlx::query(
+        "INSERT INTO bdp_snapshots \
+         (user_id, tipo, direccion, trigger_tipo, datos, target_base_url, connection_fingerprint) \
+         VALUES ($1, 'completo', 'bdp', 'manual', '{}'::jsonb, $2, $3)",
+    )
+    .bind(user)
+    .bind(&target)
+    .bind(&fingerprint)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let payload = serde_json::json!({
+        "AutomaticCode": false,
+        "ArticleData": { "ArtCode": 90000123, "ArtDescription": "Plato" },
+        "AllProfiles": true
+    });
+    BdpPushService::encolar(
+        &pool,
+        user,
+        DOMINIO_ARTICULO,
+        "90000123",
+        OPERACION_CREAR,
+        &payload,
+    )
+    .await
+    .unwrap();
+
+    /* Leer el id de la fila encolada (para el reintento individual). */
+    let fila_id = BdpPushService::listar_pendientes(&pool, user)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|f| f.dominio == DOMINIO_ARTICULO && f.entidad_id == "90000123")
+        .expect("fila encolada")
+        .id;
+
+    /* 1) Flush automático (sin forzar) en modalidad manual: sin auto-flush.
+     *    La fila sigue pendiente y NO se hace ninguna llamada HTTP. */
+    let resumen_auto = BdpPushFlushService::flush(&pool, user, false)
+        .await
+        .expect("flush automático en manual no debe fallar");
+    assert_eq!(resumen_auto.omitidos_manual, 1);
+    assert_eq!(resumen_auto.procesados, 0);
+    let envios_auto = server
+        .received_requests()
+        .await
+        .iter()
+        .flatten()
+        .filter(|req| req.url.path() == "/API/Articles/CreateAndUpdateProfiles")
+        .count();
+    assert_eq!(envios_auto, 0, "el flush automático no envía en modo manual");
+
+    /* 2) Reintento manual individual contra un BDP que rechaza (422):
+     *    error visible y definitivo. Estado `rechazado`, cero reintentos
+     *    consumidos (4xx no es transitorio), auditoría `error` (NO `ambiguo`,
+     *    por eso el reintento posterior no queda bloqueado) y UNA sola
+     *    llamada HTTP. */
+    let resumen_err = BdpPushFlushService::reintentar_uno(&pool, user, fila_id)
+        .await
+        .expect("reintento manual no debe fallar");
+    assert_eq!(resumen_err.procesados, 1);
+    assert_eq!(resumen_err.rechazados, 1);
+    assert_eq!(resumen_err.errores, 0);
+    assert_eq!(resumen_err.sincronizados, 0);
+    let (estado, reintentos, ultimo_error): (String, i32, Option<String>) = sqlx::query_as(
+        "SELECT estado, reintentos, ultimo_error FROM bdp_push_pendientes \
+         WHERE id = $1 AND user_id = $2",
+    )
+    .bind(fila_id)
+    .bind(user)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(estado, ESTADO_RECHAZADO);
+    assert_eq!(reintentos, 0);
+    assert!(
+        ultimo_error
+            .as_deref()
+            .unwrap_or("")
+            .contains("422"),
+        "Error visible con el status esperado: {ultimo_error:?}"
+    );
+    /* Auditoría: rechazo definitivo → `error`, nunca `ambiguo`. */
+    let (resultado_audit,): (String,) = sqlx::query_as(
+        "SELECT resultado FROM bdp_audit_log \
+         WHERE user_id = $1 AND operacion = 'create_article' \
+         ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(user)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(resultado_audit, "error");
+    let envios_1 = server
+        .received_requests()
+        .await
+        .iter()
+        .flatten()
+        .filter(|req| req.url.path() == "/API/Articles/CreateAndUpdateProfiles")
+        .count();
+    assert_eq!(envios_1, 1, "el reintento manual hace UNA llamada HTTP");
+
+    /* 3) Re-edición local (encolar de nuevo con el dato corregido) refresca la
+     *    fila `rechazada` a `pendiente` (M19): vuelve a la cola activa. */
+    let payload_corregido = serde_json::json!({
+        "AutomaticCode": false,
+        "ArticleData": { "ArtCode": 90000123, "ArtDescription": "Plato corregido" },
+        "AllProfiles": true
+    });
+    BdpPushService::encolar(
+        &pool,
+        user,
+        DOMINIO_ARTICULO,
+        "90000123",
+        OPERACION_CREAR,
+        &payload_corregido,
+    )
+    .await
+    .unwrap();
+    let (estado_reeditado,): (String,) = sqlx::query_as(
+        "SELECT estado FROM bdp_push_pendientes \
+         WHERE id = $1 AND user_id = $2",
+    )
+    .bind(fila_id)
+    .bind(user)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(estado_reeditado, ESTADO_PENDIENTE);
+
+    /* 4) El flush automático sigue sin tocar la fila (modalidad manual: sin
+     *    auto-flush; el reintento manual es el único mecanismo). */
+    let resumen_auto2 = BdpPushFlushService::flush(&pool, user, false)
+        .await
+        .unwrap();
+    assert_eq!(resumen_auto2.omitidos_manual, 1);
+    assert_eq!(resumen_auto2.procesados, 0);
+    let envios_2 = server
+        .received_requests()
+        .await
+        .iter()
+        .flatten()
+        .filter(|req| req.url.path() == "/API/Articles/CreateAndUpdateProfiles")
+        .count();
+    assert_eq!(envios_2, 1, "el flush automático no reintenta la fila");
+
+    /* 5) Reintento manual individual, ahora con el BDP aceptando (200):
+     *    sincroniza y la fila sale de la cola activa. Una única llamada HTTP. */
+    let resumen_ok = BdpPushFlushService::reintentar_uno(&pool, user, fila_id)
+        .await
+        .expect("reintento manual tras corregir no debe fallar");
+    assert_eq!(resumen_ok.procesados, 1);
+    assert_eq!(resumen_ok.sincronizados, 1);
+    assert_eq!(resumen_ok.errores, 0);
+    /* La fila sale de la cola activa al sincronizar. */
+    let restantes = BdpPushService::listar_pendientes(&pool, user)
+        .await
+        .unwrap();
+    assert!(
+        restantes.iter().all(|f| f.id != fila_id),
+        "la fila sincronizada no debe seguir en la cola activa"
+    );
+    let (resultado_audit_ok,): (String,) = sqlx::query_as(
+        "SELECT resultado FROM bdp_audit_log \
+         WHERE user_id = $1 AND operacion = 'create_article' \
+         ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(user)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(resultado_audit_ok, "exito");
+    let envios_3 = server
+        .received_requests()
+        .await
+        .iter()
+        .flatten()
+        .filter(|req| req.url.path() == "/API/Articles/CreateAndUpdateProfiles")
+        .count();
+    assert_eq!(envios_3, 2, "total: dos reintentos manuales, dos llamadas");
+}

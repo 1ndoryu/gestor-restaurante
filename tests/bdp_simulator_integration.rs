@@ -1728,3 +1728,192 @@ async fn simulator_payload_invalido_422_no_crea_fantasma() {
         "El artículo rechazado no debe existir en el simulador"
     );
 }
+
+/* S6 — Q2.1 duplicado deliberado: reenviar idéntico el alta de artículo no
+ * produce doble alta: el simulador modela upsert por código (dict), y la
+ * exportación posterior muestra el código exactamente una vez. */
+#[tokio::test]
+#[ignore = "requiere el simulador BDP local en 127.0.0.1"]
+async fn simulator_duplicate_article_no_doble_alta() {
+    skip_if_no_simulator!(_g);
+    let config = simulator_config();
+    let client = BdpWeblinkClient::new(&config);
+    let request = BdpCreateArticlesRequest {
+        automatic_code: false,
+        article_data: json!({
+            "ArtCode": 910101,
+            "ArtDescription": "Articulo S6 idempotente",
+            "DeptCode": 2,
+            "DeptDescription": "Test S6",
+            "Price1": 4.00,
+            "WebArticle": true,
+        }),
+        profiles_list: None,
+        all_profiles: Some(true),
+    };
+
+    /* Envío idéntico dos veces (misma operación, mismo payload) */
+    for _ in 0..2 {
+        let resp = client
+            .create_articles_and_update_profiles(&request)
+            .await
+            .expect("create article should succeed");
+        assert_eq!(resp["ErrorMessage"].as_str().unwrap_or(""), "");
+    }
+
+    /* Efecto único: el código existe exactamente una vez en la exportación */
+    let exported = client
+        .export_articles(&BdpExportArticlesRequest::all_web_articles(1))
+        .await
+        .unwrap();
+    let codes: Vec<i64> = exported["Articles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|a| a["Code"].as_str().and_then(|c| c.parse().ok()))
+        .collect();
+    assert_eq!(
+        codes.iter().filter(|c| **c == 910101).count(),
+        1,
+        "Duplicado deliberado: 910101 exactamente una vez, sin doble alta"
+    );
+}
+
+/* S6 — Q2.3 duplicado deliberado: reenviar idéntico el alta de departamento
+ * sin Overwrite es rechazado honestamente por el simulador ("departamento
+ * duplicado") y la exportación muestra el código exactamente una vez. */
+#[tokio::test]
+#[ignore = "requiere el simulador BDP local en 127.0.0.1"]
+async fn simulator_duplicate_department_rechazado_honesto() {
+    skip_if_no_simulator!(_g);
+    let config = simulator_config();
+    let client = BdpWeblinkClient::new(&config);
+    let request = BdpCreateDepartmentRequest {
+        code: 910101,
+        description: "Depto S6 idempotente".into(),
+        short_description: "S6".into(),
+        graph_description1: String::new(),
+        graph_description2: String::new(),
+        graph_description3: String::new(),
+        overwrite: false,
+    };
+
+    /* Primer envío: alta normal */
+    let resp = client
+        .create_department(&request)
+        .await
+        .expect("create department should succeed");
+    assert_eq!(resp["ErrorMessage"].as_str().unwrap_or(""), "");
+
+    /* Segundo envío idéntico: rechazo honesto vía Remote, sin duplicado */
+    match client.create_department(&request).await {
+        Err(BdpWeblinkError::Remote(msg)) => assert_eq!(
+            msg,
+            "departamento duplicado",
+            "El duplicado debe rechazarse honestamente, no crear doble entidad"
+        ),
+        other => panic!("Esperaba Remote (duplicado rechazado), obtuvo: {other:?}"),
+    }
+
+    /* Efecto único */
+    let exported = client
+        .export_departments(&BdpExportDepartmentsRequest::default())
+        .await
+        .unwrap();
+    let codes: Vec<i64> = exported["Departments"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|d| d["Code"].as_i64())
+        .collect();
+    assert_eq!(
+        codes.iter().filter(|c| **c == 910101).count(),
+        1,
+        "Duplicado deliberado: 910101 exactamente una vez"
+    );
+}
+
+/* S7 — Q2.9 inventario masivo en bordes: 0 ítems, delta negativo y línea con
+ * artículo inexistente NO sobreescriben el stock real. El contrato BDP
+ * `UpdateMassiveInventory` es de DELTAS (no de reemplazo): un lote vacío es
+ * no-op, un delta negativo legítimo se aplica como tal sin corromper, y una
+ * línea de un artículo que no existe no toca el stock de los artículos
+ * reales. La validación de "no negativos / motivo obligatorio" vive en la
+ * app (conteos/guard), no en BDP — aquí se prueba que el BDP simulado no
+ * destruye el estado por un borde. */
+#[tokio::test]
+#[ignore = "requiere el simulador BDP local en 127.0.0.1"]
+async fn simulator_massive_inventory_bordes_no_sobreescriben_stock() {
+    skip_if_no_simulator!(_g);
+    let config = simulator_config();
+    let client = BdpWeblinkClient::new(&config);
+
+    /* Artículo real del fixture con stock conocido (1000000000001). */
+    let real: i64 = 1_000_000_000_001;
+    let before = simulator_stock_of(&client, real).await;
+
+    /* 1) Lote VACÍO (0 ítems): no-op honesto, no toca el stock real. */
+    client
+        .update_massive_inventory(&BdpMassiveStockRequest {
+            cod_reg: 1,
+            store: 1,
+            date_reg: "2026-09-05T11:00:00".into(),
+            articles_list: vec![],
+        })
+        .await
+        .expect("lote vacío debe aceptarse como no-op (ErrorMessage vacío)");
+    let after_vacio = simulator_stock_of(&client, real).await;
+    assert!(
+        (after_vacio - before).abs() < 0.01,
+        "Lote vacío no debe alterar el stock real ({before} → {after_vacio})"
+    );
+
+    /* 2) Delta NEGATIVO legítimo: se aplica como delta (conteo honesto),
+     *    sin corromper a un valor absurdo. El stock sigue siendo finito y
+     *    coherente con el delta aplicado (el BDP es de deltas). */
+    client
+        .update_massive_inventory(&BdpMassiveStockRequest {
+            cod_reg: 1,
+            store: 1,
+            date_reg: "2026-09-05T11:05:00".into(),
+            articles_list: vec![BdpStockInfoEntry {
+                article: real,
+                units: Decimal::from(-2),
+            }],
+        })
+        .await
+        .expect("delta negativo debe aplicarse como delta");
+    let after_negativo = simulator_stock_of(&client, real).await;
+    assert!(
+        (after_negativo - (after_vacio - 2.0)).abs() < 0.01,
+        "El delta negativo debe restar 2 ({after_vacio} → {after_negativo})"
+    );
+
+    /* 3) Línea con artículo INEXISTENTE: no debe tocar el stock real ni
+     *    corromper el conteo del artículo válido. */
+    let inexistente: i64 = 999_999_999_999;
+    client
+        .update_massive_inventory(&BdpMassiveStockRequest {
+            cod_reg: 1,
+            store: 1,
+            date_reg: "2026-09-05T11:10:00".into(),
+            articles_list: vec![
+                BdpStockInfoEntry {
+                    article: real,
+                    units: Decimal::from(1),
+                },
+                BdpStockInfoEntry {
+                    article: inexistente,
+                    units: Decimal::from(50),
+                },
+            ],
+        })
+        .await
+        .expect("lote mixto con artículo inexistente debe aceptarse");
+    let after_mixto = simulator_stock_of(&client, real).await;
+    assert!(
+        (after_mixto - (after_negativo + 1.0)).abs() < 0.01,
+        "La línea del artículo real debe sumar 1; la inexistente no corrompe \
+         ({after_negativo} → {after_mixto})"
+    );
+}
