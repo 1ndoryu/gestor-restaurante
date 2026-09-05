@@ -169,6 +169,23 @@ contrato vía suite wiremock ya verde; re-run bloqueado por disco C:).
 autorización explícita por operación**). Requiere BDP online + credenciales integrador +
 suscripción de pago; mientras tanto S2/lecturas quedan `⏸`.
 
+### Bloque 049A-1 — Seguridad de escrituras BDP: auditoría anti-desastre + simulación antes de escribir (plan activo 2026-09-04)
+
+Plan aislado: `Agente/planes/plan-seguridad-escrituras-bdp-2026-09-04.md`. Etapa S3 del padre
+039A-1 (bloque Q2, 13 escrituras) pero **seguridad primero**: Fase 1 auditoría profunda
+anti-desastre por operación (13 dimensiones: guards fail-closed, arming, payload, idempotencia,
+cola, fallo parcial, referencias, aislamiento, rollback, timeout/throttle, peor caso,
+suscripción, auditoría), Fase 2 **simulaciones antes de escribir** (simulador Python
+`tools/bdp-weblink-simulator/server.py` + suite wiremock Vía T + fail-closed; escenarios de
+suscripción inactiva, timeout a mitad de escritura, duplicados, payload inválido, inventario
+masivo borde, cola), Fase 3 escrituras reales **solo con autorización explícita por operación**
+y con la suscripción activa cuando aplique (pago/factura/cancel = `pendiente_suscripcion`
+externo documentado, sin reintentos). Regla dura: cero escrituras reales sin Fases 1–2 verdes de
+esa operación.
+
+**Progreso (2026-09-04):** plan creado y registrado; pendiente Rondas 1–3 del §7 y Fase 1.
+**Siguiente paso:** Ronda 1 (§7) + arranque de Fase 1 con A-Q2.1 (alta artículo).
+
 ### Seguimiento 318A-3 — Evaluar reactivación de reglas de consistencia de formularios (2026-09-01)
 
 Informe del cierre de PROYECTO TASKS (plan `PROYECTO TASKS/Agente/planes/` 318A-3): este proyecto
