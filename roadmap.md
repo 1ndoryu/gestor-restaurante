@@ -190,6 +190,9 @@ contrato), fail-closed 8/0, push 13/0, guard 4/0; `bdp_readonly` 7 ignorados por
 `bdp_simulator_integration` 32/0 con 8 tests nuevos de la matriz (artículo, modificar+precios,
 departamento, propina, puntos, stock+inventario masivo, call waiter, suscripción bloqueada con
 cero daño); pago/factura/cancel simulados como `pendiente_suscripcion` (bloqueo externo `⏸`).
+**Fase 2: S3 PASS** — suscripción inactiva por operación: simulador 32/0 (Q2.5/Q2.6/Q2.11 con
+fault por endpoint, cero daño) + push 14/0 con test end-to-end nuevo (encolar → flush →
+`pendiente_suscripcion`, reintentos=0, error honesto, segundo flush automático no toca la fila).
 Siguiente: S3 — suscripción inactiva con reintento manual único explícito por operación, y
 luego S4–S8 (timeout a mitad de escritura, payload inválido, duplicado, inventario borde,
 cola/reintento manual).

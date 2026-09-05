@@ -7,8 +7,8 @@ use glory_backend::models::{ActualizarConfiguracionRequest, ConfiguracionRestaur
 use glory_backend::services::bdp_push::{
     payload_cancelar, payload_crear_departamento, payload_crear_familia, payload_inventario,
     payload_propina, payload_puntos, payload_regularizacion, BdpPushService, DOMINIO_ARTICULO,
-    DOMINIO_DEPARTAMENTO, ESTADO_ERROR, ESTADO_PENDIENTE, ESTADO_PENDIENTE_SUSCRIPCION,
-    ESTADO_SINCRONIZADO, OPERACION_CREAR,
+    DOMINIO_DEPARTAMENTO, DOMINIO_VENTA, ESTADO_ERROR, ESTADO_PENDIENTE,
+    ESTADO_PENDIENTE_SUSCRIPCION, ESTADO_SINCRONIZADO, OPERACION_CANCELAR, OPERACION_CREAR,
 };
 use glory_backend::services::bdp_weblink_catalog::BdpStockInfoEntry;
 use glory_backend::services::{BdpBackupService, BdpPushFlushService, ConfiguracionService};
@@ -443,4 +443,118 @@ async fn sincronizado_sale_de_la_cola_activa(pool: PgPool) {
         .await
         .unwrap()
         .is_empty());
+}
+
+/* [049A-1/S3] Suscripción inactiva end-to-end: una fila de `venta/cancelar`
+ * encolada se despacha por flush contra un BDP que responde "Subscripción no
+ * activada" → la fila queda `pendiente_suscripcion` SIN consumir reintentos
+ * (D2) y con el error honesto en `ultimo_error`; el siguiente flush automático
+ * no la toca (solo reintento manual). Cero daño: el resumen no lo cuenta como
+ * error transitorio ni reintenta en bucle. */
+#[sqlx::test(migrations = "./migrations")]
+async fn flush_suscripcion_inactiva_marca_pendiente_sin_reintentos(pool: PgPool) {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/Auth/Login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ErrorMessage": "",
+            "AuthSession": { "Token": "token-bdp", "ExpiresIn_InSecconds": 3540 }
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/API/Orders/Cancel"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ErrorMessage": "Subscripción no activada"
+        })))
+        .mount(&server)
+        .await;
+
+    let user = Uuid::new_v4();
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user)
+        .bind(format!("test-{user}@example.com"))
+        .bind("argon2_hash_placeholder")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let config = ConfiguracionService::actualizar(
+        &pool,
+        user,
+        &ActualizarConfiguracionRequest {
+            modo_operacion: Some("bdp".to_string()),
+            bdp_base_url: Some(server.uri()),
+            bdp_sync_enabled: Some(true),
+            bdp_auto_backup_before_write: Some(true),
+            bdp_login: Some("usuario".to_string()),
+            bdp_password: Some("secreto".to_string()),
+            bdp_integrator_code: Some("INTEGRADOR".to_string()),
+            bdp_pos_id: Some(1),
+            bdp_employee_id: Some(1),
+            bdp_items_profile_id: Some(1),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("config modo bdp");
+
+    /* Snapshot completo vigente: prerequisito del arming (auto_arm_inner). */
+    let target = BdpBackupService::canonical_target(&config).unwrap();
+    let fingerprint = BdpBackupService::connection_fingerprint(&config).unwrap();
+    sqlx::query(
+        "INSERT INTO bdp_snapshots \
+         (user_id, tipo, direccion, trigger_tipo, datos, target_base_url, connection_fingerprint) \
+         VALUES ($1, 'completo', 'bdp', 'manual', '{}'::jsonb, $2, $3)",
+    )
+    .bind(user)
+    .bind(&target)
+    .bind(&fingerprint)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    /* Q2.11 — cancelación de una comanda con bdp_order_id conocido. */
+    let payload = payload_cancelar(&config, 5330).unwrap();
+    BdpPushService::encolar(
+        &pool,
+        user,
+        DOMINIO_VENTA,
+        "5330",
+        OPERACION_CANCELAR,
+        &payload,
+    )
+    .await
+    .unwrap();
+
+    let resumen = BdpPushFlushService::flush(&pool, user, true)
+        .await
+        .expect("flush con suscripción inactiva no debe fallar");
+    assert_eq!(resumen.procesados, 1);
+    assert_eq!(resumen.pendientes_suscripcion, 1);
+    assert_eq!(resumen.sincronizados, 0);
+    assert_eq!(resumen.errores, 0);
+
+    /* Registro local honesto: estado `pendiente_suscripcion`, cero reintentos
+     * consumidos (D2) y error visible para el usuario. */
+    let (estado, reintentos, ultimo_error): (String, i32, Option<String>) =
+        sqlx::query_as(
+            "SELECT estado, reintentos, ultimo_error FROM bdp_push_pendientes \
+             WHERE user_id = $1 AND dominio = 'venta' AND entidad_id = '5330'",
+        )
+        .bind(user)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(estado, ESTADO_PENDIENTE_SUSCRIPCION);
+    assert_eq!(reintentos, 0);
+    assert!(ultimo_error.unwrap_or_default().contains("no activada"));
+
+    /* Segundo flush automático (sin forzar): la fila no se toca (solo manual). */
+    let resumen2 = BdpPushFlushService::flush(&pool, user, false)
+        .await
+        .unwrap();
+    assert_eq!(resumen2.procesados, 0);
+    assert_eq!(resumen2.pendientes_suscripcion, 1);
+    assert_eq!(resumen2.errores, 0);
 }

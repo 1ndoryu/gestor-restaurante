@@ -172,7 +172,7 @@ del padre §2).
 | --- | --- | --- | --- |
 | S1 | Baseline: suite wiremock Vía T completa (153) y suite fail-closed (8) verdes sobre el código actual | `cargo test` (wrapper, offline) | **PASS 2026-09-05: lib 163/0** (153 baseline + 10 tests nuevos de H-Q1-03/H-W-3; incl. wiremock contrato) **+ fail-closed 8/0 + push 13/0 + guard 4/0**. `bdp_readonly` 7 ignorados por diseño (requieren BDP real + envs; vía F3/Q1 ya ejecutada por la app) |
 | S2 | Cada escritura Q2.1–Q2.13 en happy path contra el simulador + verificación local (mapa/cola/ledger/auditoría) | `tests/bdp_simulator_integration.rs` + endpoints app | **PASS 2026-09-05: simulador 32/0** (18 previos + 8 nuevos de la matriz S2). Q2.1/Q2.2/Q2.3/Q2.7/Q2.8/Q2.9/Q2.10 happy path con verificación en el simulador (lectura vía el propio cliente, sin duplicados); Q2.4 ya cubierto; Q2.5/Q2.6/Q2.11 simulan suscripción inactiva (`remote_error "Subscripción no activada"` → Remote honesto, comanda intacta Status=0 sin pagos ni factura; clasificación `pendiente_suscripcion` sin reintento en `tests/bdp_push.rs`); Q2.12 cubierto por suite push 13/0 (cola → reintento manual único, sin auto-flush); Q2.13 cubierto por guard 4/0 (arm→consumir→auditar→read_only antes del HTTP). Cero escrituras reales |
-| S3 | Suscripción inactiva: pago/factura/cancel responden "Subscripción no activada" → `pendiente_suscripcion`, cero reintentos | simulador + `bdp_push.rs` | clasificación correcta (test existente + 1 por operación) |
+| S3 | Suscripción inactiva: pago/factura/cancel responden "Subscripción no activada" → `pendiente_suscripcion`, cero reintentos | simulador + `bdp_push.rs` | **PASS 2026-09-05: simulador 32/0** (incl. `simulator_subscription_blocked_payment_invoice_cancel`: Q2.5/Q2.6/Q2.11 cada una con su fault → `Remote` honesto, comanda intacta Status=0 sin pagos ni factura) **+ push 14/0** (incl. nuevo `flush_suscripcion_inactiva_marca_pendiente_sin_reintentos` end-to-end: encolar `venta/cancelar` → flush → fault → fila `pendiente_suscripcion`, reintentos=0, `ultimo_error` honesto, segundo flush automático no la toca — solo manual D2) |
 | S4 | Timeout a mitad de escritura (respuesta >20 s o caída tras aceptar): ¿se detecta, se reconcilia, NO se duplica? | wiremock/simulador con delay | sin doble envío, estado honesto |
 | S5 | Payload inválido (tipos, precios negativos, IDs inexistentes, IVA fuera de rango): error honesto, cero daño | wiremock | 422/409 honesto, sin filas fantasmas |
 | S6 | Duplicado deliberado (mismo artículo/comanda dos veces): idempotencia | simulador | una sola entidad en BDP simulado |
@@ -237,8 +237,11 @@ Tres pasadas sobre este plan antes de ejecutar la Fase 3:
   4/0; `bdp_readonly` 7 ignorados por diseño. **Fase 2: S2 PASS** (2026-09-05): suite
   `bdp_simulator_integration` 32/0 con 8 tests nuevos (matriz Q2.1–Q2.13: artículo,
   modificación+precios, departamento, propina, puntos, stock+inventario masivo, call waiter,
-  suscripción bloqueada con cero daño). Cero escrituras reales.
-- **Siguiente paso verificable:** **S3** — suscripción inactiva por operación (pago/factura/cancel
-  con `pendiente_suscripcion`, cero reintentos): la clasificación ya está probada en la cola
-  (push 13/0) y el happy path en el simulador; falta el escenario S3 dedicado con reintento
-  manual único explícito por operación.
+  suscripción bloqueada con cero daño). **Fase 2: S3 PASS** (2026-09-05): simulador 32/0
+  (Q2.5/Q2.6/Q2.11 con fault por operación, cero daño) + push 14/0 con el nuevo test
+  end-to-end `flush_suscripcion_inactiva_marca_pendiente_sin_reintentos` (encolar → flush →
+  `pendiente_suscripcion`, reintentos=0, error honesto, segundo flush automático no toca la
+  fila). Cero escrituras reales.
+- **Siguiente paso verificable:** **S4** — timeout a mitad de escritura (wiremock/simulador
+  con delay: respuesta >20 s o caída tras aceptar → detectar, reconciliar, sin doble envío,
+  estado honesto).
