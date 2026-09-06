@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "mode": "enforce",
   "project": {
-    "primaryBranch": "glory-rs-rest"
+    "primaryBranch": "main"
   },
   "gate": {
     "command": ["sentinel", "check", "--"],

@@ -16,7 +16,7 @@ NETWORK="b8s0cks444o0sogo8kg8wcgw"
 IMAGE="glory-rest-app:latest"
 DOMAIN="app-b8s0cks444o0sogo8kg8wcgw.66.94.100.241.sslip.io"
 REPO_URL="https://github.com/1ndoryu/glory-rs.git"
-BRANCH="glory-rs-rest"
+BRANCH="main"
 BUILD_DIR="/tmp/glory-rs-build"
 
 # Reconstruir imagen

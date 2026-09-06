@@ -1,7 +1,7 @@
 # Plan — Revisión integral BDP: independencia funcional + integración completa (3 rondas)
 
 > **Fecha:** 2026-09-03
-> **Rama:** `glory-rs-rest`
+> **Rama operativa actual:** `main`
 > **ID de bloque:** `039A-1`
 > **Motivo (cita del usuario):** "crea un plan centralizado de esos 6 planes, para testear todo
 > lo que hizo — una parte para la funcionalidad independiente y otra para la integración
@@ -511,6 +511,9 @@ Reglas de las rondas:
   Diferidos con motivo explícito (no fallo): P1.6 y P5.6 → se verifican en Parte 2 (Q3.1/Q3.2, Q2.6).
 - **F2 / Ronda 2 y S1 EJECUTADAS** — ver entradas previas de §13 y §8; S0/S1 completas con BD
   real local; S2/S3 pendientes (requieren BDP + autorización).
+- **Validación UI Q1 adicional (2026-09-06, sin escrituras):** Plano de Sala, Stock, Compras,
+  Historial y Sincronización revisados desde la interfaz con `BDP: lectura`; no se pulsaron
+  sincronización, flush, reintento ni ajustes. Evidencia: `Agente/completados/tareas-2026-09-06.md`.
 - **PARTE 2 / Q1 EJECUTADA (2026-09-04, BDP real online vía Tailscale, solo lecturas):**
   checklist Q1 completo en §7 con evidencia por lectura: 17 lecturas ✅/⏸ clasificadas (Q1.1–Q1.24),
   flujos Q1.25 ejecutados por vía app, Q1.26 cierre con **cero escrituras** (cola sin filas nuevas —

@@ -899,13 +899,42 @@ impl BdpBackupService {
     ) -> Result<serde_json::Value, String> {
         /* [048A-7] Fix: type_price usa bdp_catalog_price_type (1 = IVA incluido),
          * NO bdp_pos_id (31). El BDP real rechaza pos_id como tipo de precio:
-         * [200106]-TIPO DE PRECIO INCORRECTO. */
-        let value = client
+         * [200106]-TIPO DE PRECIO INCORRECTO.
+         *
+         * [200109] (incidente 2026-09-05): si un artículo web quedó con datos
+         * de validación rotos, ExportArticles falla con [200109]. En lugar de
+         * abortar el snapshot completo (5 categorías), se cae al fallback de
+         * perfil H-Q1-03 via list_profile_articles() (GetPOSList del perfil de
+         * items), igual que sync_catalog. Solo [200109] cae al fallback; otros
+         * errores de ExportArticles siguen abortando. */
+        let export_result = client
             .export_articles(&BdpExportArticlesRequest::all_web_articles(
                 config.bdp_catalog_price_type,
             ))
-            .await
-            .map_err(|error| format!("Snapshot BDP abortado al leer artículos: {error}"))?;
+            .await;
+
+        let value = match export_result {
+            Ok(json) => json,
+            Err(error) => {
+                let msg = error.to_string();
+                if !msg.contains("[200109]") {
+                    return Err(format!("Snapshot BDP abortado al leer artículos: {msg}"));
+                }
+                warn!(
+                    "[200109] ExportArticles falló → fetch_articles cae al fallback \
+                     de perfil H-Q1-03 (GetPOSList)"
+                );
+                let perfil = client.list_profile_articles().await.map_err(|e| {
+                    format!("ExportArticles [200109] y el fallback de perfil falló: {e}")
+                })?;
+                serde_json::json!({ "Articles": perfil, "ErrorMessage": "" })
+            }
+        };
+
+        /* [200109/H-Q1-03] Nota: cuando se usó el fallback, el JSON devuelto
+         * no tiene keys de ExportArticles nativo (ArticlesListData etc.), sino
+         * {"Articles": [...]} armado en el fallback. validate_snapshot_response
+         * acepta "Articles" (está en el array de keys), así que pasa igual. */
         Self::validate_snapshot_response(
             "artículos",
             value,

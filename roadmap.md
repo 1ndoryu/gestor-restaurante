@@ -1,5 +1,5 @@
 Objetivo: Sistema de restaurante con integración BDP (WebLink). Backend Rust (Axum) + React SPA.
-Rama: glory-rs-rest
+Rama: main
 
 **Seguimiento de quality gate (2026-08-12):** Sentinel `0.7.1` (`b22c8484`) y VarSense
 `2.2.1` (`88f281f9`) están publicados, fijados en `quality-tools.json` y verificados por
@@ -31,7 +31,7 @@ en el reporte y la regla no se borra ni se desactiva.
 - **Sentinel (2026-08-10)**: re-pinado a la release coordinada **0.7.0** (`a804c0d`, `main` + tag `v0.7.0`); lock regenerado, `quality:lock --check` y doctor PASS, suite 232 pass. La release integra la auditoría 108A-1 (contratos CLI, init, ADR 0001, seguridad/concurrencia) sobre 0.6.4. El stage `custom` local fue retirado (commit `f13d0e16`): 15 reglas migradas al Core, 2 observe-only P1 con destino declarado en roadmap-sentinel.
 - **restaurante.wandori.us**: Coolify service `glory-rest`, UUID `b8s0cks444o0sogo8kg8wcgw`
 - **Deploy**: Siempre via coolify-manager-rs (`deploy --name glory-rest --update`), nunca desde Coolify UI
-- **Branch**: `glory-rs-rest`
+- **Branch**: `main`
 - **SSH PROHIBIDO**: PowerShell profile bloquea SSH/SCP/SFTP en agentes VS Code (ver `Agente/prevencion/ssh-prohibicion-completa-2026-06-30.md`)
 
 ## Deploy con coolify-manager-rs
@@ -161,13 +161,14 @@ con los 4 hallazgos H-P1-01..04 corregidos (guard fail-closed + 8 tests de regre
 escenas (a)–(j) verificadas en BD real local, barrido S1.3 de toda la app, S1.5 cero tráfico a
 BDP; nuevo hallazgo H-S1-01 (CSV/filtro stock usaban el snapshot) corregido en `BdpStock.tsx`.
 Checklist §8 S0/S1 marcado con evidencia; evidencia en `Agente/completados/tareas-2026-09-04.md`.
-**Prep F3 (2026-09-04):** paquete de ejecución de lecturas Q1 listo en
-`Agente/planes/plan-ejecucion-q1-lecturas-bdp-2026-09-04.md` (24 lecturas con endpoint/payload/
-forma esperada/redacción/criterios, parámetros reales verificados en BD local, validación de
-contrato vía suite wiremock ya verde; re-run bloqueado por disco C:).
-**Siguiente paso:** F3 — Parte 2 (Q1 lecturas contra el BDP real, luego S3 escrituras **con
-autorización explícita por operación**). Requiere BDP online + credenciales integrador +
-suscripción de pago; mientras tanto S2/lecturas quedan `⏸`.
+**Prep F3 (2026-09-04) y ejecución (2026-09-06):** el paquete de lecturas Q1 está en
+`Agente/planes/plan-ejecucion-q1-lecturas-bdp-2026-09-04.md`. Las lecturas contra el BDP real
+se validaron también desde la UI, sin escrituras: Plano de Sala, Stock, Compras, Historial y
+Sincronización; modo efectivo `BDP: lectura` confirmado. Evidencia detallada en
+`Agente/completados/tareas-2026-09-06.md`; la rama operativa confirmada es `main`.
+**Siguiente paso:** bloque 2, escrituras Q2 una por una y con autorización explícita. Q2.2 queda
+bloqueada hasta revisar el contrato completo de `ModifyArticleAndUpdateProfile`; pagos, factura
+y cancelación siguen `⏸` por la suscripción WebLink de pago.
 
 ### Bloque 049A-1 — Seguridad de escrituras BDP: auditoría anti-desastre + simulación antes de escribir (plan activo 2026-09-04)
 

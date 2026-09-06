@@ -2,7 +2,7 @@
 
 > **Plan padre:** `Agente/planes/plan-revision-integral-bdp-2026-09-03.md` (039A-1), §7 bloque Q1.
 > **Fuente del inventario:** `Agente/planes/completados/plan-prueba-lecturas-bdp-2026-08-18.md` (138A-2).
-> **Preparado:** 2026-09-04 · **Rama:** `glory-rs-rest` · **Ejecutable cuando el usuario confirme**
+> **Preparado:** 2026-09-04 · **Rama operativa actual:** `main` · **Ejecutado**
 > BDP online + credenciales válidas + autorización de lecturas.
 
 ## 1. Reglas de ejecución
@@ -247,9 +247,13 @@ Checklist Q1 marcado en §7 del plan padre, completados, commit local.
 - **Vía B:** parámetros §2 leídos de BD local; sandbox `:3100` vivo; cero conexiones salientes a
   `100.83.196.35` en toda la preparación.
 
-## 7. Siguiente paso verificable
+## 7. Cierre y siguiente paso verificable
 
-1. Usuario confirma: BDP online + credenciales válidas + autorización de **lecturas**.
-2. Ejecutar F3 por flujo (§4), evidencia redactada por lectura, `⏸` donde aplique.
-3. Marcar Q1 en §7 del plan padre, completados, commit local.
-4. S3 (escrituras Q2) al final, autorización por operación.
+1. **Q1 ejecutado:** lecturas contra el BDP real y validación UI completadas sin escrituras; los
+   bloqueos externos/diseño quedaron clasificados como `⏸` en el plan padre.
+2. **Evidencia:** `Agente/completados/tareas-2026-09-06.md` registra la pasada UI; la evidencia
+   detallada de las lecturas reales permanece en `Agente/completados/tareas-2026-09-04.md`.
+3. **Estado seguro:** configuración en solo lectura; no se ejecutaron flush, reintentos ni
+   snapshots nuevos durante la pasada UI.
+4. **Siguiente bloque:** S3/Q2, una escritura a la vez y solo con autorización explícita. Q2.2
+   requiere revisar primero el contrato completo de `ModifyArticleAndUpdateProfile`.

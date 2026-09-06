@@ -2,7 +2,7 @@
 
 > **Plan aislado** para la etapa S3 del plan padre
 > `Agente/planes/plan-revision-integral-bdp-2026-09-03.md` (039A-1, bloque Q2 §7 / fase F5).
-> **Preparado:** 2026-09-04 · **Rama:** `glory-rs-rest` · **Estado:** creación registrada en
+> **Preparado:** 2026-09-04 · **Rama operativa actual:** `main` · **Estado:** creación registrada en
 > `roadmap.md` (bloque activo) y `Agente/completados/tareas-2026-09-04.md`.
 > **Contexto del cliente:** la **suscripción WebLink de pago NO está activa** (confirmado
 > 2026-09-04; bloqueo externo ya documentado en roadmap pendientes 1c). Por tanto Q2.5/Q2.6/Q2.11

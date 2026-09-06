@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile.rust
       args:
         REPO_URL: 'https://github.com/1ndoryu/glory-rs.git'
-        BRANCH: glory-rs-rest
+        BRANCH: main
         APP_BIN: glory-backend
         VITE_STRIPE_PUBLISHABLE_KEY: $VITE_STRIPE_PUBLISHABLE_KEY
     volumes:
@@ -18,7 +18,7 @@ services:
       STATIC_DIR: /app/dist
       HOST: 0.0.0.0
       REPO_URL: 'https://github.com/1ndoryu/glory-rs.git'
-      BRANCH: glory-rs-rest
+      BRANCH: main
       APP_BIN: glory-backend
       VITE_STRIPE_PUBLISHABLE_KEY: $VITE_STRIPE_PUBLISHABLE_KEY
       COOLIFY_RESOURCE_UUID: b8s0cks444o0sogo8kg8wcgw

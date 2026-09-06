@@ -482,7 +482,7 @@ impl BdpExportArticlesRequest {
  * Usado por BdpSyncService::sync_catalog(). */
 
 /// Entrada de precios donde BDP puede anidar el stock (`PricesTableDataType`).
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct BdpArticlePriceEntry {
     /// Stock dentro de una entrada de la tabla de precios.
@@ -494,12 +494,16 @@ pub struct BdpArticlePriceEntry {
 /// Endpoints que la producen: `ExportArticles` (clave `Articles`) y
 /// `GetPOSList` por perfil (claves `ArticleListData`/`ArticlesListData`,
 /// con `ArtCode`/`ArtDescription`/`TAVPer` en vez de `Code`/`Description`/`Tax1`).
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct BdpExportArticleItem {
     /// Código del artículo (puede venir como string o número en BDP).
     /// `ArtCode` es la clave real de GetPOSList; `Code` la de ExportArticles.
-    #[serde(default, alias = "ArtCode", deserialize_with = "deserialize_optional_string")]
+    #[serde(
+        default,
+        alias = "ArtCode",
+        deserialize_with = "deserialize_optional_string"
+    )]
     pub code: Option<String>,
     /// Fallback: algunos endpoints usan `ItemCode` en vez de `Code`
     #[serde(
@@ -663,9 +667,7 @@ fn field_text(item: &Value, keys: &[&str]) -> Option<String> {
 
 fn field_decimal(item: &Value, keys: &[&str]) -> Option<Decimal> {
     keys.iter().find_map(|key| match item.get(*key) {
-        Some(Value::Number(value)) => {
-            value.as_f64().and_then(Decimal::from_f64_retain)
-        }
+        Some(Value::Number(value)) => value.as_f64().and_then(Decimal::from_f64_retain),
         Some(Value::String(value)) => value.parse::<Decimal>().ok(),
         _ => None,
     })
@@ -680,7 +682,8 @@ fn field_int(item: &Value, keys: &[&str]) -> Option<i32> {
 }
 
 fn field_bool(item: &Value, keys: &[&str]) -> Option<bool> {
-    keys.iter().find_map(|key| item.get(*key).and_then(Value::as_bool))
+    keys.iter()
+        .find_map(|key| item.get(*key).and_then(Value::as_bool))
 }
 
 /* [039A-1/H-Q1-03] Mapeo laxo de los campos esenciales del import cuando el
