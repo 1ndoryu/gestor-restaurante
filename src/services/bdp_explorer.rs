@@ -89,7 +89,9 @@ impl BdpExplorerService {
         let clientes = Self::explorar_categoria(
             "clientes",
             &["Customers"],
-            client.export_customers(&BdpExportCustomersRequest::default()).await,
+            client
+                .export_customers(&BdpExportCustomersRequest::default())
+                .await,
         );
 
         /* Departamentos: ExportDepartments con rango completo */
@@ -105,7 +107,9 @@ impl BdpExplorerService {
         let salones = Self::explorar_categoria(
             "salones",
             &["Rooms"],
-            client.get_rooms_tables(&BdpGetRoomsTablesRequest::default()).await,
+            client
+                .get_rooms_tables(&BdpGetRoomsTablesRequest::default())
+                .await,
         );
 
         /* Empleados: GetEmployees (sin filtro) */

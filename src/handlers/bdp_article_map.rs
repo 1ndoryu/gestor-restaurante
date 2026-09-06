@@ -294,8 +294,7 @@ pub async fn listar_conteos_inventario(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<Vec<BdpConteoInventario>>, AppError> {
-    let conteos =
-        BdpArticleMapRepository::listar_conteos(&state.pool, auth.user_id, 50).await?;
+    let conteos = BdpArticleMapRepository::listar_conteos(&state.pool, auth.user_id, 50).await?;
     Ok(Json(conteos))
 }
 
@@ -304,14 +303,16 @@ pub async fn obtener_conteo_inventario(
     auth: AuthUser,
     Path(conteo_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let detalle = BdpArticleMapRepository::obtener_conteo(&state.pool, auth.user_id, conteo_id)
-        .await?;
+    let detalle =
+        BdpArticleMapRepository::obtener_conteo(&state.pool, auth.user_id, conteo_id).await?;
     let Some((conteo, lineas)) = detalle else {
         return Err(AppError::NotFound(
             "Conteo de inventario no encontrado".into(),
         ));
     };
-    Ok(Json(serde_json::json!({ "conteo": conteo, "lineas": lineas })))
+    Ok(Json(
+        serde_json::json!({ "conteo": conteo, "lineas": lineas }),
+    ))
 }
 
 pub async fn crear_conteo_inventario(
@@ -328,21 +329,20 @@ pub async fn crear_conteo_inventario(
         .iter()
         .map(|a| (a.articulo_glory_codigo.clone(), a.unidades_contadas))
         .collect();
-    let (conteo, lineas, reutilizado, aplicadas) =
-        BdpArticleMapRepository::crear_conteo(
-            &state.pool,
-            auth.user_id,
-            req.observaciones.as_deref().unwrap_or(""),
-            req.idempotency_key.as_deref(),
-            &articulos,
-        )
-        .await
-        .map_err(|e| match e {
-            AjusteStockError::StockNegativo(m) => AppError::Validation(m),
-            AjusteStockError::Db(db) => {
-                AppError::Internal(format!("No se pudo guardar el conteo: {db}"))
-            }
-        })?;
+    let (conteo, lineas, reutilizado, aplicadas) = BdpArticleMapRepository::crear_conteo(
+        &state.pool,
+        auth.user_id,
+        req.observaciones.as_deref().unwrap_or(""),
+        req.idempotency_key.as_deref(),
+        &articulos,
+    )
+    .await
+    .map_err(|e| match e {
+        AjusteStockError::StockNegativo(m) => AppError::Validation(m),
+        AjusteStockError::Db(db) => {
+            AppError::Internal(format!("No se pudo guardar el conteo: {db}"))
+        }
+    })?;
 
     /* Encolar el envío de las líneas con código BDP (misma lógica que
      * registrar_inventario; el worker no envía nada en standalone). */

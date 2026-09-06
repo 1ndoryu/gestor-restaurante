@@ -11,10 +11,7 @@ use crate::errors::AppError;
 use crate::services::ModoEfectivo;
 use crate::AppState;
 
-pub async fn exigir_modo_bdp(
-    state: &AppState,
-    user_id: Uuid,
-) -> Result<(), AppError> {
+pub async fn exigir_modo_bdp(state: &AppState, user_id: Uuid) -> Result<(), AppError> {
     let modo = state
         .modo_operacion
         .modo_efectivo(&state.pool, user_id)

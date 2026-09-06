@@ -166,9 +166,22 @@ Checklist §8 S0/S1 marcado con evidencia; evidencia en `Agente/completados/tare
 se validaron también desde la UI, sin escrituras: Plano de Sala, Stock, Compras, Historial y
 Sincronización; modo efectivo `BDP: lectura` confirmado. Evidencia detallada en
 `Agente/completados/tareas-2026-09-06.md`; la rama operativa confirmada es `main`.
-**Siguiente paso:** bloque 2, escrituras Q2 una por una y con autorización explícita. Q2.2 queda
-bloqueada hasta revisar el contrato completo de `ModifyArticleAndUpdateProfile`; pagos, factura
-y cancelación siguen `⏸` por la suscripción WebLink de pago.
+**Siguiente paso:** bloque 2, escrituras Q2 una por una y con autorización explícita. Q2.2
+queda implementada localmente con read-modify-write, pero la escritura real de modificación sigue
+sin ejecutarse hasta recibir autorización explícita para esa operación. Pagos, factura y cancelación
+siguen `⏸` por la suscripción WebLink de pago.
+
+**Q2.2 cerrada en simulación (2026-09-06):** `BdpPushFlushService` obtiene `ArticleData` completo
+con `GetArticle`, fusiona de forma conservadora el patch parcial y reutiliza el payload final tanto
+en auditoría como en `ModifyArticleAndUpdateProfiles`. Si `GetArticle` falla antes de autorizar,
+se cancela el armado temporal y se restaura `read_only`, evitando bloquear reintentos. Evidencia:
+2 tests end-to-end WireMock PASS (éxito y compensación), 2 tests unitarios de merge PASS, suite del
+simulador 37/37 PASS, `cargo check` PASS y `fmt:check` PASS; cero escrituras al BDP real. `clippy`
+continúa bloqueado por el finding preexistente `src/services/bdp_backup.rs:482`
+(`auditar_escritura_directa`, `too_many_arguments`) y sus warnings asociados. El gate `049A-1`
+no llegó a ejecutar análisis: `quality:lock --check` detecta que el checkout externo de Sentinel
+está en `902c45e...` mientras el manifest fija `0559576...`, y `stages.mjs` rechaza su
+`provisionPath` externo; queda como bloqueo separado de reproducibilidad del gate.
 
 ### Bloque 049A-1 — Seguridad de escrituras BDP: auditoría anti-desastre + simulación antes de escribir (plan activo 2026-09-04)
 

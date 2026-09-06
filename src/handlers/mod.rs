@@ -35,7 +35,8 @@ pub use bdp_customer_sync::{importar_clientes_bdp, BdpCustomerImportRequest};
 /* [039A-1/H-P1-03] Fail-closed por modo efectivo en explorar/backup BDP
  * (red real) — exposición para tests de regresión. */
 pub use bdp_backup::{
-    departamentos_del_perfil, explorar_bdp, snapshot_completo, snapshot_parcial, SnapshotParcialRequest,
+    departamentos_del_perfil, explorar_bdp, snapshot_completo, snapshot_parcial,
+    SnapshotParcialRequest,
 };
 pub use bdp_guard::exigir_modo_bdp;
 /* [208A-2/C4] Cola de sincronización (D5) — exposición para tests. */

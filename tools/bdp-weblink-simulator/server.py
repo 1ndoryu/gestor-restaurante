@@ -254,6 +254,16 @@ class SimulatorHandler(BaseHTTPRequestHandler):
                 return {"ErrorMessage": "", "AuthSession": {"Token": token, "ExpiresIn_InSecconds": 3540}}
             if path == "/Service/GetVersion":
                 return {"Version": 0, "Subversion": 0, "Revision": "SIMULATOR", "Application": "Glory WebLink Simulator", "ApplicationDescription": "Contrato local; no es BDP", "ErrorMessage": ""}
+            if path == "/API/Articles/Get":
+                try:
+                    code = int(payload.get("ArtCode", 0))
+                except (TypeError, ValueError):
+                    return {"ErrorMessage": "ArtCode invalido"}
+                if code <= 0 or code not in state.articles:
+                    return {"ErrorMessage": "articulo inexistente"}
+                article = copy.deepcopy(state.articles[code])
+                article.setdefault("ErrorMessage", "")
+                return {"ArticleData": article, "ErrorMessage": ""}
             if path in {"/API/Articles/Export", "/API/Articles/GetPOSList"}:
                 return {"Articles": list(copy.deepcopy(state.articles).values()), "ErrorMessage": ""}
             if path == "/API/Customers/Export":
@@ -456,13 +466,78 @@ class SimulatorHandler(BaseHTTPRequestHandler):
     def _modify_article(self, payload: dict[str, Any]) -> dict[str, Any]:
         state = self.server.state
         first = self._first_article_data(payload)
+        required_fields = {
+            "DeptCode", "DeptDescription", "MenuDish", "WebArticle",
+            "POS_SupplementsProfileID", "SelfOrdering_CommentsProfileID",
+            "SelfOrdering_SupplementsProfileID", "POS_MenuID", "POS_FastfoodID",
+            "POS_PackID", "Is_Inventoriable", "BuyTAVCode", "BuyTAVPer",
+            "TAVCode", "TAVPer", "AuxPrinters", "Commissionable",
+            "ModifiablePrice", "DontPrintTicketValue0", "Weight",
+            "DontNotifyUnitsPrice0", "NotifyModifyPriceUnits", "TwoForOne",
+            "POS_CommentsProfileID", "ErrorMessage", "PriceConfirmation",
+            "FreeDescription", "IsCombinable", "CombinedDescription",
+            "CombBasePrice1", "CombBasePrice2", "CombBasePrice3",
+            "CombBasePrice4", "CombBasePrice5", "CombAuxPrice1",
+            "CombAuxPrice2", "CombAuxPrice3", "CombAuxPrice4", "CombAuxPrice5",
+            "ActivateAlwaysCombined", "MandatoryCombined", "CombinedAssocType",
+            "CombinedDepartmentAssoc", "CombinedDepartmentAssocDescription",
+            "CombinedMaxiscreenAssoc", "CombinedMaxiscreenAssocDescription",
+            "ApplyDiscountsInComb", "ArtDescription", "Price1", "Price2",
+            "Price3", "Price4", "Price5", "Dct1", "Dct2", "Dct3", "Dct4",
+            "Dct5", "GraphDescrip1", "GraphDescrip2", "GraphDescrip3",
+            "ExtendedArtDescription", "Proportion1Description",
+            "Proportion2Active", "Proportion3Active", "Proportion4Active",
+            "Proportion5Active", "Proportion6Active", "Proportion7Active",
+            "Proportion8Active", "Proportion9Active", "Proportion2Amount",
+            "Proportion3Amount", "Proportion4Amount", "Proportion5Amount",
+            "Proportion6Amount", "Proportion7Amount", "Proportion8Amount",
+            "Proportion9Amount", "Proportion2Description", "Proportion3Description",
+            "Proportion4Description", "Proportion5Description", "Proportion6Description",
+            "Proportion7Description", "Proportion8Description", "Proportion9Description",
+            "Proportion2Price1", "Proportion3Price1", "Proportion4Price1",
+            "Proportion5Price1", "Proportion6Price1", "Proportion7Price1",
+            "Proportion8Price1", "Proportion9Price1", "Proportion2Price2",
+            "Proportion3Price2", "Proportion4Price2", "Proportion5Price2",
+            "Proportion6Price2", "Proportion7Price2", "Proportion8Price2",
+            "Proportion9Price2", "Proportion2Price3", "Proportion3Price3",
+            "Proportion4Price3", "Proportion5Price3", "Proportion6Price3",
+            "Proportion7Price3", "Proportion8Price3", "Proportion9Price3",
+            "Proportion2Price4", "Proportion3Price4", "Proportion4Price4",
+            "Proportion5Price4", "Proportion6Price4", "Proportion7Price4",
+            "Proportion8Price4", "Proportion9Price4", "Proportion2Price5",
+            "Proportion3Price5", "Proportion4Price5", "Proportion5Price5",
+            "Proportion6Price5", "Proportion7Price5", "Proportion8Price5",
+            "Proportion9Price5", "Proportion2PluDiscount",
+            "Proportion2PluDiscountDescription", "Proportion3PluDiscount",
+            "Proportion3PluDiscountDescription", "Proportion4PluDiscount",
+            "Proportion4PluDiscountDescription", "Proportion5PluDiscount",
+            "Proportion5PluDiscountDescription", "Proportion6PluDiscount",
+            "Proportion6PluDiscountDescription", "Proportion7PluDiscount",
+            "Proportion7PluDiscountDescription", "Proportion8PluDiscount",
+            "Proportion8PluDiscountDescription", "Proportion9PluDiscount",
+            "Proportion9PluDiscountDescription", "ApplyDiscountsInProp", "ArtCode",
+        }
+        missing = sorted(field for field in required_fields if field not in first)
+        if missing:
+            return {
+                "ErrorMessage": "ArticleData incompleto para ModifyAndUpdateProfiles",
+                "ListaErroresArticulo": missing,
+            }
+        profiles = payload.get("ProfilesList")
+        all_profiles = payload.get("AllProfiles")
+        if profiles is None and all_profiles is not True:
+            return {
+                "ErrorMessage": "ProfilesList o AllProfiles=true obligatorio",
+                "ListaErroresArticulo": [],
+            }
         try:
-            code = int(first.get("ArtCode", 0))
-        except (TypeError, ValueError):
-            return {"ErrorMessage": "ArtCode invalido"}
-        if code in state.articles:
-            state.articles[code].update(first)
-        return {"ErrorMessage": ""}
+            code = int(first["ArtCode"])
+        except (KeyError, TypeError, ValueError):
+            return {"ErrorMessage": "ArtCode invalido", "ListaErroresArticulo": []}
+        if code <= 0 or code not in state.articles:
+            return {"ErrorMessage": "articulo inexistente", "ListaErroresArticulo": []}
+        state.articles[code].update(first)
+        return {"ErrorMessage": "", "ListaErroresArticulo": []}
 
     def _create_department(self, payload: dict[str, Any]) -> dict[str, Any]:
         state = self.server.state

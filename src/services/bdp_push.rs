@@ -25,8 +25,8 @@ use crate::services::bdp_weblink::{BdpWeblinkClient, BdpWeblinkError};
 use crate::services::bdp_weblink_catalog::{
     BdpAddOrderTipRequest, BdpAddPointsRequest, BdpArticleData, BdpCancelOrderRequest,
     BdpCreateArticlesRequest, BdpCreateDepartmentProfilesRequest, BdpCreateFamilyRequest,
-    BdpMassiveStockRequest, BdpModifyArticleRequest, BdpModifyPricesRequest, BdpOrderIdentifier,
-    BdpRegularizationRequest, BdpStockInfoEntry, BdpTransferRequest,
+    BdpGetArticleRequest, BdpMassiveStockRequest, BdpModifyArticleRequest, BdpModifyPricesRequest,
+    BdpOrderIdentifier, BdpRegularizationRequest, BdpStockInfoEntry, BdpTransferRequest,
 };
 use crate::services::{
     BdpBackupService, BdpWriteGuard, ConfiguracionService, ModoEfectivo, ServicioModoOperacion,
@@ -614,7 +614,41 @@ impl BdpPushFlushService {
             None,
         )
         .await?;
-        /* 3. Auditoría + consumo del armado + cierre a solo lectura. */
+        /* 3. ModifyArticleAndUpdateProfile no acepta ArticleData parcial. La
+         * cola conserva payloads históricos parciales, por lo que se completa
+         * después del snapshot y antes de autorizar: la auditoría y el HTTP
+         * reciben exactamente el mismo payload final. */
+        let payload = if pendiente.dominio == DOMINIO_ARTICULO
+            && pendiente.operacion == OPERACION_MODIFICAR
+        {
+            match enriquecer_payload_modificar_articulo(client, &pendiente.payload).await {
+                Ok(payload) => payload,
+                Err(error) => {
+                    /* GetArticle ocurre antes de autorizar. Si falla, compensa
+                     * el armado de esta fila para no dejar una escritura
+                     * fantasma bloqueando el siguiente reintento. */
+                    if let Err(cleanup_error) = BdpWriteGuard::cancelar_armado_push(
+                        pool,
+                        user_id,
+                        config,
+                        scope,
+                        &pendiente.dominio,
+                        entity_uuid,
+                    )
+                    .await
+                    {
+                        return Err(format!(
+                            "{error}; además no se pudo cancelar el armado BDP: {cleanup_error}"
+                        ));
+                    }
+                    return Err(error);
+                }
+            }
+        } else {
+            pendiente.payload.clone()
+        };
+
+        /* 4. Auditoría + consumo del armado + cierre a solo lectura. */
         let audit_id = BdpWriteGuard::authorize(
             pool,
             user_id,
@@ -623,21 +657,15 @@ impl BdpPushFlushService {
             &pendiente.dominio,
             entity_uuid,
             "glory_entidad_id",
-            &pendiente.payload,
+            &payload,
             snapshot_pre,
             None,
         )
         .await?;
 
-        /* 4. Dispatcher -> HTTP de escritura (el cliente valida la allowlist). */
-        match Self::dispatch(
-            client,
-            &pendiente.dominio,
-            &pendiente.operacion,
-            &pendiente.payload,
-        )
-        .await
-        {
+        /* 5. Dispatcher -> HTTP de escritura (el cliente valida la allowlist).
+         * `payload` es deliberadamente el mismo valor que se auditó arriba. */
+        match Self::dispatch(client, &pendiente.dominio, &pendiente.operacion, &payload).await {
             Ok(respuesta) => {
                 BdpBackupService::actualizar_resultado(
                     pool,
@@ -764,6 +792,65 @@ impl BdpPushFlushService {
     }
 }
 
+/* [Q2.2] Enriquecimiento de ModifyArticle: lee el ArticleData completo desde
+ * BDP vía GetArticle y lo fusiona con los campos parciales del payload de la
+ * cola. Esto garantiza que ModifyArticleAndUpdateProfile reciba todos los
+ * campos obligatorios (solución al NullReferenceException del endpoint real).
+ *
+ * La fusión sobreescribe en el ArticleData completo solo los campos que el
+ * payload original ya trae; el resto (perfiles, precios no tocados, flags no
+ * modificados) se conservan tal cual los devuelve GetArticle. Los campos
+ * `profiles_list` y `all_profiles` del payload original se mantienen sin
+ * alterar. */
+async fn enriquecer_payload_modificar_articulo(
+    client: &BdpWeblinkClient<'_>,
+    payload: &Value,
+) -> Result<Value, String> {
+    let req: BdpModifyArticleRequest = serde_json::from_value(payload.clone())
+        .map_err(|e| format!("payload de modificar inválido: {e}"))?;
+
+    let art_code = req
+        .article_data
+        .get("ArtCode")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| "payload de modificar sin ArtCode".to_string())?;
+
+    let get_resp = client
+        .get_article(&BdpGetArticleRequest { art_code })
+        .await
+        .map_err(|e| format!("GetArticle falló durante enriquecimiento: {e}"))?;
+
+    let full_data = get_resp
+        .get("ArticleData")
+        .ok_or_else(|| "GetArticle devolvió respuesta sin ArticleData".to_string())?
+        .clone();
+
+    let full_data = fusionar_article_data(full_data, &req.article_data)?;
+
+    let enriquecido = BdpModifyArticleRequest {
+        article_data: full_data,
+        profiles_list: req.profiles_list,
+        all_profiles: req.all_profiles,
+    };
+
+    serde_json::to_value(&enriquecido)
+        .map_err(|e| format!("No se pudo serializar payload enriquecido: {e}"))
+}
+
+fn fusionar_article_data(mut completo: Value, parcial: &Value) -> Result<Value, String> {
+    let completo_obj = completo
+        .as_object_mut()
+        .ok_or_else(|| "GetArticle devolvió ArticleData no objeto".to_string())?;
+    let parcial_obj = parcial
+        .as_object()
+        .ok_or_else(|| "payload de modificar tiene ArticleData no objeto".to_string())?;
+
+    for (key, value) in parcial_obj {
+        completo_obj.insert(key.clone(), value.clone());
+    }
+    Ok(completo)
+}
+
 fn scope_para(dominio: &str, operacion: &str) -> Option<&'static str> {
     match (dominio, operacion) {
         (DOMINIO_ARTICULO, OPERACION_CREAR) => Some("create_article"),
@@ -844,20 +931,28 @@ mod clasificacion_error_tests {
     #[test]
     fn suscripcion_exacta_bdp() {
         let error = BdpWeblinkError::Remote("Subscripción no activada".into());
-        assert_eq!(clasificar_error(&error), (ESTADO_PENDIENTE_SUSCRIPCION, false));
+        assert_eq!(
+            clasificar_error(&error),
+            (ESTADO_PENDIENTE_SUSCRIPCION, false)
+        );
     }
 
     #[test]
     fn suscripcion_con_variacion_case_y_grafia() {
         let error = BdpWeblinkError::Remote("  SUSCRIPCION NO ACTIVADA ".into());
-        assert_eq!(clasificar_error(&error), (ESTADO_PENDIENTE_SUSCRIPCION, false));
+        assert_eq!(
+            clasificar_error(&error),
+            (ESTADO_PENDIENTE_SUSCRIPCION, false)
+        );
     }
 
     #[test]
     fn suscripcion_dentro_de_mensaje_mas_largo() {
-        let error =
-            BdpWeblinkError::Remote("Error: subscripción no activada para este POS".into());
-        assert_eq!(clasificar_error(&error), (ESTADO_PENDIENTE_SUSCRIPCION, false));
+        let error = BdpWeblinkError::Remote("Error: subscripción no activada para este POS".into());
+        assert_eq!(
+            clasificar_error(&error),
+            (ESTADO_PENDIENTE_SUSCRIPCION, false)
+        );
     }
 
     #[test]
@@ -915,6 +1010,37 @@ mod clasificacion_error_tests {
 }
 
 #[cfg(test)]
+mod article_data_merge_tests {
+    use super::*;
+
+    #[test]
+    fn merge_conserva_campos_completos_y_aplica_patch_parcial() {
+        let completo = serde_json::json!({
+            "ArtCode": 90000001,
+            "ArtDescription": "Original BDP",
+            "Price5": 42.5,
+            "WebArticle": true
+        });
+        let parcial = serde_json::json!({
+            "ArtCode": 90000001,
+            "ArtDescription": "Editado localmente"
+        });
+
+        let resultado = fusionar_article_data(completo, &parcial).unwrap();
+        assert_eq!(resultado["ArtDescription"], "Editado localmente");
+        assert_eq!(resultado["Price5"], 42.5);
+        assert_eq!(resultado["WebArticle"], true);
+    }
+
+    #[test]
+    fn merge_rechaza_article_data_no_objeto() {
+        let error =
+            fusionar_article_data(serde_json::json!([]), &serde_json::json!({})).unwrap_err();
+        assert_eq!(error, "GetArticle devolvió ArticleData no objeto");
+    }
+}
+
+#[cfg(test)]
 mod lookup_tav_tests {
     use super::*;
     use rust_decimal::Decimal;
@@ -936,7 +1062,10 @@ mod lookup_tav_tests {
         /* [321A-4] El caso real: iva_pct = 10.00 (numeric(6,2)) y el mapa usa
          * la clave canónica "10" (M13: 10 -> 1). */
         let config = config_con_map(&["10"], 1);
-        assert_eq!(lookup_tav(&config, Decimal::from_str("10.00").unwrap()), Some(1));
+        assert_eq!(
+            lookup_tav(&config, Decimal::from_str("10.00").unwrap()),
+            Some(1)
+        );
     }
 
     #[test]
@@ -963,12 +1092,18 @@ mod lookup_tav_tests {
         let config = ConfiguracionRestaurante {
             ..Default::default()
         };
-        assert_eq!(lookup_tav(&config, Decimal::from_str("10.00").unwrap()), None);
+        assert_eq!(
+            lookup_tav(&config, Decimal::from_str("10.00").unwrap()),
+            None
+        );
     }
 
     #[test]
     fn iva_fuera_del_mapa_devuelve_none() {
         let config = config_con_map(&["21"], 2);
-        assert_eq!(lookup_tav(&config, Decimal::from_str("4.00").unwrap()), None);
+        assert_eq!(
+            lookup_tav(&config, Decimal::from_str("4.00").unwrap()),
+            None
+        );
     }
 }

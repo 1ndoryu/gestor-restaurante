@@ -254,6 +254,66 @@ impl BdpWriteGuard {
         Ok(())
     }
 
+    /// Cancela el armado creado por el worker cuando una lectura previa a la
+    /// autorización falla. Sin esta compensación, el armado de un artículo
+    /// quedaría activo y bloquearía indefinidamente la siguiente oportunidad
+    /// de procesar la misma fila de cola.
+    pub async fn cancelar_armado_push(
+        pool: &PgPool,
+        user_id: Uuid,
+        config: &ConfiguracionRestaurante,
+        scope: &str,
+        target_entity_type: &str,
+        target_entity_id: Uuid,
+    ) -> Result<(), String> {
+        let base = BdpBackupService::canonical_target(config)?;
+        let fingerprint = BdpBackupService::connection_fingerprint(config)?;
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|error| format!("No se pudo iniciar cancelación de armado BDP: {error}"))?;
+
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!("bdp-arming:{user_id}"))
+            .execute(&mut *tx)
+            .await
+            .map_err(|error| format!("No se pudo bloquear cancelación de armado BDP: {error}"))?;
+
+        let deleted = sqlx::query(
+            r"DELETE FROM bdp_write_arming
+               WHERE user_id = $1
+                 AND base_url = $2
+                 AND $3 = ANY(scopes)
+                 AND target_entity_type = $4
+                 AND target_entity_id = $5
+                 AND connection_fingerprint = $6",
+        )
+        .bind(user_id)
+        .bind(&base)
+        .bind(scope)
+        .bind(target_entity_type)
+        .bind(target_entity_id)
+        .bind(&fingerprint)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| format!("No se pudo cancelar armado BDP: {error}"))?;
+
+        if deleted.rows_affected() == 1 {
+            sqlx::query(
+                "UPDATE configuracion_restaurante SET bdp_sync_mode = 'read_only', updated_at = NOW() WHERE user_id = $1",
+            )
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|error| format!("No se pudo cerrar modo escritura BDP tras cancelar armado: {error}"))?;
+        }
+
+        tx.commit()
+            .await
+            .map_err(|error| format!("No se pudo confirmar cancelación de armado BDP: {error}"))?;
+        Ok(())
+    }
+
     pub async fn ensure_no_unresolved(
         pool: &PgPool,
         user_id: Uuid,

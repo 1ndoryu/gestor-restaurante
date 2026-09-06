@@ -544,7 +544,9 @@ pub async fn llamar_camarero(
             )
             .await
             .map_err(AppError::Internal)?;
-            Ok(Json(serde_json::json!({ "mensaje": "Aviso enviado al TPV" })))
+            Ok(Json(
+                serde_json::json!({ "mensaje": "Aviso enviado al TPV" }),
+            ))
         }
         Err(e) => {
             let _ = crate::services::BdpBackupService::auditar_escritura_directa(

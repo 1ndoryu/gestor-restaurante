@@ -14,6 +14,7 @@ use serde_json::Value;
 use tracing::warn;
 
 use crate::models::ConfiguracionRestaurante;
+use crate::services::bdp_weblink_catalog::parse_articles_value;
 use crate::services::bdp_weblink_catalog::{
     BdpAddOrderPaymentRequest, BdpAddOrderTipRequest, BdpAddPointsRequest, BdpCallWaiterRequest,
     BdpCancelOrderRequest, BdpCreateArticlesRequest, BdpCreateCustomerRequest,
@@ -44,7 +45,6 @@ use crate::services::bdp_weblink_catalog::{
     BDP_PATH_PROFILES_MODIFY_ARTICLE_LIST, BDP_PATH_REGULARIZATIONS, BDP_PATH_TRANSFERS,
     BDP_PATH_UPDATE_MASSIVE_INVENTORY, BDP_PATH_UPDATE_MASSIVE_STOCK, BDP_PATH_UPDATE_STOCK,
 };
-use crate::services::bdp_weblink_catalog::parse_articles_value;
 
 const BDP_SESSION_MINUTES: u8 = 59;
 

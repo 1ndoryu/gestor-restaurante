@@ -9,9 +9,7 @@ use axum::Json;
 use glory_backend::config::AppConfig;
 use glory_backend::handlers::actualizar_configuracion;
 use glory_backend::middleware::AuthUser;
-use glory_backend::models::{
-    ActualizarConfiguracionRequest, NotificacionEvent, UserRole,
-};
+use glory_backend::models::{ActualizarConfiguracionRequest, NotificacionEvent, UserRole};
 use glory_backend::repositories::ConfiguracionRepository;
 use glory_backend::services::ServicioModoOperacion;
 use glory_backend::AppState;
@@ -77,7 +75,10 @@ async fn standalone_con_sync_activo_se_normaliza_a_false(pool: PgPool) {
         .expect("el PATCH no falla")
         .0;
     assert_eq!(config.modo_operacion, "standalone");
-    assert!(!config.bdp_sync_enabled, "standalone no puede quedar con sync activo");
+    assert!(
+        !config.bdp_sync_enabled,
+        "standalone no puede quedar con sync activo"
+    );
 
     /* Persistido en BD, no solo en la respuesta. */
     let (modo, sync): (String, bool) = sqlx::query_as(

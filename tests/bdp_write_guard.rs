@@ -344,13 +344,12 @@ async fn auditoria_directa_registra_error_sin_romper(pool: PgPool) {
     .await
     .expect("auditoría de error exitosa");
 
-    let (resultado, error_mensaje): (String, Option<String>) = sqlx::query_as(
-        "SELECT resultado, error_mensaje FROM bdp_audit_log WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .expect("fila de auditoría");
+    let (resultado, error_mensaje): (String, Option<String>) =
+        sqlx::query_as("SELECT resultado, error_mensaje FROM bdp_audit_log WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fila de auditoría");
 
     assert_eq!(resultado, "error");
     assert!(error_mensaje.unwrap().contains("500"));

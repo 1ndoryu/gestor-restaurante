@@ -130,7 +130,10 @@ async fn conteo_persiste_aplica_y_encola(pool: PgPool) {
     let result = crear_conteo_inventario(State(state), auth, Json(req)).await;
     let body = result.expect("conteo debe guardarse sin error").0;
     assert!(!body.reutilizado);
-    assert_eq!(body.aplicadas, 2, "ambas líneas con diferencia se aplican al stock");
+    assert_eq!(
+        body.aplicadas, 2,
+        "ambas líneas con diferencia se aplican al stock"
+    );
     assert_eq!(body.encolados, 1, "solo ART-1 tiene código BDP");
     assert_eq!(body.omitidos_sin_bdp, 1);
     assert_eq!(body.lineas.len(), 2);
@@ -146,8 +149,14 @@ async fn conteo_persiste_aplica_y_encola(pool: PgPool) {
     .await
     .expect("leer stock local");
     assert_eq!(stock.len(), 2);
-    assert!(stock.contains(&("ART-1".to_string(), Decimal::from_str("7").unwrap())), "stock: {stock:?}");
-    assert!(stock.contains(&("ART-2".to_string(), Decimal::from_str("5").unwrap())), "stock: {stock:?}");
+    assert!(
+        stock.contains(&("ART-1".to_string(), Decimal::from_str("7").unwrap())),
+        "stock: {stock:?}"
+    );
+    assert!(
+        stock.contains(&("ART-2".to_string(), Decimal::from_str("5").unwrap())),
+        "stock: {stock:?}"
+    );
 
     /* Auditoría con motivo 'conteo' (origen local). */
     let audit: i64 = sqlx::query_scalar(
@@ -200,10 +209,11 @@ async fn conteo_misma_clave_no_aplica_dos_veces(pool: PgPool) {
         impersonator: None,
         trabajador_id: None,
     };
-    let first = crear_conteo_inventario(State(state.clone()), auth_admin(user_id), Json(req.clone()))
-        .await
-        .expect("primer guardado")
-        .0;
+    let first =
+        crear_conteo_inventario(State(state.clone()), auth_admin(user_id), Json(req.clone()))
+            .await
+            .expect("primer guardado")
+            .0;
     assert_eq!(first.aplicadas, 1);
 
     let second = crear_conteo_inventario(State(state), auth2, Json(req))
@@ -220,14 +230,17 @@ async fn conteo_misma_clave_no_aplica_dos_veces(pool: PgPool) {
     .fetch_one(&pool)
     .await
     .expect("leer stock");
-    assert_eq!(stock, Decimal::from_str("4").unwrap(), "el stock se aplica una sola vez");
-    let conteos: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM bdp_conteos_inventario WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .expect("contar conteos");
+    assert_eq!(
+        stock,
+        Decimal::from_str("4").unwrap(),
+        "el stock se aplica una sola vez"
+    );
+    let conteos: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM bdp_conteos_inventario WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("contar conteos");
     assert_eq!(conteos, 1);
 }
 
@@ -257,13 +270,12 @@ async fn conteo_stock_negativo_rechaza_y_revierte(pool: PgPool) {
     }
 
     /* Rollback atómico: ni el conteo ni las líneas ni la auditoría quedan. */
-    let conteos: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM bdp_conteos_inventario WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .expect("contar conteos");
+    let conteos: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM bdp_conteos_inventario WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("contar conteos");
     assert_eq!(conteos, 0, "el conteo se revierte completo");
     let stock: Decimal = sqlx::query_scalar(
         "SELECT stock FROM bdp_article_stock WHERE user_id = $1 AND articulo_glory_codigo = 'ART-1'",
@@ -272,7 +284,11 @@ async fn conteo_stock_negativo_rechaza_y_revierte(pool: PgPool) {
     .fetch_one(&pool)
     .await
     .expect("leer stock");
-    assert_eq!(stock, Decimal::from_str("10").unwrap(), "el stock no se toca");
+    assert_eq!(
+        stock,
+        Decimal::from_str("10").unwrap(),
+        "el stock no se toca"
+    );
 }
 
 #[sqlx::test(migrations = "./migrations")]

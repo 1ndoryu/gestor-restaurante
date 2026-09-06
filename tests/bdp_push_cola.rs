@@ -157,8 +157,12 @@ async fn reintentar_requiere_admin(pool: PgPool) {
     let user_id = crear_usuario_y_config(&pool).await;
     let fila_id = insertar_fila(&pool, user_id, "pendiente").await;
     let state = make_app_state(pool);
-    let err = reintentar_fila(State(state), auth(user_id, UserRole::Trabajador), Path(fila_id))
-        .await
-        .expect_err("trabajador no reintenta");
+    let err = reintentar_fila(
+        State(state),
+        auth(user_id, UserRole::Trabajador),
+        Path(fila_id),
+    )
+    .await
+    .expect_err("trabajador no reintenta");
     assert!(matches!(err, AppError::Forbidden(_)), "error: {err:?}");
 }

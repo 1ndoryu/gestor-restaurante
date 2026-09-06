@@ -22,16 +22,13 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::models::UserRole;
-use crate::services::{BdpPushFlushResumen, BdpPushFlushService, BdpPushFila, BdpPushService};
+use crate::services::{BdpPushFila, BdpPushFlushResumen, BdpPushFlushService, BdpPushService};
 use crate::AppState;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/bdp/push/flush", axum::routing::post(flush_manual))
-        .route(
-            "/bdp/push/pendientes",
-            get(listar_pendientes),
-        )
+        .route("/bdp/push/pendientes", get(listar_pendientes))
         .route(
             "/bdp/push/:id/reintentar",
             axum::routing::post(reintentar_fila),

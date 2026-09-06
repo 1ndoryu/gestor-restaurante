@@ -9,7 +9,7 @@ use glory_backend::services::bdp_push::{
     payload_propina, payload_puntos, payload_regularizacion, BdpPushService, DOMINIO_ARTICULO,
     DOMINIO_DEPARTAMENTO, DOMINIO_VENTA, ESTADO_ERROR, ESTADO_PENDIENTE,
     ESTADO_PENDIENTE_SUSCRIPCION, ESTADO_RECHAZADO, ESTADO_SINCRONIZADO, OPERACION_CANCELAR,
-    OPERACION_CREAR, REINTENTOS_MAX,
+    OPERACION_CREAR, OPERACION_MODIFICAR, REINTENTOS_MAX,
 };
 use glory_backend::services::bdp_weblink_catalog::BdpStockInfoEntry;
 use glory_backend::services::{BdpBackupService, BdpPushFlushService, ConfiguracionService};
@@ -320,6 +320,242 @@ async fn flush_en_modo_bdp_envia_y_marca_sincronizada(pool: PgPool) {
     assert_eq!(body["ArticleData"]["ArtDescription"], "Plato");
 }
 
+/* [049A-1/Q2.2] ModifyArticle debe enriquecer el ArticleData parcial que ya
+ * estaba en la cola. El contrato del BDP exige el objeto completo: GetArticle
+ * aporta los campos no editados y el patch local solo sobrescribe los suyos.
+ * La prueba comprueba además que el payload auditado y el enviado coinciden
+ * indirectamente mediante el éxito del mismo flush y el body HTTP observado. */
+#[sqlx::test(migrations = "./migrations")]
+async fn flush_modificar_articulo_enriquece_payload_con_get_article(pool: PgPool) {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/Auth/Login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ErrorMessage": "",
+            "AuthSession": { "Token": "token-bdp", "ExpiresIn_InSecconds": 3540 }
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/API/Articles/Get"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ErrorMessage": "",
+            "ArticleData": {
+                "ArtCode": 90000123,
+                "ArtDescription": "Original BDP",
+                "DeptCode": 7,
+                "Price5": 42.5,
+                "WebArticle": true
+            }
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/API/Articles/ModifyAndUpdateProfiles"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ErrorMessage": ""
+        })))
+        .mount(&server)
+        .await;
+
+    let user = Uuid::new_v4();
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user)
+        .bind(format!("test-{user}@example.com"))
+        .bind("argon2_hash_placeholder")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let config = ConfiguracionService::actualizar(
+        &pool,
+        user,
+        &ActualizarConfiguracionRequest {
+            modo_operacion: Some("bdp".to_string()),
+            bdp_base_url: Some(server.uri()),
+            bdp_sync_enabled: Some(true),
+            bdp_auto_backup_before_write: Some(true),
+            bdp_login: Some("usuario".to_string()),
+            bdp_password: Some("secreto".to_string()),
+            bdp_integrator_code: Some("INTEGRADOR".to_string()),
+            bdp_pos_id: Some(1),
+            bdp_employee_id: Some(1),
+            bdp_items_profile_id: Some(1),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("config modo bdp");
+
+    let target = BdpBackupService::canonical_target(&config).unwrap();
+    let fingerprint = BdpBackupService::connection_fingerprint(&config).unwrap();
+    sqlx::query(
+        "INSERT INTO bdp_snapshots \
+         (user_id, tipo, direccion, trigger_tipo, datos, target_base_url, connection_fingerprint) \
+         VALUES ($1, 'completo', 'bdp', 'manual', '{}'::jsonb, $2, $3)",
+    )
+    .bind(user)
+    .bind(&target)
+    .bind(&fingerprint)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let payload = serde_json::json!({
+        "ArticleData": {
+            "ArtCode": 90000123,
+            "ArtDescription": "Editado localmente"
+        },
+        "AllProfiles": false,
+        "ProfilesList": [{ "Profile": 1 }]
+    });
+    BdpPushService::encolar(
+        &pool,
+        user,
+        DOMINIO_ARTICULO,
+        "90000123",
+        OPERACION_MODIFICAR,
+        &payload,
+    )
+    .await
+    .unwrap();
+
+    let resumen = BdpPushFlushService::flush(&pool, user, true)
+        .await
+        .expect("flush de modificación no debe fallar");
+    assert_eq!(resumen.sincronizados, 1);
+    assert_eq!(resumen.errores, 0);
+
+    let requests = server.received_requests().await.unwrap();
+    let get = requests
+        .iter()
+        .find(|r| r.url.path() == "/API/Articles/Get")
+        .expect("debe consultar GetArticle antes de modificar");
+    let get_body: serde_json::Value = get.body_json().expect("body GetArticle válido");
+    assert_eq!(get_body["ArtCode"], 90000123);
+
+    let modify = requests
+        .iter()
+        .find(|r| r.url.path() == "/API/Articles/ModifyAndUpdateProfiles")
+        .expect("debe enviar ModifyAndUpdateProfiles");
+    let modify_body: serde_json::Value = modify.body_json().expect("body Modify válido");
+    assert_eq!(
+        modify_body["ArticleData"]["ArtDescription"],
+        "Editado localmente"
+    );
+    assert_eq!(modify_body["ArticleData"]["Price5"], 42.5);
+    assert_eq!(modify_body["ArticleData"]["DeptCode"], 7);
+    assert_eq!(modify_body["AllProfiles"], false);
+    assert_eq!(modify_body["ProfilesList"][0]["Profile"], 1);
+}
+
+/* [049A-1/Q2.2] Una lectura previa fallida no debe dejar un armado huérfano:
+ * `armar_push` ocurre antes de GetArticle, pero la compensación devuelve el
+ * modo a solo lectura y permite que la fila se reintente después. */
+#[sqlx::test(migrations = "./migrations")]
+async fn flush_modificar_articulo_fallo_get_cancela_armado(pool: PgPool) {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/Auth/Login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ErrorMessage": "",
+            "AuthSession": { "Token": "token-bdp", "ExpiresIn_InSecconds": 3540 }
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/API/Articles/Get"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ErrorMessage": "",
+            "ArticleData": null
+        })))
+        .mount(&server)
+        .await;
+
+    let user = Uuid::new_v4();
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user)
+        .bind(format!("test-{user}@example.com"))
+        .bind("argon2_hash_placeholder")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let config = ConfiguracionService::actualizar(
+        &pool,
+        user,
+        &ActualizarConfiguracionRequest {
+            modo_operacion: Some("bdp".to_string()),
+            bdp_base_url: Some(server.uri()),
+            bdp_sync_enabled: Some(true),
+            bdp_auto_backup_before_write: Some(true),
+            bdp_login: Some("usuario".to_string()),
+            bdp_password: Some("secreto".to_string()),
+            bdp_integrator_code: Some("INTEGRADOR".to_string()),
+            bdp_pos_id: Some(1),
+            bdp_employee_id: Some(1),
+            bdp_items_profile_id: Some(1),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("config modo bdp");
+
+    let target = BdpBackupService::canonical_target(&config).unwrap();
+    let fingerprint = BdpBackupService::connection_fingerprint(&config).unwrap();
+    sqlx::query(
+        "INSERT INTO bdp_snapshots \
+         (user_id, tipo, direccion, trigger_tipo, datos, target_base_url, connection_fingerprint) \
+         VALUES ($1, 'completo', 'bdp', 'manual', '{}'::jsonb, $2, $3)",
+    )
+    .bind(user)
+    .bind(&target)
+    .bind(&fingerprint)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    BdpPushService::encolar(
+        &pool,
+        user,
+        DOMINIO_ARTICULO,
+        "90000123",
+        OPERACION_MODIFICAR,
+        &serde_json::json!({
+            "ArticleData": {
+                "ArtCode": 90000123,
+                "ArtDescription": "Editado localmente"
+            }
+        }),
+    )
+    .await
+    .unwrap();
+
+    let resumen = BdpPushFlushService::flush(&pool, user, true)
+        .await
+        .expect("el fallo de GetArticle debe clasificarse en el flush");
+    assert_eq!(resumen.procesados, 1);
+    assert_eq!(resumen.sincronizados, 0);
+    assert_eq!(resumen.errores, 1);
+
+    let armados: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM bdp_write_arming WHERE user_id = $1")
+            .bind(user)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(armados, 0, "no debe quedar un armado huérfano");
+
+    let modo: String = sqlx::query_scalar(
+        "SELECT bdp_sync_mode FROM configuracion_restaurante WHERE user_id = $1",
+    )
+    .bind(user)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(modo, "read_only");
+}
+
 /* ===== [198A-1/F1] Payloads encolados (unit, sin DB) ===== */
 
 fn config_con_push() -> ConfiguracionRestaurante {
@@ -539,15 +775,14 @@ async fn flush_suscripcion_inactiva_marca_pendiente_sin_reintentos(pool: PgPool)
 
     /* Registro local honesto: estado `pendiente_suscripcion`, cero reintentos
      * consumidos (D2) y error visible para el usuario. */
-    let (estado, reintentos, ultimo_error): (String, i32, Option<String>) =
-        sqlx::query_as(
-            "SELECT estado, reintentos, ultimo_error FROM bdp_push_pendientes \
+    let (estado, reintentos, ultimo_error): (String, i32, Option<String>) = sqlx::query_as(
+        "SELECT estado, reintentos, ultimo_error FROM bdp_push_pendientes \
              WHERE user_id = $1 AND dominio = 'venta' AND entidad_id = '5330'",
-        )
-        .bind(user)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    )
+    .bind(user)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
     assert_eq!(estado, ESTADO_PENDIENTE_SUSCRIPCION);
     assert_eq!(reintentos, 0);
     assert!(ultimo_error.unwrap_or_default().contains("no activada"));
@@ -729,9 +964,7 @@ async fn flush_timeout_mid_write_estado_ambiguo_y_reintento_acotado(pool: PgPool
             .unwrap();
     assert_eq!(reintentos_max, REINTENTOS_MAX);
 
-    let resumen_final = BdpPushFlushService::flush(&pool, user, true)
-        .await
-        .unwrap();
+    let resumen_final = BdpPushFlushService::flush(&pool, user, true).await.unwrap();
     assert_eq!(resumen_final.procesados, 0);
     assert_eq!(resumen_final.errores, 1);
     /* Sin nuevos envíos: el límite detiene el reintento (nunca bucle infinito). */
@@ -949,21 +1182,17 @@ async fn cola_reintento_manual_uno_error_visible_sin_auto_flush(pool: PgPool) {
      * el reintento tras corregir el dato. El 422 se consume UNA sola vez. */
     Mock::given(method("POST"))
         .and(path("/API/Articles/CreateAndUpdateProfiles"))
-        .respond_with(
-            ResponseTemplate::new(422).set_body_json(serde_json::json!({
-                "ErrorMessage": "El código de artículo ya existe"
-            })),
-        )
+        .respond_with(ResponseTemplate::new(422).set_body_json(serde_json::json!({
+            "ErrorMessage": "El código de artículo ya existe"
+        })))
         .up_to_n_times(1)
         .mount(&server)
         .await;
     Mock::given(method("POST"))
         .and(path("/API/Articles/CreateAndUpdateProfiles"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "ErrorMessage": ""
-            })),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ErrorMessage": ""
+        })))
         .mount(&server)
         .await;
 
@@ -1054,7 +1283,10 @@ async fn cola_reintento_manual_uno_error_visible_sin_auto_flush(pool: PgPool) {
         .flatten()
         .filter(|req| req.url.path() == "/API/Articles/CreateAndUpdateProfiles")
         .count();
-    assert_eq!(envios_auto, 0, "el flush automático no envía en modo manual");
+    assert_eq!(
+        envios_auto, 0,
+        "el flush automático no envía en modo manual"
+    );
 
     /* 2) Reintento manual individual contra un BDP que rechaza (422):
      *    error visible y definitivo. Estado `rechazado`, cero reintentos
@@ -1080,10 +1312,7 @@ async fn cola_reintento_manual_uno_error_visible_sin_auto_flush(pool: PgPool) {
     assert_eq!(estado, ESTADO_RECHAZADO);
     assert_eq!(reintentos, 0);
     assert!(
-        ultimo_error
-            .as_deref()
-            .unwrap_or("")
-            .contains("422"),
+        ultimo_error.as_deref().unwrap_or("").contains("422"),
         "Error visible con el status esperado: {ultimo_error:?}"
     );
     /* Auditoría: rechazo definitivo → `error`, nunca `ambiguo`. */

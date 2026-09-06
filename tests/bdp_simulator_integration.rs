@@ -1,3 +1,5 @@
+#![recursion_limit = "512"]
+
 /* [267A-2] Tests de integración Rust contra el simulador BDP WebLink.
  *
  * Estos tests levantan el simulador Python UNA VEZ como subprocesso y comparten
@@ -21,10 +23,10 @@ use glory_backend::services::bdp_weblink_catalog::{
     BdpAddOrderPaymentRequest, BdpAddOrderTipRequest, BdpAddPointsRequest, BdpCallWaiterRequest,
     BdpCancelOrderRequest, BdpCreateArticlesRequest, BdpCreateCustomerRequest,
     BdpCreateDepartmentRequest, BdpCreateOrderRequest, BdpExportArticlesRequest,
-    BdpExportCustomersRequest, BdpExportDepartmentsRequest, BdpGetOrderRequest, BdpGetPointsRequest,
-    BdpGetStockRequest, BdpInvoiceOrderRequest, BdpMassiveStockRequest, BdpModifyArticleRequest,
-    BdpModifyPricesRequest, BdpOrderIdentifier, BdpOrderPayment, BdpStockInfoEntry,
-    BdpUpdateStockRequest,
+    BdpExportCustomersRequest, BdpExportDepartmentsRequest, BdpGetArticleRequest,
+    BdpGetOrderRequest, BdpGetPointsRequest, BdpGetStockRequest, BdpInvoiceOrderRequest,
+    BdpMassiveStockRequest, BdpModifyArticleRequest, BdpModifyPricesRequest, BdpOrderIdentifier,
+    BdpOrderPayment, BdpStockInfoEntry, BdpUpdateStockRequest,
 };
 
 use chrono::{NaiveTime, Utc};
@@ -245,6 +247,166 @@ fn simulator_config() -> glory_backend::models::ConfiguracionRestaurante {
         created_at: Utc::now(),
         updated_at: Utc::now(),
     }
+}
+
+/* El contrato de ModifyArticleAndUpdateProfile exige el ArticleListDataType
+ * completo. Este helper pertenece únicamente a las pruebas del simulador:
+ * no debe convertirse en una fuente de valores por defecto para producción,
+ * porque esos valores deben conservarse mediante GetArticle. */
+fn full_modify_article_data(
+    code: i64,
+    description: &str,
+    dept_code: i64,
+    price: f64,
+) -> serde_json::Value {
+    json!({
+        "DeptCode": dept_code,
+        "DeptDescription": "Test S2",
+        "MenuDish": false,
+        "WebArticle": true,
+        "POS_SupplementsProfileID": 0,
+        "SelfOrdering_CommentsProfileID": 0,
+        "SelfOrdering_SupplementsProfileID": 0,
+        "POS_MenuID": 0,
+        "POS_FastfoodID": 0,
+        "POS_PackID": 0,
+        "Is_Inventoriable": true,
+        "BuyTAVCode": 0,
+        "BuyTAVPer": 0,
+        "TAVCode": 1,
+        "TAVPer": 10,
+        "AuxPrinters": "",
+        "Commissionable": false,
+        "ModifiablePrice": false,
+        "DontPrintTicketValue0": false,
+        "Weight": false,
+        "DontNotifyUnitsPrice0": false,
+        "NotifyModifyPriceUnits": false,
+        "TwoForOne": false,
+        "POS_CommentsProfileID": 0,
+        "ErrorMessage": "",
+        "PriceConfirmation": false,
+        "FreeDescription": false,
+        "IsCombinable": false,
+        "CombinedDescription": "",
+        "CombBasePrice1": 0,
+        "CombBasePrice2": 0,
+        "CombBasePrice3": 0,
+        "CombBasePrice4": 0,
+        "CombBasePrice5": 0,
+        "CombAuxPrice1": 0,
+        "CombAuxPrice2": 0,
+        "CombAuxPrice3": 0,
+        "CombAuxPrice4": 0,
+        "CombAuxPrice5": 0,
+        "ActivateAlwaysCombined": false,
+        "MandatoryCombined": false,
+        "CombinedAssocType": 0,
+        "CombinedDepartmentAssoc": 0,
+        "CombinedDepartmentAssocDescription": "",
+        "CombinedMaxiscreenAssoc": 0,
+        "CombinedMaxiscreenAssocDescription": "",
+        "ApplyDiscountsInComb": false,
+        "ArtDescription": description,
+        "Price1": price,
+        "Price2": 0,
+        "Price3": 0,
+        "Price4": 0,
+        "Price5": 0,
+        "Dct1": 0,
+        "Dct2": 0,
+        "Dct3": 0,
+        "Dct4": 0,
+        "Dct5": 0,
+        "GraphDescrip1": "",
+        "GraphDescrip2": "",
+        "GraphDescrip3": "",
+        "ExtendedArtDescription": "",
+        "Proportion1Description": "",
+        "Proportion2Active": false,
+        "Proportion3Active": false,
+        "Proportion4Active": false,
+        "Proportion5Active": false,
+        "Proportion6Active": false,
+        "Proportion7Active": false,
+        "Proportion8Active": false,
+        "Proportion9Active": false,
+        "Proportion2Amount": 0,
+        "Proportion3Amount": 0,
+        "Proportion4Amount": 0,
+        "Proportion5Amount": 0,
+        "Proportion6Amount": 0,
+        "Proportion7Amount": 0,
+        "Proportion8Amount": 0,
+        "Proportion9Amount": 0,
+        "Proportion2Description": "",
+        "Proportion3Description": "",
+        "Proportion4Description": "",
+        "Proportion5Description": "",
+        "Proportion6Description": "",
+        "Proportion7Description": "",
+        "Proportion8Description": "",
+        "Proportion9Description": "",
+        "Proportion2Price1": 0,
+        "Proportion3Price1": 0,
+        "Proportion4Price1": 0,
+        "Proportion5Price1": 0,
+        "Proportion6Price1": 0,
+        "Proportion7Price1": 0,
+        "Proportion8Price1": 0,
+        "Proportion9Price1": 0,
+        "Proportion2Price2": 0,
+        "Proportion3Price2": 0,
+        "Proportion4Price2": 0,
+        "Proportion5Price2": 0,
+        "Proportion6Price2": 0,
+        "Proportion7Price2": 0,
+        "Proportion8Price2": 0,
+        "Proportion9Price2": 0,
+        "Proportion2Price3": 0,
+        "Proportion3Price3": 0,
+        "Proportion4Price3": 0,
+        "Proportion5Price3": 0,
+        "Proportion6Price3": 0,
+        "Proportion7Price3": 0,
+        "Proportion8Price3": 0,
+        "Proportion9Price3": 0,
+        "Proportion2Price4": 0,
+        "Proportion3Price4": 0,
+        "Proportion4Price4": 0,
+        "Proportion5Price4": 0,
+        "Proportion6Price4": 0,
+        "Proportion7Price4": 0,
+        "Proportion8Price4": 0,
+        "Proportion9Price4": 0,
+        "Proportion2Price5": 0,
+        "Proportion3Price5": 0,
+        "Proportion4Price5": 0,
+        "Proportion5Price5": 0,
+        "Proportion6Price5": 0,
+        "Proportion7Price5": 0,
+        "Proportion8Price5": 0,
+        "Proportion9Price5": 0,
+        "Proportion2PluDiscount": 0,
+        "Proportion2PluDiscountDescription": "",
+        "Proportion3PluDiscount": 0,
+        "Proportion3PluDiscountDescription": "",
+        "Proportion4PluDiscount": 0,
+        "Proportion4PluDiscountDescription": "",
+        "Proportion5PluDiscount": 0,
+        "Proportion5PluDiscountDescription": "",
+        "Proportion6PluDiscount": 0,
+        "Proportion6PluDiscountDescription": "",
+        "Proportion7PluDiscount": 0,
+        "Proportion7PluDiscountDescription": "",
+        "Proportion8PluDiscount": 0,
+        "Proportion8PluDiscountDescription": "",
+        "Proportion9PluDiscount": 0,
+        "Proportion9PluDiscountDescription": "",
+        "ApplyDiscountsInProp": false,
+        "NotAllowedAsInvitation": false,
+        "ArtCode": code
+    })
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1295,7 +1457,12 @@ async fn simulator_create_article_happy_path() {
 }
 
 /* Q2.2 — ModifyArticleAndUpdateProfile + ModifyPricesArticles: modificar
- * descripción y precios de un artículo recién creado. */
+ * descripción y precios de un artículo recién creado.
+ *
+ * IMPORTANTE (contrato 2026-09-06): ModifyArticleAndUpdateProfile exige el
+ * ArticleData COMPLETO (~100 campos del ArticleListDataType, no solo los que
+ * se modifican). Este test replica el patrón seguro: GetArticle → merge →
+ * Modify. */
 #[tokio::test]
 #[ignore = "requiere el simulador BDP local en 127.0.0.1"]
 async fn simulator_modify_article_and_prices_happy_path() {
@@ -1303,36 +1470,36 @@ async fn simulator_modify_article_and_prices_happy_path() {
     let config = simulator_config();
     let client = BdpWeblinkClient::new(&config);
 
+    /* 1) Crear artículo con payload completo (mínimo viable + defaults). */
     client
         .create_articles_and_update_profiles(&BdpCreateArticlesRequest {
             automatic_code: false,
-            article_data: json!({
-                "ArtCode": 910002,
-                "ArtDescription": "Articulo S2 Q2.2",
-                "DeptCode": 2,
-                "Price1": 4.00,
-            }),
+            article_data: full_modify_article_data(910002, "Articulo S2 Q2.2", 2, 5.25),
             profiles_list: None,
             all_profiles: Some(true),
         })
         .await
         .expect("create article should succeed");
 
-    /* Modificar descripción */
+    /* 2) Leer el artículo completo desde GetArticle y modificar descripción. */
+    let get_resp = client
+        .get_article(&BdpGetArticleRequest { art_code: 910002 })
+        .await
+        .expect("get article debe funcionar tras create");
+    let mut article_data = get_resp["ArticleData"].clone();
+    article_data["ArtDescription"] = json!("Modificado S2 via GetArticle+merge");
+
     let mod_resp = client
         .modify_article_and_update_profile(&BdpModifyArticleRequest {
-            article_data: json!({
-                "ArtCode": 910002,
-                "ArtDescription": "Modificado S2",
-            }),
-            profiles_list: None,
-            all_profiles: Some(true),
+            article_data,
+            profiles_list: Some(json!([{ "Profile": 1, "ProfileName": "PERFIL 1" }])),
+            all_profiles: Some(false),
         })
         .await
-        .expect("modify article should succeed");
+        .expect("modify article debe funcionar con ArticleData completo");
     assert_eq!(mod_resp["ErrorMessage"].as_str().unwrap_or(""), "");
 
-    /* Modificar precios */
+    /* 3) Modificar precios y verificar. */
     let prices_resp = client
         .modify_prices_articles(&BdpModifyPricesRequest {
             articles_data_list: json!([{"Article": 910002, "Price1": 5.25}]),
@@ -1341,7 +1508,7 @@ async fn simulator_modify_article_and_prices_happy_path() {
         .expect("modify prices should succeed");
     assert_eq!(prices_resp["ErrorMessage"].as_str().unwrap_or(""), "");
 
-    /* Verificar descripción actualizada en el simulador */
+    /* 4) Verificar descripción actualizada en el simulador. */
     let exported = client
         .export_articles(&BdpExportArticlesRequest::all_web_articles(1))
         .await
@@ -1354,7 +1521,7 @@ async fn simulator_modify_article_and_prices_happy_path() {
         .expect("Artículo 910002 debe existir");
     assert_eq!(
         item["ArtDescription"].as_str().unwrap_or(""),
-        "Modificado S2",
+        "Modificado S2 via GetArticle+merge",
         "La descripción debe reflejar la modificación"
     );
 }
@@ -1808,8 +1975,7 @@ async fn simulator_duplicate_department_rechazado_honesto() {
     /* Segundo envío idéntico: rechazo honesto vía Remote, sin duplicado */
     match client.create_department(&request).await {
         Err(BdpWeblinkError::Remote(msg)) => assert_eq!(
-            msg,
-            "departamento duplicado",
+            msg, "departamento duplicado",
             "El duplicado debe rechazarse honestamente, no crear doble entidad"
         ),
         other => panic!("Esperaba Remote (duplicado rechazado), obtuvo: {other:?}"),
@@ -1940,23 +2106,14 @@ async fn simulator_neutralize_web_article_via_modify() {
     let config = simulator_config();
     let client = BdpWeblinkClient::new(&config);
 
-    /* 1) Alta del artículo como WebArticle:true — réplica del payload real
-     *    de la fila f67fdb0b (ArtCode 90000003 en producción). */
+    /* 1) Alta del artículo como WebArticle:true (valor por defecto del
+     *    helper), réplica del incidente real 90000003. */
     client
         .create_articles_and_update_profiles(&BdpCreateArticlesRequest {
             automatic_code: false,
-            article_data: json!({
-                "ArtCode": 910003,
-                "ArtDescription": "PRUEBA W1 2026-09-05",
-                "DeptCode": 1,
-                "TavCode": 1,
-                "TavPer": "10.00",
-                "Price1": "1.0000",
-                "IsInventoriable": true,
-                "WebArticle": true,
-            }),
-            profiles_list: None,
-            all_profiles: Some(true),
+            article_data: full_modify_article_data(910003, "PRUEBA W1 2026-09-05", 1, 1.00),
+            profiles_list: Some(json!([{ "Profile": 1, "ProfileName": "PERFIL 1" }])),
+            all_profiles: Some(false),
         })
         .await
         .expect("create article should succeed");
@@ -1977,28 +2134,24 @@ async fn simulator_neutralize_web_article_via_modify() {
         "910003 debe estar como WebArticle:true tras el alta"
     );
 
-    /* 2) Neutralización: ModifyArticleAndUpdateProfile con WebArticle:false.
-     *    Payload equivalente al que se insertará en la cola de remediación
-     *    (payload_json artesanal con el resto de campos de la ficha).
+    /* 2) Neutralización vía GetArticle → merge → Modify: se lee el artículo
+     *    completo desde el simulador, se modifica solo WebArticle:false y se
+     *    envía el ArticleData completo.
      *
-     *    [Incidente 200109] Se usa ProfilesList explícita (Profile 1) +
-     *    AllProfiles:false: es el patrón canónico que documenta el manual
-     *    (# WEBLINK RESTAPI.md, sección ModifyArticleAndUpdateProfile). El
-     *    BDP real devuelve NullReferenceException con AllProfiles:true en
-     *    Modify (2 intentos, determinista) aunque Create con AllProfiles:true
-     *    funciona; el simulador acepta ambas variantes. */
+     *    [Incidente 200109] ProfilesList explícita + AllProfiles:false es el
+     *    patrón canónico del manual (# WEBLINK RESTAPI.md ModifyArticleAnd-
+     *    UpdateProfile). AllProfiles:true en Modify causa NullReferenceExcep-
+     *    tion en el BDP real. */
+    let get_resp = client
+        .get_article(&BdpGetArticleRequest { art_code: 910003 })
+        .await
+        .expect("get article debe funcionar tras create");
+    let mut article_data = get_resp["ArticleData"].clone();
+    article_data["WebArticle"] = json!(false);
+
     let mod_resp = client
         .modify_article_and_update_profile(&BdpModifyArticleRequest {
-            article_data: json!({
-                "ArtCode": 910003,
-                "ArtDescription": "PRUEBA W1 2026-09-05",
-                "DeptCode": 1,
-                "TavCode": 1,
-                "TavPer": "10.00",
-                "Price1": "1.0000",
-                "IsInventoriable": true,
-                "WebArticle": false,
-            }),
+            article_data,
             profiles_list: Some(json!([{ "Profile": 1, "ProfileName": "PERFIL 1" }])),
             all_profiles: Some(false),
         })

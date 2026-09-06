@@ -75,9 +75,9 @@ fn make_auth(user_id: Uuid) -> AuthUser {
 fn assert_modo_independiente<T>(result: &Result<T, AppError>) {
     match result {
         Err(AppError::Validation(msg)) if msg.contains("modo independiente") => {}
-        Err(other) => panic!(
-            "se esperaba bloqueo por modo independiente (422), se obtuvo {other:?}"
-        ),
+        Err(other) => {
+            panic!("se esperaba bloqueo por modo independiente (422), se obtuvo {other:?}")
+        }
         Ok(_) => panic!("se esperaba bloqueo por modo independiente, se obtuvo Ok"),
     }
 }

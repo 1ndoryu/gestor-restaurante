@@ -649,7 +649,10 @@ impl BdpArticleMapRepository {
         user_id: Uuid,
         conteo_id: Uuid,
     ) -> Result<
-        Option<(crate::models::BdpConteoInventario, Vec<crate::models::BdpConteoInventarioLinea>)>,
+        Option<(
+            crate::models::BdpConteoInventario,
+            Vec<crate::models::BdpConteoInventarioLinea>,
+        )>,
         sqlx::Error,
     > {
         let conteo = sqlx::query_as::<_, crate::models::BdpConteoInventario>(
