@@ -180,6 +180,7 @@
   --plano-sombra-arrastre: 0 4px 16px rgba(0, 0, 0, 0.2);
   --plano-sombra-flote-ocupacion: 0 2px 8px rgba(0, 0, 0, 0.15);
   --plano-sombra-tooltip: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --plano-sombra-seleccion: 0 0 0 2px var(--primary);
   --ancho: 0%;
   --tr: none;
   --trs: none;
