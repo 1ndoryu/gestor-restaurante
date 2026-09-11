@@ -163,6 +163,23 @@
   --sombra: none;
   --cursor: grab;
   --cursorResize: ew-resize;
+  /* [039A-1] Tokens del plano de sala/ocupación (valores exactos del diseño;
+   * radiografía VarSense F3: sin literales en PlanoSala/PlanoOcupacion.css). */
+  --plano-fuente-vacio: 0.95rem;
+  --plano-fuente-numero: 0.9rem;
+  --plano-fuente-numero-ocupacion: 0.85rem;
+  --plano-fuente-mesa: 0.75rem;
+  --plano-fuente-personas: 0.7rem;
+  --plano-fuente-detalle: 0.65rem;
+  --plano-radio-cuadrada: 6px;
+  --plano-radio-rectangular: 3px;
+  --plano-radio-handle: 2px;
+  --plano-radio-circulo: 999px;
+  --plano-radio-chico: 4px;
+  --plano-sombra-flote: 0 2px 8px rgba(0, 0, 0, 0.12);
+  --plano-sombra-arrastre: 0 4px 16px rgba(0, 0, 0, 0.2);
+  --plano-sombra-flote-ocupacion: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --plano-sombra-tooltip: 0 4px 12px rgba(0, 0, 0, 0.15);
   --ancho: 0%;
   --tr: none;
   --trs: none;

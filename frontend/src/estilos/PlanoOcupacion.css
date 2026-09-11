@@ -52,7 +52,7 @@
 }
 
 .mesaOcupacion.cuadrada {
-  border-radius: 6px;
+  border-radius: var(--plano-radio-cuadrada);
 }
 
 .mesaOcupacion.redonda {
@@ -61,7 +61,7 @@
 
 /* [303A-10] Rectangular: misma diferenciación que en PlanoSala */
 .mesaOcupacion.rectangular {
-  border-radius: 3px;
+  border-radius: var(--plano-radio-rectangular);
 }
 
 /* Estados de mesa */
@@ -88,14 +88,14 @@
 
 .mesaOcupacion.hover {
   transform: scale(1.05);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--plano-sombra-flote-ocupacion);
   z-index: 10;
 }
 
 /* [014A-8] overflow:visible para que el número no se corte en mesas pequeñas
  * o cercanas al borde del viewport. white-space:nowrap evita wrap interno. */
 .mesaOcupacionNumero {
-  font-size: 0.85rem;
+  font-size: var(--plano-fuente-numero-ocupacion);
   font-weight: 700;
   color: var(--foreground);
   overflow: visible;
@@ -118,13 +118,13 @@
   border-radius: var(--radius);
   padding: 0.5rem;
   min-width: 180px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--plano-sombra-tooltip);
   z-index: 200;
   pointer-events: none;
 }
 
 .mesaOcupacionReserva {
-  font-size: 0.75rem;
+  font-size: var(--plano-fuente-mesa);
   color: var(--popover-foreground);
   padding: 0.15rem 0;
   border-bottom: 1px solid var(--border);
@@ -137,7 +137,7 @@
 .mesaOcupacionPersonas {
   color: var(--muted-foreground);
   margin-left: 0.35rem;
-  font-size: 0.7rem;
+  font-size: var(--plano-fuente-personas);
 }
 
 /* Responsive */

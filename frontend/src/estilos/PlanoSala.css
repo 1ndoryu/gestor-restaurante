@@ -55,7 +55,7 @@
   align-items: center;
   justify-content: center;
   color: var(--muted-foreground);
-  font-size: 0.95rem;
+  font-size: var(--plano-fuente-vacio);
   padding: 3rem;
 }
 
@@ -78,7 +78,7 @@
   width: 32px;
   height: 2px;
   background: var(--muted-foreground);
-  border-radius: 2px;
+  border-radius: var(--plano-radio-handle);
   opacity: 0.5;
 }
 
@@ -105,7 +105,7 @@
   cursor: grab;
   user-select: none;
   transition: box-shadow 0.15s, border-color 0.15s;
-  font-size: 0.75rem;
+  font-size: var(--plano-fuente-mesa);
   z-index: 1;
   left: var(--x);
   top: var(--y);
@@ -116,13 +116,13 @@
 
 .planoMesa:hover {
   border-color: var(--primary);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--plano-sombra-flote);
   z-index: 10;
 }
 
 .planoMesa.arrastrando {
   opacity: 0.7;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--plano-sombra-arrastre);
   z-index: 100;
   cursor: grabbing;
 }
@@ -142,7 +142,7 @@
   min-width: 12px;
   min-height: 12px;
   padding: 0;
-  border-radius: 999px;
+  border-radius: var(--plano-radio-circulo);
   background: var(--primary);
   border: 2px solid var(--background);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 55%, black);
@@ -185,7 +185,7 @@
 /* [303A-10] Rectangular: forma más ancha que alta, border-radius mínimo
  * para diferenciarse visualmente de cuadrada. */
 .planoMesa.rectangular {
-  border-radius: 3px;
+  border-radius: var(--plano-radio-rectangular);
 }
 
 .planoMesa.inactiva {
@@ -195,13 +195,13 @@
 
 .planoMesaNumero {
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: var(--plano-fuente-numero);
   color: var(--foreground);
 }
 
 .planoMesaCapacidad {
   color: var(--muted-foreground);
-  font-size: 0.65rem;
+  font-size: var(--plano-fuente-detalle);
 }
 
 /* === Responsive === */
@@ -212,7 +212,7 @@
   bottom: 8px;
   right: 8px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--plano-radio-chico);
   background: var(--card);
   opacity: 0.85;
   cursor: pointer;
@@ -232,9 +232,9 @@
   justify-content: center;
   background: var(--primary);
   color: var(--primary-foreground);
-  font-size: 0.65rem;
+  font-size: var(--plano-fuente-detalle);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--plano-radio-chico);
   opacity: 0.8;
   z-index: 50;
   cursor: pointer;
