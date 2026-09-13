@@ -4,7 +4,7 @@
 Rendimiento crítico: debe manejar ~43k clientes con índices adecuados.
 [094A-5] Convertido a queries dinámicas para soportar nueva columna ultima_visita. */
 
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::models::Cliente;
@@ -433,6 +433,24 @@ impl ClienteRepository {
         .bind(synced)
         .bind(error)
         .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /* [267A-7] Variante transaccional del confirmado post-create_customer.
+     * SQL idéntico al que usaba el handler dentro de su tx ([AUDIT-N1]):
+     * BDP ya confirmó el código, así que se asigna directo (sin COALESCE). */
+    pub async fn update_bdp_sync_confirmado_tx(
+        tx: &mut Transaction<'_, Postgres>,
+        cliente_id: Uuid,
+        bdp_code: i32,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE clientes SET bdp_customer_code = $2, bdp_synced = true, bdp_synced_at = NOW(), bdp_sync_error = NULL WHERE id = $1",
+        )
+        .bind(cliente_id)
+        .bind(bdp_code)
+        .execute(&mut **tx)
         .await?;
         Ok(())
     }

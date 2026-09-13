@@ -1,10 +1,13 @@
+pub mod admin;
 pub mod api_key;
 pub mod bdp_article_map;
+pub mod bdp_audit_log;
 pub mod bdp_catalogo_clasificacion;
 pub mod bdp_menu_local;
 pub mod bdp_pago;
 pub mod bdp_punto_cliente;
 pub mod bdp_purchase_note;
+pub mod bdp_write_arming;
 pub mod campana;
 pub mod canal_reserva;
 pub mod cliente;
@@ -20,7 +23,10 @@ mod user;
 pub mod venta;
 pub mod venta_linea;
 
+pub use admin::AdminRepository;
 pub use api_key::ApiKeyRepository;
+pub use bdp_audit_log::BdpAuditLogRepository;
+pub use bdp_write_arming::{BdpWriteArmingRepository, NuevoArmado};
 pub use campana::CampanaRepository;
 pub use canal_reserva::CanalReservaRepository;
 pub use cliente::ClienteRepository;

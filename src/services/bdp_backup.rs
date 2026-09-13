@@ -473,22 +473,30 @@ impl BdpBackupService {
         }
         Ok(())
     }
+}
 
+/// [267A-9] Parámetros de `auditar_escritura_directa` agrupados en struct
+/// (patrón `Ctx*` de F1): la función recibía 8 argumentos y clippy
+/// (`too_many_arguments`, 7 máx) no cerraba desde HEAD. Mismos campos,
+/// mismo SQL y mismos mensajes; solo cambia la forma de pasarlos.
+pub struct AuditoriaDirecta<'a> {
+    pub pool: &'a PgPool,
+    pub user_id: Uuid,
+    pub operacion: &'a str,
+    pub target_entity_type: &'a str,
+    pub target_entity_id: Uuid,
+    pub datos_enviados: &'a serde_json::Value,
+    pub resultado: &'a str,
+    pub error_mensaje: Option<&'a str>,
+}
+
+impl BdpBackupService {
     /// Registra una operación de escritura BDP directa (sin cadena de
     /// arming/authorize) en `bdp_audit_log`, con su resultado final.
     /// [049A-1/H-W-1] Se usa para `call_waiter`: notificación sin estado ni
     /// riesgo de duplicación, que por diseño no consume armado ni snapshot,
     /// pero exige trazabilidad en el ledger como el resto de escrituras.
-    pub async fn auditar_escritura_directa(
-        pool: &PgPool,
-        user_id: Uuid,
-        operacion: &str,
-        target_entity_type: &str,
-        target_entity_id: Uuid,
-        datos_enviados: &serde_json::Value,
-        resultado: &str,
-        error_mensaje: Option<&str>,
-    ) -> Result<(), String> {
+    pub async fn auditar_escritura_directa(params: AuditoriaDirecta<'_>) -> Result<(), String> {
         sqlx::query(
             r"INSERT INTO bdp_audit_log
                (user_id, operacion, direccion, datos_enviados, resultado,
@@ -497,14 +505,14 @@ impl BdpBackupService {
                VALUES ($1, $2, 'glory_to_bdp', $3, $4, $5, $6, $7,
                        'directa sin arming: operacion sin estado ni riesgo de duplicacion')",
         )
-        .bind(user_id)
-        .bind(operacion)
-        .bind(datos_enviados)
-        .bind(resultado)
-        .bind(target_entity_type)
-        .bind(target_entity_id)
-        .bind(error_mensaje)
-        .execute(pool)
+        .bind(params.user_id)
+        .bind(params.operacion)
+        .bind(params.datos_enviados)
+        .bind(params.resultado)
+        .bind(params.target_entity_type)
+        .bind(params.target_entity_id)
+        .bind(params.error_mensaje)
+        .execute(params.pool)
         .await
         .map_err(|e| format!("Error registrando auditoría BDP directa: {e}"))?;
         Ok(())

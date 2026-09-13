@@ -3,7 +3,7 @@
 //! Pruebas `SQLx` del armado BDP. Solo usa una base temporal local; no hace HTTP.
 
 use glory_backend::repositories::ConfiguracionRepository;
-use glory_backend::services::{BdpBackupService, BdpWriteGuard};
+use glory_backend::services::{AuditoriaDirecta, BdpBackupService, BdpWriteGuard};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -288,16 +288,16 @@ async fn auditoria_directa_call_waiter_registra_resultado(pool: PgPool) {
     let mesa_id = Uuid::new_v4();
     let datos = serde_json::json!({ "mesa": 5, "sala": "Principal" });
 
-    BdpBackupService::auditar_escritura_directa(
-        &pool,
+    BdpBackupService::auditar_escritura_directa(AuditoriaDirecta {
+        pool: &pool,
         user_id,
-        "call_waiter",
-        "mesa",
-        mesa_id,
-        &datos,
-        "exito",
-        None,
-    )
+        operacion: "call_waiter",
+        target_entity_type: "mesa",
+        target_entity_id: mesa_id,
+        datos_enviados: &datos,
+        resultado: "exito",
+        error_mensaje: None,
+    })
     .await
     .expect("auditoría directa exitosa");
 
@@ -331,16 +331,16 @@ async fn auditoria_directa_registra_error_sin_romper(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
     let mesa_id = Uuid::new_v4();
 
-    BdpBackupService::auditar_escritura_directa(
-        &pool,
+    BdpBackupService::auditar_escritura_directa(AuditoriaDirecta {
+        pool: &pool,
         user_id,
-        "call_waiter",
-        "mesa",
-        mesa_id,
-        &serde_json::json!({ "mesa": 3, "sala": "Terraza" }),
-        "error",
-        Some("BDP respondio HTTP 500: boom"),
-    )
+        operacion: "call_waiter",
+        target_entity_type: "mesa",
+        target_entity_id: mesa_id,
+        datos_enviados: &serde_json::json!({ "mesa": 3, "sala": "Terraza" }),
+        resultado: "error",
+        error_mensaje: Some("BDP respondio HTTP 500: boom"),
+    })
     .await
     .expect("auditoría de error exitosa");
 

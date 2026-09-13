@@ -7,7 +7,11 @@ mod bdp_explorer;
 pub(crate) mod bdp_order_poller;
 pub mod bdp_push;
 mod bdp_sync;
+mod bdp_sync_catalogo;
+mod bdp_sync_factura;
+mod bdp_sync_pago;
 mod bdp_sync_preflight;
+mod bdp_sync_venta;
 pub mod bdp_throttle;
 pub mod bdp_weblink;
 pub mod bdp_weblink_catalog;
@@ -37,7 +41,9 @@ mod venta;
 
 pub use api_key::ApiKeyService;
 pub use auth::AuthService;
-pub use bdp_backup::{BdpAuditEntry, BdpBackupService, BdpSnapshot, RestoreResult};
+pub use bdp_backup::{
+    AuditoriaDirecta, BdpAuditEntry, BdpBackupService, BdpSnapshot, RestoreResult,
+};
 pub use bdp_config_bootstrap::{
     BdpBootstrapOutcome, BdpBootstrapSettings, BdpConfigBootstrapService,
 };
@@ -50,7 +56,7 @@ pub use bdp_push::{
     BdpPushPendiente, BdpPushService,
 };
 pub use bdp_sync::BdpSyncService;
-pub use bdp_sync::SyncTablesResult;
+pub use bdp_sync_catalogo::SyncTablesResult;
 pub use bdp_sync_preflight::{BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncPreflightService};
 pub use bdp_throttle::{BdpThrottleManager, BDP_THROTTLE};
 pub use bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};

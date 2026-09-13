@@ -533,14 +533,16 @@ pub async fn llamar_camarero(
     {
         Ok(_) => {
             crate::services::BdpBackupService::auditar_escritura_directa(
-                &state.pool,
-                auth.user_id,
-                "call_waiter",
-                "mesa",
-                id,
-                &datos_enviados,
-                "exito",
-                None,
+                crate::services::AuditoriaDirecta {
+                    pool: &state.pool,
+                    user_id: auth.user_id,
+                    operacion: "call_waiter",
+                    target_entity_type: "mesa",
+                    target_entity_id: id,
+                    datos_enviados: &datos_enviados,
+                    resultado: "exito",
+                    error_mensaje: None,
+                },
             )
             .await
             .map_err(AppError::Internal)?;
@@ -550,14 +552,16 @@ pub async fn llamar_camarero(
         }
         Err(e) => {
             let _ = crate::services::BdpBackupService::auditar_escritura_directa(
-                &state.pool,
-                auth.user_id,
-                "call_waiter",
-                "mesa",
-                id,
-                &datos_enviados,
-                "error",
-                Some(&e.to_string()),
+                crate::services::AuditoriaDirecta {
+                    pool: &state.pool,
+                    user_id: auth.user_id,
+                    operacion: "call_waiter",
+                    target_entity_type: "mesa",
+                    target_entity_id: id,
+                    datos_enviados: &datos_enviados,
+                    resultado: "error",
+                    error_mensaje: Some(&e.to_string()),
+                },
             )
             .await;
             Err(AppError::Internal(format!("Error llamando camarero: {e}")))

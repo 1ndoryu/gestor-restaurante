@@ -140,6 +140,25 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Tareas pendientes
 
+### Bloque 099A-1 — Paquete restaurante 2026-09-09: hosting ES/UE + MFA + SaaS + seguridad (plan activo 2026-09-09)
+
+Origen: reunión del restaurante trasladada por Guillermo el 2026-09-09 (chat 04–09/09/2026 en
+`C:\Users\Owner\Downloads\Guillermo-conversacion-2026-09-09\chat.md:121-167`). Plan detallado:
+`Agente/planes/plan-saas-servidor-seguridad-2026-09-09.md`. Prioridad declarada por el cliente:
+**autenticación y servidor**. El SaaS queda **en espera** hasta confirmar si todos los clientes
+usarán BDP o habrá distintos softwares (pregunta abierta a Guillermo).
+Trabajo adicional al alcance original (la app nació single-tenant, sin MFA, en un solo stack).
+
+**Estado actual verificado (2026-09-09, solo lectura):** auth JWT+argon2 sin MFA
+(`src/services/auth.rs`, `src/handlers/auth.rs:49`, `src/handlers/trabajadores.rs:269`);
+sin entidad tenant/empresa (sin `tenant`/`empresa_id`/`organization` en `src/`);
+HTTPS ya en el borde (Traefik + Let's Encrypt con redirect http→https en
+`temp-compose-glory-rest.yml:44-53`); app y postgres ya en contenedores separados pero en el
+mismo host/red Docker. Deploy siempre vía coolify-manager-rs y solo con autorización explícita.
+**Dudas resueltas 2026-09-09:** MFA = OAuth Google delegado; hosting = mantener Coolify en
+servidor ES/UE; SaaS en espera; estructura en ambos niveles (ejecutiva + código).
+**Siguiente paso:** F1 (estructura + estimación); sin migrar ni desplegar nada hasta entonces.
+
 ### Bloque 039A-1 — Revisión integral BDP: independencia funcional + integración completa (3 rondas) (plan activo 2026-09-03)
 
 Plan activo: `Agente/planes/plan-revision-integral-bdp-2026-09-03.md`. Plan **centralizado** que
@@ -162,7 +181,7 @@ escenas (a)–(j) verificadas en BD real local, barrido S1.3 de toda la app, S1.
 BDP; nuevo hallazgo H-S1-01 (CSV/filtro stock usaban el snapshot) corregido en `BdpStock.tsx`.
 Checklist §8 S0/S1 marcado con evidencia; evidencia en `Agente/completados/tareas-2026-09-04.md`.
 **Prep F3 (2026-09-04) y ejecución (2026-09-06):** el paquete de lecturas Q1 está en
-`Agente/planes/plan-ejecucion-q1-lecturas-bdp-2026-09-04.md`. Las lecturas contra el BDP real
+`Agente/planes/completados/plan-ejecucion-q1-lecturas-bdp-2026-09-04.md`. Las lecturas contra el BDP real
 se validaron también desde la UI, sin escrituras: Plano de Sala, Stock, Compras, Historial y
 Sincronización; modo efectivo `BDP: lectura` confirmado. Evidencia detallada en
 `Agente/completados/tareas-2026-09-06.md`; la rama operativa confirmada es `main`.
@@ -518,6 +537,15 @@ Plan cerrado en
 | 1d  | **Comanda 5330 en BDP real** (creada en prueba 2.2, Status=0 abierta, sin ticket): avisar al cliente para que la **anule desde el TPV** si le afecta (instrucciones en plan, sección follow-up). | Cliente (TPV) | ~5 min |
 | 1e  | **Deploy a producción + correcciones de intuitividad** (dudas de Guillermo: demo, snapshots, botones pago/factura, conciliar, cancelar, mapeo, importar/enviar) — plan activo: `Agente/planes/plan-deploy-produccion-intuitividad-2026-08-08.md` (incluye borrador de respuesta al cliente). **Estado 2026-08-09: U1–U8 implementadas y validadas** (typecheck + build Vite OK; bloque 048A-12). Pendiente: gate `task:check`, commit/push, deploy vía coolify-manager-rs y verificación en producción. La activación de escrituras BDP queda sujeta a validación del cliente (paso 5 del plan). | Ninguno (la suscripción WebLink la activa el dueño/cliente en paralelo) | ~2-4h deploy + verificación (UI hecha) |
 | 1f  | **048A-22 — Reproducibilidad de Sentinel y del gate coordinado**: plan P0–P3 para identidad única, repin/repair transaccional, gate autónomo, worktrees listos, cleanup recuperable y rendimiento. Plan: `Agente/planes/plan-correccion-auditoria-sentinel-2026-08-08.md`. | Implementación pendiente por fases; gate base conserva deuda separada que no debe ocultarse | Plan listo |
+| 1g  | **049A-1/S2 Residuo: artículo web 90000003** — creado en W-Q2.1 como prueba `WebArticle:true`; es el primer y único artículo web del BDP real. `ExportArticles` falla con `[200109]` sin posibilidad de DeleteArticle (no existe en WebLink). `ModifyArticleAndUpdateProfile` del BDP real revienta con NRE (payload mínimo) y no neutraliza `WebArticle:false`. El fix local sync_catalog (fallback perfil H-Q1-03) ya está implementado y commiteado, pero **90000003 sigue en el BDP** como residuo. Pendiente de: (a) obtener el contrato ModifyArticle completo (~100 campos, ver `Agente/documentacion/bdp/contrato-modifyarticle-2026-09-07.md`) y enviar payload completo para neutralizar; o (b) solicitar al proveedor WebLink la eliminación del artículo en BDP. | BDP real: ModifyArticle no acepta payload parcial (NRE) | ~2-4h preparación payload completo + autorización escritura |
+| 1h  | **049A-1/S2 Escritura real Q2.2 — ModifyArticle contra BDP** (diferido). El read-modify-write está implementado y simulado (commit `47b95ed`), pero la escritura real de modificación de artículo (p.ej. sobre `90000003` con payload completo) requiere autorización explícita y confirmación del contrato completo con el BDP. Diferido hasta tener resuelto el residuo 1g. | Depende de 1g | ~2h escribir + verificar |
+| 10  | **099A-1 Hosting ES/UE** — migrar `glory-rest` desde EE.UU. a CPD en España (o UE) de empresa que no sea Amazon/Google/Azure. Incluye elegir destino, recrear servicio vía coolify-manager-rs, verificar health+TLS y DNS. | Destino sin elegir; deploy nuevo requiere autorización explícita | ~1-2d (según proveedor) |
+| 11  | **099A-1 MFA** — doble autenticación (prioritaria). Opciones: TOTP local o delegar en OAuth Google / Google Workspace. Sin MFA hoy (JWT+argon2 en `src/services/auth.rs`). | Decidir TOTP vs OAuth delegado | ~1-2d |
+| 12  | **099A-1 SaaS multiempresa** — una plataforma, datos separados por cliente (empresa/tenant, aislamiento, alta/suscripción, página inicio). EN ESPERA hasta confirmar si todo va con BDP o multi-software. | Pregunta abierta a Guillermo | ~1 semana tras confirmación |
+| 13  | **099A-1 Seguridad y capas** — solo puertos necesarios, cifrado entre máquinas (texto plano solo intra-máquina), separar capas app/modelos/BD y plan de escalado. | Diseño pendiente de dudas | ~2-3d |
+| 14  | **099A-1 Entornos + normativo** — entorno dev/pruebas separado de producción; figuras responsables seguridad/protección datos + documentación. | Alcance doc por confirmar | ~1-2d |
+| 15  | **099A-1 Estructura para el cliente** — entregar descripción de la estructura (nivel por confirmar: código vs arquitectura ejecutiva) + plan + estimación. | Duda abierta | ~2-4h |
+| 16  | **099A-1 Registro en España (aviso, sin acción)** — pedirán código fuente y más; Guillermo pregunta condiciones/pago por facilitarlo. Lejos aún, solo registrado. | — | — |
 | 1b  | **Lecturas reales BDP, sin escrituras** — conexión, acceso y formas de pago verificados. Catálogo y Compras ya muestran configuración guiada y persistente cuando BDP devuelve cero artículos o rechaza la plantilla. El Explorador queda fuera del criterio de entrega. No se efectuó ningún cambio en BDP. | Cliente: elegir la tarifa que devuelva artículos y aportar un código de plantilla de Compras existente | ~30 min |
 | 1b  | **Tests E2E servicio contra simulador con DB** (sync_venta, add_payment, invoice)                                                                                                                                                 | ✅ Hecho (267A-5) — 11 tests: 8 guard + 3 E2E contra simulador+PostgreSQL | ✅ Hecho          |
 | 2   | **Activar 6 feature flags** en producción                                                                                                                                                                                         | ✅ UI implementada — se puede activar desde Configuración BDP             | ~1h verificación  |
@@ -528,6 +556,9 @@ Plan cerrado en
 | 7   | **Feature flags doc**                                                                                                                                                                                                             | ✅ Hecho                                                                  | ✅ Hecho          |
 | 8   | **Badge "BDP: off" interactivo** — que permita activar BDP directamente si hay credenciales, o redirigir a Configuración                                                                                                          | ✅ Hecho (267A-6)                                                         | ✅ Hecho          |
 | 9   | **Planificar pruebas reales de lectura BDP** — verificar Stock, Explorador, Historial y Compras contra BDP conectado. Actualmente no hay procedimientos documentados para estas 4 páginas; solo existen para escritura (item #1). | ✅ Hecho (267A-6)                                                         | ✅ Hecho          |
+| 267A-7 | **F2 DIP handlers→repositories** (plan `PROYECTO TASKS/Agente/planes/plan-deuda-restante-039A-1-2026-09-11.md`): 8 sitios con SQL directo migrados — `admin.rs` (reset demo → `AdminRepository`), `bdp_customer_sync.rs` (tx post-create_customer → variantes `_tx` en `ClienteRepository`/`BdpAuditLogRepository`), `configuracion.rs` (arming snapshot/armar/desarmar → `BdpWriteArmingRepository`), `ventas.rs` (lookup InvoiceNumber idempotente → `BdpAuditLogRepository`). Sin cambio de comportamiento: SQL y mensajes idénticos. | Ninguno (código; sin BDP real) | Hecho código + gate local-light PASS 2026-09-12 (sentinel 0 errores, rust PASS fmt+check; docs FAIL solo por 2 planes ajenos sin checklist, no tocar). Pendiente `--full` y cierre |
+| 267A-8 | **F3 splits `funcion-larga-rs` >200** (mismo plan): `sincronizar_cliente_bdp` (264), `sync_venta` (291), `add_order_payment` (276), `invoice_order` (223) en `services/bdp_sync.rs` + `handlers/bdp_customer_sync.rs`. Las de 102–185 quedan exceptuadas con trigger 200. | Después de 267A-7 | Hecho código + gate local-light PASS (sentinel 0 errores, rust PASS; docs FAIL solo por 2 planes ajenos sin checklist). Pendiente `--full` y cierre |
+| 267A-9 | **F4 monolitos** (mismo plan + sub-plan `Agente/planes/plan-f4-split-bdp-sync-2026-09-12.md`): `services/bdp_sync.rs` 3606 → 1041 líneas (hub + `bdp_sync_venta.rs` + `bdp_sync_pago.rs` + `bdp_sync_factura.rs` + `bdp_sync_catalogo.rs`; `limite-lineas-nivel-3` resuelto). F4.4 medido 2026-09-12: sentinel PASS 0 errores (`build_order` 130 ef. warning EXC, `bdp_sync_venta` 1142 ef. warning nivel-1, 0 funciones >200 propias); rust infra transitoria (`check` directo PASS); docs FAIL 2 planes ajenos (no tocar). Pendiente: `services/bdp_weblink_catalog.rs` (1708 líneas, deuda aparte) + `--full` + cierre (sin commit/push). | Después de 267A-7/8 | En curso (tomada T-1789193131324; F4.1-F4.4 código hecho) |
 
 ---
 

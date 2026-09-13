@@ -1,5 +1,3 @@
-// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
-// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [263A-17] Handlers de configuración del restaurante.
  * GET /api/configuracion — obtener config actual (crea defaults si no existe).
  * PATCH /api/configuracion — actualizar campos parcialmente.
@@ -19,6 +17,7 @@ use crate::models::{
     ActualizarConfiguracionRequest, ActualizarIntegracionesRequest, ConfiguracionRestaurante,
     IntegracionMarketingPublica,
 };
+use crate::repositories::{BdpWriteArmingRepository, NuevoArmado};
 use crate::services::bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
 use crate::services::{
     BdpBackupService, BdpSyncDryRunResponse, BdpSyncPreflightService, ConfiguracionService,
@@ -240,9 +239,7 @@ pub async fn actualizar_configuracion(
             .begin()
             .await
             .map_err(|error| AppError::Internal(format!("No se pudo desarmar BDP: {error}")))?;
-        sqlx::query("DELETE FROM bdp_write_arming WHERE user_id = $1")
-            .bind(auth.user_id)
-            .execute(&mut *tx)
+        BdpWriteArmingRepository::desarmar_tx(&mut tx, auth.user_id)
             .await
             .map_err(|error| {
                 AppError::Internal(format!("No se pudo borrar armado BDP: {error}"))
@@ -398,28 +395,12 @@ pub async fn cambiar_bdp_sync_mode(
 
         let fingerprint =
             BdpBackupService::connection_fingerprint(&actual).map_err(AppError::Validation)?;
-        let snapshot_id: Option<Uuid> = sqlx::query_scalar(
-            r"SELECT id
-                FROM bdp_snapshots
-                WHERE user_id = $1
-                  AND tipo = 'completo'
-                  AND direccion = 'bdp'
-                  AND target_base_url = $2
-                  AND connection_fingerprint = $3
-                  AND (expires_at IS NULL OR expires_at > NOW())
-                  AND created_at >= NOW() - INTERVAL '24 hours'
-                  AND datos->'articulos' IS NOT NULL AND datos->'articulos' <> 'null'::jsonb
-                  AND datos->'clientes' IS NOT NULL AND datos->'clientes' <> 'null'::jsonb
-                  AND datos->'departamentos' IS NOT NULL AND datos->'departamentos' <> 'null'::jsonb
-                  AND datos->'salones' IS NOT NULL AND datos->'salones' <> 'null'::jsonb
-                  AND datos->'empleados' IS NOT NULL AND datos->'empleados' <> 'null'::jsonb
-                ORDER BY created_at DESC
-                LIMIT 1",
+        let snapshot_id: Option<Uuid> = BdpWriteArmingRepository::buscar_snapshot_vigente(
+            &state.pool,
+            auth.user_id,
+            &target,
+            &fingerprint,
         )
-        .bind(auth.user_id)
-        .bind(&target)
-        .bind(&fingerprint)
-        .fetch_optional(&state.pool)
         .await
         .map_err(|e| AppError::Internal(format!("Error verificando snapshot BDP: {e}")))?;
 
@@ -430,40 +411,25 @@ pub async fn cambiar_bdp_sync_mode(
             )
         })?;
 
-        sqlx::query(
-            r"INSERT INTO bdp_write_arming
-               (user_id, base_url, scopes, target_entity_type, target_entity_id,
-                reason, expires_at, remaining_operations, snapshot_id, connection_fingerprint)
-               VALUES ($1, $2, $3, $4, $5, $6, NOW() + ($7 * INTERVAL '1 minute'), $8, $9, $10)
-               ON CONFLICT (user_id) DO UPDATE SET
-                 base_url = EXCLUDED.base_url,
-                 scopes = EXCLUDED.scopes,
-                 target_entity_type = EXCLUDED.target_entity_type,
-                 target_entity_id = EXCLUDED.target_entity_id,
-                 reason = EXCLUDED.reason,
-                 expires_at = EXCLUDED.expires_at,
-                 remaining_operations = EXCLUDED.remaining_operations,
-                 snapshot_id = EXCLUDED.snapshot_id,
-                 connection_fingerprint = EXCLUDED.connection_fingerprint,
-                 created_at = NOW()",
+        BdpWriteArmingRepository::armar(
+            &state.pool,
+            NuevoArmado {
+                user_id: auth.user_id,
+                base_url: target,
+                scopes: req.alcances,
+                target_entity_type: target_type.to_string(),
+                target_entity_id: target_id,
+                reason: req.motivo.trim().to_string(),
+                duracion_minutos: req.duracion_minutos,
+                max_operaciones: req.max_operaciones,
+                snapshot_id,
+                connection_fingerprint: fingerprint,
+            },
         )
-        .bind(auth.user_id)
-        .bind(&target)
-        .bind(&req.alcances)
-        .bind(target_type)
-        .bind(target_id)
-        .bind(req.motivo.trim())
-        .bind(req.duracion_minutos)
-        .bind(req.max_operaciones)
-        .bind(snapshot_id)
-        .bind(&fingerprint)
-        .execute(&state.pool)
         .await
         .map_err(|error| AppError::Internal(format!("No se pudo crear armado BDP: {error}")))?;
     } else {
-        sqlx::query("DELETE FROM bdp_write_arming WHERE user_id = $1")
-            .bind(auth.user_id)
-            .execute(&state.pool)
+        BdpWriteArmingRepository::desarmar(&state.pool, auth.user_id)
             .await
             .map_err(|error| AppError::Internal(format!("No se pudo desarmar BDP: {error}")))?;
     }

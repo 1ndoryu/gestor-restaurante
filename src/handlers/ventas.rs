@@ -13,7 +13,7 @@ use crate::models::{
     ActualizarVentaRequest, AnularVentaRequest, CrearVentaRequest, Venta, VentaLinea,
     VentasPaginadas, VentasQuery,
 };
-use crate::repositories::VentaRepository;
+use crate::repositories::{BdpAuditLogRepository, VentaRepository};
 use crate::services::{
     payload_propina, verificar_permiso, AccionPermiso, BdpOrderPollerService, BdpPushService,
     BdpSyncService, ModoEfectivo, ServicioModoOperacion, VentaService,
@@ -534,23 +534,16 @@ pub async fn bdp_invoice(
                  * estado actual en lugar de 422. */
                 let resultado = e.splitn(3, ':').nth(2).unwrap_or("");
                 if resultado == "exito" {
-                    /* [C1-6] Recuperar el InvoiceNumber de la auditoría exitosa previa. */
-                    let invoice_number: Option<String> = sqlx::query_scalar(
-                        r"SELECT datos_respuesta ->> 'InvoiceNumber'
-                       FROM bdp_audit_log
-                       WHERE user_id = $1
-                         AND operacion = 'invoice'
-                         AND target_entity_type = 'venta'
-                         AND target_entity_id = $2
-                         AND resultado = 'exito'
-                       ORDER BY created_at DESC
-                       LIMIT 1",
-                    )
-                    .bind(auth.user_id)
-                    .bind(id)
-                    .fetch_optional(&state.pool)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                    /* [C1-6] Recuperar el InvoiceNumber de la auditoría exitosa previa.
+                     * [267A-7] Lectura en repositorio; el handler conserva el flujo. */
+                    let invoice_number: Option<String> =
+                        BdpAuditLogRepository::ultimo_invoice_number_exitoso(
+                            &state.pool,
+                            auth.user_id,
+                            id,
+                        )
+                        .await
+                        .map_err(|e| AppError::Internal(e.to_string()))?;
                     return Ok(Json(BdpInvoiceResponse {
                         venta_id: venta.id,
                         invoice_number: invoice_number.unwrap_or_default(),

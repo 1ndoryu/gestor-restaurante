@@ -1,5 +1,3 @@
-// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
-// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [Fase 7.1+7.2] Handlers para sync bidireccional de clientes Glory ↔ BDP.
  * POST /api/bdp/customers/import     — Importar clientes desde BDP a Glory (ExportCustomers)
  * POST /api/clientes/:id/bdp-sync    — Push de un cliente Glory a BDP (CreateCustomer)
@@ -24,8 +22,8 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
-use crate::models::CrearClienteRequest;
-use crate::repositories::ClienteRepository;
+use crate::models::{Cliente, ConfiguracionRestaurante, CrearClienteRequest};
+use crate::repositories::{BdpAuditLogRepository, ClienteRepository};
 use crate::services::{
     BdpCreateCustomerRequest, BdpExportCustomersRequest, BdpWeblinkClient, ClienteService,
     ConfiguracionService,
@@ -328,7 +326,6 @@ pub async fn importar_clientes_bdp(
 /* [187A-1] La secuencia de seguridad se mantiene lineal para que confirmación,
  * preflight, autorización, llamada única y cierre de auditoría sean auditables
  * en un solo flujo y no pueda omitirse accidentalmente una guarda. */
-#[allow(clippy::too_many_lines)]
 pub async fn sincronizar_cliente_bdp(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -341,6 +338,27 @@ pub async fn sincronizar_cliente_bdp(
         .map_err(|e| AppError::Internal(format!("Error buscando cliente: {e}")))?
         .ok_or_else(|| AppError::NotFound("Cliente no encontrado".into()))?;
 
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    let bdp_code = validar_puerta_sincronizacion(&cliente, &sync_req, &config)?;
+
+    let client = BdpWeblinkClient::new(&config);
+    if let Some(respuesta) = vincular_si_existe(&client, &state, &cliente, bdp_code).await? {
+        return Ok(respuesta);
+    }
+
+    let (req, audit_id) =
+        armar_create_customer(&state, auth.user_id, &config, &cliente, bdp_code).await?;
+
+    ejecutar_create_customer(&client, &state, &req, audit_id, &cliente, bdp_code).await
+}
+
+/* [267A-8] Puerta de sincronización: confirmación exacta + config + modo +
+ * backup + código explícito + no-sobrescritura. Devuelve el código validado. */
+fn validar_puerta_sincronizacion(
+    cliente: &Cliente,
+    sync_req: &BdpCustomerSyncRequest,
+    config: &ConfiguracionRestaurante,
+) -> Result<i32, AppError> {
     let expected_confirmation = format!(
         "CREAR CLIENTE {} {} {}",
         cliente.nombre, cliente.apellidos, sync_req.bdp_customer_code
@@ -350,7 +368,6 @@ pub async fn sincronizar_cliente_bdp(
             "Confirmación inválida. Escriba exactamente: {expected_confirmation}"
         )));
     }
-    let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
         return Err(AppError::Validation(
@@ -382,9 +399,18 @@ pub async fn sincronizar_cliente_bdp(
                 .into(),
         ));
     }
-    let bdp_code = sync_req.bdp_customer_code;
+    Ok(sync_req.bdp_customer_code)
+}
 
-    let client = BdpWeblinkClient::new(&config);
+/* [267A-8] Preflight de identidad/código contra BDP. Si el código ya existe y
+ * la identidad coincide, vincula localmente y devuelve la respuesta temprana;
+ * si pertenece a otro cliente, error de conflicto. `None` = vía libre. */
+async fn vincular_si_existe(
+    client: &BdpWeblinkClient<'_>,
+    state: &AppState,
+    cliente: &Cliente,
+    bdp_code: i32,
+) -> Result<Option<Json<serde_json::Value>>, AppError> {
     let _session = client
         .login()
         .await
@@ -423,18 +449,30 @@ pub async fn sincronizar_cliente_bdp(
             ClienteRepository::update_bdp_sync(&state.pool, cliente.id, Some(bdp_code), true, None)
                 .await
                 .map_err(|e| AppError::Internal(format!("Error vinculando cliente BDP: {e}")))?;
-            return Ok(Json(serde_json::json!({
+            return Ok(Some(Json(serde_json::json!({
                 "cliente_id": cliente.id,
                 "bdp_customer_code": bdp_code,
                 "bdp_synced": true,
                 "linked_existing": true
-            })));
+            }))));
         }
         return Err(AppError::Conflict(format!(
             "El código BDP {bdp_code} ya pertenece a otro cliente; no se escribió nada."
         )));
     }
+    Ok(None)
+}
 
+/* [267A-8] Construye el payload CreateCustomer [048A-8] y deja la escritura
+ * armada localmente (guard + snapshot pre-write + authorize). Devuelve el
+ * request y el audit_id autorizado. */
+async fn armar_create_customer(
+    state: &AppState,
+    user_id: Uuid,
+    config: &ConfiguracionRestaurante,
+    cliente: &Cliente,
+    bdp_code: i32,
+) -> Result<(BdpCreateCustomerRequest, Uuid), AppError> {
     /* Construir nombre completo: apellidos + nombre */
     let fiscal_name = if cliente.apellidos.is_empty() {
         cliente.nombre.clone()
@@ -476,7 +514,7 @@ pub async fn sincronizar_cliente_bdp(
     });
     crate::services::BdpWriteGuard::ensure_no_unresolved(
         &state.pool,
-        auth.user_id,
+        user_id,
         "cliente_id",
         cliente.id,
         &["create_customer"],
@@ -485,9 +523,9 @@ pub async fn sincronizar_cliente_bdp(
     .map_err(AppError::Validation)?;
     let snapshot_pre_id = crate::services::BdpBackupService::preparar_snapshot_escritura(
         &state.pool,
-        auth.user_id,
+        user_id,
         "create_customer",
-        &config,
+        config,
         None,
     )
     .await
@@ -499,8 +537,8 @@ pub async fn sincronizar_cliente_bdp(
 
     let audit_id = crate::services::BdpWriteGuard::authorize(
         &state.pool,
-        auth.user_id,
-        &config,
+        user_id,
+        config,
         "create_customer",
         "cliente",
         cliente.id,
@@ -511,8 +549,20 @@ pub async fn sincronizar_cliente_bdp(
     )
     .await
     .map_err(AppError::Validation)?;
+    Ok((req, audit_id))
+}
 
-    let resp = match client.create_customer(&req).await {
+/* [267A-8] Ejecuta CreateCustomer en BDP, gestiona error HTTP y ErrorMessage,
+ * y confirma marca local + auditoría en transacción atómica [AUDIT-N1]. */
+async fn ejecutar_create_customer(
+    client: &BdpWeblinkClient<'_>,
+    state: &AppState,
+    req: &BdpCreateCustomerRequest,
+    audit_id: Uuid,
+    cliente: &Cliente,
+    bdp_code: i32,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let resp = match client.create_customer(req).await {
         Ok(resp) => resp,
         Err(e) => {
             let msg = format!("Error creando cliente en BDP: {e}");
@@ -578,7 +628,8 @@ pub async fn sincronizar_cliente_bdp(
 
     /* [AUDIT-N1] Envolver marca local + auditoría en transacción atómica
      * para que, si el proceso muere después del HTTP, no quede
-     * bdp_synced=true sin auditoría cerrada (o viceversa). */
+     * bdp_synced=true sin auditoría cerrada (o viceversa).
+     * [267A-7] SQL en repositorios; el handler conserva mensajes y puerta. */
     let commit_result = async {
         let mut tx = state
             .pool
@@ -586,27 +637,17 @@ pub async fn sincronizar_cliente_bdp(
             .await
             .map_err(|e| format!("Error iniciando tx post-create_customer: {e}"))?;
 
-        sqlx::query(
-            "UPDATE clientes SET bdp_customer_code = $2, bdp_synced = true, bdp_synced_at = NOW(), bdp_sync_error = NULL WHERE id = $1",
-        )
-        .bind(cliente.id)
-        .bind(bdp_code)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| format!(
-            "BDP confirmó el cliente {bdp_code}, pero no se pudo persistir el vínculo local: {e}"
-        ))?;
+        ClienteRepository::update_bdp_sync_confirmado_tx(&mut tx, cliente.id, bdp_code)
+            .await
+            .map_err(|e| {
+                format!(
+                    "BDP confirmó el cliente {bdp_code}, pero no se pudo persistir el vínculo local: {e}"
+                )
+            })?;
 
-        sqlx::query(
-            r"UPDATE bdp_audit_log
-            SET resultado = 'exito', datos_respuesta = $2, error_mensaje = NULL, updated_at = NOW()
-            WHERE id = $1",
-        )
-        .bind(audit_id)
-        .bind(Some(&resp))
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| format!("Cliente confirmado, pero falló el cierre de auditoría: {e}"))?;
+        BdpAuditLogRepository::marcar_exito_tx(&mut tx, audit_id, Some(&resp))
+            .await
+            .map_err(|e| format!("Cliente confirmado, pero falló el cierre de auditoría: {e}"))?;
 
         tx.commit()
             .await
