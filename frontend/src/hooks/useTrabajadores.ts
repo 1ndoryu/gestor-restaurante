@@ -26,11 +26,13 @@ export function useTrabajadores() {
   const [modalCrear, setModalCrear] = useState(false);
   const [trabajadorEditar, setTrabajadorEditar] = useState<TrabajadorResponse | null>(null);
 
-  const { data, isLoading, refetch } = useListar({
+  /* [149A-3/F2] isError/error se exponen para que la página pueda decir
+   * "sin permiso" en vez de quedarse en "Cargando..." o pintar 0 trabajadores. */
+  const { data, isLoading, isError, error, refetch } = useListar({
     query: { queryKey: ['trabajadores'] },
   });
 
-  const { data: seccionesData } = useListarSecciones({
+  const { data: seccionesData, isError: seccionesError } = useListarSecciones({
     query: { queryKey: ['trabajadores-secciones'] },
   });
 
@@ -73,6 +75,9 @@ export function useTrabajadores() {
     trabajadores,
     secciones,
     isLoading,
+    isError,
+    error,
+    seccionesError,
     modalCrear,
     setModalCrear,
     trabajadorEditar,

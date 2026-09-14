@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Copy, Trash2, Plus, ExternalLink } from 'lucide-react';
+import { EstadoError } from '@/components/ui/estado-error';
 import {
   useListarApiKeys,
   useCrearApiKey,
@@ -20,7 +21,10 @@ import {
 } from '../api/generated';
 
 function ConfigChatbot() {
-  const { data, refetch } = useListarApiKeys();
+  /* [149A-3/F2] Toda la sección depende de listar las claves: si esa consulta
+   * falla (403), antes desaparecía en silencio y quedaba un formulario que
+   * siempre iba a fallar. Ahora se dice qué pasa y no se ofrece crear. */
+  const { data, refetch, isError, error } = useListarApiKeys();
   const keys = data?.status === 200 ? data.data : [];
   const crearMut = useCrearApiKey();
   const revocarMut = useRevocarApiKey();
@@ -59,6 +63,11 @@ function ConfigChatbot() {
     navigator.clipboard.writeText(text);
     toast.success('Copiado al portapapeles');
   };
+
+  /* Va antes del resto del render: sin permiso no hay claves ni acciones. */
+  if (isError) {
+    return <EstadoError error={error} queFallo="las claves API del chatbot" reintentar={refetch} />;
+  }
 
   return (
     <div className="flex flex-col gap-6">

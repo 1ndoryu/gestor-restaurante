@@ -40,11 +40,22 @@ import BdpCatalogo from './componentes/bdp/BdpCatalogo';
 import BdpInventario from './componentes/bdp/BdpInventario';
 import BdpSincronizacion from './componentes/bdp/BdpSincronizacion';
 
+/* [149A-3/F2] Un 4xx es una respuesta definitiva (permiso, validación, no
+ * existe): repetir la consulta no la va a cambiar y solo ensucia la red y el
+ * log (se veían 403 x4 por pantalla). Solo los fallos transitorios (red, 5xx)
+ * se reintentan una vez. */
+const esErrorTransitorio = (fallos: number, error: unknown): boolean => {
+  if (fallos >= 1) return false;
+  const status = (error as { response?: { status?: number } })?.response?.status;
+  if (status && status >= 400 && status < 500) return false;
+  return true;
+};
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,
-      retry: 1,
+      retry: esErrorTransitorio,
     },
   },
 });

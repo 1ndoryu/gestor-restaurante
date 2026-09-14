@@ -25,6 +25,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Trash2, Pencil, Shield } from 'lucide-react';
+import { EstadoError } from '@/components/ui/estado-error';
 import type { TrabajadorResponse } from '../api/generated/gestionRestauranteAPI.schemas';
 
 interface CamposForm {
@@ -45,11 +46,13 @@ const camposVacios: CamposForm = {
 
 function FormularioTrabajador({
   secciones,
+  seccionesError,
   trabajador,
   onSubmit,
   cargando,
 }: {
   secciones: string[];
+  seccionesError?: boolean;
   trabajador?: TrabajadorResponse | null;
   onSubmit: (campos: CamposForm) => void;
   cargando: boolean;
@@ -134,7 +137,11 @@ function FormularioTrabajador({
             </div>
           ))}
           {secciones.length === 0 && (
-            <p className="text-sm text-muted-foreground col-span-2">Cargando secciones...</p>
+            <p className="text-sm text-muted-foreground col-span-2">
+              {seccionesError
+                ? 'No se pudieron cargar las secciones: faltan permisos para listarlas.'
+                : 'Cargando secciones...'}
+            </p>
           )}
         </div>
       </div>
@@ -151,6 +158,9 @@ export default function ListaTrabajadores() {
     trabajadores,
     secciones,
     isLoading,
+    isError,
+    error,
+    seccionesError,
     modalCrear,
     setModalCrear,
     trabajadorEditar,
@@ -160,6 +170,7 @@ export default function ListaTrabajadores() {
     eliminarTrabajador,
     creando,
     actualizando,
+    refetch,
   } = useTrabajadores();
 
   const handleCrear = (campos: CamposForm) => {
@@ -183,6 +194,12 @@ export default function ListaTrabajadores() {
     });
   };
 
+  /* [149A-3/F2] Si la consulta falló no hay conteo ni vacío que mostrar: se
+   * declara "sin permiso" y se oculta el resto, sin botones que van a fallar. */
+  if (isError) {
+    return <EstadoError error={error} queFallo="la gestión de trabajadores" reintentar={refetch} />;
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -197,7 +214,12 @@ export default function ListaTrabajadores() {
           <DialogHeader>
             <DialogTitle>Nuevo Trabajador</DialogTitle>
           </DialogHeader>
-          <FormularioTrabajador secciones={secciones} onSubmit={handleCrear} cargando={creando} />
+          <FormularioTrabajador
+            secciones={secciones}
+            seccionesError={seccionesError}
+            onSubmit={handleCrear}
+            cargando={creando}
+          />
         </DialogContent>
       </Dialog>
 
@@ -209,6 +231,7 @@ export default function ListaTrabajadores() {
           {trabajadorEditar && (
             <FormularioTrabajador
               secciones={secciones}
+              seccionesError={seccionesError}
               trabajador={trabajadorEditar}
               onSubmit={handleActualizar}
               cargando={actualizando}

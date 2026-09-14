@@ -12,6 +12,7 @@ use utoipa::ToSchema;
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
+use crate::models::UserRole;
 use crate::repositories::AdminRepository;
 use crate::AppState;
 
@@ -46,8 +47,10 @@ fn verificar_demo_mode() -> Result<(), AppError> {
 )]
 pub async fn ejecutar_seed(
     State(_state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
 ) -> Result<Json<AdminResult>, AppError> {
+    /* [149A-3/H-06] Operación de administración: solo propietario (además de la puerta demo). */
+    auth.require_role(&[UserRole::Admin])?;
     verificar_demo_mode()?;
     let output = std::process::Command::new("/app/seed")
         .output()
@@ -79,6 +82,8 @@ pub async fn eliminar_datos(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<AdminResult>, AppError> {
+    /* [149A-3/H-06] `reset` borra los datos del restaurante: solo propietario. */
+    auth.require_role(&[UserRole::Admin])?;
     verificar_demo_mode()?;
     /* [267A-7] El orden FK vive en el repositorio; aquí solo puerta demo + delegación. */
     AdminRepository::eliminar_datos_usuario(&state.pool, auth.user_id)

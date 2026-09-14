@@ -10,7 +10,7 @@ use validator::Validate;
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
-use crate::models::{ApiKeyCreatedResponse, ApiKeyResponse, CrearApiKeyRequest};
+use crate::models::{ApiKeyCreatedResponse, ApiKeyResponse, CrearApiKeyRequest, UserRole};
 use crate::services::ApiKeyService;
 use crate::AppState;
 
@@ -31,6 +31,8 @@ pub async fn crear_api_key(
     auth: AuthUser,
     Json(req): Json<CrearApiKeyRequest>,
 ) -> Result<(StatusCode, Json<ApiKeyCreatedResponse>), AppError> {
+    /* [149A-3/H-06] Las API keys dan acceso máquina a máquina: solo el propietario. */
+    auth.require_role(&[UserRole::Admin])?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let resp = ApiKeyService::create(&state.pool, auth.user_id, req).await?;
@@ -51,6 +53,8 @@ pub async fn listar_api_keys(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<Vec<ApiKeyResponse>>, AppError> {
+    /* [149A-3/H-06] Solo el propietario puede listar credenciales de API. */
+    auth.require_role(&[UserRole::Admin])?;
     let keys = ApiKeyService::list(&state.pool, auth.user_id).await?;
     Ok(Json(keys))
 }
@@ -72,6 +76,8 @@ pub async fn revocar_api_key(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    /* [149A-3/H-06] Solo el propietario puede revocar credenciales de API. */
+    auth.require_role(&[UserRole::Admin])?;
     ApiKeyService::revoke(&state.pool, id, auth.user_id).await?;
     Ok(Json(
         serde_json::json!({ "ok": true, "message": "API key revocada" }),

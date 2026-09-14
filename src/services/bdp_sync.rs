@@ -96,7 +96,12 @@ pub(crate) struct ResolvedArticle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::CrearBdpArticleMapRequest;
+    /* [F4-split] El split del 12-09 movió Venta/VentaLinea, el repositorio de
+     * artículos y chrono::Utc a los submódulos, así que `use super::*` ya no
+     * los trae: se importan aquí para que los tests sigan compilando. */
+    use crate::models::{CrearBdpArticleMapRequest, Venta, VentaLinea};
+    use crate::repositories::BdpArticleMapRepository;
+    use chrono::Utc;
     use rust_decimal::Decimal;
     use std::str::FromStr;
 

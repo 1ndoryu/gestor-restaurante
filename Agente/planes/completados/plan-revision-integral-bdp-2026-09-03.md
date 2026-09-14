@@ -1,5 +1,17 @@
 # Plan — Revisión integral BDP: independencia funcional + integración completa (3 rondas)
 
+> **CERRADO POR REINICIO — 2026-09-14.** No se completó: se archiva porque los refactors y los
+> cambios de CSS posteriores (p. ej. `7a65d35` "token sombra-seleccion + 121 decisiones",
+> `e97da61` tokens `--plano-*`) invalidaron la evidencia visual y técnica ya recogida. Estado real
+> al cerrar: **104 ítems hechos / 38 pendientes** de 142 casillas. Su inventario (Parte 1 P0–P13,
+> Parte 2 Q0–Q5, Parte 3 S0–S3) se hereda **rehecho desde cero y con confirmación visual del
+> usuario ítem por ítem** en el nuevo plan `149A-1`:
+> `Agente/planes/plan-revision-integral-bdp-2026-09-14.md`. Los ítems que quedaban pendientes al
+> cerrar están listados allí como punto de partida, no como deuda oculta. La **única escritura real**
+> de la cadena (W-Q2.1, alta de `90000003`) se ejecutó bajo `049A-1` y dejó el incidente `200109` y
+> su residuo en el BDP real; el resto del bloque Q2 (Q2.5/Q2.6/Q2.11 incluidos, `⏸` por suscripción)
+> pasa a `149A-2`.
+
 > **Fecha:** 2026-09-03
 > **Rama operativa actual:** `main`
 > **ID de bloque:** `039A-1`

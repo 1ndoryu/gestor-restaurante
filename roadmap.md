@@ -159,129 +159,71 @@ mismo host/red Docker. Deploy siempre vía coolify-manager-rs y solo con autoriz
 servidor ES/UE; SaaS en espera; estructura en ambos niveles (ejecutiva + código).
 **Siguiente paso:** F1 (estructura + estimación); sin migrar ni desplegar nada hasta entonces.
 
-### Bloque 039A-1 — Revisión integral BDP: independencia funcional + integración completa (3 rondas) (plan activo 2026-09-03)
+### Bloque 149A-1 — Revisión integral BDP REINICIO: todo desde cero con confirmación visual ítem por ítem (plan activo 2026-09-14)
 
-Plan activo: `Agente/planes/plan-revision-integral-bdp-2026-09-03.md`. Plan **centralizado** que
-absorbe y reemplaza los 6 planes de la cadena 128A-1 → 208A-2 (independencia, escrituras,
-pruebas de interfaz, lecturas reales, auditoría 1×1 y correcciones H1–H8) — los 6 archivados en
-`Agente/planes/completados/`. Prueba **todo lo construido** en dos partes: **Parte 1 —
-funcionalidad independiente** (`standalone`: catálogo, stock, inventario, anulación, compras,
-pagos/factura local, menús/packs, historial, permisos; controles BDP ocultos/deshabilitados;
-**cero tráfico a BDP**) y **Parte 2 — integración completa** contra el **BDP real del
-restaurante** (las 24 funciones de lectura "en uso" + escrituras autorizadas una a la vez con
-arming + polling/estados + convivencia con datos locales). Incluye **3 rondas de revisión**
-(cobertura de fuentes → cobertura de código → cobertura de ejecución) para no dejar nada por
-fuera. Dependencia externa de la Parte 2: BDP online + credenciales + suscripción de pago del
-cliente.
+Plan activo: `Agente/planes/plan-revision-integral-bdp-2026-09-14.md`. Sustituye a `039A-1`
+(archivado como **cerrado por reinicio**: `Agente/planes/completados/plan-revision-integral-bdp-2026-09-03.md`).
+Motivo del reinicio: los refactors y los cambios de CSS posteriores invalidaron la evidencia previa,
+así que se repite todo desde cero, incluidas las pruebas reales.
+**Método nuevo:** el usuario confirma **visualmente ítem por ítem**; ningún ítem se marca sin
+`✅ confirmado por usuario <fecha> <hora>`, y lo que pida corregir se abre como `H-149A-1-<n>`, se
+corrige y se vuelve a mostrar. Partes: **Parte 1** independiente `standalone` (P0–P13 + P14 nuevo:
+tokens, responsive, foco, zoom, temas, estados vacío/carga/error), **Parte 2** lecturas reales
+(authorización previa obligatoria; Q0–Q5), **Parte 3** simulación del cliente (S0–S2). Las
+escrituras no viven aquí: están en 149A-2.
 
-**Progreso (2026-09-03/04):** F0 + Parte 1 (P0–P13) ejecutadas con evidencia; F2/Ronda 2 cerrada
-con los 4 hallazgos H-P1-01..04 corregidos (guard fail-closed + 8 tests de regresión); **S1
-(Parte 3) ejecutada 2026-09-04** — simulación del cliente 100 % independiente con la app completa,
-escenas (a)–(j) verificadas en BD real local, barrido S1.3 de toda la app, S1.5 cero tráfico a
-BDP; nuevo hallazgo H-S1-01 (CSV/filtro stock usaban el snapshot) corregido en `BdpStock.tsx`.
-Checklist §8 S0/S1 marcado con evidencia; evidencia en `Agente/completados/tareas-2026-09-04.md`.
-**Prep F3 (2026-09-04) y ejecución (2026-09-06):** el paquete de lecturas Q1 está en
-`Agente/planes/completados/plan-ejecucion-q1-lecturas-bdp-2026-09-04.md`. Las lecturas contra el BDP real
-se validaron también desde la UI, sin escrituras: Plano de Sala, Stock, Compras, Historial y
-Sincronización; modo efectivo `BDP: lectura` confirmado. Evidencia detallada en
-`Agente/completados/tareas-2026-09-06.md`; la rama operativa confirmada es `main`.
-**Siguiente paso:** bloque 2, escrituras Q2 una por una y con autorización explícita. Q2.2
-queda implementada localmente con read-modify-write, pero la escritura real de modificación sigue
-sin ejecutarse hasta recibir autorización explícita para esa operación. Pagos, factura y cancelación
-siguen `⏸` por la suscripción WebLink de pago.
+**Siguiente paso:** P0 (baseline del repositorio) con evidencia técnica + primera captura para tu OK.
 
-**Q2.2 cerrada en simulación (2026-09-06):** `BdpPushFlushService` obtiene `ArticleData` completo
-con `GetArticle`, fusiona de forma conservadora el patch parcial y reutiliza el payload final tanto
-en auditoría como en `ModifyArticleAndUpdateProfiles`. Si `GetArticle` falla antes de autorizar,
-se cancela el armado temporal y se restaura `read_only`, evitando bloquear reintentos. Evidencia:
-2 tests end-to-end WireMock PASS (éxito y compensación), 2 tests unitarios de merge PASS, suite del
-simulador 37/37 PASS, `cargo check` PASS y `fmt:check` PASS; cero escrituras al BDP real. `clippy`
-continúa bloqueado por el finding preexistente `src/services/bdp_backup.rs:482`
-(`auditar_escritura_directa`, `too_many_arguments`) y sus warnings asociados. El gate `049A-1`
-no llegó a ejecutar análisis: `quality:lock --check` detecta que el checkout externo de Sentinel
-está en `902c45e...` mientras el manifest fija `0559576...`, y `stages.mjs` rechaza su
-`provisionPath` externo; queda como bloqueo separado de reproducibilidad del gate.
+### Bloque 149A-2 — Escrituras BDP REINICIO: auditoría + simulaciones + reales autorizadas (plan activo 2026-09-14)
 
-### Bloque 049A-1 — Seguridad de escrituras BDP: auditoría anti-desastre + simulación antes de escribir (plan activo 2026-09-04)
+Plan activo: `Agente/planes/plan-seguridad-escrituras-bdp-2026-09-14.md`. Sustituye a `049A-1`
+(archivado como **cerrado por reinicio**: `Agente/planes/completados/plan-seguridad-escrituras-bdp-2026-09-04.md`).
+Repite desde cero Fase 1 (auditoría anti-desastre de las 13 operaciones Q2.1–Q2.13 × 13 dimensiones),
+Fase 2 (simulaciones: suites + simulador Python `:18765`; escenarios S1–S9 con confirmación visual
+de los estados de cola) y Fase 3 (escrituras reales una a una, **solo con autorización explícita por
+operación**; pago/factura/cancel `⏸` hasta activar la suscripción WebLink).
+**Historia que no se borra:** bajo 049A-1 sí se ejecutó **W-Q2.1 real** (alta de `90000003` →
+INCIDENTE `200109`) y su fix local `sync_catalog`; el residuo `90000003` sigue en el BDP real
+(pendiente 1g) y `ModifyArticleAndUpdateProfile` sigue sin funcionar contra el BDP real con payload
+mínimo.
+**Siguiente paso:** Fase 1 (no toca red ni BDP).
 
-Plan aislado: `Agente/planes/plan-seguridad-escrituras-bdp-2026-09-04.md`. Etapa S3 del padre
-039A-1 (bloque Q2, 13 escrituras) pero **seguridad primero**: Fase 1 auditoría profunda
-anti-desastre por operación (13 dimensiones: guards fail-closed, arming, payload, idempotencia,
-cola, fallo parcial, referencias, aislamiento, rollback, timeout/throttle, peor caso,
-suscripción, auditoría), Fase 2 **simulaciones antes de escribir** (simulador Python
-`tools/bdp-weblink-simulator/server.py` + suite wiremock Vía T + fail-closed; escenarios de
-suscripción inactiva, timeout a mitad de escritura, duplicados, payload inválido, inventario
-masivo borde, cola), Fase 3 escrituras reales **solo con autorización explícita por operación**
-y con la suscripción activa cuando aplique (pago/factura/cancel = `pendiente_suscripcion`
-externo documentado, sin reintentos). Regla dura: cero escrituras reales sin Fases 1–2 verdes de
-esa operación.
+### Bloque 149A-3 — Permisos por rol y errores silenciosos (subplan de 149A-1) (plan activo 2026-09-14)
 
-**Progreso (2026-09-05):** Rondas 1–2 y auditoría Fase 1 cerradas (H-W-1/H-W-3 corregidos con
-prueba, 169 verdes). **Fase 2: S1 PASS** — baseline completo: lib 163/0 (Vía T, wiremock
-contrato), fail-closed 8/0, push 13/0, guard 4/0; `bdp_readonly` 7 ignorados por diseño.
-**Fase 2: S2 PASS** — happy path Q2.1–Q2.13 contra el simulador Python (:18765): suite
-`bdp_simulator_integration` 32/0 con 8 tests nuevos de la matriz (artículo, modificar+precios,
-departamento, propina, puntos, stock+inventario masivo, call waiter, suscripción bloqueada con
-cero daño); pago/factura/cancel simulados como `pendiente_suscripcion` (bloqueo externo `⏸`).
-**Fase 2: S3 PASS** — suscripción inactiva por operación: simulador 32/0 (Q2.5/Q2.6/Q2.11 con
-fault por endpoint, cero daño) + push 14/0 con test end-to-end nuevo (encolar → flush →
-`pendiente_suscripcion`, reintentos=0, error honesto, segundo flush automático no toca la fila).
-**Fase 2: S4 PASS** — timeout a mitad de escritura: push 15/0 con test nuevo (escritura con
-delay 25 s > timeout 20 s → fila `error` transitorio reintentos=1 + auditoría `ambiguo` +
-una sola llamada HTTP + límite `REINTENTOS_MAX` sin bucle) y simulador 32/0 (timeout
-detectado → `Http` honesto; caída tras aceptar → reconciliación sin duplicado). **H-W-2
-cerrado como limitación documentada** (la cola no reconcilia automáticamente; la
-reconciliación real vive en el poller de `create_order`). **Fase 2: S5 PASS** — payload
-inválido: push 16/0 con test end-to-end nuevo (wiremock 422 → fila `rechazado` sin
-reintentos, auditoría `error` no `ambiguo`, flush automático no toca la fila, una sola
-llamada HTTP, re-edición refresca a `pendiente`) + simulador 33/0 (`http_status 422` →
-`Api 422` y cero filas fantasma) + lib 166/0. **Defecto real corregido H-S5-01**: 4xx es
-rechazo **definitivo** — nuevo estado `rechazado` (migración `20260905100000`; 5xx sigue
-transitorio; cuerpo redactado [287A-4]).
-**Fase 2: S6 PASS** — duplicado deliberado (artículo/departamento) → simulador **35/0**
-(una sola entidad en BDP simulado). **Fase 2: S7 PASS** — inventario masivo borde → test
-nuevo `simulator_massive_inventory_bordes_no_sobreescriben_stock`: inventario masivo es
-delta (no reemplazo); lista vacía = no-op, delta negativo legítimo aplicado, ítem
-inexistente no corrompe → simulador **36/0**. **Fase 2: S8 PASS** — cola/reintento manual
-→ test nuevo `cola_reintento_manual_uno_error_visible_sin_auto_flush`: mecanismo
-`reintentar_uno` de la UI Sincronización en modalidad `manual` (flush automático sin
-auto-flush, cero HTTP); 422 → fila `rechazado` visible (auditoría `error`, no `ambiguo`);
-re-edición M19 → `pendiente`; reintento 200 → `sincronizado` fuera de la cola, auditoría
-`exito`; una llamada HTTP por reintento → push **17/0**. H-W-2: el reintento tras
-`ambiguo` exige reconciliar la intención (runbook); el camino manual sin bloqueo es
-`rechazado` + re-edición.
-**Fase 2 CERRADA (S1–S8 PASS) + Ronda 3 anti-huecos hecha** (checklist §4 A-Q2.1–A-Q2.13
-marcado contra evidencia Fases 1–2). Cero escrituras reales.
-Siguiente: **preparar Fase 3** (escrituras reales W1–W13 contra el BDP, una a una con
-autorización explícita del usuario por operación; Q2.5/Q2.6/Q2.11 `⏸` por suscripción
-inactiva, roadmap 1c).
+Plan: `Agente/planes/plan-permisos-y-errores-silenciosos-2026-09-14.md`. Nace de un reporte del
+usuario en la revisión 149A-1: **el menú no filtra por rol** (el trabajador ve Configuración,
+Trabajadores y Sincronización), los **403 dejan la pantalla en "Cargando..." sin aviso** y se
+**reintentan 4–5 veces**, el backend solo protege `trabajadores.rs` con `require_owner`, y el gate
+**no tiene ninguna regla** que detecte ese fallo silencioso (`sentinel.config.json` sin reglas de
+error visible al usuario). Fases: F0 inventario rol × página × endpoint con **ambas cuentas**, F1
+decisión de modelo (**requiere al usuario**), F2 UI honesta ante 403/401 sin reintentos, F3 menú por
+rol, F4 guardas consistentes en backend, F5 propuesta de regla al gate (sin modificar el gate sin
+autorización), F6 verificación con ambas cuentas y confirmación visual por ítem.
 
-**Fase 3 (2026-09-05) — W-Q2.1 alta artículo real → INCIDENTE 200109 → fix local
-sync_catalog fallback (decisión del usuario):** la primera escritura real autorizada
-(W-Q2.1: alta de prueba `90000003` "PRUEBA W1 2026-09-05" con `WebArticle:true`) se aplicó
-en el BDP real (creates `f67fdb0b` y `64df3746/791502c5` `sincronizado`) y convirtió a
-`90000003` en el **primer y único artículo web** del BDP → `sync-catalog` empezó a fallar
-`[200109]-ALGUNO DE LOS ARTÍCULOS CONTIENE ERRORES DE VALIDACIÓN` (ExportArticles encuentra 1
-artículo web que no puede validar; HTTP 200 con ErrorMessage; antes devolvía vacío sin error).
-No hay DeleteArticle. La neutralización vía Modify (`WebArticle:false`, perfil + AllProfiles)
-**falló con NRE determinista del BDP real** en 4 intentos (2 remediación sobre `90000003` +
-1 variante ProfilesList + 1 control sobre `90000000` inexistente) → el endpoint
-`ModifyArticleAndUpdateProfile` del BDP real revienta con el payload mínimo de la app (~8
-campos; el manual exige ~100); `create` con el mismo payload sí funciona. **Nunca ha habido un
-`modify_article` exitoso contra el BDP real.** El BDP NO mutó con ninguna escritura de
-remediación (verificado: sync-catalog seguía 500/200109).
-**Decisión del usuario:** fix local `sync_catalog` fallback (ya que la neutralización quedó
-bloqueada por el BDP, es la única vía para restaurar sync-catalog). Implementado en
-`src/services/bdp_sync.rs`: el error de ExportArticles que contiene `[200109]` ya NO aborta —
-cae al fallback de perfil H-Q1-03 (GetPOSList, catálogo operativo de items); si además el
-perfil devuelve vacío, falla alto (fail-closed, no oculta el artículo web roto). Otros errores
-de ExportArticles (red/HTTP/parseo) siguen abortando. **Verificado funcional contra el BDP
-real (backend PID 35360):** `POST /api/bdp/article-maps/sync-catalog` → **200 OK**
-`{creados:1, sin_cambios:556, errores:0, total_bdp:557}` (fuente GetPOSList perfil, fallback
-H-Q1-03). `90000003` permanece en el BDP como está (web, sin más escrituras). W1–W13 siguen
-`⏸` a la espera de autorización por operación (una a una); esta incidencia recomienda revisar
-el contrato del Modify (payload completo ~100 campos) antes de reintentar escrituras de
-modificación. Evidencia: `Agente/completados/tareas-2026-09-05.md`.
+**Hecho:** F4 Tanda A (guardas `require_role` en los 9 endpoints críticos, probadas con las dos
+cuentas, cero daño) y **F2 (UI honesta)**: `EstadoError` compartido, `retry` que no repite 4xx y las
+3 pantallas que mentían (Trabajadores, Sincronización, Chatbot) ya dicen "no tienes permiso". También
+reparado el bloqueo preexistente de `cargo test --lib` (176 passed / 0 failed, imports del split).
+
+**Siguiente paso:** decisión de **F1** (modelo de permisos: ocultar / deshabilitar / visible con
+aviso, y si se usa `permisos_trabajador`), que es lo que habilita F3; luego F4 Tanda B, F0 (barrido
+del dueño) y F5.
+
+### Bloque 039A-1 — Revisión integral BDP: independencia funcional + integración completa (3 rondas) (CERRADO POR REINICIO 2026-09-14)
+
+Plan archivado: `Agente/planes/completados/plan-revision-integral-bdp-2026-09-03.md`. Cerrado con
+**104 ítems hechos / 38 pendientes**; su evidencia (Parte 1 P0–P13, S1 de la Parte 3, lecturas Q1
+reales) quedó obsoleta por los refactors y cambios de CSS y se rehace en 149A-1. Deuda que
+sobrevive: el residuo `90000003` en el BDP real (pendiente 1g) y el `ModifyArticleAndUpdateProfile`
+que revienta en el BDP real con payload mínimo.
+
+### Bloque 049A-1 — Seguridad de escrituras BDP: auditoría anti-desastre + simulación antes de escribir (CERRADO POR REINICIO 2026-09-14)
+
+Plan archivado: `Agente/planes/completados/plan-seguridad-escrituras-bdp-2026-09-04.md`. Cerrado con
+Fases 1–2 ejecutadas (S1–S8 PASS) y **una escritura real ejecutada** (W-Q2.1 → incidente `200109`,
+residuo `90000003` en el BDP real). Se repite desde cero, con confirmación visual, en 149A-2.
+
+
 
 ### Seguimiento 318A-3 — Evaluar reactivación de reglas de consistencia de formularios (2026-09-01)
 

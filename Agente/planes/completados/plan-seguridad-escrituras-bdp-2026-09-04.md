@@ -1,5 +1,14 @@
 # Plan 049A-1 — Seguridad de escrituras BDP: auditoría anti-desastre + simulación antes de escribir
 
+> **CERRADO POR REINICIO — 2026-09-14.** No se completó: se archiva tras los refactors y cambios de
+> CSS que invalidaron la evidencia previa, y porque el usuario decidió **repetir también la parte
+> de escrituras** desde cero. Estado real al cerrar: Fases 1–2 ejecutadas y cerradas (S1–S8 PASS,
+> 2026-09-05) y **una escritura real ejecutada**: W-Q2.1 (alta de `90000003`) → INCIDENTE `200109`
+> → fix local `sync_catalog` fallback; W2–W13 quedaron `⏸` y el residuo **`90000003` sigue en el
+> BDP real** (pendiente 1g del roadmap). Se hereda, rehecho desde cero y con confirmación visual del usuario en lo que se ve en
+> la UI, en el nuevo plan `149A-2`:
+> `Agente/planes/plan-seguridad-escrituras-bdp-2026-09-14.md`.
+
 > **Plan aislado** para la etapa S3 del plan padre
 > `Agente/planes/plan-revision-integral-bdp-2026-09-03.md` (039A-1, bloque Q2 §7 / fase F5).
 > **Preparado:** 2026-09-04 · **Rama operativa actual:** `main` · **Estado:** creación registrada en

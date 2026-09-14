@@ -10,7 +10,7 @@ use validator::Validate;
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
-use crate::models::ActualizarConfiguracionRequest;
+use crate::models::{ActualizarConfiguracionRequest, UserRole};
 use crate::services::{MODO_AUTO, MODO_BDP, MODO_STANDALONE};
 use crate::AppState;
 
@@ -74,6 +74,10 @@ pub async fn cambiar_modo_operacion(
     auth: AuthUser,
     Json(req): Json<CambiarModoOperacionRequest>,
 ) -> Result<Json<ModoOperacionResponse>, AppError> {
+    /* [149A-3/H-06] El switch maestro (`auto`/`bdp`/`standalone`) habilita o corta el uso del
+     * BDP (y con `bdp` habilita escrituras): solo el propietario puede cambiarlo. El GET
+     * (modo efectivo) sigue abierto: la UI lo necesita en todas las pantallas. */
+    auth.require_role(&[UserRole::Admin])?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     if !matches!(req.modo.as_str(), MODO_AUTO | MODO_STANDALONE | MODO_BDP) {

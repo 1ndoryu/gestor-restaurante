@@ -15,7 +15,7 @@ use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::models::{
     ActualizarConfiguracionRequest, ActualizarIntegracionesRequest, ConfiguracionRestaurante,
-    IntegracionMarketingPublica,
+    IntegracionMarketingPublica, UserRole,
 };
 use crate::repositories::{BdpWriteArmingRepository, NuevoArmado};
 use crate::services::bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
@@ -142,6 +142,9 @@ pub async fn actualizar_configuracion(
     auth: AuthUser,
     Json(mut req): Json<ActualizarConfiguracionRequest>,
 ) -> Result<Json<ConfiguracionRestaurante>, AppError> {
+    /* [149A-3/H-06] Escalada de privilegios: un trabajador podía cambiar la configuración
+     * (incluido el modo y, con ello, habilitar escrituras al BDP). Solo el propietario. */
+    auth.require_role(&[UserRole::Admin])?;
     if req.bdp_sync_mode.is_some() {
         return Err(AppError::Validation(
             "bdp_sync_mode solo puede cambiarse mediante /configuracion/bdp/sync-mode".into(),
@@ -327,6 +330,9 @@ pub async fn cambiar_bdp_sync_mode(
     auth: AuthUser,
     Json(req): Json<CambiarBdpSyncModeRequest>,
 ) -> Result<Json<ConfiguracionRestaurante>, AppError> {
+    /* [149A-3/H-06] `read_only` ↔ `unidirectional` habilita escrituras reales al BDP:
+     * solo el propietario puede cambiarlo. */
+    auth.require_role(&[UserRole::Admin])?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
@@ -480,6 +486,8 @@ pub async fn diagnosticar_bdp(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<BdpDiagnosticoResponse>, AppError> {
+    /* [149A-3/H-06] El diagnóstico abre sesión real contra el BDP: solo el propietario. */
+    auth.require_role(&[UserRole::Admin])?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     let configurado = bdp_configurado(&config);
     /* [128A-1/F1-3] M3: el diagnóstico usa la cache real del conmutador. */
@@ -593,6 +601,8 @@ pub async fn diagnosticar_bdp_sync_dry_run(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<BdpSyncDryRunResponse>, AppError> {
+    /* [149A-3/H-06] El preflight contacta el BDP real: solo el propietario. */
+    auth.require_role(&[UserRole::Admin])?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     Ok(Json(
         BdpSyncPreflightService::execute(&state.pool, auth.user_id, &config).await,
@@ -616,6 +626,8 @@ pub async fn obtener_integraciones(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<IntegracionMarketingPublica>, AppError> {
+    /* [149A-3/H-06] Credenciales de marketing (SMTP/Twilio/Meta): solo el propietario. */
+    auth.require_role(&[UserRole::Admin])?;
     let integ = IntegracionMarketingService::obtener_publica(&state.pool, auth.user_id).await?;
     Ok(Json(integ))
 }
@@ -638,6 +650,8 @@ pub async fn actualizar_integraciones(
     auth: AuthUser,
     Json(req): Json<ActualizarIntegracionesRequest>,
 ) -> Result<Json<IntegracionMarketingPublica>, AppError> {
+    /* [149A-3/H-06] Solo el propietario puede cambiar credenciales de integraciones. */
+    auth.require_role(&[UserRole::Admin])?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let integ = IntegracionMarketingService::actualizar(&state.pool, auth.user_id, &req).await?;

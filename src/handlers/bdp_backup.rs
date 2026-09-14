@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
+use crate::models::UserRole;
 use crate::services::bdp_weblink::BdpWeblinkClient;
 use crate::services::bdp_weblink_catalog::BdpDepartmentsExportFromProfileRequest;
 use crate::services::ConfiguracionService;
@@ -140,6 +141,8 @@ pub async fn snapshot_completo(
     auth: AuthUser,
     Json(notas): Json<Option<String>>,
 ) -> Result<Json<BdpSnapshot>, AppError> {
+    /* [149A-3/H-06] Descarga de BDP + escritura en el historial de respaldos: solo propietario. */
+    auth.require_role(&[UserRole::Admin])?;
     /* [039A-1/H-P1-03] El snapshot "completo" descarga de BDP (red real):
      * en modo independiente se rechaza sin tocar red (N1). */
     exigir_modo_bdp(&state, auth.user_id).await?;
@@ -176,6 +179,8 @@ pub async fn snapshot_parcial(
     auth: AuthUser,
     Json(req): Json<SnapshotParcialRequest>,
 ) -> Result<Json<BdpSnapshot>, AppError> {
+    /* [149A-3/H-06] Respaldo de seguridad pre-escritura: solo propietario. */
+    auth.require_role(&[UserRole::Admin])?;
     if req.tipos.is_empty() {
         return Err(AppError::Validation(
             "Debes seleccionar al menos un tipo de dato.".into(),
@@ -315,6 +320,8 @@ pub async fn eliminar_snapshot(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    /* [149A-3/H-06] Borrar respaldos es destructivo: solo propietario. */
+    auth.require_role(&[UserRole::Admin])?;
     let eliminado = BdpBackupService::eliminar_snapshot(&state.pool, id, auth.user_id)
         .await
         .map_err(AppError::Internal)?;
@@ -348,6 +355,9 @@ pub async fn restaurar_glory(
     Path(id): Path<Uuid>,
     Json(req): Json<RestoreGloryRequest>,
 ) -> Result<Json<RestoreResult>, AppError> {
+    /* [149A-3/H-06] Restaurar SOBREESCRIBE datos locales: operación más destructiva del sistema,
+     * solo propietario. */
+    auth.require_role(&[UserRole::Admin])?;
     /* [AUDIT-11.3] Confirmación textual explícita antes de restaurar. */
     let expected = format!("RESTAURAR {id}");
     if req.confirmacion.trim() != expected {

@@ -8,7 +8,10 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { NotificationBell } from "@/componentes/NotificationBell"
 import { useNotificaciones } from "@/hooks/useNotificaciones"
-import { useObtenerConfiguracion } from "@/api/generated/configuracion/configuracion"
+import {
+  getObtenerConfiguracionQueryKey,
+  useObtenerConfiguracion,
+} from "@/api/generated/configuracion/configuracion"
 import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
@@ -99,7 +102,9 @@ function BdpStatusIndicator() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button type="button" className="focus:outline-none">
-            <Badge variant="outline" className="text-xs gap-1 cursor-pointer hover:bg-muted">
+            <Badge
+              variant="outline"
+              className="h-auto gap-1 px-2.5 py-1 text-xs cursor-pointer hover:bg-muted">
               {modoIndependiente ? 'Modo independiente' : 'BDP: off'}
             </Badge>
           </button>
@@ -120,7 +125,9 @@ function BdpStatusIndicator() {
             <DropdownMenuItem onClick={async () => {
               try {
                 await axios.patch('/api/configuracion/modo', { modo: 'auto' })
-                await queryClient.invalidateQueries({ queryKey: ['configuracion'] })
+                await queryClient.invalidateQueries({
+                  queryKey: getObtenerConfiguracionQueryKey(),
+                })
                 toast.success('Modo automático activado', {
                   description: 'El sistema usará BDP si está configurado y disponible.',
                 })
@@ -134,7 +141,9 @@ function BdpStatusIndicator() {
             <DropdownMenuItem onClick={async () => {
               try {
                 await axios.patch('/api/configuracion', { bdp_sync_enabled: true })
-                await queryClient.invalidateQueries({ queryKey: ['configuracion'] })
+                await queryClient.invalidateQueries({
+                  queryKey: getObtenerConfiguracionQueryKey(),
+                })
                 toast.success('BDP activado', { description: 'La integración BDP está ahora en modo lectura.' })
               } catch {
                 toast.error('No se pudo activar BDP')
@@ -191,11 +200,15 @@ function BdpStatusIndicator() {
       <DropdownMenuTrigger asChild>
         <button type="button" className="focus:outline-none" disabled={isChangingMode}>
           {isWrite ? (
-            <Badge variant="default" className="text-xs gap-1 bg-amber-600 cursor-pointer hover:bg-amber-700">
+            <Badge
+              variant="default"
+              className="h-auto gap-1 px-2.5 py-1 text-xs bg-amber-600 cursor-pointer hover:bg-amber-700">
               BDP: escritura
             </Badge>
           ) : (
-            <Badge variant="secondary" className="text-xs gap-1 cursor-pointer hover:bg-secondary/80">
+            <Badge
+              variant="secondary"
+              className="h-auto gap-1 px-2.5 py-1 text-xs cursor-pointer hover:bg-secondary/80">
               BDP: lectura
             </Badge>
           )}
@@ -257,7 +270,9 @@ function BdpStatusIndicator() {
         >
           {isFlushing ? 'Sincronizando...' : 'Sincronizar a BDP'}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate('/configuracion/bdp-backup')}>
+        {/* [149A-1/P1.2] Apuntaba a '/configuracion/bdp-backup', ruta inexistente → el click no
+            hacía nada. El historial real (auditoría + snapshots) vive en '/bdp/historial'. */}
+        <DropdownMenuItem onClick={() => navigate('/bdp/historial')}>
           Ver historial BDP
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => navigate('/configuracion', { state: { bdpSection: 'bdp' } })}>

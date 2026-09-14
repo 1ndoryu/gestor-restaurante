@@ -13,6 +13,7 @@ import { RefreshCw, Loader2, Send, ShieldAlert, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListarPushFilas, useReintentarPushFila, useFlushBdpPush } from '@/api/bdp';
+import { EstadoError } from '@/components/ui/estado-error';
 import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
 import type { BdpPushFila } from '@/api/bdp';
 
@@ -54,7 +55,9 @@ function formatFecha(value: string | null | undefined): string {
 
 function BdpSincronizacion() {
   const queryClient = useQueryClient();
-  const { data: filas, isLoading } = useListarPushFilas();
+  /* [149A-3/F2] Un 403 en la cola no debe quedar en "Cargando cola…" ni pintar
+   * un vacío falso: se muestra el fallo real con su código. */
+  const { data: filas, isLoading, isError, error, refetch } = useListarPushFilas();
   const reintentarMutation = useReintentarPushFila();
   const flushMutation = useFlushBdpPush();
   const [reintentandoId, setReintentandoId] = useState<string | null>(null);
@@ -139,6 +142,9 @@ function BdpSincronizacion() {
         </div>
       )}
 
+      {/* [149A-3/F2] Con la consulta en error no se pinta el resumen ni se
+       * ofrecen acciones ("0 filas" sería mentira y cada botón daría 403). */}
+      {!isError && (
       <div className="flex flex-col gap-2 rounded-md border p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">
@@ -156,8 +162,11 @@ function BdpSincronizacion() {
           con "Sincronizar ahora" (no hay reintento automático para ese caso).
         </p>
       </div>
+      )}
 
-      {isLoading ? (
+      {isError ? (
+        <EstadoError error={error} queFallo="la cola de sincronización" reintentar={refetch} />
+      ) : isLoading ? (
         <p className="text-sm text-muted-foreground">Cargando cola…</p>
       ) : filasTotales.length === 0 ? (
         <div className="rounded-md border border-dashed p-4">
