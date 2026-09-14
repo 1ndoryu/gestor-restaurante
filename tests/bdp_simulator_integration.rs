@@ -1,5 +1,11 @@
 #![recursion_limit = "512"]
 
+/* sentinel-disable-file limite-lineas limite-lineas-nivel-2 limite-lineas-nivel-3:
+ * [039A-1] Harness de integración (37 tests, simulador único compartido): 1718
+ * efectivas caen en el default `servicio`/500 porque el detector no calibra
+ * /tests/ (FP-S4 pendiente de decisión global). Excepción firmada por el usuario
+ * el 11-09; sub-plan: Agente/planes/plan-monolito-bdp-simulator-tests-2026-09-11.md. */
+
 /* [267A-2] Tests de integración Rust contra el simulador BDP WebLink.
  *
  * Estos tests levantan el simulador Python UNA VEZ como subprocesso y comparten

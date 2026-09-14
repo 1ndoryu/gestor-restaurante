@@ -14,7 +14,7 @@
  */
 
 use std::collections::HashMap;
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard, PoisonError};
 
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
@@ -42,10 +42,20 @@ impl BdpThrottleManager {
         }
     }
 
+    /* Recupera el mapa de semaforos aunque el mutex este envenenado por un panic ajeno.
+     * El contenido es un cache de semaforos por destino, no un invariante que el panic
+     * pueda dejar a medias, y entrar en panico aqui dejaria sin throttle a todos los
+     * destinos BDP en lugar de degradar una sola peticion. */
+    fn bloquear_mapa(&self) -> MutexGuard<'_, HashMap<String, Arc<Semaphore>>> {
+        self.per_target
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
     fn semaphore_for(&self, base_url: &str) -> Arc<Semaphore> {
         /* Normalizar la clave para evitar duplicados por trailing slash. */
         let key = base_url.trim().trim_end_matches('/').to_lowercase();
-        let mut store = self.per_target.lock().expect("throttle map poisoned");
+        let mut store = self.bloquear_mapa();
         if let Some(semaphore) = store.get(&key) {
             return semaphore.clone();
         }
@@ -67,7 +77,7 @@ impl BdpThrottleManager {
     /// Peticiones activas para un destino dado.
     pub fn active_requests(&self, base_url: &str) -> usize {
         let key = base_url.trim().trim_end_matches('/').to_lowercase();
-        let store = self.per_target.lock().expect("throttle map poisoned");
+        let store = self.bloquear_mapa();
         store.get(&key).map_or(0, |semaphore| {
             self.max_concurrent - semaphore.available_permits()
         })

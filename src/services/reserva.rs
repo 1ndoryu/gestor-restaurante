@@ -267,20 +267,19 @@ impl ReservaService {
     /// Convierte un turno de reserva a un rango horario
     fn turno_a_horas(turno: Option<&str>) -> (Option<NaiveTime>, Option<NaiveTime>) {
         match turno {
-            Some("desayuno") => (
-                Some(NaiveTime::from_hms_opt(0, 0, 0).expect("hora válida")),
-                Some(NaiveTime::from_hms_opt(12, 0, 0).expect("hora válida")),
-            ),
-            Some("comida") => (
-                Some(NaiveTime::from_hms_opt(12, 0, 0).expect("hora válida")),
-                Some(NaiveTime::from_hms_opt(18, 0, 0).expect("hora válida")),
-            ),
-            Some("cena") => (
-                Some(NaiveTime::from_hms_opt(18, 0, 0).expect("hora válida")),
-                Some(NaiveTime::from_hms_opt(23, 59, 0).expect("hora válida")),
-            ),
+            Some("desayuno") => (Self::hora_literal(0, 0, 0), Self::hora_literal(12, 0, 0)),
+            Some("comida") => (Self::hora_literal(12, 0, 0), Self::hora_literal(18, 0, 0)),
+            Some("cena") => (Self::hora_literal(18, 0, 0), Self::hora_literal(23, 59, 0)),
             _ => (None, None),
         }
+    }
+
+    /// Hora literal del turno por defecto.
+    /// `from_hms_opt` solo rechaza combinaciones que no forman una hora real; los
+    /// literales de este modulo si lo son, asi que se devuelve el `Option` tal cual en
+    /// lugar de entrar en panico si alguno se rompiera.
+    fn hora_literal(hora: u32, minuto: u32, segundo: u32) -> Option<NaiveTime> {
+        NaiveTime::from_hms_opt(hora, minuto, segundo)
     }
 
     pub async fn update(

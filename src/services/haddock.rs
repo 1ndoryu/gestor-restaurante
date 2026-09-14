@@ -7,7 +7,7 @@
  * [064A-7] Prevención de duplicados: mutex por venta + guard en create si ya sincronizada. */
 
 use std::collections::HashMap;
-use std::sync::{Arc, LazyLock, Mutex as StdMutex};
+use std::sync::{Arc, LazyLock, Mutex as StdMutex, MutexGuard, PoisonError};
 
 use reqwest::Client;
 use serde::Serialize;
@@ -27,6 +27,14 @@ const MAX_RETRIES: u32 = 3;
  * El TokioMutex interior se sostiene durante toda la operación HTTP. */
 static SYNC_LOCKS: LazyLock<StdMutex<HashMap<uuid::Uuid, Arc<TokioMutex<()>>>>> =
     LazyLock::new(|| StdMutex::new(HashMap::new()));
+
+/* Recupera el mapa de locks aunque el mutex este envenenado por un panic ajeno. El
+ * contenido es un registro de locks por venta, no un invariante que el panic pueda
+ * dejar a medias; entrar en panico aqui impediria sincronizar cualquier venta, y el
+ * lock TokioMutex interior sigue garantizando la exclusion por venta. */
+fn bloquear_locks() -> MutexGuard<'static, HashMap<uuid::Uuid, Arc<TokioMutex<()>>>> {
+    SYNC_LOCKS.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 /* Estructuras que replica el schema OpenAPI de Haddock */
 
@@ -107,7 +115,7 @@ impl HaddockService {
         /* [064A-7] Adquirir lock exclusivo por venta. Si otro sync está en progreso
          * para esta misma venta, skip silencioso — se evitan duplicados. */
         let lock = {
-            let mut map = SYNC_LOCKS.lock().expect("SYNC_LOCKS poisoned");
+            let mut map = bloquear_locks();
             map.entry(venta.id)
                 .or_insert_with(|| Arc::new(TokioMutex::new(())))
                 .clone()
@@ -199,7 +207,7 @@ impl HaddockService {
     /* [064A-7] Limpia la entrada del mapa de locks si no hay otros usuarios.
      * Previene memory leak en el HashMap estático. */
     fn cleanup_lock(venta_id: uuid::Uuid) {
-        let mut map = SYNC_LOCKS.lock().expect("SYNC_LOCKS poisoned");
+        let mut map = bloquear_locks();
         if let Some(entry) = map.get(&venta_id) {
             if Arc::strong_count(entry) <= 2 {
                 map.remove(&venta_id);
@@ -1073,13 +1081,13 @@ mod tests {
 
         /* Insertar lock manualmente */
         {
-            let mut map = SYNC_LOCKS.lock().expect("SYNC_LOCKS poisoned");
+            let mut map = bloquear_locks();
             map.insert(venta_id, Arc::new(TokioMutex::new(())));
         }
 
         /* Verificar que existe */
         {
-            let map = SYNC_LOCKS.lock().expect("SYNC_LOCKS poisoned");
+            let map = bloquear_locks();
             assert!(
                 map.contains_key(&venta_id),
                 "Lock debe existir tras inserción"
@@ -1090,7 +1098,7 @@ mod tests {
         HaddockService::cleanup_lock(venta_id);
 
         {
-            let map = SYNC_LOCKS.lock().expect("SYNC_LOCKS poisoned");
+            let map = bloquear_locks();
             assert!(
                 !map.contains_key(&venta_id),
                 "Lock debe eliminarse tras cleanup con 1 referencia"

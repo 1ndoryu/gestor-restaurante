@@ -1,5 +1,68 @@
-/* sentinel-disable-file sqlx-query-sin-macro unwrap-produccion-rs panic-produccion-rs funcion-larga-rs:
- * seed demo idempotente usa SQL dinamico para limpiar datos y unwrap/panic sobre constantes controladas. */
+/* sentinel-disable-file sqlx-query-sin-macro funcion-larga-rs:
+ * seed demo idempotente usa SQL dinamico para limpiar datos. */
+/* [039A-1] Sin panic: todas las funciones propagan el error con `?` y `main` devuelve
+ * `Result`, de modo que un fallo de siembra sale por stderr con codigo distinto de 0
+ * en lugar de abortar el proceso con un panic opaco a mitad del seed. */
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().ok();
+
+    let db_url = std::env::var("DATABASE_URL").map_err(|_| "DATABASE_URL requerido".to_string())?;
+    let pool = PgPool::connect(&db_url).await?;
+
+    println!("Conectado a la base de datos.");
+
+    let email = "demo@restaurante.com";
+    let password = "demo1234";
+
+    let salt = SaltString::generate(&mut OsRng);
+    /* `password_hash::Error` no implementa `std::error::Error` (el crate no activa esa
+     * feature), asi que se convierte a `String` para poder propagarlo con `?`. */
+    let hash = Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| format!("Error al hashear password demo: {e}"))?
+        .to_string();
+
+    let user_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO users (email, password_hash, nombre) VALUES ($1, $2, $3) \
+         ON CONFLICT (email) DO UPDATE SET password_hash = $2 \
+         RETURNING id",
+        email,
+        &hash,
+        "Demo Admin"
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    println!("Usuario demo: {email} (id: {user_id})");
+
+    limpiar_datos(&pool, user_id).await?;
+
+    let hoy = Local::now().date_naive();
+
+    seed_configuracion(&pool, user_id).await?;
+    let canal_ids = seed_canales(&pool, user_id).await?;
+    let clientes = seed_clientes(&pool, user_id).await?;
+    let cliente_ids: Vec<Uuid> = clientes.iter().map(|c| c.id).collect();
+    let zona_id = seed_zonas_mesas(&pool, user_id).await?;
+    let mesa_ids = zona_id.1;
+    let zona_id = zona_id.0;
+    let reserva_ids = seed_reservas(&pool, user_id, hoy, &canal_ids, &clientes, &mesa_ids).await?;
+    seed_ventas(&pool, user_id, hoy, &reserva_ids, &cliente_ids).await?;
+    seed_gastos(&pool, user_id, hoy).await?;
+    seed_etiquetas_clientes(&pool, user_id, &cliente_ids).await?;
+    seed_campanas(&pool, user_id).await?;
+    seed_plantillas_whatsapp(&pool, user_id).await?;
+    seed_reglas_recordatorio(&pool, user_id).await?;
+    seed_notificaciones(&pool, user_id).await?;
+    seed_trabajadores(&pool, user_id).await?;
+    seed_resenas(&pool, user_id, &reserva_ids, &cliente_ids).await?;
+    seed_inactividad(&pool, user_id, &canal_ids).await?;
+    seed_paredes(&pool, zona_id).await?;
+
+    println!("\nSeed completado exitosamente.");
+    Ok(())
+}
 /* [044A-5] Script de seed reescrito — datos breves y actualizados.
  * 14 dias (7 pasados + hoy + 6 futuros), ~6 items/dia por entidad.
  * Relaciones correctas: reservas → clientes, mesas, canales; ventas → reservas.
@@ -17,69 +80,8 @@ use rust_decimal::Decimal;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-#[tokio::main]
-async fn main() {
-    dotenvy::dotenv().ok();
-
-    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL requerido");
-    let pool = PgPool::connect(&db_url)
-        .await
-        .expect("No se pudo conectar a la BD");
-
-    println!("Conectado a la base de datos.");
-
-    let email = "demo@restaurante.com";
-    let password = "demo1234";
-
-    let salt = SaltString::generate(&mut OsRng);
-    let hash = Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
-        .expect("Error al hashear password")
-        .to_string();
-
-    let user_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO users (email, password_hash, nombre) VALUES ($1, $2, $3) \
-         ON CONFLICT (email) DO UPDATE SET password_hash = $2 \
-         RETURNING id",
-        email,
-        &hash,
-        "Demo Admin"
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Error al crear usuario demo");
-
-    println!("Usuario demo: {email} (id: {user_id})");
-
-    limpiar_datos(&pool, user_id).await;
-
-    let hoy = Local::now().date_naive();
-
-    seed_configuracion(&pool, user_id).await;
-    let canal_ids = seed_canales(&pool, user_id).await;
-    let clientes = seed_clientes(&pool, user_id).await;
-    let cliente_ids: Vec<Uuid> = clientes.iter().map(|c| c.id).collect();
-    let zona_id = seed_zonas_mesas(&pool, user_id).await;
-    let mesa_ids = zona_id.1;
-    let zona_id = zona_id.0;
-    let reserva_ids = seed_reservas(&pool, user_id, hoy, &canal_ids, &clientes, &mesa_ids).await;
-    seed_ventas(&pool, user_id, hoy, &reserva_ids, &cliente_ids).await;
-    seed_gastos(&pool, user_id, hoy).await;
-    seed_etiquetas_clientes(&pool, user_id, &cliente_ids).await;
-    seed_campanas(&pool, user_id).await;
-    seed_plantillas_whatsapp(&pool, user_id).await;
-    seed_reglas_recordatorio(&pool, user_id).await;
-    seed_notificaciones(&pool, user_id).await;
-    seed_trabajadores(&pool, user_id).await;
-    seed_resenas(&pool, user_id, &reserva_ids, &cliente_ids).await;
-    seed_inactividad(&pool, user_id, &canal_ids).await;
-    seed_paredes(&pool, zona_id).await;
-
-    println!("\nSeed completado exitosamente.");
-}
-
 /* Limpia todos los datos del usuario demo respetando FKs */
-async fn limpiar_datos(pool: &PgPool, user_id: Uuid) {
+async fn limpiar_datos(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
     let sentencias = [
         "DELETE FROM combinacion_mesa_items WHERE combinacion_id IN (SELECT id FROM combinaciones_mesas WHERE user_id = $1)",
         "DELETE FROM combinaciones_mesas WHERE user_id = $1",
@@ -107,17 +109,14 @@ async fn limpiar_datos(pool: &PgPool, user_id: Uuid) {
         "DELETE FROM api_keys WHERE user_id = $1",
     ];
     for sql in &sentencias {
-        sqlx::query(sql)
-            .bind(user_id)
-            .execute(pool)
-            .await
-            .expect("Error limpiando datos");
+        sqlx::query(sql).bind(user_id).execute(pool).await?;
     }
     println!("Datos anteriores limpiados.");
+    Ok(())
 }
 
 /* Configuracion base del restaurante */
-async fn seed_configuracion(pool: &PgPool, user_id: Uuid) {
+async fn seed_configuracion(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
     sqlx::query(
         "INSERT INTO configuracion_restaurante (user_id, nombre_restaurante, iva_por_defecto, \
          reserva_telefono_obligatorio, reserva_nombre_obligatorio, \
@@ -132,13 +131,13 @@ async fn seed_configuracion(pool: &PgPool, user_id: Uuid) {
     )
     .bind(user_id)
     .execute(pool)
-    .await
-    .expect("Error al insertar configuración");
+    .await?;
     println!("  Configuración del restaurante creada.");
+    Ok(())
 }
 
 /* 4 canales de reserva */
-async fn seed_canales(pool: &PgPool, user_id: Uuid) -> Vec<Uuid> {
+async fn seed_canales(pool: &PgPool, user_id: Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
     let nombres = ["Teléfono", "WhatsApp", "Web", "Walk-in"];
     let mut ids = Vec::with_capacity(nombres.len());
     for nombre in &nombres {
@@ -148,12 +147,11 @@ async fn seed_canales(pool: &PgPool, user_id: Uuid) -> Vec<Uuid> {
             *nombre
         )
         .fetch_one(pool)
-        .await
-        .expect("Error al insertar canal");
+        .await?;
         ids.push(id);
     }
     println!("  {} canales insertados.", ids.len());
-    ids
+    Ok(ids)
 }
 
 type ClienteDemo = (
@@ -242,7 +240,7 @@ const DATOS_CLIENTES_DEMO: &[ClienteDemo] = &[
 ];
 
 /* 8 clientes demo con datos variados */
-async fn seed_clientes(pool: &PgPool, user_id: Uuid) -> Vec<ClienteCreado> {
+async fn seed_clientes(pool: &PgPool, user_id: Uuid) -> Result<Vec<ClienteCreado>, sqlx::Error> {
     let mut clientes = Vec::with_capacity(DATOS_CLIENTES_DEMO.len());
     for &(nombre, apellidos, tel, email, empresa, alergias, pref_beb, pref_ubi) in
         DATOS_CLIENTES_DEMO
@@ -262,8 +260,7 @@ async fn seed_clientes(pool: &PgPool, user_id: Uuid) -> Vec<ClienteCreado> {
             pref_ubi
         )
         .fetch_one(pool)
-        .await
-        .expect("Error al insertar cliente");
+        .await?;
         clientes.push(ClienteCreado {
             id,
             nombre: nombre.to_string(),
@@ -271,23 +268,24 @@ async fn seed_clientes(pool: &PgPool, user_id: Uuid) -> Vec<ClienteCreado> {
         });
     }
     println!("  {} clientes insertados.", clientes.len());
-    clientes
+    Ok(clientes)
 }
 
-fn hora(hora: u32, minuto: u32) -> NaiveTime {
-    NaiveTime::from_hms_opt(hora, minuto, 0).expect("hora demo valida")
+/* `from_hms_opt` solo rechaza combinaciones que no forman una hora real; las de este
+ * binario si lo son, asi que se devuelve el `Option` en lugar de entrar en panico. */
+fn hora(hora: u32, minuto: u32) -> Option<NaiveTime> {
+    NaiveTime::from_hms_opt(hora, minuto, 0)
 }
 
 /* 1 zona de sala + 6 mesas posicionadas. Retorna (zona_id, mesa_ids) */
-async fn seed_zonas_mesas(pool: &PgPool, user_id: Uuid) -> (Uuid, Vec<Uuid>) {
+async fn seed_zonas_mesas(pool: &PgPool, user_id: Uuid) -> Result<(Uuid, Vec<Uuid>), sqlx::Error> {
     let zona_id: Uuid = sqlx::query_scalar(
         "INSERT INTO zonas_sala (user_id, nombre, orden, ancho, alto) \
          VALUES ($1, 'Salón principal', 0, 800, 600) RETURNING id",
     )
     .bind(user_id)
     .fetch_one(pool)
-    .await
-    .expect("Error al crear zona de sala");
+    .await?;
 
     let mut mesa_ids = Vec::with_capacity(6);
     /* (numero, pos_x, pos_y, forma, min_personas, max_personas) */
@@ -312,12 +310,11 @@ async fn seed_zonas_mesas(pool: &PgPool, user_id: Uuid) -> (Uuid, Vec<Uuid>) {
         .bind(min_p)
         .bind(max_p)
         .fetch_one(pool)
-        .await
-        .expect("Error al crear mesa");
+        .await?;
         mesa_ids.push(id);
     }
     println!("  1 zona + {} mesas insertadas.", mesa_ids.len());
-    (zona_id, mesa_ids)
+    Ok((zona_id, mesa_ids))
 }
 
 /* Datos de cada cliente creado, para vincular reservas con nombre real */
@@ -352,7 +349,7 @@ async fn seed_reservas(
     canal_ids: &[Uuid],
     clientes: &[ClienteCreado],
     mesa_ids: &[Uuid],
-) -> Vec<ReservaCreada> {
+) -> Result<Vec<ReservaCreada>, sqlx::Error> {
     let horas = [
         hora(13, 0),
         hora(13, 30),
@@ -410,6 +407,9 @@ async fn seed_reservas(
 
             let canal_id = Some(canal_ids[idx % canal_ids.len()]);
             let telefono = format!("6{:08}", 10_000_000 + dia * 100 + i as i64);
+            let hora_reserva = horas[i].ok_or_else(|| {
+                sqlx::Error::Protocol(format!("hora demo invalida en indice {i}"))
+            })?;
 
             let id: Uuid = sqlx::query_scalar!(
                 "INSERT INTO reservas (user_id, fecha, hora, nombre_cliente, apellidos_cliente, \
@@ -417,7 +417,7 @@ async fn seed_reservas(
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id",
                 user_id,
                 fecha,
-                horas[i],
+                hora_reserva,
                 nombre_r,
                 apellidos_r,
                 personas,
@@ -431,8 +431,7 @@ async fn seed_reservas(
                 num_mesa
             )
             .fetch_one(pool)
-            .await
-            .expect("Error al insertar reserva");
+            .await?;
 
             reservas.push(ReservaCreada {
                 id,
@@ -446,7 +445,7 @@ async fn seed_reservas(
         "  {} reservas insertadas (7 pasados + hoy + 6 futuros).",
         reservas.len()
     );
-    reservas
+    Ok(reservas)
 }
 
 /* Ventas vinculadas a reservas completadas + 2 extras sin reserva */
@@ -457,7 +456,7 @@ async fn seed_ventas(
     hoy: NaiveDate,
     reservas: &[ReservaCreada],
     cliente_ids: &[Uuid],
-) {
+) -> Result<(), sqlx::Error> {
     let turnos = ["manana", "mediodia", "noche"];
     let canales_venta = ["comedor", "barra", "terraza", "delivery"];
     let metodos = ["efectivo", "tarjeta", "transferencia"];
@@ -500,8 +499,7 @@ async fn seed_ventas(
             r.cliente_id
         )
         .execute(pool)
-        .await
-        .expect("Error al insertar venta");
+        .await?;
         count += 1;
     }
 
@@ -528,11 +526,11 @@ async fn seed_ventas(
             Some(cliente_ids[i as usize % cliente_ids.len()])
         )
         .execute(pool)
-        .await
-        .expect("Error al insertar venta extra");
+        .await?;
         count += 1;
     }
     println!("  {count} ventas insertadas.");
+    Ok(())
 }
 
 /* Gastos: 4/dia x 8 dias pasados = 32 gastos */
@@ -541,12 +539,13 @@ async fn seed_ventas(
     clippy::cast_sign_loss,
     clippy::needless_range_loop
 )]
-async fn seed_gastos(pool: &PgPool, user_id: Uuid, hoy: NaiveDate) {
+async fn seed_gastos(pool: &PgPool, user_id: Uuid, hoy: NaiveDate) -> Result<(), sqlx::Error> {
+    /* Si la tabla de categorias estuviera vacia el seed seguiria con categoria NULL;
+     * un fallo real del SELECT ya no se oculta con `unwrap_or_default`. */
     let categorias: Vec<Uuid> =
         sqlx::query_scalar!("SELECT id FROM categorias_gasto ORDER BY nombre")
             .fetch_all(pool)
-            .await
-            .unwrap_or_default();
+            .await?;
 
     let tipos = ["factura", "albaran", "ticket"];
     let metodos = ["efectivo", "tarjeta", "transferencia"];
@@ -586,16 +585,20 @@ async fn seed_gastos(pool: &PgPool, user_id: Uuid, hoy: NaiveDate) {
                 iva
             )
             .execute(pool)
-            .await
-            .expect("Error al insertar gasto");
+            .await?;
             count += 1;
         }
     }
     println!("  {count} gastos insertados.");
+    Ok(())
 }
 
 /* Asigna etiquetas del sistema a los clientes para probar el CRM */
-async fn seed_etiquetas_clientes(pool: &PgPool, user_id: Uuid, cliente_ids: &[Uuid]) {
+async fn seed_etiquetas_clientes(
+    pool: &PgPool,
+    user_id: Uuid,
+    cliente_ids: &[Uuid],
+) -> Result<(), sqlx::Error> {
     let etiquetas = sqlx::query!(
         "SELECT e.id, e.nombre FROM etiquetas e \
          JOIN categorias_etiqueta ce ON ce.id = e.categoria_id \
@@ -603,12 +606,11 @@ async fn seed_etiquetas_clientes(pool: &PgPool, user_id: Uuid, cliente_ids: &[Uu
          ORDER BY e.nombre"
     )
     .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     if etiquetas.is_empty() {
         println!("  Sin etiquetas del sistema — omitiendo asignaciones.");
-        return;
+        return Ok(());
     }
 
     let mut count: u32 = 0;
@@ -638,8 +640,7 @@ async fn seed_etiquetas_clientes(pool: &PgPool, user_id: Uuid, cliente_ids: &[Uu
     let user_tags: i64 =
         sqlx::query_scalar!("SELECT COUNT(*) FROM etiquetas WHERE user_id = $1", user_id)
             .fetch_one(pool)
-            .await
-            .unwrap_or(None)
+            .await?
             .unwrap_or(0);
 
     if user_tags == 0 {
@@ -648,8 +649,7 @@ async fn seed_etiquetas_clientes(pool: &PgPool, user_id: Uuid, cliente_ids: &[Uu
              WHERE nombre = 'Fidelización' AND aplica_a = 'cliente' AND es_sistema = TRUE"
         )
         .fetch_optional(pool)
-        .await
-        .unwrap_or(None);
+        .await?;
 
         if let Some(cat_id) = cat_fidelizacion {
             let custom = [
@@ -657,7 +657,7 @@ async fn seed_etiquetas_clientes(pool: &PgPool, user_id: Uuid, cliente_ids: &[Uu
                 ("Amigo del chef", "#9C27B0"),
             ];
             for (nombre, color) in &custom {
-                let _ = sqlx::query!(
+                sqlx::query!(
                     "INSERT INTO etiquetas (user_id, categoria_id, nombre, color) \
                      VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
                     user_id,
@@ -666,16 +666,17 @@ async fn seed_etiquetas_clientes(pool: &PgPool, user_id: Uuid, cliente_ids: &[Uu
                     *color
                 )
                 .execute(pool)
-                .await;
+                .await?;
             }
             println!("  Etiquetas personalizadas del usuario creadas.");
         }
     }
+    Ok(())
 }
 
 /* 3 campañas de marketing en distintos estados */
 #[allow(clippy::type_complexity)]
-async fn seed_campanas(pool: &PgPool, user_id: Uuid) {
+async fn seed_campanas(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
     /* (nombre, descripcion, canales, segmento, mensaje, estado, total_dest, total_env, total_fall) */
     let campanas: &[(&str, &str, &[&str], &str, &str, &str, i32, i32, i32)] = &[
         (
@@ -725,15 +726,15 @@ async fn seed_campanas(pool: &PgPool, user_id: Uuid) {
             t_fall
         )
         .execute(pool)
-        .await
-        .expect("Error al insertar campaña");
+        .await?;
     }
     println!("  {} campañas insertadas.", campanas.len());
+    Ok(())
 }
 
 /* 3 plantillas WhatsApp en distintos estados */
 #[allow(clippy::type_complexity)]
-async fn seed_plantillas_whatsapp(pool: &PgPool, user_id: Uuid) {
+async fn seed_plantillas_whatsapp(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
     /* (nombre, categoria, idioma, cuerpo, estado, meta_template_id, meta_razon_rechazo) */
     let plantillas: &[(&str, &str, &str, &str, &str, Option<&str>, Option<&str>)] = &[
         (
@@ -780,14 +781,14 @@ async fn seed_plantillas_whatsapp(pool: &PgPool, user_id: Uuid) {
             razon
         )
         .execute(pool)
-        .await
-        .expect("Error al insertar plantilla WhatsApp");
+        .await?;
     }
     println!("  {} plantillas WhatsApp insertadas.", plantillas.len());
+    Ok(())
 }
 
 /* 3 reglas de recordatorio automatico */
-async fn seed_reglas_recordatorio(pool: &PgPool, user_id: Uuid) {
+async fn seed_reglas_recordatorio(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
     /* (nombre, horas_antes, canal, mensaje, activa) */
     let reglas: &[(&str, i32, &str, &str, bool)] = &[
         (
@@ -825,18 +826,18 @@ async fn seed_reglas_recordatorio(pool: &PgPool, user_id: Uuid) {
             activa
         )
         .execute(pool)
-        .await
-        .expect("Error al insertar regla de recordatorio");
+        .await?;
     }
     println!("  {} reglas de recordatorio insertadas.", reglas.len());
+    Ok(())
 }
 
 /* [134A-1] 3 trabajadores demo con distintos cargos y permisos */
-async fn seed_trabajadores(pool: &PgPool, user_id: Uuid) {
+async fn seed_trabajadores(pool: &PgPool, user_id: Uuid) -> Result<(), Box<dyn std::error::Error>> {
     let salt = SaltString::generate(&mut OsRng);
     let hash = Argon2::default()
         .hash_password(b"trabajador123", &salt)
-        .expect("Error al hashear password trabajador")
+        .map_err(|e| format!("Error al hashear password de trabajador demo: {e}"))?
         .to_string();
 
     /* (nombre, email, cargo) */
@@ -848,7 +849,7 @@ async fn seed_trabajadores(pool: &PgPool, user_id: Uuid) {
 
     for &(nombre, email, cargo) in trabajadores {
         let id = Uuid::new_v4();
-        let _ = sqlx::query(
+        sqlx::query(
             "INSERT INTO trabajadores (id, user_id, nombre, email, password_hash, cargo) \
              VALUES ($1, $2, $3, $4, $5, $6)",
         )
@@ -859,10 +860,10 @@ async fn seed_trabajadores(pool: &PgPool, user_id: Uuid) {
         .bind(&hash)
         .bind(cargo)
         .execute(pool)
-        .await
-        .expect("Error al insertar trabajador");
+        .await?;
     }
     println!("  {} trabajadores insertados.", trabajadores.len());
+    Ok(())
 }
 
 /* [134A-1] 4 reseñas demo: 2 respondidas, 1 pendiente, 1 redirigida a Google */
@@ -871,7 +872,7 @@ async fn seed_resenas(
     user_id: Uuid,
     reservas: &[ReservaCreada],
     cliente_ids: &[Uuid],
-) {
+) -> Result<(), sqlx::Error> {
     /* Tomar reservas completadas para vincular reseñas */
     let completadas: Vec<&ReservaCreada> = reservas
         .iter()
@@ -881,7 +882,7 @@ async fn seed_resenas(
 
     if completadas.is_empty() {
         println!("  Sin reservas completadas para vincular reseñas.");
-        return;
+        return Ok(());
     }
 
     /* (puntuacion: Option, comentario: Option, redirigido_google) */
@@ -908,7 +909,7 @@ async fn seed_resenas(
         let cliente_id = reserva.cliente_id.or_else(|| cliente_ids.get(i).copied());
 
         if puntuacion.is_some() {
-            let _ = sqlx::query(
+            sqlx::query(
                 "INSERT INTO resenas (id, user_id, reserva_id, cliente_id, token, \
                  puntuacion, comentario, redirigido_google, respondida_at) \
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) ON CONFLICT DO NOTHING",
@@ -922,10 +923,9 @@ async fn seed_resenas(
             .bind(comentario.unwrap_or("")) /* evitar NULL explícito — usar '' como el DEFAULT */
             .bind(redirigido)
             .execute(pool)
-            .await
-            .expect("Error al insertar reseña respondida");
+            .await?;
         } else {
-            let _ = sqlx::query(
+            sqlx::query(
                 "INSERT INTO resenas (id, user_id, reserva_id, cliente_id, token) \
                  VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING",
             )
@@ -935,16 +935,20 @@ async fn seed_resenas(
             .bind(cliente_id)
             .bind(&token)
             .execute(pool)
-            .await
-            .expect("Error al insertar reseña pendiente");
+            .await?;
         }
         count += 1;
     }
     println!("  {count} reseñas insertadas.");
+    Ok(())
 }
 
 /* [134A-1] 3 reglas de inactividad con distintos canales y períodos */
-async fn seed_inactividad(pool: &PgPool, user_id: Uuid, _canal_ids: &[Uuid]) {
+async fn seed_inactividad(
+    pool: &PgPool,
+    user_id: Uuid,
+    _canal_ids: &[Uuid],
+) -> Result<(), sqlx::Error> {
     /* (nombre, dias_inactividad, canal, mensaje_plantilla) */
     let reglas: &[(&str, i32, &str, &str)] = &[
         (
@@ -968,7 +972,7 @@ async fn seed_inactividad(pool: &PgPool, user_id: Uuid, _canal_ids: &[Uuid]) {
     ];
 
     for &(nombre, dias, canal, mensaje) in reglas {
-        let _ = sqlx::query(
+        sqlx::query(
             "INSERT INTO reglas_inactividad (user_id, nombre, dias_inactividad, canal, mensaje_plantilla) \
              VALUES ($1, $2, $3, $4, $5)",
         )
@@ -978,14 +982,14 @@ async fn seed_inactividad(pool: &PgPool, user_id: Uuid, _canal_ids: &[Uuid]) {
         .bind(canal)
         .bind(mensaje)
         .execute(pool)
-        .await
-        .expect("Error al insertar regla de inactividad");
+        .await?;
     }
     println!("  {} reglas de inactividad insertadas.", reglas.len());
+    Ok(())
 }
 
 /* [134A-1] 2 paredes demo para decorar el plano de sala */
-async fn seed_paredes(pool: &PgPool, zona_id: Uuid) {
+async fn seed_paredes(pool: &PgPool, zona_id: Uuid) -> Result<(), sqlx::Error> {
     /* [134A-8] Pared = bar horizontal: ancho = largo, alto = grosor (10). Rotación orienta. */
     let paredes: &[(i32, i32, i32, i32, f64, &str)] = &[
         (100, 50, 150, 10, 90.0, "#6b7280"), /* vertical (rotada 90°) */
@@ -994,7 +998,7 @@ async fn seed_paredes(pool: &PgPool, zona_id: Uuid) {
 
     for &(x, y, ancho, alto, rotacion, color) in paredes {
         let id = Uuid::new_v4();
-        let _ = sqlx::query(
+        sqlx::query(
             "INSERT INTO paredes_sala (id, zona_id, pos_x, pos_y, ancho, alto, rotacion, color) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT DO NOTHING",
         )
@@ -1007,14 +1011,14 @@ async fn seed_paredes(pool: &PgPool, zona_id: Uuid) {
         .bind(rotacion)
         .bind(color)
         .execute(pool)
-        .await
-        .expect("Error al insertar pared");
+        .await?;
     }
     println!("  {} paredes insertadas.", paredes.len());
+    Ok(())
 }
 
 /* 3 notificaciones demo para probar el panel */
-async fn seed_notificaciones(pool: &PgPool, user_id: Uuid) {
+async fn seed_notificaciones(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
     let notis: &[(&str, &str, &str)] = &[
         (
             "nueva_reserva",
@@ -1042,8 +1046,8 @@ async fn seed_notificaciones(pool: &PgPool, user_id: Uuid) {
         .bind(titulo)
         .bind(mensaje)
         .execute(pool)
-        .await
-        .expect("Error al insertar notificación");
+        .await?;
     }
     println!("  {} notificaciones insertadas.", notis.len());
+    Ok(())
 }

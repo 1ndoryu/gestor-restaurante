@@ -48,7 +48,7 @@ use crate::services::bdp_weblink_catalog::{
 
 const BDP_SESSION_MINUTES: u8 = 59;
 
-static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
+static HTTP_CLIENT: LazyLock<Result<Client, String>> = LazyLock::new(|| {
     Client::builder()
         .timeout(Duration::from_secs(20))
         /* [207A-1] S6-H1: Deshabilitar redirects automáticos para que
@@ -56,8 +56,19 @@ static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
          * un 302 a un host arbitrario bypassa la allowlist. */
         .redirect(reqwest::redirect::Policy::none())
         .build()
-        .expect("BDP HTTP client must be buildable")
+        .map_err(|error| error.to_string())
 });
+
+/* Cliente HTTP compartido de BDP. `build()` solo falla si el backend TLS no puede
+ * inicializarse (fallo de entorno, no de configuracion). Se propaga como error de
+ * transporte en lugar de entrar en panico, y NO se degrada al cliente por defecto de
+ * reqwest porque este perderia `redirect::Policy::none()` y con ello el control de
+ * allowlist de `ensure_target_allowed()` ([207A-1] S6-H1). */
+fn http_client() -> Result<&'static Client, BdpWeblinkError> {
+    HTTP_CLIENT.as_ref().map_err(|detalle| {
+        BdpWeblinkError::Http(format!("cliente HTTP BDP no disponible: {detalle}"))
+    })
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum BdpWeblinkError {
@@ -720,7 +731,7 @@ impl<'a> BdpWeblinkClient<'a> {
             .acquire(base_url)
             .map_err(|reason| BdpWeblinkError::Throttled(format!("{reason} ({path})")))?;
         let url = self.build_url(path)?;
-        let response = HTTP_CLIENT
+        let response = http_client()?
             .post(url)
             .bearer_auth(token)
             .json(payload)
@@ -741,7 +752,7 @@ impl<'a> BdpWeblinkClient<'a> {
             .acquire(base_url)
             .map_err(|reason| BdpWeblinkError::Throttled(format!("{reason} ({path})")))?;
         let url = self.build_url(path)?;
-        let response = HTTP_CLIENT
+        let response = http_client()?
             .post(url)
             .json(payload)
             .send()
