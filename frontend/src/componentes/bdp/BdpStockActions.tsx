@@ -78,18 +78,18 @@ export function BdpStockActions({
         <p className="text-sm text-muted-foreground">{summary}</p>
         <div className="flex flex-wrap items-center gap-2">
           <BdpDemoToggle demoMode={demoMode} onToggle={onToggleDemo} />
-          <Button variant="outline" onClick={onExport} disabled={exportDisabled} title="Exportar a CSV con BOM para Excel">
+          <Button variant="outline" onClick={onExport} disabled={exportDisabled} title="Descargar CSV con BOM para Excel">
             <Download className="mr-1.5 size-4" />
-            CSV
+            Descargar CSV
           </Button>
           <TooltipButton
             variant="outline"
             onClick={() => syncMutation.mutate()}
             disabled={syncMutation.isPending || demoMode || !bdpMode}
-            tooltip={bdpMode ? 'Importa/actualiza artículos y stock desde BDP a la Aplicación Web. No modifica BDP.' : 'Requiere BDP conectado (modo BDP). En modo independiente el stock se gestiona localmente.'}
+            tooltip={bdpMode ? 'Importa artículos y stock desde BDP a la Aplicación Web. Solo lectura BDP: no modifica BDP.' : 'Requiere BDP conectado (modo BDP). En modo independiente el stock se gestiona localmente.'}
           >
             {syncMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-            Sync catálogo
+            Importar del BDP
           </TooltipButton>
         </div>
       </div>

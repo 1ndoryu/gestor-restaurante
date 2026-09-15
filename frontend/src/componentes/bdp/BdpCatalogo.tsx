@@ -24,7 +24,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tags, Plus, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import BdpArticleMapTable from '@/components/bdp-article-map-table';
-import { useBdpCatalogo, useCrearBdpClasificacion, type BdpCatalogoTipo } from '@/api/bdp';
+import { BdpImportExportButtons } from '@/components/bdp-import-export-buttons';
+import { useBdpCatalogo, useCrearBdpClasificacion, useImportarDepartamentosBdp, type BdpCatalogoTipo } from '@/api/bdp';
+import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
 
 type VistaCatalogo = 'articulos' | 'clasificaciones';
 
@@ -36,6 +38,33 @@ function Clasificaciones() {
   const { data, isLoading } = useBdpCatalogo(tipo);
   const crearMutation = useCrearBdpClasificacion(queryClient);
   const etiqueta = tipo === 'departamento' ? 'Departamento' : 'Familia';
+  /* [159A-2/F2] Importar exige BDP efectivo (es lectura BDP); crear y
+   * exportar funcionan también en local (el alta queda local o se encola). */
+  const { data: configResponse } = useObtenerConfiguracion();
+  const configData = configResponse?.status === 200 ? configResponse.data : undefined;
+  const modoEfectivoBdp = !!configData && (
+    configData.modo_operacion === 'bdp'
+    || (configData.modo_operacion === 'auto'
+      && configData.bdp_sync_enabled
+      && (configData.bdp_base_url ?? '').trim() !== '')
+  );
+  const importarDeptosMutation = useImportarDepartamentosBdp();
+
+  function importarDepartamentos() {
+    importarDeptosMutation.mutate(undefined, {
+      onSuccess: (r) => {
+        const partes = [`${r.creados} creados`, `${r.vinculados} vinculados`];
+        if (r.conflictos.length > 0) partes.push(`${r.conflictos.length} conflictos (no se pisan)`);
+        if (r.omitidos_fuera_rango.length > 0) partes.push(`${r.omitidos_fuera_rango.length} fuera de rango (omitidos)`);
+        toast.success(`Departamentos importados del BDP: ${partes.join(', ')}`);
+        queryClient.invalidateQueries({ queryKey: ['bdp-catalogo', 'departamento'] });
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        toast.error('No se pudieron importar los departamentos', { description: msg });
+      },
+    });
+  }
 
   const crear = () => {
     if (!nombre.trim()) return;
@@ -65,7 +94,24 @@ function Clasificaciones() {
         <Button onClick={() => setCrearOpen(true)}>
           <Plus className="size-4 mr-1" /> Crear {etiqueta.toLowerCase()}
         </Button>
+        {/* [159A-2/F2] Par Importar/Exportar. Las familias no tienen Importar:
+         * el BDP no expone sus nombres (solo códigos en ExportArticles). */}
+        <BdpImportExportButtons
+          onImportar={importarDepartamentos}
+          importando={importarDeptosMutation.isPending}
+          importarTooltip={modoEfectivoBdp ? 'Importa departamentos desde BDP a la Aplicación Web. Crea los que falten y vincula por código; nunca pisa ediciones locales.' : 'Requiere BDP conectado (modo BDP).'}
+          importarDeshabilitado={!modoEfectivoBdp}
+          dominiosExportar={[tipo]}
+          exportarTooltip={`Envía al BDP los ${tipo === 'departamento' ? 'departamentos' : 'familias'} locales pendientes en la cola.`}
+          invalidarTrasExportar={[['bdp-catalogo', tipo]]}
+          mostrarImportar={tipo === 'departamento'}
+        />
       </div>
+      {tipo === 'familia' && (
+        <p className="text-xs text-muted-foreground">
+          Las familias se gestionan en la Aplicación Web: el BDP no publica sus nombres, solo acepta altas (Exportar al BDP).
+        </p>
+      )}
 
       <Dialog open={crearOpen} onOpenChange={setCrearOpen}>
         <DialogContent>

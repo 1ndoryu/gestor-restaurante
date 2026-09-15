@@ -299,9 +299,11 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
             {diagnosticando ? <Loader2 className="size-4 animate-spin" /> : <Activity className="size-4" />}
             Probar conexión
           </Button>
-          <Button type="button" variant="secondary" onClick={probarSincronizacion} disabled={probandoSync || !simuladorLocal}>
+          {/* [159A-2/F2] El dry-run no escribe: valida que el envío a BDP
+           * funcionaría. "Probar conexión" es el diagnóstico de al lado. */}
+          <Button type="button" variant="secondary" onClick={probarSincronizacion} disabled={probandoSync || !simuladorLocal} title="Simula el envío a BDP sin escribir nada">
             {probandoSync ? <Loader2 className="size-4 animate-spin" /> : <ClipboardCheck className="size-4" />}
-            Validar con simulador local
+            Probar envío (simulador)
           </Button>
           {diagnostico && (
             <span className={diagnostico.health_ok && diagnostico.login_ok ? 'text-sm text-green-600' : 'text-sm text-destructive'}>

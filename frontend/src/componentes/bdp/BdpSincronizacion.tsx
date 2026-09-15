@@ -81,7 +81,7 @@ function BdpSincronizacion() {
     flushMutation.mutate(undefined, {
       onSuccess: (r) => {
         if (r.sincronizados > 0) {
-          toast.success('Sincronizado con BDP', { description: `${r.sincronizados} operación(es) enviada(s).` });
+          toast.success('Exportado al BDP', { description: `${r.sincronizados} operación(es) enviada(s).` });
         } else if (r.pendientes_suscripcion > 0) {
           toast.warning('Pendiente de suscripción BDP', { description: `${r.pendientes_suscripcion} operación(es) requieren la suscripción WebLink.` });
         } else if (r.rechazados > 0) {
@@ -97,7 +97,7 @@ function BdpSincronizacion() {
       },
       onError: (err: unknown) => {
         const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-        toast.error('No se pudo sincronizar', { description: msg });
+        toast.error('No se pudo exportar al BDP', { description: msg });
       },
     });
   }
@@ -137,7 +137,7 @@ function BdpSincronizacion() {
           <p>
             <strong>Requiere BDP conectado.</strong> En modo independiente los cambios locales (artículos, stock,
             departamentos, propinas, puntos, cancelaciones) se guardan localmente y quedan pendientes; se enviarán
-            cuando la integración BDP esté activa y pulses "Sincronizar ahora" o el reintento individual.
+            cuando la integración BDP esté activa y pulses "Exportar al BDP" o el reintento individual.
           </p>
         </div>
       )}
@@ -151,15 +151,15 @@ function BdpSincronizacion() {
             <Send className="size-3.5 inline mr-1" />
             {filasTotales.length} filas en la cola de sincronización · {filasTotales.filter((f) => f.estado === 'sincronizado').length} sincronizadas
           </p>
-          <Button onClick={flushGlobal} disabled={flushMutation.isPending || !modoEfectivoBdp} title={!modoEfectivoBdp ? 'Requiere BDP conectado' : undefined}>
+          <Button onClick={flushGlobal} disabled={flushMutation.isPending || !modoEfectivoBdp} title={!modoEfectivoBdp ? 'Requiere BDP conectado' : 'Envía al BDP los cambios locales pendientes en la cola'}>
             {flushMutation.isPending ? <Loader2 className="size-4 animate-spin mr-1" /> : <RefreshCw className="size-4 mr-1" />}
-            Sincronizar ahora
+            Exportar al BDP
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
           <Info className="size-3.5 inline mr-1" />
           El reintento individual es manual: una operación bloqueada por la suscripción WebLink solo se reintenta aquí o
-          con "Sincronizar ahora" (no hay reintento automático para ese caso).
+          con "Exportar al BDP" (no hay reintento automático para ese caso).
         </p>
       </div>
       )}

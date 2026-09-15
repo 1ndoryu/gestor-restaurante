@@ -74,12 +74,12 @@ function ListaVentas() {
           {bdpSyncEnabled && (
             <TooltipButton
               variant="outline"
-              tooltip="Sincronizar manualmente las ventas desde BDP"
+              tooltip="Importar las ventas desde BDP a la Aplicación Web. Solo lectura BDP."
               onClick={() => bdpPollMutation.mutate()}
               disabled={bdpPollMutation.isPending}
             >
               <RefreshCw className={`size-4 mr-1.5 ${bdpPollMutation.isPending ? 'animate-spin' : ''}`} />
-              Polling BDP
+              Importar del BDP
             </TooltipButton>
           )}
           <Button onClick={() => setModalAbierto(true)}>+ Nueva Venta</Button>
@@ -89,7 +89,7 @@ function ListaVentas() {
       {!bdpSyncEnabled && (
         <p className="rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
           Integración BDP desactivada: las columnas y acciones de BDP no se muestran.
-          El envío de comandas a BDP es automático al guardar; el botón «Reintentar» solo aparece si la
+          El envío de comandas a BDP es automático al guardar; el botón «Exportar a BDP» solo aparece si la
           sincronización falla.
           <Button
             variant="link"
@@ -290,7 +290,7 @@ function ListaVentas() {
           <p className="text-sm text-muted-foreground">No hay ventas registradas.</p>
           <p className="text-xs text-muted-foreground">
             Las comandas se crean en la Aplicación Web y se envían a BDP de forma automática. También puedes
-            usar «+ Nueva Venta» para registrar una manualmente o «Polling BDP» para traer comandas desde el
+            usar «+ Nueva Venta» para registrar una manualmente o «Importar del BDP» para traer comandas desde el
             BDP cuando la integración esté activa.
           </p>
           {!bdpSyncEnabled && (

@@ -798,6 +798,29 @@ export function useCrearBdpClasificacion(queryClient?: QueryClient) {
   });
 }
 
+/* ── [159A-2/F1] Importar departamentos del BDP (solo lectura BDP) ──────── */
+
+export interface BdpImportDepartamentosResultado {
+  creados: number;
+  vinculados: number;
+  conflictos: string[];
+  omitidos_fuera_rango: number[];
+  total_bdp: number;
+}
+
+/** Lee ExportDepartments del BDP y crea/vincula clasificaciones locales.
+ *  Nunca pisa ediciones locales ni escribe en BDP. */
+export async function importarDepartamentosBdp(): Promise<BdpImportDepartamentosResultado> {
+  const resp = await customInstance('/api/bdp/catalogo/importar-departamentos', {
+    method: 'POST',
+  }) as { data: BdpImportDepartamentosResultado };
+  return resp.data;
+}
+
+export function useImportarDepartamentosBdp() {
+  return useMutation({ mutationFn: importarDepartamentosBdp });
+}
+
 /* ── [198A-1] CallWaiter (D10) ────────────────────────────────────────────── */
 
 export async function llamarCamarero(mesaId: string): Promise<{ mensaje: string }> {
@@ -921,9 +944,14 @@ export interface BdpPushFlushResumen {
 
 /** Dispara el flush manual de la cola de push (POST /api/bdp/push/flush).
  *  D2: el reintento tras bloqueo por suscripción es SOLO manual; este botón
- *  procesa también las filas `pendiente_suscripcion`. */
-export async function flushBdpPush(): Promise<BdpPushFlushResumen> {
-  const resp = await customInstance('/api/bdp/push/flush', {
+ *  procesa también las filas `pendiente_suscripcion`.
+ *  [159A-2/F1] `dominios` filtra por sección (Exportar por sección); ausente o
+ *  vacío = flush global (comportamiento histórico: Sincronización, cabecera). */
+export async function flushBdpPush(dominios?: string[]): Promise<BdpPushFlushResumen> {
+  const query = (dominios ?? [])
+    .map((d) => `dominios=${encodeURIComponent(d)}`)
+    .join('&');
+  const resp = await customInstance(`/api/bdp/push/flush${query ? `?${query}` : ''}`, {
     method: 'POST',
   }) as { data: BdpPushFlushResumen };
   return resp.data;

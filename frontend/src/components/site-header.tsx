@@ -68,9 +68,10 @@ function BdpStatusIndicator() {
   )
   const { config: configSync } = useConfiguracionSync(serverData)
   const { mutate: setSyncMode, isPending: isChangingMode } = useSetSyncMode()
-  /* [198A-1/F1] Flush manual de la cola de push (botón "Sincronizar a BDP").
+  /* [198A-1/F1] Flush manual de la cola de push (botón "Exportar a BDP").
    * Requerido por D1 (botón manual siempre) y D2 (reintento tras suscripción
-   * solo manual). El backend exige rol Admin; aquí se muestra el resultado. */
+   * solo manual). El backend exige rol Admin; aquí se muestra el resultado.
+   * [159A-2/F2] Vocabulario Exportar: envía la cola local→BDP. */
   const { mutate: flushPush, isPending: isFlushing } = useFlushBdpPush()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -319,7 +320,7 @@ function BdpStatusIndicator() {
             flushPush(undefined, {
               onSuccess: (r) => {
                 if (r.sincronizados > 0) {
-                  toast.success('Sincronizado con BDP', {
+                  toast.success('Exportado al BDP', {
                     description: `${r.sincronizados} operación(es) enviada(s).`,
                   })
                 } else if (r.pendientes_suscripcion > 0) {
@@ -341,13 +342,13 @@ function BdpStatusIndicator() {
                 }
               },
               onError: (err: unknown) =>
-                toast.error('No se pudo sincronizar con BDP', {
+                toast.error('No se pudo exportar a BDP', {
                   description: String((err as { message?: string })?.message ?? 'Error desconocido'),
                 }),
             })
           }
         >
-          {isFlushing ? 'Sincronizando...' : 'Sincronizar a BDP'}
+          {isFlushing ? 'Exportando...' : 'Exportar a BDP'}
         </DropdownMenuItem>
         {/* [149A-1/P1.2] Apuntaba a '/configuracion/bdp-backup', ruta inexistente → el click no
             hacía nada. El historial real (auditoría + snapshots) vive en '/bdp/historial'. */}

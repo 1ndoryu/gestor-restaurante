@@ -138,11 +138,12 @@ function VentaRowActions({
             Consultar estado BDP
           </DropdownMenuItem>
         )}
-        {/* Un fallo de CreateOrder deja bdp_synced=false; el error es la señal de retry. */}
+        {/* Un fallo de CreateOrder deja bdp_synced=false; el error es la señal de retry.
+         * [159A-2/F2] Vocabulario Exportar: reintenta el envío local→BDP. */}
         {bdpSyncEnabled && !bdp.bdp_synced && bdp.bdp_sync_error && onRetryBdp && (
           <DropdownMenuItem onClick={() => onRetryBdp(v.id)} disabled={retryBdpPending}>
             <RefreshCw className={`size-4 text-blue-600 ${retryBdpPending ? 'animate-spin' : ''}`} />
-            Reintentar envío a BDP
+            Exportar a BDP
           </DropdownMenuItem>
         )}
         {puedePagar && (
