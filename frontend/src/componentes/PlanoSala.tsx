@@ -44,14 +44,15 @@ function PlanoSala() {
   const [previewSyncBdp, setPreviewSyncBdp] = useState<{ salones_bdp: number; zonas_creadas: number; mesas_creadas: number; applied: boolean } | null>(null);
 
   /* [198A-1/D10] CallWaiter: push directo a BDP. El botón solo se muestra en
-   * modo BDP efectivo (misma lógica que el backend y el badge del header). */
+   * modo BDP efectivo (mismo criterio que BdpCatalogo y resto de secciones:
+   * auto + sync + base_url; las credenciales no se exigen aquí porque el
+   * backend nunca las expone en GET /api/configuracion por diseño). */
   const { data: configData } = useObtenerConfiguracion();
   const llamarCamareroMutation = useLlamarCamarero();
   const cfg = configData?.status === 200 ? (configData.data as unknown as Record<string, unknown>) : null;
   const modoOperacion = String(cfg?.modo_operacion ?? 'auto');
   const bdpSyncEnabled = Boolean(cfg?.bdp_sync_enabled ?? false);
-  const credencialesOk = Boolean(cfg?.bdp_base_url && cfg?.bdp_login && cfg?.bdp_password && cfg?.bdp_integrator_code);
-  const modoEfectivoBdp = modoOperacion === 'bdp' || (modoOperacion === 'auto' && bdpSyncEnabled && credencialesOk);
+  const modoEfectivoBdp = modoOperacion === 'bdp' || (modoOperacion === 'auto' && bdpSyncEnabled && String(cfg?.bdp_base_url ?? '').trim() !== '');
 
   const handleLlamarCamarero = (mesaId: string) => {
     llamarCamareroMutation.mutate(mesaId, {
