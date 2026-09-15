@@ -11,6 +11,7 @@
 import { useMemo, useState } from 'react';
 import { Plus, Trash2, Package, Pencil } from 'lucide-react';
 import { TooltipButton } from '@/components/ui/tooltip-button';
+import { EstadoError } from '@/components/ui/estado-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -35,7 +36,7 @@ function formatPrecio(precio: string | undefined): string {
 
 function BdpArticleMapTable() {
   const queryClient = useQueryClient();
-  const { data, isLoading } = useListarArticleMaps();
+  const { data, isLoading, isError, error, refetch } = useListarArticleMaps();
   const eliminarMutation = useEliminarArticleMap({
     mutation: {
       onSuccess: () => {
@@ -182,6 +183,8 @@ function BdpArticleMapTable() {
 
       {isLoading ? (
         <p className="text-xs text-muted-foreground">Cargando mapeos...</p>
+      ) : isError ? (
+        <EstadoError error={error} queFallo="el catálogo de artículos" reintentar={() => refetch()} />
       ) : (
       <>
       {mapeosVisibles.length > 0 && (
