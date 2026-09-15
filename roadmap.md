@@ -187,6 +187,9 @@ INCIDENTE `200109`) y su fix local `sync_catalog`; el residuo `90000003` sigue e
 (pendiente 1g) y `ModifyArticleAndUpdateProfile` sigue sin funcionar contra el BDP real con payload
 mínimo.
 **Siguiente paso:** Fase 1 (no toca red ni BDP).
+**Subplan 2026-09-15 (navegador diferido):** `Agente/planes/plan-catalogo-bdp-front-honesto-2026-09-15.md`
+— front honesto de Catálogo (código visible + estado push + error que distingue),
+lecciones de W-Q2.3; F1 obligatorio, F2 recomendado, F3 diferible.
 
 ### Bloque 149A-3 — Permisos por rol y errores silenciosos (subplan de 149A-1) (plan activo 2026-09-14)
 
