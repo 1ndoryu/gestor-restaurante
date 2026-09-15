@@ -8,10 +8,11 @@
  * [159A-1] Alta y edición en modales (NuevoArticuloDialog +
  * ArticuloMapEditarDialog), como "Nueva Venta": nada inline. */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, Trash2, Package, Pencil } from 'lucide-react';
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -67,7 +68,54 @@ function BdpArticleMapTable() {
 
   const [nuevoOpen, setNuevoOpen] = useState(false);
   const [editando, setEditando] = useState<ArticuloMapEdicion | null>(null);
+  /* [P2.4] Búsqueda y orden efectivos (todo en cliente, sin tocar BDP) */
+  const [busqueda, setBusqueda] = useState('');
+  const [sortKey, setSortKey] = useState<'codigo' | 'descripcion' | 'precio' | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const mapeos = data?.status === 200 ? data.data : [];
+
+  function alternarOrden(key: 'codigo' | 'descripcion' | 'precio') {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortOrder('asc');
+    } else {
+      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+    }
+  }
+
+  const mapeosVisibles = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    const filtrados = q
+      ? mapeos.filter((m) =>
+          (m.articulo_glory_codigo || '').toLowerCase().includes(q) ||
+          (m.descripcion || '').toLowerCase().includes(q) ||
+          (m.articulo_bdp_nombre || '').toLowerCase().includes(q),
+        )
+      : [...mapeos];
+    if (sortKey) {
+      const dir = sortOrder === 'asc' ? 1 : -1;
+      filtrados.sort((a, b) => {
+        if (sortKey === 'precio') {
+          const pa = Number(a.precio_tarifa1) || 0;
+          const pb = Number(b.precio_tarifa1) || 0;
+          return (pa - pb) * dir;
+        }
+        const av = sortKey === 'codigo'
+          ? (a.articulo_glory_codigo || '')
+          : (a.descripcion || a.articulo_bdp_nombre || '');
+        const bv = sortKey === 'codigo'
+          ? (b.articulo_glory_codigo || '')
+          : (b.descripcion || b.articulo_bdp_nombre || '');
+        return av.localeCompare(bv, 'es') * dir;
+      });
+    }
+    return filtrados;
+  }, [mapeos, busqueda, sortKey, sortOrder]);
+
+  function flecha(key: 'codigo' | 'descripcion' | 'precio') {
+    if (sortKey !== key) return null;
+    return sortOrder === 'asc' ? ' ↑' : ' ↓';
+  }
 
   function startEdicion(m: (typeof mapeos)[number]) {
     setEditando({
@@ -106,18 +154,53 @@ function BdpArticleMapTable() {
         </div>
       </div>
 
+      <div className="flex flex-col gap-2">
+        <Input
+          type="search"
+          placeholder="Buscar por código o descripción..."
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          aria-label="Buscar artículos"
+          className="max-w-xs"
+        />
+      </div>
+
       {isLoading ? (
         <p className="text-xs text-muted-foreground">Cargando mapeos...</p>
-      ) : mapeos.length > 0 ? (
+      ) : mapeosVisibles.length > 0 ? (
         <div className="rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Código Aplicación Web</TableHead>
+                <TableHead>
+                  <button
+                    type="button"
+                    onClick={() => alternarOrden('codigo')}
+                    className="cursor-pointer select-none p-0 text-left font-medium hover:underline"
+                  >
+                    Código Aplicación Web{flecha('codigo')}
+                  </button>
+                </TableHead>
                 <TableHead>Código BDP</TableHead>
                 <TableHead>Origen</TableHead>
-                <TableHead>Descripción</TableHead>
-                <TableHead>Precio</TableHead>
+                <TableHead>
+                  <button
+                    type="button"
+                    onClick={() => alternarOrden('descripcion')}
+                    className="cursor-pointer select-none p-0 text-left font-medium hover:underline"
+                  >
+                    Descripción{flecha('descripcion')}
+                  </button>
+                </TableHead>
+                <TableHead>
+                  <button
+                    type="button"
+                    onClick={() => alternarOrden('precio')}
+                    className="cursor-pointer select-none p-0 text-left font-medium hover:underline"
+                  >
+                    Precio{flecha('precio')}
+                  </button>
+                </TableHead>
                 <TableHead>IVA</TableHead>
                 <TableHead>Familia</TableHead>
                 <TableHead>Stock</TableHead>
@@ -126,7 +209,7 @@ function BdpArticleMapTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mapeos.map((m) => (
+              {mapeosVisibles.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell className="font-mono text-xs">{m.articulo_glory_codigo}</TableCell>
                   <TableCell className="font-mono text-xs">
@@ -196,6 +279,8 @@ function BdpArticleMapTable() {
             </TableBody>
           </Table>
         </div>
+      ) : busqueda.trim() ? (
+        <p className="text-xs text-muted-foreground">Sin artículos que coincidan con la búsqueda.</p>
       ) : (
         <p className="text-xs text-muted-foreground">Sin mapeos. Añade uno manualmente o usa la sincronización enriquecida del catálogo BDP.</p>
       )}
