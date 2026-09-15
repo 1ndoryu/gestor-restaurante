@@ -11,6 +11,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tags, Plus, Package } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,8 +32,10 @@ function Clasificaciones() {
   const queryClient = useQueryClient();
   const [tipo, setTipo] = useState<BdpCatalogoTipo>('departamento');
   const [nombre, setNombre] = useState('');
+  const [crearOpen, setCrearOpen] = useState(false);
   const { data, isLoading } = useBdpCatalogo(tipo);
   const crearMutation = useCrearBdpClasificacion(queryClient);
+  const etiqueta = tipo === 'departamento' ? 'Departamento' : 'Familia';
 
   const crear = () => {
     if (!nombre.trim()) return;
@@ -32,8 +43,9 @@ function Clasificaciones() {
       { tipo, nombre: nombre.trim() },
       {
         onSuccess: () => {
-          toast.success(`${tipo === 'departamento' ? 'Departamento' : 'Familia'} creado`);
+          toast.success(`${etiqueta} creado`);
           setNombre('');
+          setCrearOpen(false);
         },
         onError: () => toast.error('No se pudo crear la clasificación'),
       },
@@ -42,30 +54,48 @@ function Clasificaciones() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button variant={tipo === 'departamento' ? 'default' : 'outline'} onClick={() => setTipo('departamento')}>
           Departamentos
         </Button>
         <Button variant={tipo === 'familia' ? 'default' : 'outline'} onClick={() => setTipo('familia')}>
           Familias
         </Button>
-      </div>
-
-      <div className="flex items-end gap-2 max-w-md">
-        <div className="flex flex-col gap-1 flex-1">
-          <Label htmlFor="catalogo-nombre">Nombre</Label>
-          <Input
-            id="catalogo-nombre"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            placeholder={tipo === 'departamento' ? 'Ej: Cocina' : 'Ej: Bebidas'}
-            maxLength={255}
-          />
-        </div>
-        <Button onClick={crear} disabled={crearMutation.isPending || !nombre.trim()}>
-          <Plus className="size-4 mr-1" /> Crear
+        {/* [159A-1] Alta en modal, como "Nueva Venta": nada inline. */}
+        <Button onClick={() => setCrearOpen(true)}>
+          <Plus className="size-4 mr-1" /> Crear {etiqueta.toLowerCase()}
         </Button>
       </div>
+
+      <Dialog open={crearOpen} onOpenChange={setCrearOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Crear {etiqueta.toLowerCase()}</DialogTitle>
+            <DialogDescription>
+              El código BDP se asigna automáticamente al crear. Con BDP conectado, el alta se empuja
+              al terminal; sin BDP, queda local.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="clasificacion-nombre">Nombre</Label>
+            <Input
+              id="clasificacion-nombre"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              placeholder={tipo === 'departamento' ? 'Ej: Cocina' : 'Ej: Bebidas'}
+              maxLength={255}
+            />
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancelar</Button>
+            </DialogClose>
+            <Button onClick={crear} disabled={crearMutation.isPending || !nombre.trim()}>
+              <Plus className="size-3.5 mr-1" /> Crear
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>
@@ -91,10 +121,6 @@ function Clasificaciones() {
       ) : (
         <p className="text-sm text-muted-foreground">No hay {tipo === 'departamento' ? 'departamentos' : 'familias'} registrados.</p>
       )}
-
-      <p className="text-xs text-muted-foreground">
-        El código BDP se asigna automáticamente al crear. Con BDP conectado, el alta se empuja al terminal; sin BDP, queda local.
-      </p>
     </div>
   );
 }

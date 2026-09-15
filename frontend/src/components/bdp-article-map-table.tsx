@@ -2,16 +2,16 @@
  * Permite listar, crear y eliminar mapeos. Importa catálogo desde BDP (F5.7).
  * [223A-1] Tooltips con TooltipButton + confirmación para sync.
  * [237A-4] Añadida columna Stock (solo lectura, viene de sync-catalog).
- * [128A-1/F2] Catálogo local: badge de origen (local/bdp), edición inline
- * (PATCH) de precio, IVA, familia, descripción y código BDP, alta de artículo
- * local (sin código BDP) y toggle de activo (M7: el import no reactiva). */
+ * [128A-1/F2] Catálogo local: badge de origen (local/bdp), edición (PATCH)
+ * de precio, IVA, descripción y código BDP, alta de artículo local (sin
+ * código BDP) y toggle de activo (M7: el import no reactiva).
+ * [159A-1] Alta y edición en modales (NuevoArticuloDialog +
+ * ArticuloMapEditarDialog), como "Nueva Venta": nada inline. */
 
 import { useState } from 'react';
-import { Plus, Trash2, Package, Pencil, X, Check } from 'lucide-react';
+import { Plus, Trash2, Package, Pencil } from 'lucide-react';
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -19,39 +19,13 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListarArticleMaps } from '../api/generated/bdp-mapeos/bdp-mapeos';
 import {
-  useCrearArticleMap,
   useEliminarArticleMap,
   useActualizarArticleMap,
 } from '../api/generated/bdp-mapeos/bdp-mapeos';
 import type { ActualizarBdpArticleMapRequest } from '../api/generated/gestionRestauranteAPI.schemas';
 import { BdpArticleCatalogActions } from './BdpArticleCatalogActions';
-
-/* [128A-1/F2] Formulario de alta: el código BDP es opcional porque se puede
- * crear un artículo 100% local (origen='local'). */
-interface NuevoArticulo {
-  articulo_glory_codigo: string;
-  articulo_bdp_codigo?: string;
-  descripcion: string;
-  precio_tarifa1: string;
-  iva_pct: string;
-}
-
-const articuloVacio: NuevoArticulo = {
-  articulo_glory_codigo: '',
-  articulo_bdp_codigo: '',
-  descripcion: '',
-  precio_tarifa1: '',
-  iva_pct: '',
-};
-
-/* [128A-1/F2] Fila en modo edición inline (PATCH parcial) */
-interface Edicion {
-  id: string;
-  articulo_bdp_codigo: string;
-  descripcion: string;
-  precio_tarifa1: string;
-  iva_pct: string;
-}
+import NuevoArticuloDialog from '@/componentes/bdp/NuevoArticuloDialog';
+import ArticuloMapEditarDialog, { type ArticuloMapEdicion } from './articulo-map-editar-dialog';
 
 function formatPrecio(precio: string | undefined): string {
   const n = Number(precio);
@@ -61,16 +35,6 @@ function formatPrecio(precio: string | undefined): string {
 function BdpArticleMapTable() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useListarArticleMaps();
-  const crearMutation = useCrearArticleMap({
-    mutation: {
-      onSuccess: () => {
-        toast.success('Artículo creado');
-        queryClient.invalidateQueries({ queryKey: ['/api/bdp/article-maps'] });
-        setNuevo({ ...articuloVacio });
-      },
-      onError: () => toast.error('Error al crear artículo'),
-    },
-  });
   const eliminarMutation = useEliminarArticleMap({
     mutation: {
       onSuccess: () => {
@@ -80,7 +44,7 @@ function BdpArticleMapTable() {
       onError: () => toast.error('Error al eliminar mapeo'),
     },
   });
-  /* [128A-1/F2] Edición inline de campos locales */
+  /* [128A-1/F2] Edición de campos locales (PATCH parcial, en modal) */
   const actualizarMutation = useActualizarArticleMap({
     mutation: {
       onSuccess: () => {
@@ -101,8 +65,8 @@ function BdpArticleMapTable() {
     },
   });
 
-  const [nuevo, setNuevo] = useState<NuevoArticulo>(articuloVacio);
-  const [editando, setEditando] = useState<Edicion | null>(null);
+  const [nuevoOpen, setNuevoOpen] = useState(false);
+  const [editando, setEditando] = useState<ArticuloMapEdicion | null>(null);
   const mapeos = data?.status === 200 ? data.data : [];
 
   function startEdicion(m: (typeof mapeos)[number]) {
@@ -115,39 +79,31 @@ function BdpArticleMapTable() {
     });
   }
 
-  function guardarEdicion() {
-    if (!editando) return;
+  function guardarEdicion(ed: ArticuloMapEdicion) {
     const body: ActualizarBdpArticleMapRequest = {
-      articulo_bdp_codigo: editando.articulo_bdp_codigo || null,
-      descripcion: editando.descripcion || null,
-      precio_tarifa1: editando.precio_tarifa1 ? String(editando.precio_tarifa1) : null,
-      iva_pct: editando.iva_pct ? String(editando.iva_pct) : null,
+      articulo_bdp_codigo: ed.articulo_bdp_codigo || null,
+      descripcion: ed.descripcion || null,
+      precio_tarifa1: ed.precio_tarifa1 ? String(ed.precio_tarifa1) : null,
+      iva_pct: ed.iva_pct ? String(ed.iva_pct) : null,
     };
-    actualizarMutation.mutate({ id: editando.id, data: body });
+    actualizarMutation.mutate({ id: ed.id, data: body });
   }
 
   function toggleActivo(m: (typeof mapeos)[number]) {
     toggleMutation.mutate({ id: m.id, data: { activo: !m.activo } });
   }
 
-  function handleCrear() {
-    if (!nuevo.articulo_glory_codigo) return;
-    crearMutation.mutate({
-      data: {
-        articulo_glory_codigo: nuevo.articulo_glory_codigo,
-        articulo_bdp_codigo: nuevo.articulo_bdp_codigo || undefined,
-        descripcion: nuevo.descripcion || undefined,
-        precio_tarifa1: nuevo.precio_tarifa1 ? String(nuevo.precio_tarifa1) : undefined,
-        iva_pct: nuevo.iva_pct ? String(nuevo.iva_pct) : undefined,
-      },
-    });
-  }
-
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-sm font-medium">Mapeo artículos Aplicación Web → BDP</span>
-        <BdpArticleCatalogActions />
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => setNuevoOpen(true)}>
+            <Plus className="size-3.5 mr-1" />
+            Nuevo artículo
+          </Button>
+          <BdpArticleCatalogActions />
+        </div>
       </div>
 
       {isLoading ? (
@@ -214,102 +170,29 @@ function BdpArticleMapTable() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-center gap-1">
-                      {editando?.id === m.id ? (
-                        <>
-                          <TooltipButton
-                            variant="outline"
-                            size="icon"
-                            className="bg-muted/40 hover:bg-muted"
-                            onClick={guardarEdicion}
-                            disabled={actualizarMutation.isPending}
-                            tooltip="Guardar cambios"
-                          >
-                            <Check className="size-3.5 text-emerald-600" />
-                          </TooltipButton>
-                          <TooltipButton
-                            variant="outline"
-                            size="icon"
-                            className="bg-muted/40 hover:bg-muted"
-                            onClick={() => setEditando(null)}
-                            tooltip="Cancelar"
-                          >
-                            <X className="size-3.5" />
-                          </TooltipButton>
-                        </>
-                      ) : (
-                        <>
-                          <TooltipButton
-                            variant="outline"
-                            size="icon"
-                            className="bg-muted/40 hover:bg-muted"
-                            onClick={() => startEdicion(m)}
-                            tooltip="Editar datos locales del artículo"
-                          >
-                            <Pencil className="size-3.5" />
-                          </TooltipButton>
-                          <TooltipButton
-                            variant="outline"
-                            size="icon"
-                            className="bg-muted/40 hover:bg-muted"
-                            onClick={() => eliminarMutation.mutate({ id: m.id })}
-                            disabled={eliminarMutation.isPending}
-                            tooltip="Eliminar este mapeo. No afecta al catálogo BDP."
-                          >
-                            <Trash2 className="size-3.5 text-destructive" />
-                          </TooltipButton>
-                        </>
-                      )}
+                      <TooltipButton
+                        variant="outline"
+                        size="icon"
+                        className="bg-muted/40 hover:bg-muted"
+                        onClick={() => startEdicion(m)}
+                        tooltip="Editar datos locales del artículo"
+                      >
+                        <Pencil className="size-3.5" />
+                      </TooltipButton>
+                      <TooltipButton
+                        variant="outline"
+                        size="icon"
+                        className="bg-muted/40 hover:bg-muted"
+                        onClick={() => eliminarMutation.mutate({ id: m.id })}
+                        disabled={eliminarMutation.isPending}
+                        tooltip="Eliminar este mapeo. No afecta al catálogo BDP."
+                      >
+                        <Trash2 className="size-3.5 text-destructive" />
+                      </TooltipButton>
                     </div>
                   </TableCell>
                 </TableRow>
               ))}
-              {editando && (
-                <TableRow>
-                  <TableCell colSpan={10} className="bg-muted/40 p-2">
-                    <div className="grid gap-2 md:grid-cols-5 items-end">
-                      <div className="flex flex-col gap-1">
-                        <Label className="text-xs">Código BDP</Label>
-                        <Input
-                          className="font-mono text-xs"
-                          value={editando.articulo_bdp_codigo}
-                          onChange={(e) => setEditando((p) => p && { ...p, articulo_bdp_codigo: e.target.value })}
-                          placeholder="Vacío = artículo local"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1 md:col-span-2">
-                        <Label className="text-xs">Descripción</Label>
-                        <Input
-                          className="text-xs"
-                          value={editando.descripcion}
-                          onChange={(e) => setEditando((p) => p && { ...p, descripcion: e.target.value })}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label className="text-xs">Precio (€)</Label>
-                        <Input
-                          className="text-xs"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={editando.precio_tarifa1}
-                          onChange={(e) => setEditando((p) => p && { ...p, precio_tarifa1: e.target.value })}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label className="text-xs">IVA (%)</Label>
-                        <Input
-                          className="text-xs"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={editando.iva_pct}
-                          onChange={(e) => setEditando((p) => p && { ...p, iva_pct: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
             </TableBody>
           </Table>
         </div>
@@ -317,71 +200,13 @@ function BdpArticleMapTable() {
         <p className="text-xs text-muted-foreground">Sin mapeos. Añade uno manualmente o usa la sincronización enriquecida del catálogo BDP.</p>
       )}
 
-      {/* Formulario inline para nuevo mapeo */}
-      <div className="grid gap-2 md:grid-cols-5 items-end">
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="nuevo-glory-codigo" className="text-xs">Código Aplicación Web</Label>
-          <Input
-            id="nuevo-glory-codigo"
-            className="font-mono text-xs"
-            value={nuevo.articulo_glory_codigo}
-            onChange={(e) => setNuevo((p) => ({ ...p, articulo_glory_codigo: e.target.value }))}
-            placeholder="SKU interno"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="nuevo-bdp-codigo" className="text-xs">Código BDP</Label>
-          <Input
-            id="nuevo-bdp-codigo"
-            className="font-mono text-xs"
-            value={nuevo.articulo_bdp_codigo}
-            onChange={(e) => setNuevo((p) => ({ ...p, articulo_bdp_codigo: e.target.value }))}
-            placeholder="Opcional (artículo local)"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="nuevo-descripcion" className="text-xs">Descripción</Label>
-          <Input
-            id="nuevo-descripcion"
-            className="text-xs"
-            value={nuevo.descripcion}
-            onChange={(e) => setNuevo((p) => ({ ...p, descripcion: e.target.value }))}
-            placeholder="Nombre/descripción"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="nuevo-precio" className="text-xs">Precio (€)</Label>
-          <Input
-            id="nuevo-precio"
-            className="text-xs"
-            type="number"
-            min="0"
-            step="0.01"
-            value={nuevo.precio_tarifa1}
-            onChange={(e) => setNuevo((p) => ({ ...p, precio_tarifa1: e.target.value }))}
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="nuevo-iva" className="text-xs">IVA (%)</Label>
-          <Input
-            id="nuevo-iva"
-            className="text-xs"
-            type="number"
-            min="0"
-            step="0.01"
-            value={nuevo.iva_pct}
-            onChange={(e) => setNuevo((p) => ({ ...p, iva_pct: e.target.value }))}
-          />
-        </div>
-        <Button
-          size="sm"
-          onClick={handleCrear}
-          disabled={!nuevo.articulo_glory_codigo || crearMutation.isPending}
-        >
-          <Plus className="size-3.5 mr-1" />
-          Añadir
-        </Button>
-      </div>
+      <NuevoArticuloDialog open={nuevoOpen} onOpenChange={setNuevoOpen} />
+      <ArticuloMapEditarDialog
+        edicion={editando}
+        isPending={actualizarMutation.isPending}
+        onOpenChange={(open) => { if (!open) setEditando(null); }}
+        onGuardar={guardarEdicion}
+      />
     </div>
   );
 }
