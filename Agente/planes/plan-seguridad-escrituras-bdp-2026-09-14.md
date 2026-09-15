@@ -88,7 +88,7 @@ llegar al BDP**. Contrapartida honesta: esto también implica que la sonda de un
 > verificar. Requiere suscripción activa verificada (§8) antes de W-Q2.5/W-Q2.6/W-Q2.11.
 
 - [ ] W-Q2.1 Alta de artículo ~~(dato `PRUEBA-149A2-ART-*`; neutralizar con Modify tras verificar)~~ **OMITIDA por decisión del usuario 2026-09-15: no crear más artículos** (sin DeleteArticle + Modify sin éxito real probado, cada alta queda permanente)
-- [ ] W-Q2.2 Modificar artículo / precios (sobre el artículo de prueba; verificar vuelta con GetArticle)
+- [x] W-Q2.2 Modificar artículo / precios (neutralizado `90000003` con `activo=false` → `WebArticle:false`; audit `modify_article` `exito` 2026-09-15T06:18:51Z; verificado con explorar + ExportFromProfile + snapshot `811f4a15`; limitación: sin `GetArticle` directo — detalle en §8 y `Agente/completados/tareas-2026-09-15.md`)
 - [ ] W-Q2.3 Alta de departamento (dato `PRUEBA-149A2-DEP-*`; sin borrado posible, queda marcado)
 - [ ] W-Q2.4 Comanda (create_order) (pedido de prueba; verificar con GetOrder por MarketplaceOrderId)
 - [ ] W-Q2.5 Pago (requiere suscripción activa verificada; importe mínimo; verificar balance)
@@ -127,7 +127,7 @@ credenciales/token; NIF/teléfonos/emails enmascarados).
 
 | Ítem | Evidencia (técnica + visual) | Confirmado por usuario | Fecha/hora |
 |---|---|---|---|
-| — | — | — | — |
+| W-Q2.2 neutralizar `90000003` (`activo=false` → `WebArticle:false`) | Cola `modificar` sincronizada 06:18:54Z; audit `exito` con `WebArticle:false` y `ErrorMessage:""`; explorar 07:17Z 0 artículos plano; ExportFromProfile 66 deptos con `1=CAFES`; snapshot `811f4a15` `Articles:[]`. Límite: sin `GetArticle` directo (ver `Agente/completados/tareas-2026-09-15.md`) | Sí (neutralizar 90000003) | 2026-09-15 |
 
 ## 9. Próximo paso
 

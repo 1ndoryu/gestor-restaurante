@@ -365,7 +365,10 @@ fn article_data_desde_map(
         price3: None,
         price4: None,
         price5: None,
-        web_article: Some(true),
+        /* [149A-2/W-Q2.2] `activo=false` despublica el artículo en BDP
+         * (`WebArticle:false`) en lugar de dejarlo visible. Es la vía de
+         * neutralización de altas de prueba: BDP no expone borrado. */
+        web_article: Some(map.activo),
         is_inventoriable: Some(true),
         modifiable_price: None,
         menu_dish: None,
@@ -1012,6 +1015,55 @@ mod clasificacion_error_tests {
 #[cfg(test)]
 mod article_data_merge_tests {
     use super::*;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    fn map_fixture(activo: bool) -> BdpArticleMap {
+        BdpArticleMap {
+            id: Uuid::new_v4(),
+            user_id: Uuid::new_v4(),
+            articulo_glory_codigo: "90000003".into(),
+            articulo_bdp_codigo: "90000003".into(),
+            articulo_bdp_nombre: "PRUEBA".into(),
+            origen: "local".into(),
+            local_dirty: false,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            descripcion: "PRUEBA".into(),
+            precio_tarifa1: Decimal::from_str("1.00").unwrap(),
+            iva_pct: Decimal::from_str("10.00").unwrap(),
+            departamento: 1,
+            familia: 1,
+            subfamilia: 1,
+            activo,
+            barcode: String::new(),
+            ultima_sync_at: None,
+            stock_actual: Decimal::ZERO,
+        }
+    }
+
+    /* [149A-2/W-Q2.2] Desactivar un map despublica el artículo en BDP. */
+    #[test]
+    fn map_inactivo_envia_web_article_false() {
+        let parcial = article_data_desde_map(
+            &ConfiguracionRestaurante::default(),
+            &map_fixture(false),
+        )
+        .unwrap();
+        let v = serde_json::to_value(&parcial).unwrap();
+        assert_eq!(v["WebArticle"], false);
+    }
+
+    #[test]
+    fn map_activo_envia_web_article_true() {
+        let parcial = article_data_desde_map(
+            &ConfiguracionRestaurante::default(),
+            &map_fixture(true),
+        )
+        .unwrap();
+        let v = serde_json::to_value(&parcial).unwrap();
+        assert_eq!(v["WebArticle"], true);
+    }
 
     #[test]
     fn merge_conserva_campos_completos_y_aplica_patch_parcial() {
