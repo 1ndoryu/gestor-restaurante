@@ -1548,6 +1548,7 @@ async fn simulator_create_department_happy_path() {
             graph_description1: String::new(),
             graph_description2: String::new(),
             graph_description3: String::new(),
+            printer_level: 1,
             overwrite: false,
         })
         .await
@@ -1968,6 +1969,7 @@ async fn simulator_duplicate_department_rechazado_honesto() {
         graph_description1: String::new(),
         graph_description2: String::new(),
         graph_description3: String::new(),
+        printer_level: 1,
         overwrite: false,
     };
 

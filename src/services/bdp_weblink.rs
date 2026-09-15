@@ -585,14 +585,21 @@ impl<'a> BdpWeblinkClient<'a> {
             .await
     }
 
-    /* [198A-1/F5] Escrituras de departamentos. */
+    /* [198A-1/F5] Escrituras de departamentos.
+     * [W-Q2.3] El BDP real devuelve HTTP 200 con `ErrorMessage` vacío y el
+     * rechazo embebido en `ListaErroresArticulo` (p. ej. "EL DEPARTAMENTO 104
+     * YA EXISTE"); sin `ensure_embedded_errors_empty` se marcaba como `exito`
+     * (falso positivo). Igual que los escritores de artículos (H-W). */
     pub async fn create_department(
         &self,
         request: &BdpCreateDepartmentRequest,
     ) -> Result<Value, BdpWeblinkError> {
         self.ensure_write_target_allowed()?;
-        self.post_authenticated_json(BDP_PATH_CREATE_DEPARTMENT, request)
-            .await
+        let response = self
+            .post_authenticated_json(BDP_PATH_CREATE_DEPARTMENT, request)
+            .await?;
+        ensure_embedded_errors_empty(&response)?;
+        Ok(response)
     }
 
     pub async fn create_department_and_update_profiles(
@@ -600,8 +607,11 @@ impl<'a> BdpWeblinkClient<'a> {
         request: &BdpCreateDepartmentProfilesRequest,
     ) -> Result<Value, BdpWeblinkError> {
         self.ensure_write_target_allowed()?;
-        self.post_authenticated_json(BDP_PATH_CREATE_DEPARTMENT_PROFILES, request)
-            .await
+        let response = self
+            .post_authenticated_json(BDP_PATH_CREATE_DEPARTMENT_PROFILES, request)
+            .await?;
+        ensure_embedded_errors_empty(&response)?;
+        Ok(response)
     }
 
     /* [198A-1/F6] Escrituras de comandas y plano de sala. */

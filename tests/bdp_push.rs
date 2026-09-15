@@ -630,6 +630,11 @@ fn payload_crear_departamento_serializa_all_profiles() {
     assert_eq!(payload["Description"], "Cocina");
     assert_eq!(payload["AllProfiles"], true);
     assert_eq!(payload["Overwrite"], false);
+    /* W-Q2.3: abreviada máx 10 caracteres y nivel de impresión 1-9. */
+    assert_eq!(payload["ShortDescription"], "Cocina");
+    assert_eq!(payload["PrinterLevel"], 1);
+    let largo = payload_crear_departamento(6, "PRUEBA-149A2-DEP-20260915").unwrap();
+    assert_eq!(largo["ShortDescription"], "PRUEBA-149");
 }
 
 #[test]

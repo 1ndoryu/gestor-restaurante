@@ -89,7 +89,7 @@ llegar al BDP**. Contrapartida honesta: esto también implica que la sonda de un
 
 - [ ] W-Q2.1 Alta de artículo ~~(dato `PRUEBA-149A2-ART-*`; neutralizar con Modify tras verificar)~~ **OMITIDA por decisión del usuario 2026-09-15: no crear más artículos** (sin DeleteArticle + Modify sin éxito real probado, cada alta queda permanente)
 - [x] W-Q2.2 Modificar artículo / precios (neutralizado `90000003` con `activo=false` → `WebArticle:false`; audit `modify_article` `exito` 2026-09-15T06:18:51Z; verificado con explorar + ExportFromProfile + snapshot `811f4a15`; limitación: sin `GetArticle` directo — detalle en §8 y `Agente/completados/tareas-2026-09-15.md`)
-- [ ] W-Q2.3 Alta de departamento (dato `PRUEBA-149A2-DEP-*`; sin borrado posible, queda marcado)
+- [x] W-Q2.3 Alta de departamento (`PRUEBA-149A2-DEP-20260915` creado como código BDP `901`; audit `create_department` `exito` 2026-09-15T07:54:07Z sin avisos; verificado en ExportFromProfile `901=PRUEBA-149A2-DEP-20260915`. Permanente: sin borrado posible. Intentos previos honestos: código 1 y 104 ya existían en BDP — detalle en §8 y `Agente/completados/tareas-2026-09-15.md`)
 - [ ] W-Q2.4 Comanda (create_order) (pedido de prueba; verificar con GetOrder por MarketplaceOrderId)
 - [ ] W-Q2.5 Pago (requiere suscripción activa verificada; importe mínimo; verificar balance)
 - [ ] W-Q2.6 Factura (requiere suscripción activa verificada; sobre el pedido de prueba)
@@ -128,7 +128,7 @@ credenciales/token; NIF/teléfonos/emails enmascarados).
 | Ítem | Evidencia (técnica + visual) | Confirmado por usuario | Fecha/hora |
 |---|---|---|---|
 | W-Q2.2 neutralizar `90000003` (`activo=false` → `WebArticle:false`) | Cola `modificar` sincronizada 06:18:54Z; audit `exito` con `WebArticle:false` y `ErrorMessage:""`; explorar 07:17Z 0 artículos plano; ExportFromProfile 66 deptos con `1=CAFES`; snapshot `811f4a15` `Articles:[]`. Límite: sin `GetArticle` directo (ver `Agente/completados/tareas-2026-09-15.md`) | Sí (neutralizar 90000003) | 2026-09-15 |
-| W-Q2.3 alta departamento `PRUEBA-149A2-DEP-20260915` (código local 1) | Cola `crear` sincronizada 07:38Z; audit `exito` con 2 avisos (`ShortDescription` larga, `PrinterLevel` 0); ExportFromProfile sin la entrada (código 1 sigue `CAFES`): BDP conservó el existente con `Overwrite=false`, cero residuo. Causa: `siguiente_code` local empieza en 1 y colisiona con códigos reales. Gotcha: backend sin `BDP_WRITE_ALLOWED_ORIGINS` en entorno falla el armado sin auditoría (ver completada) | Sí (crear departamento, permanente) | 2026-09-15 |
+| W-Q2.3 alta departamento `PRUEBA-149A2-DEP-20260915` → **VERDE como código BDP `901`** | Intentos 07:38Z (código 1) y 07:47Z (código 104): BDP devolvió `exito` con avisos pero no creó nada (códigos ya existentes; `Overwrite=false` conserva). Reintento 07:54Z con código libre `901` + payload corregido (`ShortDescription` 10 chars, `PrinterLevel=1`): audit `exito` con `ErrorMessage:""` y `ListaErroresArticulo:[]`; ExportFromProfile 55 deptos con `901=PRUEBA-149A2-DEP-20260915`. Permanente (sin Delete). Fixes: `payload_crear_departamento` trunca abreviada + `PrinterLevel` nuevo campo; `create_department*` validan errores embebidos (antes falso `exito`). Gotcha: backend sin `BDP_WRITE_ALLOWED_ORIGINS` en entorno falla el armado sin auditoría | Sí (crear departamento + reintento código libre, permanente) | 2026-09-15 |
 
 ## 9. Próximo paso
 

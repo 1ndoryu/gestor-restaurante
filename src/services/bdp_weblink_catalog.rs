@@ -1302,6 +1302,7 @@ pub struct BdpCreateDepartmentRequest {
     pub graph_description1: String,
     pub graph_description2: String,
     pub graph_description3: String,
+    pub printer_level: i32,
     pub overwrite: bool,
 }
 
@@ -1314,6 +1315,7 @@ pub struct BdpCreateDepartmentProfilesRequest {
     pub graph_description1: String,
     pub graph_description2: String,
     pub graph_description3: String,
+    pub printer_level: i32,
     pub overwrite: bool,
     pub all_profiles: bool,
     #[serde(skip_serializing_if = "Option::is_none")]

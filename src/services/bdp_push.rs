@@ -404,14 +404,19 @@ fn fecha_hoy() -> String {
 }
 
 /// Construye el payload de `departamento/crear` (D7) con `AllProfiles=true` (D4).
+/// `ShortDescription` se trunca a 10 caracteres y `PrinterLevel=1`: el manual
+/// WebLink exige abreviada no vacía de máx 10 y nivel de impresión 1-9; sin
+/// ellos el BDP real devuelve avisos en `ListaErroresArticulo` (W-Q2.3).
 pub fn payload_crear_departamento(code: i32, nombre: &str) -> Result<Value, String> {
+    let short_description: String = nombre.chars().take(10).collect();
     let req = BdpCreateDepartmentProfilesRequest {
         code,
         description: nombre.to_string(),
-        short_description: nombre.to_string(),
+        short_description,
         graph_description1: String::new(),
         graph_description2: String::new(),
         graph_description3: String::new(),
+        printer_level: 1,
         overwrite: false,
         all_profiles: true,
         profile_list: None,
