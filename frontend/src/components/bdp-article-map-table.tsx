@@ -72,6 +72,10 @@ function BdpArticleMapTable() {
   const [busqueda, setBusqueda] = useState('');
   const [sortKey, setSortKey] = useState<'codigo' | 'descripcion' | 'precio' | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  /* Paginación en cliente: con cientos de artículos, renderizar todo en cada
+   * tecla frena el navegador; solo se pintan PAGE_SIZE filas. */
+  const PAGE_SIZE = 50;
+  const [pagina, setPagina] = useState(0);
   const mapeos = data?.status === 200 ? data.data : [];
 
   function alternarOrden(key: 'codigo' | 'descripcion' | 'precio') {
@@ -81,6 +85,12 @@ function BdpArticleMapTable() {
     } else {
       setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
     }
+    setPagina(0);
+  }
+
+  function cambiarBusqueda(v: string) {
+    setBusqueda(v);
+    setPagina(0);
   }
 
   const mapeosVisibles = useMemo(() => {
@@ -111,6 +121,11 @@ function BdpArticleMapTable() {
     }
     return filtrados;
   }, [mapeos, busqueda, sortKey, sortOrder]);
+
+  const totalPaginas = Math.max(1, Math.ceil(mapeosVisibles.length / PAGE_SIZE));
+  const paginaActual = Math.min(pagina, totalPaginas - 1);
+  const paginaDesde = paginaActual * PAGE_SIZE;
+  const mapeosPagina = mapeosVisibles.slice(paginaDesde, paginaDesde + PAGE_SIZE);
 
   function flecha(key: 'codigo' | 'descripcion' | 'precio') {
     if (sortKey !== key) return null;
@@ -159,7 +174,7 @@ function BdpArticleMapTable() {
           type="search"
           placeholder="Buscar por código o descripción..."
           value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
+          onChange={(e) => cambiarBusqueda(e.target.value)}
           aria-label="Buscar artículos"
           className="max-w-xs"
         />
@@ -167,7 +182,9 @@ function BdpArticleMapTable() {
 
       {isLoading ? (
         <p className="text-xs text-muted-foreground">Cargando mapeos...</p>
-      ) : mapeosVisibles.length > 0 ? (
+      ) : (
+      <>
+      {mapeosVisibles.length > 0 && (
         <div className="rounded-md border">
           <Table>
             <TableHeader>
@@ -209,7 +226,7 @@ function BdpArticleMapTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mapeosVisibles.map((m) => (
+              {mapeosPagina.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell className="font-mono text-xs">{m.articulo_glory_codigo}</TableCell>
                   <TableCell className="font-mono text-xs">
@@ -279,10 +296,41 @@ function BdpArticleMapTable() {
             </TableBody>
           </Table>
         </div>
-      ) : busqueda.trim() ? (
+      )}
+      {mapeosVisibles.length > 0 && (
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-xs text-muted-foreground">
+            {mapeosVisibles.length} artículo{mapeosVisibles.length === 1 ? '' : 's'}
+            {totalPaginas > 1 && ` · página ${paginaActual + 1} de ${totalPaginas}`}
+          </span>
+          {totalPaginas > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={paginaActual === 0}
+                onClick={() => setPagina((p) => Math.max(0, p - 1))}
+              >
+                Anterior
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={paginaActual >= totalPaginas - 1}
+                onClick={() => setPagina((p) => Math.min(totalPaginas - 1, p + 1))}
+              >
+                Siguiente
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+      {mapeosVisibles.length === 0 && (busqueda.trim() ? (
         <p className="text-xs text-muted-foreground">Sin artículos que coincidan con la búsqueda.</p>
       ) : (
         <p className="text-xs text-muted-foreground">Sin mapeos. Añade uno manualmente o usa la sincronización enriquecida del catálogo BDP.</p>
+      ))}
+      </>
       )}
 
       <NuevoArticuloDialog open={nuevoOpen} onOpenChange={setNuevoOpen} />
