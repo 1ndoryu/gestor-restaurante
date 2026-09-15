@@ -36,19 +36,19 @@ de las 13 operaciones Q2.1–Q2.13, 13 dimensiones: guards fail-closed, arming/d
 idempotencia, cola, fallo parcial, referencias/códigos, aislamiento por usuario, rollback,
 timeout/throttle, peor caso, suscripción, auditoría.
 
-- [ ] A-Q2.1 Alta de artículo — 13 dimensiones + visual del estado en pantalla
-- [ ] A-Q2.2 Modificar artículo / precios
-- [ ] A-Q2.3 Alta de departamento
-- [ ] A-Q2.4 Comanda (create_order)
-- [ ] A-Q2.5 Pago (bloqueada por suscripción → se simula)
-- [ ] A-Q2.6 Factura (bloqueada por suscripción → se simula)
-- [ ] A-Q2.7 Propina
-- [ ] A-Q2.8 Puntos de fidelidad
-- [ ] A-Q2.9 Stock (UpdateStock / masivo)
-- [ ] A-Q2.10 Llamada a camarero
-- [ ] A-Q2.11 Cancelación (bloqueada por suscripción → se simula)
-- [ ] A-Q2.12 Reintento manual desde la cola
-- [ ] A-Q2.13 Arming/modalidad (automático vs manual)
+- [x] A-Q2.1 Alta de artículo — 13 dimensiones + visual del estado en pantalla (verificado en código 2026-09-15; sin DeleteArticle en manual 244p/código proveedor/catálogo; decisión agente por directiva usuario)
+- [x] A-Q2.2 Modificar artículo / precios (verificado en código 2026-09-15: payload completo, enrich previo con cancel si falla lectura; decisión agente por directiva usuario)
+- [x] A-Q2.3 Alta de departamento (verificado en código 2026-09-15: `overwrite:false`, `all_profiles:true`; decisión agente por directiva usuario)
+- [x] A-Q2.4 Comanda (create_order) (verificado en código 2026-09-15: envío único, reconciliación por MarketplaceOrderId ante transporte ambiguo, validación en frontera; decisión agente)
+- [x] A-Q2.5 Pago (bloqueada por suscripción → se simula) (verificado 2026-09-15: `clasificar_error` normalizado case/grafía + tests; `pendiente_suscripcion` sin reintento auto; decisión agente)
+- [x] A-Q2.6 Factura (bloqueada por suscripción → se simula) (verificado 2026-09-15: mismo gate que Q2.5; decisión agente)
+- [x] A-Q2.7 Propina (verificado 2026-09-15: `add_tip` configurable por venta D8; decisión agente)
+- [x] A-Q2.8 Puntos de fidelidad (verificado 2026-09-15: payload directo cliente+puntos+motivo; decisión agente)
+- [x] A-Q2.9 Stock (UpdateStock / masivo) (verificado 2026-09-15: inventario masivo + regularización con almacén/registro de config y fecha hoy; decisión agente)
+- [x] A-Q2.10 Llamada a camarero (verificado 2026-09-15: bloqueado en standalone, auditoría en éxito y error; decisión agente)
+- [x] A-Q2.11 Cancelación (bloqueada por suscripción → se simula) (verificado 2026-09-15: mismo gate Q2.5 + `pos_id` requerido; decisión agente)
+- [x] A-Q2.12 Reintento manual desde la cola (verificado 2026-09-15: `forzar_manual`, `pendiente_suscripcion` excluida de auto; decisión agente)
+- [x] A-Q2.13 Arming/modalidad (automático vs manual) (verificado 2026-09-15: `try_auto_arm`/`armar_push` D1, standalone no-op; decisión agente)
 
 Puntos que ya se conocían y **deben re-verificarse** (no se dan por buenos):
 `call_waiter` auditado, clasificación de suscripción normalizada, estado `rechazado` para 4xx,
@@ -65,14 +65,14 @@ llegar al BDP**. Contrapartida honesta: esto también implica que la sonda de un
 
 ## 4. FASE 2 — Simulaciones antes de escribir (simulador local + wiremock)
 
-- [ ] S1 Baseline de suites: `lib` (Vía T / contrato), fail-closed, push/cola, guard, simulador
-- [ ] S2 Happy path de las 13 operaciones contra el simulador, con verificación local por operación
-- [ ] S3 Suscripción inactiva por operación → `pendiente_suscripcion`, sin reintentos en bucle
-- [ ] S4 Timeout a mitad de escritura → estado honesto, sin doble envío, reintento acotado
-- [ ] S5 Payload inválido → rechazo definitivo honesto, cero filas fantasma
-- [ ] S6 Duplicado deliberado → un solo efecto (artículo, comanda, departamento) + cola sin repetir
-- [ ] S7 Inventario masivo borde (0 ítems, stock negativo, motivo vacío)
-- [ ] S8 Cola: pendiente → reintento manual único → error visible → sin auto-flush
+- [x] S1 Baseline de suites: `lib` (Vía T / contrato), fail-closed, push/cola, guard, simulador (2026-09-15: 176 passed, 0 failed)
+- [x] S2 Happy path de las 13 operaciones contra el simulador, con verificación local por operación (2026-09-15: 37/37 `bdp_simulator_integration --include-ignored`)
+- [x] S3 Suscripción inactiva por operación → `pendiente_suscripcion`, sin reintentos en bucle (2026-09-15: `simulator_subscription_blocked_payment_invoice_cancel` + `flush_suscripcion_inactiva_*` verdes)
+- [x] S4 Timeout a mitad de escritura → estado honesto, sin doble envío, reintento acotado (2026-09-15: `simulator_fault_delay_ms_causes_timeout`, `simulator_reconcile_after_disconnect`, `flush_timeout_mid_write_*` verdes)
+- [x] S5 Payload inválido → rechazo definitivo honesto, cero filas fantasma (2026-09-15: `simulator_payload_invalido_422_no_crea_fantasma`, `flush_payload_invalido_*` verdes)
+- [x] S6 Duplicado deliberado → un solo efecto (artículo, comanda, departamento) + cola sin repetir (2026-09-15: `simulator_create_order_idempotent`, `simulator_duplicate_article_no_doble_alta`, `simulator_duplicate_department_rechazado_honesto`, `simulator_invoice_idempotent` verdes)
+- [x] S7 Inventario masivo borde (0 ítems, stock negativo, motivo vacío) (2026-09-15: `simulator_massive_inventory_bordes_no_sobreescriben_stock` verde)
+- [x] S8 Cola: pendiente → reintento manual único → error visible → sin auto-flush (2026-09-15: 19/19 `bdp_push`, incl. `cola_reintento_manual_uno_error_visible_sin_auto_flush`)
 - [ ] S9 **Visual**: cada estado de la cola y cada aviso mostrado en pantalla y confirmado por ti
 
 ## 5. FASE 3 — Escrituras reales (una a una, autorizadas por ti)
