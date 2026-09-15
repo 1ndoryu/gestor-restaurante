@@ -66,13 +66,28 @@ reinicio justifica (tokens, responsive, foco, zoom, temas).
       muestra "Modo independiente" (antes, en BDP: "BDP: lectura") y no queda ninguna mención a BDP en
       el DOM. Corregido **H-149A-1-01** (padding del badge) y re-mostrado al usuario
       — ✅ confirmado por usuario 2026-09-14 12:24
-- [ ] P1.2 Conmutador de modo: cambio y persistencia, sin recargar de forma extraña — **evidencia
+- [x] P1.2 Conmutador de modo: cambio y persistencia, sin recargar de forma extraña — **evidencia
       2026-09-14:** el menú del badge cambia el modo (`PATCH /api/configuracion/modo` → 200) y
       **persiste** (BD `modo=auto`/`standalone` comprobado tras cada click); tras el fix
       **H-149A-1-02** el badge se actualiza **en vivo sin recargar** ("Modo automático activado" y
-      badge pasa de "Modo independiente" a "BDP: off"; `recargasDePagina=1`, sin navegación extra).
-      ⏳ *pendiente de tu OK*
-- [ ] P1.3 Degradación por fallos: umbral, mensajes y banner (ver P1.6 abajo)
+      badge pasa de "Modo independiente" a "BDP: off"; `recargasDePagina=1`, sin navegación extra)
+      — ✅ confirmado por usuario 2026-09-14
+- [x] P1.2b **Vuelta atrás desde "BDP: lectura"**: el menú del badge no ofrecía desactivar la
+      integración (solo activar escritura, sincronizar e ir a Configuración) → **H-149A-1-05**.
+      Verificado en vivo: `Desactivar BDP (quedar solo en local)` → `PATCH /api/configuracion
+      {bdp_sync_enabled:false}` 200, badge pasa a "BDP: off" sin recargar, BD `bdp_sync_enabled=f`
+      — ✅ confirmado por usuario 2026-09-14
+- [~] P1.3 Degradación por fallos: umbral, mensajes y banner (ver P1.6 abajo) — **hueco real
+      encontrado:** la cabecera derivaba el modo por su cuenta y **no veía la histéresis M2**, así
+      que ante 3 fallos consecutivos el backend ya opera en local (`modo_efectivo=standalone`,
+      toda llamada al BDP rechazada) mientras el badge seguía prometiendo "BDP: lectura". Fix
+      (`site-header.tsx`): el badge consume `GET /api/configuracion/modo` (el servidor es la
+      fuente del modo efectivo) y, si hay degradación, muestra **"BDP: sin respuesta"** (ámbar) con
+      menú que explica que se sigue en local, que la cola no se pierde y que se retoma solo al
+      responder el BDP. Añadida la invalidación de esa query en los tres cambios de modo. Evidencia
+      de umbral/histéresis en código: `bdp_order_poller.rs:291/293`, `ventas.rs:529/556/639/649`,
+      tests `m2_*` de `modo_operacion.rs` (suite lib 176/176). ⏳ *falta verlo degradado de verdad
+      (requiere simular caída del BDP)*
 - [ ] P1.4 Invalidación de caché del modo al guardar configuración
 - [ ] P1.5 Histéresis cableada (fallos/éxitos registrados por el poller)
 - [ ] P1.6 BDP caído → degradación con banner y operación local sin error (requiere BDP real o
@@ -221,6 +236,26 @@ de que la suscripción/credenciales están vigentes. Sin eso, esta parte no se e
 
 ## 9. Hallazgos y bitácora de confirmaciones
 
+**H-149A-1-05 (UI, corregido) — en "BDP: lectura" no había botón para desactivar la integración:**
+reporte del usuario. El menú del badge (`site-header.tsx`) solo ofrecía, en ese estado, "Activar
+escritura temporal", "Sincronizar a BDP", "Ver historial BDP" y "Configuración BDP": la única vuelta
+atrás era entrar a Configuración a mano, mientras que el estado apagado sí tiene su "Activar BDP"
+(el simétrico). Fix: nuevo ítem **"Desactivar BDP (quedar solo en local)"** → `PATCH
+/api/configuracion {bdp_sync_enabled:false}` + invalidación de `getObtenerConfiguracionQueryKey()`
++ toasts de éxito/error. Verificado en vivo (click real desde el menú): badge "BDP: lectura" →
+"BDP: off" sin recargar y BD `bdp_sync_enabled=f`; después se reactivó para que el usuario pueda
+probarlo. Gotcha corregido en el mismo paso: el `useState` del estado "Desactivando..." se declaró
+después del `if (!cfg) return null` y rompía el orden de hooks ("Rendered more hooks than during
+the previous render", pantalla de error) — movido junto al resto de hooks.
+
+**H-149A-1-04 (UI, corregido) — divisor del encabezado no centrado verticalmente:** el `<Separator
+orientation="vertical">` de la cabecera (`site-header.tsx`) usa `self-stretch` en el primitivo; con
+un alto fijo `h-4` eso lo pega al borde superior del renglón en vez de centrarlo (`align-self: stretch`
+con altura definida = `flex-start`). Medido antes: centro del divisor y=20 vs centro de la fila y=28;
+ahora coinciden (27,6 / 27,6 / 27,6 con el título). Fix: el divisor se dibuja con `div h-4 w-px bg-border`
+(el padre ya centra con `items-center`) y se retira el import de `Separator`. Reporte del usuario
+("esto de aquí no está centrado verticalmente") durante P1.1; `type-check`: 0 errores propios.
+
 **H-149A-1-02 (UI, corregido) — el badge no reflejaba el cambio de modo:** los dos handlers del menú
 del badge (`site-header.tsx`) invalidaban la clave de caché **equivocada** (`['configuracion']`) en
 lugar de la clave real del proyecto (`getObtenerConfiguracionQueryKey()` de
@@ -241,6 +276,9 @@ en P1.1). Fix: `h-auto px-2.5 py-1` en los tres (mismo aspecto entre ellos) → 
 | P0.2 | `/api/health` ok en `:3100`; última migración `20260905100000`; seed (users=1, trabajadores=3, ventas=50, gastos=34, clientes=11, mesas=6, article_map=561); Vite `:5173` 200; captura del Dashboard en vivo | ✅ OK | 2026-09-14 12:16 |
 | P0.3 | `type-check`: 0 errores en `src/` propio; 22 preexistentes de `glory-rs` | ✅ OK | 2026-09-14 12:16 |
 | P1.1 | Cabecera en standalone muestra **"Modo independiente"** (antes "BDP: lectura"); cero menciones a BDP en el DOM; tras el fix de padding, `padding 4px/10px`, alto 25,6px | ✅ OK | 2026-09-14 12:24 |
+| P1.1b | Divisor del encabezado centrado: centro del divisor = centro de la fila = centro del título (27,6 px) | ✅ OK | 2026-09-14 |
+| P1.2 | Menú del badge: `PATCH /api/configuracion/modo` 200 + persistencia en BD; badge cambia en vivo ("Modo independiente" → "BDP: off") sin recargar. Sandbox devuelto a `standalone` | ✅ OK | 2026-09-14 |
+| P1.2b | `Desactivar BDP (quedar solo en local)` desde "BDP: lectura": click real → badge "BDP: off" sin recargar, BD `bdp_sync_enabled=f` | ✅ OK | 2026-09-14 |
 | Obs. | `GET /api/configuracion/bdp/diagnostico` **sí contacta el BDP** estando en `standalone` (`health_ok:true`, `login_ok:true`, v36.2) al invocarlo explícitamente → a clasificar en P11.1 (¿debe gatearse en modo independiente?) | ⏳ | — |
 
 ## 10. Próximo paso

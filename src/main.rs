@@ -47,7 +47,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Servidor iniciando en {addr}");
     tracing::info!("Swagger UI disponible en http://{addr}/swagger-ui/");
 
-    let app = handlers::create_router(pool.clone(), config);
+    /* [149A-1/P1.3] Una sola instancia del conmutador para todo el proceso: la
+     * comparten los handlers (API/badge) y el poller, que es quien registra los
+     * fallos hacia el BDP. Antes cada uno tenía la suya y la degradación M2 no
+     * cruzaba de una mitad a la otra. */
+    let modo_operacion = ServicioModoOperacion::new();
+    let app = handlers::create_router(pool.clone(), config, modo_operacion.clone());
 
     /* [263A-25] Background scheduler: verifica recordatorios pendientes cada 60s.
      * El ciclo busca reservas que coincidan con reglas activas y registra envíos.
@@ -74,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /* Polling BDP separado y opt-in. La configuración nace deshabilitada y
      * poll_due usa un claim PostgreSQL para evitar duplicados entre instancias. */
     let bdp_poll_pool = pool.clone();
-    let bdp_poll_modo = ServicioModoOperacion::new();
+    let bdp_poll_modo = modo_operacion.clone();
     let bdp_poll_handle = tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
         loop {

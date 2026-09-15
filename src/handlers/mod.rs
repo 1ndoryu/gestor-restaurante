@@ -495,8 +495,17 @@ impl utoipa::Modify for SecurityAddon {
 #[allow(clippy::needless_for_each)]
 pub struct ApiDoc;
 
-/// Crea el router principal con CORS, tracing, Swagger UI y todas las rutas
-pub fn create_router(pool: sqlx::PgPool, config: crate::config::AppConfig) -> Router {
+/// Crea el router principal con CORS, tracing, Swagger UI y todas las rutas.
+///
+/// [149A-1/P1.3] El conmutador entra por parámetro: `main` comparte UNA instancia
+/// entre los handlers y el poller. Con una instancia por lado, los fallos hacia el
+/// BDP que registra el poller (el que más llama) no llegaban nunca a la API: la
+/// degradación M2 era invisible para la UI y cada mitad podía degradarse sola.
+pub fn create_router(
+    pool: sqlx::PgPool,
+    config: crate::config::AppConfig,
+    modo_operacion: crate::services::ServicioModoOperacion,
+) -> Router {
     /* [283A-20] Canal broadcast para notificaciones SSE — 256 mensajes en buffer */
     let (notif_tx, _) = tokio::sync::broadcast::channel(256);
 
@@ -505,7 +514,7 @@ pub fn create_router(pool: sqlx::PgPool, config: crate::config::AppConfig) -> Ro
         jwt_secret: config.jwt_secret.clone(),
         config,
         notif_tx,
-        modo_operacion: crate::services::ServicioModoOperacion::new(),
+        modo_operacion,
     };
 
     /* [303A-2] CORS: restringir orígenes en producción.

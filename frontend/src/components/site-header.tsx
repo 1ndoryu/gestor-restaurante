@@ -2,15 +2,16 @@
  * [283A-20] Añadida campana de notificaciones en tiempo real.
  * [237A-3] Indicador rápido de estado BDP en la barra superior. */
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { NotificationBell } from "@/componentes/NotificationBell"
 import { useNotificaciones } from "@/hooks/useNotificaciones"
 import {
   getObtenerConfiguracionQueryKey,
+  getObtenerModoOperacionQueryKey,
   useObtenerConfiguracion,
+  useObtenerModoOperacion,
 } from "@/api/generated/configuracion/configuracion"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -73,6 +74,16 @@ function BdpStatusIndicator() {
   const { mutate: flushPush, isPending: isFlushing } = useFlushBdpPush()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  /* [149A-1/P1.2b] En "BDP: lectura" no había forma de volver atrás desde aquí: el menú
+   * solo ofrecía activar escritura temporal, sincronizar y entrar a Configuración. "Desactivar
+   * BDP" es el simétrico de "Activar BDP" (que existe en el menú de la integración apagada).
+   * El estado va aquí arriba, con el resto de hooks: declararlo después del `if (!cfg)`
+   * rompía el orden de hooks ("Rendered more hooks than during the previous render"). */
+  const [desactivandoBdp, setDesactivandoBdp] = useState(false)
+  /* [149A-1/P1.3] El modo efectivo lo calcula el servidor (incluye la histéresis M2: 3 fallos
+   * consecutivos hacia BDP degradan a local). La cabecera solo puede saberlo preguntándolo:
+   * derivarlo por su cuenta era lo que hacía que mintiera durante una degradación. */
+  const { data: modoServidor } = useObtenerModoOperacion()
   const cfg = config?.status === 200 ? (config.data as unknown as Record<string, unknown>) : null
   if (!cfg) return null
 
@@ -96,6 +107,46 @@ function BdpStatusIndicator() {
   const modoEfectivoBdp =
     modoOperacion === 'bdp' ||
     (modoOperacion === 'auto' && syncEnabled && credencialesOk)
+
+  /* [149A-1/P1.3] Degradado = el usuario pidió BDP y el servidor ya opera en local porque el
+   * BDP no respondió a los últimos intentos. Sin esto la cabecera prometía "BDP: lectura"
+   * mientras el backend rechazaba toda llamada al BDP. */
+  const degradado =
+    modoEfectivoBdp && modoServidor?.status === 200 && modoServidor.data.modo_efectivo === 'standalone'
+
+  if (degradado) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button type="button" className="focus:outline-none">
+            <Badge
+              variant="outline"
+              className="h-auto gap-1 border-amber-600 px-2.5 py-1 text-xs text-amber-600 cursor-pointer hover:bg-muted">
+              BDP: sin respuesta
+            </Badge>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-72">
+          <div className="px-2 py-1.5 text-sm font-medium">BDP sin respuesta — se sigue en local</div>
+          <p className="px-2 pb-1.5 text-xs text-muted-foreground">
+            Tras varios intentos fallidos, la aplicación dejó de llamar al BDP y siguió trabajando con
+            datos locales. No se pierde nada: los cambios pendientes quedan en la cola de
+            sincronización. El BDP se retoma solo cuando vuelva a responder.
+          </p>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => navigate('/bdp/sincronizacion')}>
+            Ver cola de sincronización
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate('/bdp/historial')}>
+            Ver historial BDP
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate('/configuracion', { state: { bdpSection: 'bdp' } })}>
+            Configuración BDP
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
 
   if (modoIndependiente || !modoEfectivoBdp) {
     return (
@@ -128,6 +179,7 @@ function BdpStatusIndicator() {
                 await queryClient.invalidateQueries({
                   queryKey: getObtenerConfiguracionQueryKey(),
                 })
+                await queryClient.invalidateQueries({ queryKey: getObtenerModoOperacionQueryKey() })
                 toast.success('Modo automático activado', {
                   description: 'El sistema usará BDP si está configurado y disponible.',
                 })
@@ -144,6 +196,7 @@ function BdpStatusIndicator() {
                 await queryClient.invalidateQueries({
                   queryKey: getObtenerConfiguracionQueryKey(),
                 })
+                await queryClient.invalidateQueries({ queryKey: getObtenerModoOperacionQueryKey() })
                 toast.success('BDP activado', { description: 'La integración BDP está ahora en modo lectura.' })
               } catch {
                 toast.error('No se pudo activar BDP')
@@ -170,6 +223,27 @@ function BdpStatusIndicator() {
 
   const isWrite = syncMode === 'unidirectional'
   const bdpBaseUrl = String(cfg?.bdp_base_url ?? configSync?.bdp_base_url ?? '')
+
+  async function desactivarIntegracion() {
+    if (desactivandoBdp) return
+    setDesactivandoBdp(true)
+    try {
+      await axios.patch('/api/configuracion', { bdp_sync_enabled: false })
+      await queryClient.invalidateQueries({
+        queryKey: getObtenerConfiguracionQueryKey(),
+      })
+      await queryClient.invalidateQueries({ queryKey: getObtenerModoOperacionQueryKey() })
+      toast.success('BDP desactivado', {
+        description: 'La aplicación sigue con datos locales; ya no se consulta el BDP.',
+      })
+    } catch (err: unknown) {
+      toast.error('No se pudo desactivar BDP', {
+        description: String((err as { message?: string })?.message ?? 'Error desconocido'),
+      })
+    } finally {
+      setDesactivandoBdp(false)
+    }
+  }
 
   function desactivarEscritura() {
     if (isChangingMode) return
@@ -229,10 +303,15 @@ function BdpStatusIndicator() {
             {isChangingMode ? 'Cambiando...' : 'Desactivar escritura'}
           </DropdownMenuItem>
         ) : (
-          /* [C2-3] TODO: restringir a admin/owner cuando el auth store exponga rol. */
-          <DropdownMenuItem onClick={() => navigate('/configuracion', { state: { bdpArming: true } })}>
-            Activar escritura temporal
-          </DropdownMenuItem>
+          <>
+            {/* [C2-3] TODO: restringir a admin/owner cuando el auth store exponga rol. */}
+            <DropdownMenuItem onClick={() => navigate('/configuracion', { state: { bdpArming: true } })}>
+              Activar escritura temporal
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={desactivarIntegracion} disabled={desactivandoBdp}>
+              {desactivandoBdp ? 'Desactivando...' : 'Desactivar BDP (quedar solo en local)'}
+            </DropdownMenuItem>
+          </>
         )}
         <DropdownMenuItem
           disabled={isFlushing}
@@ -294,10 +373,11 @@ export function SiteHeader() {
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
         <SidebarTrigger className="-ml-1" />
-        <Separator
-          orientation="vertical"
-          className="mx-2 data-[orientation=vertical]:h-4"
-        />
+        {/* [149A-1/P1.1] La rayita divisoria del encabezado se dibuja con un div y no con
+            <Separator orientation="vertical">: el primitivo aplica self-stretch, y con un
+            alto fijo (h-4) eso la pega al borde superior en vez de centrarla en la fila.
+            El padre ya centra con items-center, así que aquí basta el alto explícito. */}
+        <div aria-hidden className="mx-2 h-4 w-px shrink-0 bg-border" />
         <h1 className="text-base font-medium">{titulo}</h1>
         <div className="ml-auto flex items-center gap-2">
           <BdpStatusIndicator />

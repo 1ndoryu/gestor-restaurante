@@ -52,10 +52,9 @@ impl BdpOrderPollerService {
 
         let mut total = 0;
         for config in configs {
-            /* [128A-1/F1-1/F1-2] M1+M2: el modo efectivo (switch maestro y
-             * degradación reactiva) decide si este usuario puede hacer polling;
-             * en standalone no se reclama turno ni se llama a BDP. */
-            if servicio.modo_efectivo_sin_red(&config) != ModoEfectivo::Bdp {
+            /* [128A-1/F1-1] M1: si la configuración ya no apunta a BDP (standalone,
+             * o auto sin sync/credenciales) no hay nada que sondear ni reclamar. */
+            if ServicioModoOperacion::modo_efectivo_desde_config(&config) != ModoEfectivo::Bdp {
                 continue;
             }
             let claimed: Option<uuid::Uuid> = sqlx::query_scalar(
@@ -73,13 +72,48 @@ impl BdpOrderPollerService {
             .await
             .map_err(|e| format!("Error reclamando turno de polling BDP: {e}"))?;
             if claimed.is_some() {
-                match Self::poll_pending(pool, config.user_id, &config, servicio).await {
-                    Ok(updated) => total += updated,
-                    Err(error) => warn!("Polling BDP usuario {}: {error}", config.user_id),
+                /* [149A-1/P1.3] Si el modo efectivo degradó (M2: fallos consecutivos),
+                 * el poller no puede llamar a BDP — y sin llamada no hay éxito que
+                 * resetee el contador, que vive en memoria: la degradación quedaba
+                 * permanente hasta reiniciar. El turno ya reclamado (misma cadencia
+                 * que el polling) se usa para una sonda barata de recuperación. */
+                if servicio.modo_efectivo_sin_red(&config) == ModoEfectivo::Bdp {
+                    match Self::poll_pending(pool, config.user_id, &config, servicio).await {
+                        Ok(updated) => total += updated,
+                        Err(error) => warn!("Polling BDP usuario {}: {error}", config.user_id),
+                    }
+                } else {
+                    Self::probar_recuperacion(&config, servicio).await;
                 }
             }
         }
         Ok(total)
+    }
+
+    /// [149A-1/P1.3] Sonda de recuperación tras una degradación M2.
+    /// Solo `Health` (no abre sesión ni toca datos): si el BDP vuelve a responder,
+    /// un éxito resetea el contador y el modo efectivo retorna a Bdp en la
+    /// siguiente consulta. Si sigue caído, no hace nada y se reintenta en el
+    /// siguiente turno de la agenda (sin bucle apretado).
+    async fn probar_recuperacion(config: &ConfiguracionRestaurante, servicio: &ServicioModoOperacion) {
+        let client = BdpWeblinkClient::new(config);
+        match client.health().await {
+            Ok(health) if health.is_alive => {
+                servicio.registrar_exito_bdp(config.user_id);
+                info!(
+                    "[149A-1/P1.3] BDP responde de nuevo (usuario {}): se retoma el modo BDP",
+                    config.user_id
+                );
+            }
+            Ok(_) => warn!(
+                "[149A-1/P1.3] BDP responde Health pero IsAlive=false (usuario {}): sigue en local",
+                config.user_id
+            ),
+            Err(error) => info!(
+                "[149A-1/P1.3] BDP sigue sin responder (usuario {}): {error}. Se mantiene el modo local",
+                config.user_id
+            ),
+        }
     }
 
     /// Consulta BDP para todas las ventas pendientes de este usuario.
