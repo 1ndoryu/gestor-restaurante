@@ -45,8 +45,63 @@ impl BdpCatalogoClasificacionRepository {
         .await
     }
 
-    pub async fn siguiente_code(
+    /* [159A-2/F1] Lookup + inserción con código BDP explícito para el import
+     * de departamentos (el alta local sigue usando `crear` secuencial). */
+    pub async fn buscar_por_code(
         pool: &PgPool,
+        user_id: Uuid,
+        tipo: &str,
+        code: i32,
+    ) -> Result<Option<BdpCatalogoClasificacion>, sqlx::Error> {
+        sqlx::query_as::<_, BdpCatalogoClasificacion>(
+            "SELECT * FROM bdp_catalogo_clasificaciones \
+              WHERE user_id = $1 AND tipo = $2 AND code = $3",
+        )
+        .bind(user_id)
+        .bind(tipo)
+        .bind(code)
+        .fetch_optional(pool)
+        .await
+    }
+
+    pub async fn buscar_por_nombre(
+        pool: &PgPool,
+        user_id: Uuid,
+        tipo: &str,
+        nombre: &str,
+    ) -> Result<Option<BdpCatalogoClasificacion>, sqlx::Error> {
+        sqlx::query_as::<_, BdpCatalogoClasificacion>(
+            "SELECT * FROM bdp_catalogo_clasificaciones \
+              WHERE user_id = $1 AND tipo = $2 AND nombre = $3",
+        )
+        .bind(user_id)
+        .bind(tipo)
+        .bind(nombre)
+        .fetch_optional(pool)
+        .await
+    }
+
+    pub async fn crear_con_code(
+        pool: &PgPool,
+        user_id: Uuid,
+        tipo: &str,
+        code: i32,
+        nombre: &str,
+    ) -> Result<BdpCatalogoClasificacion, sqlx::Error> {
+        sqlx::query_as::<_, BdpCatalogoClasificacion>(
+            "INSERT INTO bdp_catalogo_clasificaciones (id, user_id, tipo, code, nombre) \
+              VALUES ($1, $2, $3, $4, $5) RETURNING *",
+        )
+        .bind(Uuid::new_v4())
+        .bind(user_id)
+        .bind(tipo)
+        .bind(code)
+        .bind(nombre)
+        .fetch_one(pool)
+        .await
+    }
+
+    pub async fn siguiente_code(        pool: &PgPool,
         user_id: Uuid,
         tipo: &str,
     ) -> Result<i32, sqlx::Error> {

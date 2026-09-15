@@ -4,6 +4,7 @@ mod auth;
 mod bdp_backup;
 mod bdp_config_bootstrap;
 mod bdp_explorer;
+mod bdp_import_departamentos;
 pub(crate) mod bdp_order_poller;
 pub mod bdp_push;
 mod bdp_sync;
@@ -48,6 +49,10 @@ pub use bdp_config_bootstrap::{
     BdpBootstrapOutcome, BdpBootstrapSettings, BdpConfigBootstrapService,
 };
 pub use bdp_explorer::{BdpExploracionResultado, BdpExplorerService, ExploracionCategoria};
+pub use bdp_import_departamentos::{
+    BdpImportDepartamentosResult, BdpImportDepartamentosService,
+};
+pub use bdp_import_departamentos::aplanar_departamentos;
 pub use bdp_order_poller::BdpOrderPollerService;
 pub use bdp_push::{
     payload_cancelar, payload_crear_articulo, payload_crear_departamento, payload_crear_familia,

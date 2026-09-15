@@ -5,6 +5,9 @@
  *   - D1: el botón manual existe siempre (aunque `push_modalidad=automatico`).
  *   - D2: el reintento tras bloqueo por suscripción es SOLO manual; este
  *     endpoint procesa también las filas `pendiente_suscripcion`.
+ * [159A-2/F1] Query opcional `?dominios=a&dominios=b` para el botón "Exportar
+ * al BDP" por sección (p. ej. solo departamento/familia/articulo). Ausente o
+ * vacío = flush global (comportamiento histórico).
  *
  * [208A-2/C4] Visibilidad de la cola (decisión D5):
  *   GET /api/bdp/push/pendientes  — listar filas (estado, reintentos, error).
@@ -14,9 +17,10 @@
  * `omitidos_standalone`; el fail-closed se conserva porque cada fila pasa por
  * `armar_push` (arming) → backup → auditoría antes de cualquier HTTP. */
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::get;
 use axum::{Json, Router};
+use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::errors::AppError;
@@ -35,15 +39,23 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
+/// Query del flush manual: filtro opcional por dominio (159A-2/F1).
+#[derive(Debug, Default, Deserialize)]
+pub struct FlushQuery {
+    pub dominios: Option<Vec<String>>,
+}
+
 pub async fn flush_manual(
     State(state): State<AppState>,
     auth: AuthUser,
+    Query(query): Query<FlushQuery>,
 ) -> Result<Json<BdpPushFlushResumen>, AppError> {
     /* Escritura BDP: disparar el push (armado + envío) es acción de Admin. */
     auth.require_role(&[UserRole::Admin])?;
-    let resumen = BdpPushFlushService::flush(&state.pool, auth.user_id, true)
-        .await
-        .map_err(AppError::Internal)?;
+    let resumen =
+        BdpPushFlushService::flush_con_dominios(&state.pool, auth.user_id, true, query.dominios.as_deref())
+            .await
+            .map_err(AppError::Internal)?;
     Ok(Json(resumen))
 }
 

@@ -502,6 +502,18 @@ impl BdpPushFlushService {
         user_id: Uuid,
         forzar_manual: bool,
     ) -> Result<BdpPushFlushResumen, String> {
+        Self::flush_con_dominios(pool, user_id, forzar_manual, None).await
+    }
+
+    /// [159A-2/F1] Variante con filtro opcional por dominio (p. ej. el botón
+    /// "Exportar al BDP" del Catálogo envía solo departamento/familia/artículo).
+    /// `None` o vacío = toda la cola (comportamiento histórico del flush global).
+    pub async fn flush_con_dominios(
+        pool: &PgPool,
+        user_id: Uuid,
+        forzar_manual: bool,
+        dominios: Option<&[String]>,
+    ) -> Result<BdpPushFlushResumen, String> {
         let mut resumen = BdpPushFlushResumen::default();
         let config = ConfiguracionService::obtener(pool, user_id)
             .await
@@ -522,6 +534,10 @@ impl BdpPushFlushService {
         let client = BdpWeblinkClient::new(&config);
 
         for pendiente in pendientes {
+            /* [159A-2/F1] Filtro por dominio del botón Exportar por sección. */
+            if !Self::dominio_en_filtro(&pendiente.dominio, dominios) {
+                continue;
+            }
             /* D2: bloqueo por suscripción -> solo reintento manual. */
             if pendiente.estado == ESTADO_PENDIENTE_SUSCRIPCION && !forzar_manual {
                 resumen.pendientes_suscripcion += 1;
@@ -550,7 +566,16 @@ impl BdpPushFlushService {
         Ok(resumen)
     }
 
-    /// [208A-2/C4] Reintento individual de una fila (decisión D5). Respeta las
+    /// [159A-2/F1] Predicado del filtro por dominio del flush.
+/// `None` o vacío = todo pasa (flush global histórico).
+fn dominio_en_filtro(dominio: &str, dominios: Option<&[String]>) -> bool {
+    match dominios {
+        None => true,
+        Some(filtro) => filtro.is_empty() || filtro.iter().any(|d| d == dominio),
+    }
+}
+
+/// [208A-2/C4] Reintento individual de una fila (decisión D5). Respeta las
     /// mismas reglas que el flush manual: en standalone no envía nada y la
     /// fila bloqueada por suscripción se reintenta (D2: solo manual). El
     /// reintento manual se permite aunque se hayan agotado los reintentos
