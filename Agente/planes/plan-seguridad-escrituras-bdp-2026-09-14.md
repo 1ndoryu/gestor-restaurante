@@ -75,13 +75,33 @@ llegar al BDP**. Contrapartida honesta: esto también implica que la sonda de un
 - [x] S8 Cola: pendiente → reintento manual único → error visible → sin auto-flush (2026-09-15: 19/19 `bdp_push`, incl. `cola_reintento_manual_uno_error_visible_sin_auto_flush`)
 - [ ] S9 **Visual**: cada estado de la cola y cada aviso mostrado en pantalla y confirmado por ti
 
-## 5. FASE 3 — Escrituras reales (una a una, autorizadas por ti)
+## 5. FASE 3 — Escrituras reales (las 13 desde el principio, una a una)
 
-- [ ] W-Q2.1 … W-Q2.13 una por una (misma numeración que §3). Pago/factura/cancel quedan `⏸` hasta
-      activación de la suscripción.
+> **Decisión usuario 2026-09-15:** el reinicio incluye TODAS las escrituras reales desde el
+> principio para probar todo, no solo una muestra. Historial obligatorio de todo lo hecho y
+> por hacer (§8 bitácora; cada ejecución real deja fila con fecha/hora, dato de prueba,
+> resultado y limpieza).
+> **Advertencia honesta registrada:** artículos y departamentos creados NO se pueden borrar
+> (sin DeleteArticle en el manual de 244p); se neutralizan con Modify (`WebArticle:false`) o
+> vía proveedor. Comandas/pagos/facturas/propinas/puntos/stock son documentos/movimientos
+> reales en el BDP: se usan datos marcados `PRUEBA-149A2-*` y se cancelan/neutralizan tras
+> verificar. Requiere suscripción activa verificada (§8) antes de W-Q2.5/W-Q2.6/W-Q2.11.
+
+- [ ] W-Q2.1 Alta de artículo ~~(dato `PRUEBA-149A2-ART-*`; neutralizar con Modify tras verificar)~~ **OMITIDA por decisión del usuario 2026-09-15: no crear más artículos** (sin DeleteArticle + Modify sin éxito real probado, cada alta queda permanente)
+- [ ] W-Q2.2 Modificar artículo / precios (sobre el artículo de prueba; verificar vuelta con GetArticle)
+- [ ] W-Q2.3 Alta de departamento (dato `PRUEBA-149A2-DEP-*`; sin borrado posible, queda marcado)
+- [ ] W-Q2.4 Comanda (create_order) (pedido de prueba; verificar con GetOrder por MarketplaceOrderId)
+- [ ] W-Q2.5 Pago (requiere suscripción activa verificada; importe mínimo; verificar balance)
+- [ ] W-Q2.6 Factura (requiere suscripción activa verificada; sobre el pedido de prueba)
+- [ ] W-Q2.7 Propina (sobre el pedido de prueba; `add_tip` según config)
+- [ ] W-Q2.8 Puntos de fidelidad (cliente de prueba; motivo `PRUEBA-149A2`)
+- [ ] W-Q2.9 Stock (UpdateStock / masivo) (delta +1/-1 sobre artículo de prueba; deja stock igual)
+- [ ] W-Q2.10 Llamada a camarero (mesa/salón de prueba; sin estado, solo aviso)
+- [ ] W-Q2.11 Cancelación (requiere suscripción activa verificada; cancela el pedido de prueba)
+- [ ] W-Q2.12 Reintento manual desde la cola (provocar error visible y reintentar una vez)
+- [ ] W-Q2.13 Arming/modalidad (verificar automático vs manual en la ejecución real)
 - [ ] W-S3.1 Polling/reconciliación justo después de la operación origen
-- [ ] W-S3.2 Limpieza: cero datos de prueba en el BDP, estado local coherente, config restaurada
-      (`bdp_sync_enabled=false`, `read_only`, poll off)
+- [ ] W-S3.2 Limpieza: cero datos de prueba activos en el BDP (neutralizados/cancelados), estado local coherente, config restaurada
 - [ ] W-S3.3 Confirmación visual final del estado del sistema tras las escrituras
 
 Reglas de la Fase 3: autorización **por operación** (dato de prueba acordado antes de enviar),
