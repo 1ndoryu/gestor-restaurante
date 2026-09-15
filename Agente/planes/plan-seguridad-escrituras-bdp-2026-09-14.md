@@ -128,6 +128,7 @@ credenciales/token; NIF/teléfonos/emails enmascarados).
 | Ítem | Evidencia (técnica + visual) | Confirmado por usuario | Fecha/hora |
 |---|---|---|---|
 | W-Q2.2 neutralizar `90000003` (`activo=false` → `WebArticle:false`) | Cola `modificar` sincronizada 06:18:54Z; audit `exito` con `WebArticle:false` y `ErrorMessage:""`; explorar 07:17Z 0 artículos plano; ExportFromProfile 66 deptos con `1=CAFES`; snapshot `811f4a15` `Articles:[]`. Límite: sin `GetArticle` directo (ver `Agente/completados/tareas-2026-09-15.md`) | Sí (neutralizar 90000003) | 2026-09-15 |
+| W-Q2.3 alta departamento `PRUEBA-149A2-DEP-20260915` (código local 1) | Cola `crear` sincronizada 07:38Z; audit `exito` con 2 avisos (`ShortDescription` larga, `PrinterLevel` 0); ExportFromProfile sin la entrada (código 1 sigue `CAFES`): BDP conservó el existente con `Overwrite=false`, cero residuo. Causa: `siguiente_code` local empieza en 1 y colisiona con códigos reales. Gotcha: backend sin `BDP_WRITE_ALLOWED_ORIGINS` en entorno falla el armado sin auditoría (ver completada) | Sí (crear departamento, permanente) | 2026-09-15 |
 
 ## 9. Próximo paso
 
