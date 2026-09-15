@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { TooltipButton } from '@/components/ui/tooltip-button';
@@ -72,7 +72,7 @@ export function BdpPurchaseSyncControls({
           onSuccess: (result) => {
             setProfileProblem('');
             setShowProfileSetting(false);
-            toast.success(`Sync completado: ${result.procesados} albaranes procesados de ${result.total_bdp}`);
+            toast.success(`Albaranes importados del BDP: ${result.procesados} procesados de ${result.total_bdp}`);
           },
           onError: (error) => {
             const message = getErrorMessage(error);
@@ -114,8 +114,8 @@ export function BdpPurchaseSyncControls({
               ? 'Consulta albaranes en BDP y los importa en la Aplicación Web. No modifica BDP.'
               : 'Activa primero la lectura de Compras BDP en Configuración.'}
           >
-            {syncMutation.isPending || isSaving ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-            Sync albaranes
+            {syncMutation.isPending || isSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+            Importar del BDP
           </TooltipButton>
         </div>
       </div>
