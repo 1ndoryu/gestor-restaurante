@@ -8,6 +8,7 @@ import {
   useObtenerConfiguracion,
   useActualizarConfiguracion,
   getObtenerConfiguracionQueryKey,
+  getObtenerModoOperacionQueryKey,
 } from '../api/generated/configuracion/configuracion';
 import { useConfiguracionSync } from './useConfiguracionSync';
 import type { CuerpoConfiguracionLocal, EstadoConfiguracion } from './configuracion-types';
@@ -96,6 +97,10 @@ export function useConfiguracion() {
     try {
       await mutacion.mutateAsync({ data: body });
       await queryClient.invalidateQueries({ queryKey: getObtenerConfiguracionQueryKey() });
+      /* [149A-1/P1.4] El guardado puede tocar campos que afectan al modo efectivo
+       * (p. ej. bdp_sync_enabled): sin invalidar la query de modo, el badge quedaba
+       * desfasado hasta recargar. Mismo patrón que site-header en sus cambios. */
+      await queryClient.invalidateQueries({ queryKey: getObtenerModoOperacionQueryKey() });
       setMensaje('Configuración guardada');
     } catch {
       setMensaje('Error al guardar');

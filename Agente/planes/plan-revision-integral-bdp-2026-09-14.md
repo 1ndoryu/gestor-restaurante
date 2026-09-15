@@ -77,18 +77,17 @@ reinicio justifica (tokens, responsive, foco, zoom, temas).
       Verificado en vivo: `Desactivar BDP (quedar solo en local)` → `PATCH /api/configuracion
       {bdp_sync_enabled:false}` 200, badge pasa a "BDP: off" sin recargar, BD `bdp_sync_enabled=f`
       — ✅ confirmado por usuario 2026-09-14
-- [~] P1.3 Degradación por fallos: umbral, mensajes y banner (ver P1.6 abajo) — **hueco real
-      encontrado:** la cabecera derivaba el modo por su cuenta y **no veía la histéresis M2**, así
-      que ante 3 fallos consecutivos el backend ya opera en local (`modo_efectivo=standalone`,
-      toda llamada al BDP rechazada) mientras el badge seguía prometiendo "BDP: lectura". Fix
-      (`site-header.tsx`): el badge consume `GET /api/configuracion/modo` (el servidor es la
-      fuente del modo efectivo) y, si hay degradación, muestra **"BDP: sin respuesta"** (ámbar) con
-      menú que explica que se sigue en local, que la cola no se pierde y que se retoma solo al
-      responder el BDP. Añadida la invalidación de esa query en los tres cambios de modo. Evidencia
-      de umbral/histéresis en código: `bdp_order_poller.rs:291/293`, `ventas.rs:529/556/639/649`,
-      tests `m2_*` de `modo_operacion.rs` (suite lib 176/176). ⏳ *falta verlo degradado de verdad
-      (requiere simular caída del BDP)*
-- [ ] P1.4 Invalidación de caché del modo al guardar configuración
+- [x] P1.3 Degradación por fallos — **DESCARTADO por decisión del usuario 2026-09-15:**
+      no hay caída real que observar y no quiere perder tiempo simulándola. El fix del badge
+      (consume `GET /api/configuracion/modo`, muestra "BDP: sin respuesta" si hay degradación)
+      queda implementado sin verificación visual; la evidencia de umbral/histéresis queda en
+      código + tests `m2_*` (`modo_operacion.rs`, suite lib 176/176).
+- [x] P1.4 Invalidación de caché del modo al guardar configuración — **verificado 2026-09-15
+      con confirmación visual:** guardar en Configuración (sin cambios) → `Configuración guardada`,
+      badge sigue `BDP: lectura` sin recargar. **Hallazgo corregido:** `useConfiguracion.ts` solo
+      invalidaba la query de configuración; ahora invalida también `getObtenerModoOperacionQueryKey`
+      (mismo patrón que `site-header.tsx`). `type-check`: 0 errores en `src/` propio (preexistentes
+      de `glory-rs` intactos).
 - [ ] P1.5 Histéresis cableada (fallos/éxitos registrados por el poller)
 - [ ] P1.6 BDP caído → degradación con banner y operación local sin error (requiere BDP real o
       simulación de caída; si exige red, se verifica en Q3)
