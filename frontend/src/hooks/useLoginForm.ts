@@ -53,7 +53,8 @@ function useLoginForm() {
     mutation: {
       onSuccess: (respuesta) => {
         if (respuesta.status === 200) {
-          iniciarSesion(respuesta.data.token);
+          /* [169A-3/N1] Guardar el nombre para el NavUser. */
+          iniciarSesion(respuesta.data.token, respuesta.data.nombre);
           navigate('/');
         }
       },

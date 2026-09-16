@@ -7,7 +7,11 @@ import { create } from 'zustand';
 
 interface AuthState {
   token: string | null;
-  iniciarSesion: (token: string) => void;
+  /* [169A-3/N1] Nombre a mostrar en el NavUser (viene de la respuesta de login;
+   * el dueño no tiene nombre en BD — solo email — y mantiene el literal previo).
+   * Se persiste junto al token y se limpia al cerrar sesión o si el token caduca. */
+  nombreUsuario: string | null;
+  iniciarSesion: (token: string, nombre?: string | null) => void;
   cerrarSesion: () => void;
   estaAutenticado: () => boolean;
   /* [149A-3/F3] Rol efectivo de la sesión (del JWT: effective_role admin/trabajador).
@@ -64,19 +68,29 @@ export const useAuthStore = create<AuthState>((set, get) => {
   const tokenGuardado = localStorage.getItem('token');
   if (tokenGuardado && !tokenEsValido(tokenGuardado)) {
     localStorage.removeItem('token');
+    localStorage.removeItem('nombre_usuario');
   }
 
   return {
     token: tokenEsValido(tokenGuardado ?? '') ? tokenGuardado : null,
+    nombreUsuario: tokenEsValido(tokenGuardado ?? '')
+      ? (localStorage.getItem('nombre_usuario') || null)
+      : null,
 
-    iniciarSesion: (token: string) => {
+    iniciarSesion: (token: string, nombre?: string | null) => {
       localStorage.setItem('token', token);
-      set({ token });
+      if (nombre) {
+        localStorage.setItem('nombre_usuario', nombre);
+      } else {
+        localStorage.removeItem('nombre_usuario');
+      }
+      set({ token, nombreUsuario: nombre ?? null });
     },
 
     cerrarSesion: () => {
       localStorage.removeItem('token');
-      set({ token: null });
+      localStorage.removeItem('nombre_usuario');
+      set({ token: null, nombreUsuario: null });
     },
 
     rolEfectivo: () => {

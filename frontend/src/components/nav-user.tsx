@@ -24,12 +24,18 @@ import { EllipsisVerticalIcon, LogOutIcon, UserIcon } from "lucide-react"
 export function NavUser() {
   const { isMobile } = useSidebar()
   const cerrarSesion = useAuthStore((s) => s.cerrarSesion)
+  /* [169A-3/N1] Nombre real de la sesión (trabajador) en vez del literal fijo.
+   * El dueño no tiene nombre en BD: mantiene "Restaurante". */
+  const nombreUsuario = useAuthStore((s) => s.nombreUsuario)
+  const esTrabajador = useAuthStore((s) => s.esTrabajador)
   const navigate = useNavigate()
 
   const salir = () => {
     cerrarSesion()
     navigate("/login")
   }
+
+  const nombreMostrado = nombreUsuario ?? (esTrabajador() ? "Trabajador" : "Restaurante")
 
   return (
     <SidebarMenu>
@@ -44,7 +50,7 @@ export function NavUser() {
                 <UserIcon className="size-4" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">Restaurante</span>
+                <span className="truncate font-medium">{nombreMostrado}</span>
                 <span className="truncate text-xs text-muted-foreground">
                   Panel de gestión
                 </span>
@@ -64,7 +70,7 @@ export function NavUser() {
                   <UserIcon className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">Restaurante</span>
+                  <span className="truncate font-medium">{nombreMostrado}</span>
                   <span className="truncate text-xs text-muted-foreground">
                     Panel de gestión
                   </span>
