@@ -138,10 +138,10 @@ reinicio justifica (tokens, responsive, foco, zoom, temas).
 - [x] P6.4 Visual: tabla de compras, acciones por fila y modales — verificado navegador 2026-09-16 (`:5182/bdp/compras`): "1 albaranes", fila 16/09/2026 L/1 Proveedor P6, origen `local`, 28,24 €, badge `Conciliado`. Código: menú 3 puntos por fila (Editar + Borrador/Conciliar según estado + Eliminar salvo conciliado, `BdpPurchaseNoteRowActions.tsx`). Residuo de prueba (a propósito): albarán L-1 conciliado + gasto L-1 quedan como evidencia del ciclo completo.
 
 ### P7. Pagos y factura local
-- [ ] P7.1 Pago local (parcial y total)
-- [ ] P7.2 Factura local y su numeración
-- [ ] P7.3 Estados y coherencia con el resumen de ventas
-- [ ] P7.4 Visual: flujo de cobro y documentos
+- [x] P7.1 Pago local (parcial y total) — verificado 2026-09-16 vía API: venta `c1a96686` (11,00 €) → parcial 4,00 € (`pagado=4.00 pendiente=7.00`) + total 7,00 € (`pagado=11.00 pendiente=0.00`). Guards: confirmación mala 422, sobrepago 8,00 € 422, replay idempotente `duplicado=true` sin doble cargo.
+- [x] P7.2 Factura local y su numeración — verificado 2026-09-16: `FACTURA LOCAL {id}` → `F-2026-0001` (venta c1a96686, API) y `F-2026-0002` (venta 7ac65411, navegador): secuencial `F-{año}-{n}`. Guards: doble factura 409, facturar anulada (d67bbb28) 409.
+- [x] P7.3 Estados y coherencia con el resumen de ventas — `GET /api/dashboard/resumen?year=2026&month=9` = 15,10 € (bases 10,00 + 5,00 + 0,10); anulada 1,10 € excluida, facturadas incluidas.
+- [x] P7.4 Visual: flujo de cobro y documentos — verificado en navegador 2026-09-16 (`:5182/ventas`): alta "P7 navegador" 5,50 € vía modal Nueva Venta, menú 3 puntos (Registrar pago local / Facturar localmente / Propina / Anular / Editar / Eliminar), modal pago (Total/Pagado/Pendiente + confirmación `PAGO LOCAL {id} {importe}`), modal factura (`FACTURA LOCAL {id}`), badges "Facturada F-2026-0001/0002". Notas: menú Radix solo abre por teclado en este entorno (clic sintético no lo abre; no es bug de la app); inputs controlados exigen `execCommand('insertText')` en vez de setter; el diálogo de pago no refrescó solo tras el POST (el pago sí quedó registrado 10:05:26) — verificar con reload. Residuos de prueba (a propósito): ventas c1a96686 + 7ac65411 facturadas como evidencia.
 
 ### P8. Menús y packs locales + Explorador
 - [ ] P8.1 Alta/edición de menús y packs
