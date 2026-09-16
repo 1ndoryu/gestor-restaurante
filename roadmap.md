@@ -227,9 +227,12 @@ inicial. Hoy `build_order` (`bdp_sync_venta.rs:671-719`) envía sin `Payments`/`
 `Invoice=false`: ese flujo en dos pasos es el bloqueado. `GetApplicationVersion` 84 → WeblinkRestAPI
 v1.2 sin errores; 89 → Hostelería v36.2; ninguna indica el tipo de suscripción.
 
-**De día (sin red BDP):** incluir en `build_order` `Payments: [{TenderId, Amount, PaymentId}]`
-desde el `OrderContext` (tender ya mapeado), `Tip` si hay propina e `Invoice` según pago total;
-tests unitarios del payload; build. Commit.
+**De día (sin red BDP) — HECHO 2026-09-16 (commit `263155b`):** `build_order` incluye
+`Payments: [{TenderId, Amount, PaymentId}]` (PaymentId = MarketplaceOrderId estable), `Tip` si
+propina positiva e `Invoice=true` solo con tender y total positivo; sin tender todo como antes.
+Tests nuevos 3/3 + regresión `cargo test --lib` 182/182 + `build --bins` OK. Nota: se purgó el
+target de rama `C:\tmp\glory-target\glory_backend_main` (4,56 GB, permitido por AGENTS.md) porque
+el gate del wrapper exige 6 GB libres; el workflow actual compila en `C:\tmp\glory-target\debug`.
 **De noche (BDP real, momento de poco movimiento):** venta mínima (0,11 €) sincronizada con pago
 incluido; verificar `OrderId` + `InvoiceNumber` + `Status` por `GetOrder`; si `OrderEndType=1`
 rechaza el pago, reintentar con `OrderEndType=0` (autoacepta e **imprime en cocina**: avisar);
