@@ -132,10 +132,10 @@ reinicio justifica (tokens, responsive, foco, zoom, temas).
 - [x] P5.5 Visual: confirmaciones, estados y mensajes de la anulación — verificado navegador 2026-09-16 (`:5182/ventas`): fila de prueba con badge "Anulada" + BDP "No enviada" (honesto). Código: modal con confirmación tecleada `ANULAR {id}` + motivo obligatorio en `credito_completo` + copy "se excluye del resumen diario" (`venta-row-actions.tsx:394-424`); Eliminar oculto si anulada/sincronizada (`:191`).
 
 ### P6. Compras locales
-- [ ] P6.1 Albarán local (cabecera + líneas con IVA)
-- [ ] P6.2 Estados del albarán (pendiente → borrador → conciliado)
-- [ ] P6.3 Gasto asociado a la compra
-- [ ] P6.4 Visual: tabla de compras, acciones por fila y modales
+- [x] P6.1 Albarán local (cabecera + líneas con IVA) — verificado 2026-09-16: `POST /api/bdp/purchase-notes` (2 líneas: Café 2×10,00 10 % + Leche 1×6,00 4 %) → serie `L` auto + número `1` secuencial, total 28,24 = 22,00+2,00+6,00+0,24 calculado (base+IVA por línea), `origen=local`, estado inicial `pendiente`.
+- [x] P6.2 Estados del albarán (pendiente → borrador → conciliado) — verificado 2026-09-16: `pendiente→borrador` vía `POST /:id/draft` 200; `borrador→conciliado` vía `POST /:id/reconcile`. Hallazgo: en modo BDP ambas transiciones exigen flags (`ff_bdp_purchase_notes_draft/receive`, 422 si apagados); son transiciones 100 % locales (M12: en standalone ni se consultan). Para probar se activaron los 2 flags vía PATCH config (cero tráfico BDP: solo desbloquean transiciones locales, sync intacto) y se revirtieron a `false` tras la prueba.
+- [x] P6.3 Gasto asociado a la compra — verificado 2026-09-16: reconcile sin `gasto_existente_id` → `accion=creado`, gasto `45a57630` (`L-1`, proveedor P6, base 26,00 + IVA 2,24, `tipo_documento=albaran`); albarán con `gasto_id` vinculado + `estado=conciliado`.
+- [x] P6.4 Visual: tabla de compras, acciones por fila y modales — verificado navegador 2026-09-16 (`:5182/bdp/compras`): "1 albaranes", fila 16/09/2026 L/1 Proveedor P6, origen `local`, 28,24 €, badge `Conciliado`. Código: menú 3 puntos por fila (Editar + Borrador/Conciliar según estado + Eliminar salvo conciliado, `BdpPurchaseNoteRowActions.tsx`). Residuo de prueba (a propósito): albarán L-1 conciliado + gasto L-1 quedan como evidencia del ciclo completo.
 
 ### P7. Pagos y factura local
 - [ ] P7.1 Pago local (parcial y total)
