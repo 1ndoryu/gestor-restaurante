@@ -21,17 +21,16 @@
 
 ## 1. Preflight (local, sin escrituras)
 
-- [ ] P0.1 Compilar manager: `CARGO_TARGET_DIR=C:\tmp\glory-target\coolify-manager`
-      `cargo build --release` en `../coolify-manager-rs` (binario hoy ausente en `C:\tmp`).
-- [ ] P0.2 `& $cm --help` + `container-stats --help`: confirmar capacidad de métricas
-      (si falta `container-stats --watch`, se registra adaptación, ver §5).
-- [ ] P0.3 `& $cm list`: identificar target VPS + sitio legacy `glory-rest` (no tocar).
-- [ ] P0.4 Revisar `Dockerfile` + `temp-compose-glory-rest.yml`: el Dockerfile exige el
-      submódulo `glory-rs` y `Cargo.lock`; verificar que el repo remoto los tiene
-      (Coolify clona del remoto).
-- [ ] P0.5 **Bloqueo conocido:** `main` va ahead 42 de `origin/main` sin push. Coolify
-      construye del remoto → **sin push autorizado, el staging probaría código viejo**.
-      Decisión requerida: autorizar `push` o fijar commit a desplegar.
+- [x] P0.1 Compilar manager (2026-09-16: compilado, `coolify-manager 1.0.0`;
+  nota: un build huérfano quedó colgado tras un timeout del wrapper — se mató el
+  `cargo` idle y el rebuild terminó en 1m17s).
+- [x] P0.2 `container-stats --help`: existe con `--json` (muestreo por polling, sin
+  `--watch`) → **sin adaptación del manager**.
+- [x] P0.3 `list`: 10 sitios + 1 minecraft en target `default`; `glory-rest`
+  (legacy) no se toca.
+- [x] P0.4 `Dockerfile` + `Cargo.lock` + gitlink `glory-rs` presentes en el repo.
+- [x] P0.5 Push `f0e3173` hecho (autorizado). Nota: GitHub reporta 37 vulns
+  (1 crítica) en el repo — a tratar fuera de este plan, antes de prod.
 
 ## 2. Fase A — Staging en la VPS (requiere autorización explícita)
 
@@ -72,14 +71,28 @@ Perfil **"operaciones mínimas reales"** (todo local, todo standalone):
 
 ## 4. Fase C — Medición y informe (en la VPS)
 
-- [ ] C.1 Durante cada escenario, muestrear cada 5 s: `container-stats` (app + postgres),
+Matriz de tiers de recursos (decisión usuario 2026-09-16: medir en los tres):
+
+| Tier | CPU | RAM | Propósito |
+|------|-----|-----|-----------|
+| T1 mínimo | 1 vCPU | 1 GB | ¿aguanta el producto viable mínimo? |
+| T2 medio | 2 vCPU | 2 GB | candidato a staging/prod pequeña |
+| Tmax | 4 vCPU / 6 GB (VPS: 4 vCPU, 7 GB RAM, 3 GB swap, 166 GB libres — medido 2026-09-16 vía `host-exec` solo-lectura; se reservan ~1 GB al host) | techo real |
+
+Cada escenario del harness (base/pico/sostenido, §3) se ejecuta **una vez por tier**
+(9 runs). Entre runs, cooldown 2 min + `health` OK antes de empezar. Los límites se
+fijan vía compose del servicio antes de cada run; el tier inicial de A.5 pasa a ser
+**Tmax** (techo sin throttling) y luego se baja a T2 y T1 para medir degradación y OOMs.
+
+- [ ] C.1 Durante cada run, muestrear cada 5 s: `container-stats` (app + postgres),
       más `GET /api/health` como testigo de saturación.
 - [ ] C.2 Métricas a capturar: CPU % (media/pico), RSS app y postgres (media/pico),
       p50/p95 por endpoint, req/s sostenidos, tasa de error, tamaño BD, latencia p95
       del health bajo carga.
-- [ ] C.3 Criterio de dimensionado: pico × 1.8 de headroom → vCPU y RAM recomendadas
-      + límites a fijar en Coolify. Si p95 > 800 ms en escenario `base` o CPU > 70 %
-      con 3 usuarios → hay cuello de botella: se abre tarea de mejora (no se optimiza
+- [ ] C.3 Criterio de dimensionado **por tier**: un tier es viable si en `sostenido`
+      p95 < 800 ms, errores < 1 % y cero OOM; recomendación = tier viable más pequeño
+      × 1.8 de headroom. Tabla comparativa T1/T2/Tmax en el informe. Si ni Tmax pasa
+      `pico` → hay cuello de botella: se abre tarea de mejora (no se optimiza
       a ciegas en este plan).
 - [ ] C.4 Informe en `Agente/completados/tareas-YYYY-MM-DD.md` + tabla resumen en roadmap.
 - [ ] C.5 Limpieza: `stop`/`delete` del staging (autorización 3) o conservarlo como
