@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react';
 import { Search, Loader2, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -31,7 +32,6 @@ import type {
 } from '@/api/bdp';
 import { useBdpDemoMode } from '@/hooks/useBdpDemoMode';
 import { mockExplorerItems, type BdpExplorerItem } from './bdp-mocks';
-import { BdpDemoToggle } from './BdpDemoToggle';
 import { BdpMenuLocalModal } from './BdpMenuLocalModal';
 import {
   Dialog,
@@ -113,7 +113,8 @@ function DefinitionDetail({ data }: { data: BdpExplorerItem }) {
 
 function BdpExplorador() {
   const queryClient = useQueryClient();
-  const { demoMode, setDemoMode } = useBdpDemoMode();
+  /* [159A-3] El toggle demo vive en Configuración → BDP; aquí solo se lee. */
+  const { demoMode } = useBdpDemoMode();
   const [tipo, setTipo] = useState<ExploreType>('all');
   const [busqueda, setBusqueda] = useState('');
   const [identificador, setIdentificador] = useState('');
@@ -243,6 +244,13 @@ function BdpExplorador() {
 
   return (
     <div className="flex flex-col gap-4">
+      <Tabs defaultValue="menus">
+        <TabsList>
+          <TabsTrigger value="menus">Menús y packs</TabsTrigger>
+          <TabsTrigger value="consultar">Consultar BDP</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="menus" className="flex flex-col gap-4">
       {/* [128A-1/F7] Sección de menús/packs locales — funciona sin BDP. */}
       <div className="rounded-md border overflow-x-auto">
         <div className="flex items-center justify-between px-4 py-3 border-b">
@@ -330,12 +338,13 @@ function BdpExplorador() {
           </TableBody>
         </Table>
       </div>
+        </TabsContent>
 
+        <TabsContent value="consultar" className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {demoMode ? `${items.length} definiciones` : 'Consulta una definición de BDP por código'}
         </p>
-        <BdpDemoToggle demoMode={demoMode} onToggle={setDemoMode} />
       </div>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -411,8 +420,7 @@ function BdpExplorador() {
 
       {!demoMode && !buscado && (
         <p className="text-sm text-muted-foreground">
-          Selecciona un tipo e introduce un código numérico para consultar BDP, o pulsa Cargar demo para ver datos de
-          ejemplo.
+          Selecciona un tipo e introduce un código numérico para consultar BDP.
         </p>
       )}
 
@@ -512,6 +520,8 @@ function BdpExplorador() {
           </div>
         </>
       )}
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={!!seleccionado} onOpenChange={(open) => !open && setSeleccionado(null)}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">

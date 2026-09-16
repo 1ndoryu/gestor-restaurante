@@ -11,13 +11,15 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Trash2, Pencil, Merge, Download, MoreHorizontal, Link2 } from 'lucide-react';
+import { Trash2, Pencil, Merge, Download, Upload, MoreHorizontal, Link2 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import FormularioCliente from './FormularioCliente';
+import DialogoExportarClientesBdp from './DialogoExportarClientesBdp';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
 import { useIntegracionBdp } from '../hooks/useIntegracionBdp';
+import { useExportarClientesBdp } from '../hooks/useExportarClientesBdp';
 
 function ListaClientes() {
   const {
@@ -76,6 +78,10 @@ function ListaClientes() {
     importarClientesBdp,
   } = useIntegracionBdp(cerrarModalYRefrescar);
 
+  /* Exportación masiva a BDP (Glory → BDP): arranca en modo simulación,
+   * que valida y previsualiza sin hacer ningún POST a bdp-sync. */
+  const exportar = useExportarClientesBdp(cerrarModalYRefrescar);
+
   const ejecutarMerge = () => {
     if (seleccionados.length !== 2 || !destinoId) return;
     const origenId = seleccionados.find((id) => id !== destinoId);
@@ -102,6 +108,7 @@ function ListaClientes() {
         </div>
         <div className="flex gap-2">
           <TooltipButton variant="outline" tooltip="Importar clientes desde BDP a la Aplicación Web. Solo lectura BDP." onClick={() => { setImportarBdpAbierto(true); setPreviewImportar(null); setConfirmacionImportar(''); }}><Download className="size-4 mr-1" />Importar del BDP</TooltipButton>
+          <TooltipButton variant="outline" tooltip="Subir los clientes locales sin vincular al BDP. Arranca en simulación: no escribe nada hasta que desactives la simulación y confirmes." onClick={exportar.abrirExportar}><Upload className="size-4 mr-1" />Exportar a BDP</TooltipButton>
           <Button onClick={() => setModalCrear(true)}>+ Nuevo Cliente</Button>
         </div>
       </div>
@@ -316,6 +323,23 @@ function ListaClientes() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DialogoExportarClientesBdp
+        abierto={exportar.exportarAbierto}
+        onAbiertoChange={exportar.setExportarAbierto}
+        pendientes={exportar.pendientesExportar}
+        cargando={exportar.cargandoPendientes}
+        codigos={exportar.codigosExportar}
+        onCodigoChange={exportar.setCodigoExportar}
+        confirmacion={exportar.confirmacionExportar}
+        onConfirmacionChange={exportar.setConfirmacionExportar}
+        fraseEsperada={exportar.fraseExportarEsperada}
+        simulacion={exportar.simulacionExportar}
+        onSimulacionChange={exportar.setSimulacionExportar}
+        ejecutando={exportar.ejecutandoExportar}
+        resultado={exportar.resultadoExportar}
+        onEjecutar={() => { void exportar.ejecutarExportar(); }}
+      />
 
       <Dialog open={importarBdpAbierto} onOpenChange={setImportarBdpAbierto}>
         <DialogContent className="sm:max-w-lg">

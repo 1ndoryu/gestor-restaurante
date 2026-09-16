@@ -4,15 +4,18 @@
  * local con motivo 'conteo' (decisión D4). Si el modo efectivo es BDP, además
  * se encola el envío (UpdateMassiveInventory) para las líneas con código BDP;
  * en modo independiente no se envía nada y el mensaje lo dice con claridad
- * (ya no hay toast engañoso de "encolado"). Sección "Conteos anteriores" para
- * retomar/recontar. */
+ * (ya no hay toast engañoso de "encolado"). Dos pestañas: "Inventario" (recuento
+ * en curso) y "Conteos" (historial para retomar/recontar). El guardado pide
+ * confirmación en un modal con el resumen antes de ajustar el stock. */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Warehouse, Save, History, RotateCcw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
@@ -85,6 +88,36 @@ function BdpInventario() {
   );
 
   const contados = filas.filter((f) => f.diferencia !== null);
+  const conDiferencia = contados.filter((f) => f.diferencia !== 0).length;
+  const [confirmar, setConfirmar] = useState(false);
+  const [tab, setTab] = useState('inventario');
+
+  /* Paginación fija 50/página: el catálogo completo (557 filas) no cabe en
+   * una sola vista. Las contadas viven en el hook (por código), así que
+   * cambiar de página no pierde lo ya contado. */
+  const [pagina, setPagina] = useState(1);
+  const [busqueda, setBusqueda] = useState('');
+  const PAGE_SIZE = 50;
+  const busquedaNormalizada = busqueda.trim().toLowerCase();
+  const filasFiltradas = busquedaNormalizada === ''
+    ? filas
+    : filas.filter((f) =>
+      (f.m.articulo_glory_codigo ?? '').toLowerCase().includes(busquedaNormalizada)
+      || (f.m.articulo_bdp_nombre ?? '').toLowerCase().includes(busquedaNormalizada),
+    );
+  const totalPaginas = Math.max(1, Math.ceil(filasFiltradas.length / PAGE_SIZE));
+  const paginaSegura = Math.min(pagina, totalPaginas);
+  const filasPagina = filasFiltradas.slice((paginaSegura - 1) * PAGE_SIZE, paginaSegura * PAGE_SIZE);
+
+  /* Historial de conteos: paginación 10/página. */
+  const [paginaConteos, setPaginaConteos] = useState(1);
+  const CONTEOS_PAGE_SIZE = 10;
+  const totalPaginasConteos = Math.max(1, Math.ceil((conteos?.length ?? 0) / CONTEOS_PAGE_SIZE));
+  const paginaConteosSegura = Math.min(paginaConteos, totalPaginasConteos);
+  const conteosPagina = (conteos ?? []).slice(
+    (paginaConteosSegura - 1) * CONTEOS_PAGE_SIZE,
+    paginaConteosSegura * CONTEOS_PAGE_SIZE,
+  );
 
   function guardar() {
     if (contados.length === 0) {
@@ -102,6 +135,7 @@ function BdpInventario() {
       },
       {
         onSuccess: (r) => {
+          setConfirmar(false);
           if (r.reutilizado) {
             toast.info('Conteo ya guardado', {
               description: 'Esta sesión de conteo ya se aplicó; no se vuelve a ajustar el stock.',
@@ -140,6 +174,7 @@ function BdpInventario() {
   async function retomar(conteoId: string) {
     const ok = await retomarConteo(conteoId);
     if (ok) {
+      setTab('inventario');
       toast.success('Conteo cargado', {
         description: 'Recuenta las unidades y pulsa "Guardar conteo": se guardará como un conteo nuevo y ajustará el stock de nuevo.',
       });
@@ -150,131 +185,225 @@ function BdpInventario() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2 rounded-md border p-3">
-        <p className="text-sm text-muted-foreground">
-          <Warehouse className="size-3.5 inline mr-1" />
-          {contados.length} artículos contados · {filas.length} en catálogo
-        </p>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="flex flex-col gap-1 flex-1">
-            <Label htmlFor="inventario-observaciones" className="text-xs">Observaciones (opcional)</Label>
-            <Input
-              id="inventario-observaciones"
-              value={observaciones}
-              onChange={(e) => setObservaciones(e.target.value)}
-              placeholder="Ej: recuento semanal de almacén"
-              maxLength={500}
-            />
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="inventario">
+            <Warehouse className="size-4 mr-1" />
+            Inventario
+          </TabsTrigger>
+          <TabsTrigger value="conteos">
+            <History className="size-4 mr-1" />
+            Conteos{conteos && conteos.length > 0 ? ` (${conteos.length})` : ''}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="inventario" className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              {contados.length} artículos contados · {filas.length} en catálogo
+            </p>
+            <Button onClick={() => setConfirmar(true)} disabled={guardarMutation.isPending || contados.length === 0}>
+              {guardarMutation.isPending ? <Loader2 className="size-4 animate-spin mr-1" /> : <Save className="size-4 mr-1" />}
+              Guardar conteo
+            </Button>
           </div>
-          <Button onClick={guardar} disabled={guardarMutation.isPending || contados.length === 0}>
-            {guardarMutation.isPending ? <Loader2 className="size-4 animate-spin mr-1" /> : <Save className="size-4 mr-1" />}
-            Guardar conteo
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {modoEfectivoBdp
-            ? 'El conteo se guarda, ajusta el stock local (motivo "conteo") y encola el envío al terminal para los artículos con código BDP.'
-            : 'Modo independiente: el conteo se guarda y ajusta el stock local (motivo "conteo"); no se envía a BDP.'}
-        </p>
-      </div>
 
-      {isLoading ? (
-        <p className="text-sm text-muted-foreground">Cargando…</p>
-      ) : filas.length === 0 ? (
-        <div className="flex flex-col items-start gap-2 rounded-md border border-dashed p-4">
-          <p className="text-sm text-muted-foreground">
-            No hay artículos en el catálogo. Crea artículos desde Stock o Catálogo para poder inventariar.
-          </p>
-        </div>
-      ) : (
-        <div className="rounded-md border overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Código</TableHead>
-                <TableHead>Nombre</TableHead>
-                <TableHead className="text-right">Esperadas</TableHead>
-                <TableHead className="text-right">Contadas</TableHead>
-                <TableHead className="text-right">Diferencia</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filas.map(({ m, esperada: e, diferencia }) => (
-                <TableRow key={m.id}>
-                  <TableCell className="font-mono text-xs">{m.articulo_glory_codigo || '—'}</TableCell>
-                  <TableCell className="text-xs">{m.articulo_bdp_nombre || '—'}</TableCell>
-                  <TableCell className="text-right tabular-nums">{e.toFixed(0)}</TableCell>
-                  <TableCell className="text-right">
-                    <Input
-                      type="number"
-                      step="any"
-                      className="w-24 ml-auto text-right"
-                      value={contadas[m.articulo_glory_codigo] ?? ''}
-                      onChange={(ev) => setContada(m.articulo_glory_codigo, ev.target.value)}
-                      placeholder="0"
-                    />
-                  </TableCell>
-                  <TableCell className={`text-right tabular-nums ${diferencia !== null && diferencia !== 0 ? 'font-semibold text-amber-700' : 'text-muted-foreground'}`}>
-                    {diferencia === null ? '—' : diferencia === 0 ? '0' : `${diferencia > 0 ? '+' : ''}${diferencia.toFixed(0)}`}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+          <Input
+            value={busqueda}
+            onChange={(e) => { setBusqueda(e.target.value); setPagina(1); }}
+            placeholder="Buscar por código o nombre…"
+            maxLength={100}
+            className="max-w-sm"
+          />
 
-      <div className="flex flex-col gap-2">
-        <p className="text-sm font-medium flex items-center gap-1.5">
-          <History className="size-4" />
-          Conteos anteriores
-        </p>
-        {!conteos || conteos.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Todavía no hay conteos guardados.</p>
-        ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Observaciones</TableHead>
-                  <TableHead className="text-right">Líneas</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="w-32 text-center">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {conteos.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell className="text-xs tabular-nums">{formatFecha(c.fecha)}</TableCell>
-                    <TableCell className="max-w-64 truncate text-xs" title={c.observaciones || undefined}>
-                      {c.observaciones || '—'}
-                    </TableCell>
-                    <TableCell className="text-right text-xs tabular-nums">{c.total_lineas}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="gap-1">
-                        <Save className="size-3" />
-                        {c.estado === 'aplicado' ? 'aplicado' : c.estado}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => retomar(c.id)}
-                        disabled={retomando === c.id}
-                      >
-                        <RotateCcw className="size-3.5 mr-1" />
-                        Retomar
-                      </Button>
-                    </TableCell>
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Cargando…</p>
+          ) : filasFiltradas.length === 0 ? (
+            <div className="flex flex-col items-start gap-2 rounded-md border border-dashed p-4">
+              <p className="text-sm text-muted-foreground">
+                {busquedaNormalizada === ''
+                  ? 'No hay artículos en el catálogo. Crea artículos desde Stock o Catálogo para poder inventariar.'
+                  : `Sin resultados para «${busqueda.trim()}».`}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-md border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Código</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead className="text-right">Esperadas</TableHead>
+                    <TableHead className="text-right">Contadas</TableHead>
+                    <TableHead className="text-right">Diferencia</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filasPagina.map(({ m, esperada: e, diferencia }) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="font-mono text-xs">{m.articulo_glory_codigo || '—'}</TableCell>
+                      <TableCell className="text-xs">{m.articulo_bdp_nombre || '—'}</TableCell>
+                      <TableCell className="text-right tabular-nums">{e.toFixed(0)}</TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          type="number"
+                          step="any"
+                          className="w-24 ml-auto text-right"
+                          value={contadas[m.articulo_glory_codigo] ?? ''}
+                          onChange={(ev) => setContada(m.articulo_glory_codigo, ev.target.value)}
+                          placeholder="0"
+                        />
+                      </TableCell>
+                      <TableCell className={`text-right tabular-nums ${diferencia !== null && diferencia !== 0 ? 'font-semibold text-amber-700' : 'text-muted-foreground'}`}>
+                        {diferencia === null ? '—' : diferencia === 0 ? '0' : `${diferencia > 0 ? '+' : ''}${diferencia.toFixed(0)}`}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {filasFiltradas.length > PAGE_SIZE && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
+              <span className="text-muted-foreground">
+                Mostrando {filasPagina.length} de {filasFiltradas.length} artículos
+                {busquedaNormalizada !== '' ? ` (filtrados de ${filas.length})` : ''}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={paginaSegura <= 1}>
+                  Anterior
+                </Button>
+                <span className="text-muted-foreground">
+                  Página {paginaSegura} de {totalPaginas}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+                  disabled={paginaSegura >= totalPaginas}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="conteos" className="flex flex-col gap-2">
+          {!conteos || conteos.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Todavía no hay conteos guardados.</p>
+          ) : (
+            <>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Observaciones</TableHead>
+                    <TableHead className="text-right">Líneas</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="w-32 text-center">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {conteosPagina.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="text-xs tabular-nums">{formatFecha(c.fecha)}</TableCell>
+                      <TableCell className="max-w-64 truncate text-xs" title={c.observaciones || undefined}>
+                        {c.observaciones || '—'}
+                      </TableCell>
+                      <TableCell className="text-right text-xs tabular-nums">{c.total_lineas}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="gap-1">
+                          <Save className="size-3" />
+                          {c.estado === 'aplicado' ? 'aplicado' : c.estado}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => retomar(c.id)}
+                          disabled={retomando === c.id}
+                        >
+                          <RotateCcw className="size-3.5 mr-1" />
+                          Retomar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {(conteos?.length ?? 0) > CONTEOS_PAGE_SIZE && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">
+                  Mostrando {conteosPagina.length} de {conteos?.length} conteos
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setPaginaConteos((p) => Math.max(1, p - 1))} disabled={paginaConteosSegura <= 1}>
+                    Anterior
+                  </Button>
+                  <span className="text-muted-foreground">
+                    Página {paginaConteosSegura} de {totalPaginasConteos}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPaginaConteos((p) => Math.min(totalPaginasConteos, p + 1))}
+                    disabled={paginaConteosSegura >= totalPaginasConteos}
+                  >
+                    Siguiente
+                  </Button>
+                </div>
+              </div>
+            )}
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={confirmar} onOpenChange={setConfirmar}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Guardar conteo</DialogTitle>
+            <DialogDescription>
+              Se ajustará el stock local con las diferencias contadas. Esta acción queda registrada con motivo «conteo».
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 text-sm">
+            <p>
+              <span className="font-medium">{contados.length}</span> artículo(s) contados ·{' '}
+              <span className="font-medium">{conDiferencia}</span> con diferencia
+            </p>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="inventario-observaciones" className="text-xs">Observaciones (opcional)</Label>
+              <Input
+                id="inventario-observaciones"
+                value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)}
+                placeholder="Ej: recuento semanal de almacén"
+                maxLength={500}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {modoEfectivoBdp
+                ? 'El conteo se guarda, ajusta el stock local y encola el envío al terminal para los artículos con código BDP.'
+                : 'Modo independiente: el conteo se guarda y ajusta el stock local; no se envía a BDP.'}
+            </p>
           </div>
-        )}
-      </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmar(false)} disabled={guardarMutation.isPending}>
+              Cancelar
+            </Button>
+            <Button onClick={guardar} disabled={guardarMutation.isPending || contados.length === 0}>
+              {guardarMutation.isPending ? <Loader2 className="size-4 animate-spin mr-1" /> : <Save className="size-4 mr-1" />}
+              Confirmar y guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

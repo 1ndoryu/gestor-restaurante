@@ -3,6 +3,7 @@
  * Las líneas referencian artículos del catálogo local (`useBdpArticleMaps`). */
 
 import { Plus, Trash2 } from 'lucide-react';
+import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -48,6 +49,14 @@ export function BdpMenuLocalModal({
 }: BdpMenuLocalModalProps) {
   const isEdit = menu !== null;
   const { data: catalog } = useBdpArticleMaps();
+  /* Nombres por código para autocompletar la descripción al elegir artículo. */
+  const nombrePorCodigo = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of catalog ?? []) {
+      if (a.articulo_bdp_nombre) map.set(a.articulo_glory_codigo, a.articulo_bdp_nombre);
+    }
+    return map;
+  }, [catalog]);
 
   const {
     tipo,
@@ -63,7 +72,6 @@ export function BdpMenuLocalModal({
     lineas,
     addLinea,
     updateLinea,
-    seleccionarArticulo,
     removeLinea,
     error,
     handleSubmit,
@@ -155,31 +163,32 @@ export function BdpMenuLocalModal({
               </p>
             ) : (
               <div className="space-y-2">
+                {/* El datalist se monta una sola vez: el Select con 557
+                 * opciones por línea congelaba la apertura del modal. */}
+                <datalist id="menu-local-catalogo">
+                  {(catalog ?? []).map((articulo) => (
+                    <option
+                      key={articulo.articulo_glory_codigo}
+                      value={articulo.articulo_glory_codigo}
+                    >
+                      {articulo.articulo_bdp_nombre}
+                    </option>
+                  ))}
+                </datalist>
                 {lineas.map((linea) => (
                   <div key={linea.key} className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-2 items-center">
-                    <Select
-                      value={linea.articulo_codigo || 'sin-articulo'}
-                      onValueChange={(v) =>
-                        v === 'sin-articulo'
-                          ? updateLinea(linea.key, 'articulo_codigo', '')
-                          : seleccionarArticulo(linea.key, v, catalog)
-                      }
-                    >
-                      <SelectTrigger aria-label="Artículo del catálogo">
-                        <SelectValue placeholder="Artículo del catálogo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="sin-articulo">— Sin código —</SelectItem>
-                        {(catalog ?? []).map((articulo) => (
-                          <SelectItem
-                            key={articulo.articulo_glory_codigo}
-                            value={articulo.articulo_glory_codigo}
-                          >
-                            {articulo.articulo_bdp_nombre} ({articulo.articulo_glory_codigo})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      list="menu-local-catalogo"
+                      value={linea.articulo_codigo}
+                      onChange={(e) => {
+                        const codigo = e.target.value;
+                        updateLinea(linea.key, 'articulo_codigo', codigo);
+                        const nombre = nombrePorCodigo.get(codigo);
+                        if (nombre) updateLinea(linea.key, 'descripcion', nombre);
+                      }}
+                      placeholder="Código artículo…"
+                      aria-label="Código del artículo del catálogo"
+                    />
                     <Input
                       value={linea.descripcion}
                       onChange={(e) => updateLinea(linea.key, 'descripcion', e.target.value)}
