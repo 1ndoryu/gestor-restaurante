@@ -150,9 +150,9 @@ reinicio justifica (tokens, responsive, foco, zoom, temas).
 - [x] P8.4 Visual: formularios complejos, validación y responsive — verificado navegador 2026-09-16 (`:5182/bdp/explorador`, ruta real del enlace "Menús y Packs"; `/bdp/menus` redirige a `/`): tabs "Menús y packs"/"Consultar BDP", tabla Nombre/Tipo/Precio/Artículos/Estado/Origen/Acciones con las 3 filas (ejemplo 25,00/3/Activo, EDITADO 15,00/3/Activo, pack 2,70/2/Inactivo), botón "Nuevo menú/pack". Residuos de prueba (a propósito): menú EDITADO + pack inactivo como evidencia.
 
 ### P9. Historial / auditoría
-- [ ] P9.1 Registro de acciones locales (venta, anulación, compra, pago…)
-- [ ] P9.2 Filtros y detalle del historial
-- [ ] P9.3 Visual: timeline/tabla y estados
+- [x] P9.1 Registro de acciones locales (venta, anulación, compra, pago…) — verificado 2026-09-16: `GET /api/bdp/audit?limit=100` devuelve 41 entradas; presentes `anular_venta` (1), `pago_parcial_local` (3), `factura_local` (2), `menu_local_crear/actualizar/eliminar` (4/2/1), `stock_ajuste` (6), `inventory` (3). **GAP (tarea nueva): el ciclo de compras NO audita** — crear/borrador/conciliar albarán L-1 ni crear gasto dejan rastro (`bdp_purchase_note.rs` y `gasto.rs` sin INSERT en `bdp_audit_log`; audit con filtro purchase/albarán/compra/reconcile = 0).
+- [x] P9.2 Filtros y detalle del historial — servidor solo `limit`; UI `BdpHistorial.tsx` filtra en cliente (texto + tabs Todos/Local/BDP) y diálogo detalle con operación/resultado/dirección/origen/fecha/entidad/motivo/datos_enviados/respuesta (verificado: `menu_local_eliminar 420e8d6b` con motivo y JSON). Fix 2026-09-16: error honesto + `Reintentar` (mismo patrón Compras/Stock; antes "Revisa que la sesión esté activa" aunque el backend estuviera caído) y etiquetas legibles (`Pago parcial local`, `Factura local`, `Anular venta`, `Crear/Actualizar/Eliminar menú local`, `Ajuste de stock`, `Conteo de inventario`, `Regularizar stock`).
+- [x] P9.3 Visual: timeline/tabla y estados — verificado navegador 2026-09-16 (`:5182/bdp/historial`): tabs Auditoría/Snapshots, 41 filas Fecha/Operación/Dirección/Origen/Resultado/Ojo, filtro Local → 19 registros, header "19 registros de auditoría · 8 snapshots". Estado error con Reintentar no provocado en vivo (código espejo de Compras ya verificado).
 
 ### P10. Permisos operativos
 

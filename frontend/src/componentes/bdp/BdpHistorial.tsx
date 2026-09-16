@@ -3,7 +3,7 @@
  * Modo demo incluido para visualizar datos de prueba. */
 
 import { useMemo, useState } from 'react';
-import { Search, Eye } from 'lucide-react';
+import { Search, Eye, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -48,6 +48,15 @@ function operacionLabel(operacion: string): string {
     add_payment: 'Registrar pago',
     invoice: 'Facturar',
     config_bootstrap: 'Preparar configuración',
+    pago_parcial_local: 'Pago parcial local',
+    factura_local: 'Factura local',
+    anular_venta: 'Anular venta',
+    menu_local_crear: 'Crear menú local',
+    menu_local_actualizar: 'Actualizar menú local',
+    menu_local_eliminar: 'Eliminar menú local',
+    stock_ajuste: 'Ajuste de stock',
+    inventory: 'Conteo de inventario',
+    regularize_stock: 'Regularizar stock',
   };
   return labels[operacion] ?? operacion;
 }
@@ -170,8 +179,16 @@ function BdpHistorial() {
   const [entrySeleccionado, setEntrySeleccionado] = useState<BdpAuditEntry | null>(null);
   const [snapshotSeleccionado, setSnapshotSeleccionado] = useState<BdpSnapshot | null>(null);
   const [dialogAbierto, setDialogAbierto] = useState(false);
-  const { data: auditData, isLoading: loadingAudit, error: auditError } = useBdpAudit(100, !demoMode);
-  const { data: snapshotsData, isLoading: loadingSnapshots, error: snapshotsError } = useBdpSnapshots(50, !demoMode);
+  const { data: auditData, isLoading: loadingAudit, error: auditError, refetch: refetchAudit } = useBdpAudit(100, !demoMode);
+  const { data: snapshotsData, isLoading: loadingSnapshots, error: snapshotsError, refetch: refetchSnapshots } = useBdpSnapshots(50, !demoMode);
+  /* Mensaje de error honesto (mismo patrón que Compras/Stock): solo se habla
+   * de sesión ante un 401 real; si el backend explica el motivo, se muestra
+   * tal cual; en otro caso genérico + Reintentar. */
+  const historialAxiosResponse = (
+    (auditError ?? snapshotsError) as { response?: { status?: number; data?: { message?: string } } } | null | undefined
+  )?.response;
+  const historialErrorStatus = historialAxiosResponse?.status;
+  const historialErrorMessage = historialAxiosResponse?.data?.message;
 
   const auditEntries = useMemo(() => {
     if (demoMode) return mockAuditEntries;
@@ -240,9 +257,26 @@ function BdpHistorial() {
       </div>
 
       {hasError && (
-        <p className="text-sm text-destructive">
-          Error al cargar el historial. Revisa que la sesión esté activa y vuelve a intentarlo.
-        </p>
+        <div className="flex flex-col items-start gap-3 rounded-md border border-destructive/50 p-4">
+          <p className="text-sm text-destructive">
+            {historialErrorStatus === 401
+              ? 'Tu sesión ha caducado. Vuelve a iniciar sesión y reintenta.'
+              : historialErrorMessage
+                ? `Error al cargar el historial: ${historialErrorMessage}`
+                : 'Error al cargar el historial. Vuelve a intentarlo; si persiste, revisa la conexión con el servidor.'}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              refetchAudit();
+              refetchSnapshots();
+            }}
+          >
+            <RefreshCw className="size-3.5 mr-1.5" />
+            Reintentar
+          </Button>
+        </div>
       )}
 
       {isLoading ? (
