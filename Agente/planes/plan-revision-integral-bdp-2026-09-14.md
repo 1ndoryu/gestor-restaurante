@@ -144,10 +144,10 @@ reinicio justifica (tokens, responsive, foco, zoom, temas).
 - [x] P7.4 Visual: flujo de cobro y documentos — verificado en navegador 2026-09-16 (`:5182/ventas`): alta "P7 navegador" 5,50 € vía modal Nueva Venta, menú 3 puntos (Registrar pago local / Facturar localmente / Propina / Anular / Editar / Eliminar), modal pago (Total/Pagado/Pendiente + confirmación `PAGO LOCAL {id} {importe}`), modal factura (`FACTURA LOCAL {id}`), badges "Facturada F-2026-0001/0002". Notas: menú Radix solo abre por teclado en este entorno (clic sintético no lo abre; no es bug de la app); inputs controlados exigen `execCommand('insertText')` en vez de setter; el diálogo de pago no refrescó solo tras el POST (el pago sí quedó registrado 10:05:26) — verificar con reload. Residuos de prueba (a propósito): ventas c1a96686 + 7ac65411 facturadas como evidencia.
 
 ### P8. Menús y packs locales + Explorador
-- [ ] P8.1 Alta/edición de menús y packs
-- [ ] P8.2 Composición (componentes, precios, disponibilidad)
-- [ ] P8.3 Explorador de catálogo
-- [ ] P8.4 Visual: formularios complejos, validación y responsive
+- [x] P8.1 Alta/edición de menús y packs — verificado 2026-09-16 vía API: menú `30373813` (3 líneas libres, precio 0) + PUT renombre a "EDITADO" con precio 15,00; pack `944655c0` (2 líneas con precio); DELETE `420e8d6b` ("Menú/pack eliminado"). Guards: tipo inválido 422, precio negativo 422.
+- [x] P8.2 Composición (componentes, precios, disponibilidad) — verificado 2026-09-16: precio auto = suma `cantidad×precio_unitario` (pack 2,70 = 1,50+1,20); línea con `articulo_codigo=10001` válido aceptada (F7-2); código inexistente `NOEXISTE999` → 422; toggle `activo=false` en pack + filtro `?activo=true` devuelve solo los 2 activos (ejemplo + EDITADO).
+- [x] P8.3 Explorador de catálogo — `GET /api/bdp/explorar` (solo lectura, cero escrituras) 2026-09-16: clientes 5 ok, salones 7 ok, empleados 3 ok, departamentos 0 ok, artículos error honesto `[200109]` (validación BDP, tier gratuito).
+- [x] P8.4 Visual: formularios complejos, validación y responsive — verificado navegador 2026-09-16 (`:5182/bdp/explorador`, ruta real del enlace "Menús y Packs"; `/bdp/menus` redirige a `/`): tabs "Menús y packs"/"Consultar BDP", tabla Nombre/Tipo/Precio/Artículos/Estado/Origen/Acciones con las 3 filas (ejemplo 25,00/3/Activo, EDITADO 15,00/3/Activo, pack 2,70/2/Inactivo), botón "Nuevo menú/pack". Residuos de prueba (a propósito): menú EDITADO + pack inactivo como evidencia.
 
 ### P9. Historial / auditoría
 - [ ] P9.1 Registro de acciones locales (venta, anulación, compra, pago…)
