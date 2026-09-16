@@ -10,8 +10,26 @@ interface AuthState {
   iniciarSesion: (token: string) => void;
   cerrarSesion: () => void;
   estaAutenticado: () => boolean;
+  /* [149A-3/F3] Rol efectivo de la sesión (del JWT: effective_role admin/trabajador).
+   * Solo para UI honesta (menú deshabilitado con aviso); la autorización real
+   * siempre la aplica el backend (403). */
+  rolEfectivo: () => 'admin' | 'trabajador' | null;
+  esTrabajador: () => boolean;
 }
 
+/* Decodifica el rol efectivo del JWT sin verificar firma (solo UI honesta).
+ * El backend serializa UserRole en minúsculas: "admin" | "trabajador". */
+function rolDelToken(token: string): 'admin' | 'trabajador' | null {
+  try {
+    const [, payload] = token.split('.');
+    const decoded = JSON.parse(atob(payload)) as { effective_role?: string };
+    if (decoded.effective_role === 'admin') return 'admin';
+    if (decoded.effective_role === 'trabajador') return 'trabajador';
+    return null;
+  } catch {
+    return null;
+  }
+}
 /* Decodifica el payload del JWT sin verificar firma (solo para checar exp client-side). */
 function tokenEsValido(token: string): boolean {
   try {
@@ -42,6 +60,16 @@ export const useAuthStore = create<AuthState>((set, get) => {
     cerrarSesion: () => {
       localStorage.removeItem('token');
       set({ token: null });
+    },
+
+    rolEfectivo: () => {
+      const token = get().token;
+      return token ? rolDelToken(token) : null;
+    },
+
+    esTrabajador: () => {
+      const token = get().token;
+      return token ? rolDelToken(token) === 'trabajador' : false;
     },
 
     estaAutenticado: () => {

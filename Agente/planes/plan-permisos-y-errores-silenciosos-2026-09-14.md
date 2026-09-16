@@ -45,7 +45,9 @@
 - **F1 — Decisión de modelo (requiere al usuario).** Por sección: ¿oculta / deshabilitada con
   explicación / visible con aviso? ¿Se usa `permisos_trabajador` (recomendado, ya existe) o se
   simplifica a "dueño vs trabajador"? ¿Qué puede hacer un trabajador hoy por diseño?
-  **DIFERIDA por el usuario el 2026-09-16 (retomar más tarde); F3, F5 y F6 quedan en espera tras ella.**
+  **RESUELTA por el usuario el 2026-09-16:** modelo = sistema actual `permisos_*` por acción
+  (fail-closed, solo dueño por defecto, delegable — "lo que sea mejor" + "mejor configurable");
+  menú = entradas **deshabilitadas con aviso** (no ocultas); alcance = configurable por el dueño.
 - **F2 — UI honesta ante 401/403.** Estado de error explícito ("No tienes permiso para ver esta
   sección") en lugar de "Cargando..." infinito o de un vacío falso; **sin reintentos en 4xx**
   (React Query) y sin pintar "0 elementos" cuando la consulta falló.
@@ -136,12 +138,31 @@ aparte). Verificado **en vivo** con las dos cuentas en la pestaña Preview (trab
 ## 7. Estado
 
 - [x] Subplan con inventario de endpoints y hallazgos H-01…H-08 (2026-09-14)
-- [ ] F0 — parcial (barrido de trabajador hecho; falta dueño)
-- [ ] F1 — requiere al usuario
+- [x] **F1 — RESUELTA por el usuario (2026-09-16, chat)**: (a) modelo = sistema actual
+      `permisos_*` por acción (fail-closed, solo dueño por defecto, delegable por el dueño);
+      (b) menú = entradas **deshabilitadas con aviso**, no ocultas; (c) alcance = **configurable
+      por el dueño** (lo decide él). La revisión de `push/pendientes` para trabajador queda
+      cerrada: la cola sigue Admin-only (F4 intacto); si el dueño quiere delegarla, crea un
+      `AccionPermiso` nuevo en otra tarea.
+- [x] **F0 — HECHO (2026-09-16, sin código)**: barrido del dueño por construcción + sondas vivas.
+      Todas las guardas (`require_role(Admin)`, `verificar_permiso`) dejan pasar a `effective_role
+      Admin` por diseño; sondas :3100 con las dos cuentas: el dueño obtuvo `200`/`422` en los
+      mismos endpoints donde el trabajador obtuvo `403` (F4-B). Ningún endpoint bloquea al dueño.
+- [x] **F3 — HECHA (2026-09-16, este commit)**: menú deshabilitado con aviso según F1.
+      `authStore` expone `rolEfectivo()`/`esTrabajador()` (lee `effective_role` del JWT:
+      `"admin"`/`"trabajador"` en minúsculas — verificado en vivo con ambas cuentas).
+      `NavMain`/`NavSecondary` aceptan `soloAdmin` y renderizan la entrada deshabilitada
+      (`aria-disabled`, `title`/tooltip "Solo disponible para el propietario (tu sesión es de
+      trabajador)", sin `Link`). Marcadas `soloAdmin`: Sincronización, Trabajadores
+      (`app-sidebar.tsx` navPrincipal) y Configuración (navSecundario). `site-header.tsx` cierra
+      TODO [C2-3]: "Activar escritura temporal" y "Desactivar BDP" deshabilitadas con aviso para
+      trabajador (ambas exigen Admin en backend). `npm run check:front`: cero errores en
+      `frontend/src` (los de `../glory-rs/` son preexistentes del submódulo). Verificación visual
+      con ambas cuentas → F6 (pendiente del usuario).
 - [x] **F2 — HECHA y verificada con las dos cuentas (2026-09-14)**: `EstadoError` compartido,
       `retry` que no repite 4xx, y 3 pantallas que mentían (trabajadores, sincronización,
       Chatbot) ya dicen "no tienes permiso". Evidencia en §5c.
-- [ ] F3 — pendiente
+- [x] F3 — HECHA 2026-09-16 (ver §7): menú deshabilitado con aviso, no oculto.
 - [x] **F4 Tanda A — HECHA (2026-09-14)**: guardas `require_role(&[UserRole::Admin])` en
       `configuracion.rs` (PATCH config, PUT sync-mode, GET/PUT integraciones, diagnóstico, dry-run),
       `modo_operacion.rs` (PATCH), `bdp_backup.rs` (snapshot completo/parcial, borrar snapshot,
@@ -162,4 +183,17 @@ aparte). Verificado **en vivo** con las dos cuentas en la pestaña Preview (trab
       `tests` seguía con `use super::*`. Se añadieron los 4 imports al módulo de tests: **`cargo test
       --lib` → 176 passed / 0 failed**. No lo causaba este cambio; quedó reparado porque bloqueaba el
       gate.
-- [ ] F5 — pendiente · [ ] F6 — pendiente
+- [x] **F5 — HECHA como propuesta (2026-09-16, sin tocar el gate)**: el repo tiene **32
+      ficheros** con `sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro`
+      (todos los `repositories/*.rs`, `services/bdp_*.rs`, `bdp_backup.rs`, `seed.rs`) + 3 menciones
+      a `limite-lineas` en frontend. Justificación válida por fichero: las macros `query_as!`
+      exigen BD viva en compilación (`cargo sqlx prepare`); el proyecto compila offline/sin BD
+      (wrappers `run-cargo.mjs`, CI sin Postgres), así que las consultas son runtime con tipos
+      dinámicos. Propuesta al gate (requiere autorización, no aplicada): (1) regla que exija que
+      cada `sentinel-disable-file` cite el motivo en la misma línea (hoy la mayoría no lo cita);
+      (2) medición que detecte el patrón F2 — `catch`/`isLoading` sin rama de error visible ante
+      401/403 (el fallo silencioso real de este plan). Caso mínimo: `Trabajadores.tsx` antes de F2
+      ("Cargando..." infinito ante 403 + reintentos 4-5×).
+- [ ] F6 — pendiente (parte técnica hecha 2026-09-16: JWT de ambas cuentas verificados en vivo
+      — dueño `effective_role:"admin"`, trabajadora `:"trabajador"` con `tid` + `permisos:[]`
+      (default-deny confirmado) —; falta confirmación visual por ítem del usuario tras `push`).

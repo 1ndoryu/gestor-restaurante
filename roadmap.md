@@ -212,9 +212,20 @@ sondas vivas (trabajador 403 ×4, dueño pasa guards) y **F2 (UI honesta)**: `Es
 3 pantallas que mentían (Trabajadores, Sincronización, Chatbot) ya dicen "no tienes permiso". También
 reparado el bloqueo preexistente de `cargo test --lib` (176 passed / 0 failed, imports del split).
 
-**F1 diferida por el usuario (2026-09-16, retomar más tarde)**; F3, F5 y F6 en espera tras ella.
+**F1 RESUELTA por el usuario (2026-09-16)**: (a) modelo = `permisos_*` por acción
+actual (fail-closed, solo dueño, delegable); (b) menú = deshabilitado con aviso, no oculto;
+(c) alcance = configurable por el dueño. **Hecho 2026-09-16 (este commit):** **F0** (barrido del
+dueño: las guardas dejan pasar a `Admin` por diseño; sondas vivas dueño 200/422 donde trabajador
+403 — ningún endpoint bloquea al dueño), **F3** (menú deshabilitado con aviso: `authStore`
+`rolEfectivo()`/`esTrabajador()` desde `effective_role` del JWT —verificado en vivo `"admin"` /
+`"trabajador"` con `tid` + `permisos:[]`—; `soloAdmin` en Sincronización, Trabajadores y
+Configuración; TODO [C2-3] del site-header cerrado; `check:front` cero errores en `frontend/src`),
+**F5** (propuesta sin tocar el gate: 32 ficheros con `sentinel-disable-file sqlx-query-sin-macro`
+justificados —las macros exigen BD viva en compilación y el proyecto compila offline—; propuesta:
+exigir motivo citado + medición del patrón F2 con caso mínimo `Trabajadores.tsx` pre-F2).
+**F6 parcial** (técnica hecha; falta confirmación visual por ítem del usuario tras `push`).
 
-**Siguiente paso:** F0 (barrido del dueño) y 169A-2 (prueba nocturna de pago en creación).
+**Siguiente paso:** 169A-2 (prueba nocturna de pago en creación).
 
 ### Bloque 169A-2 — Pago dentro del CreateOrder + prueba nocturna en gratuita (plan activo 2026-09-16)
 

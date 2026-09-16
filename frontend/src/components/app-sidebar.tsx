@@ -75,14 +75,17 @@ const navPrincipal = [
   { title: "Plantillas WA", url: "/marketing/plantillas", icon: <MessageSquare /> },
   { title: "Recordatorios", url: "/marketing/recordatorios", icon: <Bell /> },
   { title: "Historial", url: "/bdp/historial", icon: <Database /> },
-  { title: "Sincronización", url: "/bdp/sincronizacion", icon: <RefreshCw /> },
-  { title: "Trabajadores", url: "/trabajadores", icon: <Shield /> },
+  /* [149A-3/F3] Sincronización y Trabajadores exigen Admin en backend
+   * (flush/retry push + CRUD trabajadores 403 para trabajador). */
+  { title: "Sincronización", url: "/bdp/sincronizacion", icon: <RefreshCw />, soloAdmin: true },
+  { title: "Trabajadores", url: "/trabajadores", icon: <Shield />, soloAdmin: true },
   { title: "Reseñas", url: "/resenas", icon: <Star /> },
   { title: "Inactividad", url: "/inactividad", icon: <Clock /> },
 ]
 
 const navSecundario = [
-  { title: "Configuración", url: "/configuracion", icon: <Settings /> },
+  /* [149A-3/F3] Configuración (PATCH/PUT/integraciones/diagnóstico) exige Admin en backend. */
+  { title: "Configuración", url: "/configuracion", icon: <Settings />, soloAdmin: true },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

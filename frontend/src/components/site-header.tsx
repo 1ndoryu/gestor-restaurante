@@ -27,6 +27,8 @@ import { toast } from "sonner"
 import axios from "@/api/axios-instance"
 import { useQueryClient } from "@tanstack/react-query"
 import { useConfiguracionSync } from "@/hooks/useConfiguracionSync"
+import { useAuthStore } from "@/stores/authStore"
+import { AVISO_SOLO_PROPIETARIO } from "@/components/nav-main"
 
 const titulos: Record<string, string> = {
   "/": "Dashboard",
@@ -55,6 +57,9 @@ const titulos: Record<string, string> = {
 
 function BdpStatusIndicator() {
   const { data: config } = useObtenerConfiguracion()
+  /* [149A-3/F3] El trabajador no puede cambiar el modo BDP (PATCH exige Admin):
+   * la opción se muestra deshabilitada con aviso, no se oculta. */
+  const esTrabajador = useAuthStore((s) => s.esTrabajador)()
   /* [198A-2] Memoizar serverData (mismo bug [BKP-008c] ya corregido en
    * useConfiguracion.ts): el literal { status, data } creaba una referencia
    * nueva por render, lo que disparaba el setState de useConfiguracionSync y
@@ -305,12 +310,21 @@ function BdpStatusIndicator() {
           </DropdownMenuItem>
         ) : (
           <>
-            {/* [C2-3] TODO: restringir a admin/owner cuando el auth store exponga rol. */}
-            <DropdownMenuItem onClick={() => navigate('/configuracion', { state: { bdpArming: true } })}>
-              Activar escritura temporal
+            {/* [149A-3/F3] Cierra TODO [C2-3]: el rol ya lo expone el auth store.
+             * Trabajador ve la opción deshabilitada con aviso (backend 403). */}
+            <DropdownMenuItem
+              onClick={() => navigate('/configuracion', { state: { bdpArming: true } })}
+              disabled={esTrabajador}
+              title={esTrabajador ? AVISO_SOLO_PROPIETARIO : undefined}
+            >
+              {esTrabajador ? 'Activar escritura temporal (solo propietario)' : 'Activar escritura temporal'}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={desactivarIntegracion} disabled={desactivandoBdp}>
-              {desactivandoBdp ? 'Desactivando...' : 'Desactivar BDP (quedar solo en local)'}
+            <DropdownMenuItem
+              onClick={desactivarIntegracion}
+              disabled={desactivandoBdp || esTrabajador}
+              title={esTrabajador ? AVISO_SOLO_PROPIETARIO : undefined}
+            >
+              {desactivandoBdp ? 'Desactivando...' : esTrabajador ? 'Desactivar BDP (solo propietario)' : 'Desactivar BDP (quedar solo en local)'}
             </DropdownMenuItem>
           </>
         )}

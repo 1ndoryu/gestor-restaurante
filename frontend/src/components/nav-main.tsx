@@ -16,6 +16,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { CirclePlusIcon, ReceiptIcon } from "lucide-react"
 import FormularioVenta from "@/componentes/FormularioVenta"
 import FormularioGasto from "@/componentes/FormularioGasto"
+import { useAuthStore } from "@/stores/authStore"
+
+/* [149A-3/F3] Entradas con soloAdmin quedan deshabilitadas con aviso para
+ * sesiones de trabajador (se muestran, no se ocultan). La autorización real
+ * la aplica el backend (403); esto es UI honesta, no control de acceso. */
+export const AVISO_SOLO_PROPIETARIO =
+  "Solo disponible para el propietario (tu sesión es de trabajador)"
 
 export function NavMain({
   items,
@@ -24,9 +31,11 @@ export function NavMain({
     title: string
     url: string
     icon?: React.ReactNode
+    soloAdmin?: boolean
   }[]
 }) {
   const location = useLocation()
+  const esTrabajador = useAuthStore((s) => s.esTrabajador)()
   const [modalVenta, setModalVenta] = useState(false)
   const [modalGasto, setModalGasto] = useState(false)
 
@@ -62,21 +71,36 @@ export function NavMain({
             const activo = item.url === "/"
               ? location.pathname === "/"
               : location.pathname.startsWith(item.url)
+            const deshabilitado = Boolean(item.soloAdmin && esTrabajador)
 
             return (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton
-                  asChild
-                  size="sm"
-                  tooltip={item.title}
-                  isActive={activo}
-                  className="[&_svg]:size-3.5"
-                >
-                  <Link to={item.url}>
+                {deshabilitado ? (
+                  <SidebarMenuButton
+                    size="sm"
+                    tooltip={AVISO_SOLO_PROPIETARIO}
+                    aria-disabled="true"
+                    disabled
+                    title={AVISO_SOLO_PROPIETARIO}
+                    className="[&_svg]:size-3.5 opacity-50 cursor-not-allowed"
+                  >
                     {item.icon}
                     <span>{item.title}</span>
-                  </Link>
-                </SidebarMenuButton>
+                  </SidebarMenuButton>
+                ) : (
+                  <SidebarMenuButton
+                    asChild
+                    size="sm"
+                    tooltip={item.title}
+                    isActive={activo}
+                    className="[&_svg]:size-3.5"
+                  >
+                    <Link to={item.url}>
+                      {item.icon}
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                )}
               </SidebarMenuItem>
             )
           })}
