@@ -125,11 +125,11 @@ reinicio justifica (tokens, responsive, foco, zoom, temas).
 - Nota modo read_only: editar/ajustar/conteo ENCOLAN filas push (`pendiente`: crear ZZPRUEBA99, modificar 90000003, regularizar 90000003, inventario conteo) — por diseño la cola es local e inerte sin flush autorizado; cero escrituras al BDP real.
 
 ### P5. Anulación y eliminación de ventas
-- [ ] P5.1 Anulación local 100 % (sin encolar nada)
-- [ ] P5.2 Resumen diario que excluye anuladas
-- [ ] P5.3 Liberación de mesa al cerrar/anular
-- [ ] P5.4 Eliminación de venta (alcance y efecto en BD)
-- [ ] P5.5 Visual: confirmaciones, estados y mensajes de la anulación
+- [x] P5.1 Anulación local 100 % (sin encolar nada) — verificado 2026-09-16: creada `d67bbb28` (1,00 € + 0,10 IVA, `bdp_order_id=null`) y anulada vía `POST /api/ventas/:id/anular` (motivo + `idempotency_key=p5-test-anular-1`) → `anulada:true`, motivo y `anulacion_usuario=auth.user_id`; `GET /api/bdp/push/pendientes` sin filas para esa venta (cero encolado, M16). Cero tráfico BDP.
+- [x] P5.2 Resumen diario que excluye anuladas — verificado 2026-09-16: `anulacion_modalidad=credito_completo` → `GET /api/dashboard/resumen?year=2026&month=9` = 0,10 € (solo comanda activa; mi anulada de 1,00 € excluida).
+- [x] P5.3 Liberación de mesa al cerrar/anular — NO APLICA por diseño 2026-09-16: `Venta` no tiene mesa (`src/models/venta.rs` sin rastro de mesa); la ocupación sale de reservas (`mesa_id`), no de ventas. Nada que liberar.
+- [x] P5.4 Eliminación de venta (alcance y efecto en BD) — verificado 2026-09-16 ambas vías: `DELETE` de la anulada → 409 "Las ventas anuladas nunca se eliminan (D5)"; creada `4ab08be2` local 2,00 € y `DELETE` → 200 + `GET` posterior 404 (borrada de verdad). Guards en `venta.rs:220-273` (Haddock, anulada, bdp_synced, facturada, pagos).
+- [x] P5.5 Visual: confirmaciones, estados y mensajes de la anulación — verificado navegador 2026-09-16 (`:5182/ventas`): fila de prueba con badge "Anulada" + BDP "No enviada" (honesto). Código: modal con confirmación tecleada `ANULAR {id}` + motivo obligatorio en `credito_completo` + copy "se excluye del resumen diario" (`venta-row-actions.tsx:394-424`); Eliminar oculto si anulada/sincronizada (`:191`).
 
 ### P6. Compras locales
 - [ ] P6.1 Albarán local (cabecera + líneas con IVA)
