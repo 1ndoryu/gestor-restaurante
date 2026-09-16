@@ -194,6 +194,15 @@ aparte). Verificado **en vivo** con las dos cuentas en la pestaña Preview (trab
       (2) medición que detecte el patrón F2 — `catch`/`isLoading` sin rama de error visible ante
       401/403 (el fallo silencioso real de este plan). Caso mínimo: `Trabajadores.tsx` antes de F2
       ("Cargando..." infinito ante 403 + reintentos 4-5×).
-- [ ] F6 — pendiente (parte técnica hecha 2026-09-16: JWT de ambas cuentas verificados en vivo
-      — dueño `effective_role:"admin"`, trabajadora `:"trabajador"` con `tid` + `permisos:[]`
-      (default-deny confirmado) —; falta confirmación visual por ítem del usuario tras `push`).
+- [x] **F6 — HECHA (2026-09-16, navegador automatizado :5183 + backend :3100)**: (1) menú
+      trabajadora: Sincronización/Trabajadores/Configuración como `button` deshabilitados con el
+      aviso (resto `link` normales); (2) desplegable BDP: activar-escritura y desactivar-BDP
+      `aria-disabled=true` con aviso, resto habilitadas; (3) `/trabajadores` directo como
+      trabajadora: "No tienes permiso para ver la gestión de trabajadores… (código 403)" sin
+      "Cargando…" infinito; (4) `/bdp/catalogo` como trabajadora: "Importar del BDP" dispara
+      `POST sync-catalog` y muestra toast "No se pudo importar el catálogo del BDP" (cero
+      escrituras: el backend 403 aborta antes); lectura 557 artículos OK; (5) dueño: las 3
+      entradas son `link`, desplegable BDP todo habilitado, `/trabajadores` lista 3 trabajadores
+      (Marta Gil, Sara López, Tomás Ruiz, todos "Sin permisos" = default-deny visible).
+      Falsa alarma documentada: el toast sonner dura ~4 s; dos comprobaciones llegaron tarde y
+      parecieron "sin aviso". Subplan 149A-3 COMPLETO.

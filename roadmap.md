@@ -223,7 +223,11 @@ Configuración; TODO [C2-3] del site-header cerrado; `check:front` cero errores 
 **F5** (propuesta sin tocar el gate: 32 ficheros con `sentinel-disable-file sqlx-query-sin-macro`
 justificados —las macros exigen BD viva en compilación y el proyecto compila offline—; propuesta:
 exigir motivo citado + medición del patrón F2 con caso mínimo `Trabajadores.tsx` pre-F2).
-**F6 parcial** (técnica hecha; falta confirmación visual por ítem del usuario tras `push`).
+**F6 HECHA 2026-09-16 (navegador automatizado :5183)**: menú trabajadora con las 3
+entradas deshabilitadas + aviso, desplegable BDP con las 2 opciones admin deshabilitadas,
+`/trabajadores` directo → 403 honesto, "Importar del BDP" como trabajadora → toast de error
+honesto (cero escrituras), dueño todo habilitado + lista 3 trabajadores. **Subplan 149A-3
+COMPLETO** (detalle en el plan §7 + `tareas-2026-09-16.md`).
 
 **Siguiente paso:** 169A-2 (prueba nocturna de pago en creación).
 
