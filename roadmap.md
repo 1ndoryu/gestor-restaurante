@@ -156,6 +156,18 @@ Informe: `Agente/completados/tareas-2026-09-16.md` (§169A-4 PERF-VPS).
 **Pendiente del usuario:** repo a privado; destino del staging (C.5 borrar/conservar);
 push del cierre.
 
+### Bloque 169A-5 — Escalar a 50.000 personas consultando con evidencia (plan activo 2026-09-16)
+
+Plan: `Agente/planes/plan-50k-2026-09-16.md`. Aritmética: 50k × 1 req/10s ≈
+5.000 req/s en borde; con ≥95 % HIT en Cloudflare el origen ve ≤250 req/s.
+Fases: D1 perfilado (EXPLAIN + clasificación cacheable), D2 origen (índices +
+caché en app + headers), D3 borde (proxy naranja + reglas CF + test negativo
+de privacidad), D4 harness `consulta50k` (rampa por tramos con parada
+automática), D5 medición y claim (cifra = tramo verde redondeado abajo).
+Hechos: cero caché hoy, sin CDN en path (gris), índices base OK, manager con
+`cache` pero sin reglas CF visibles. Autorizaciones pendientes: push D2,
+deploy, proxy+reglas CF, tramos de carga, publicar cifra.
+
 ### Bloque 099A-1 — Paquete restaurante 2026-09-09: hosting ES/UE + MFA + SaaS + seguridad (plan activo 2026-09-09)
 
 Origen: reunión del restaurante trasladada por Guillermo el 2026-09-09 (chat 04–09/09/2026 en
