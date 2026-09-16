@@ -34,17 +34,49 @@
 
 ## 2. Fase A — Staging en la VPS (requiere autorización explícita)
 
-- [ ] A.1 `new --name restaurante-perf --template rust` (repo/ramas del proyecto,
-      `--app-bin glory-backend`, health `/api/health`). Con `--skip-cache` si el
-      template lo pide. **Autorización 1: crear el servicio.**
-- [ ] A.2 `sync-env`: `MODO` standalone forzado (`modo_operacion=standalone`),
-      `DATABASE_URL` con `postgres-{uuid}` (evita DNS collision 28P01), `PORT`,
-      secretos de seed. Sin `BDP_*` reales (base_url vacía o dummy no enrutable).
-- [ ] A.3 `deploy --name restaurante-perf` (build Rust ~8-12 min; 503 durante el build
-      es normal). **Autorización 2: desplegar.**
-- [ ] A.4 `health` + `seed` (vía `exec`: binario `seed` ya incluido en la imagen
-      `Dockerfile:56`) + `PATCH /api/configuracion {modo_operacion:standalone}` y
-      verificación `bdp_sync_enabled=false`.
+- [x] A.1 `new --name restaurante-perf --template rust` (2026-09-16: servicio
+  creado, uuid `p0sk8swg8o8kcokko0w4ocwg`, dominio `https://perf.wandori.us`).
+  **Bloqueo deploy:** el template clona `https://github.com/1ndoryu/gestor-restaurante.git`
+  y el repo es privado → `fatal: could not read Username` (exit 128), evidencia en
+  `C:\tmp\perf-deploy.log`. Decisión usuario: hacerlo público temporal y volver a
+  privado tras el build.
+- [x] A.0 Auditoría secretos pre-publicación (2026-09-16): VEREDICTO **publicable**.
+  HEAD: sin `.env` trackeado (gitignored), solo `frontend/.env.example` con
+  placeholders; cero tokens/keys (`ghp_/sk-/AKIA/xox`/private keys); asignaciones
+  `BDP_*/JWT_SECRET/DATABASE_URL` solo placeholders o `${VAR}`. Historial (`--all`,
+  valores enmascarados): sin valores reales (solo SQL `CASE`, `env::var`, `pass/TEST`
+  en docs de tests, URLs `user:...@` ficticias). Rama remota `glory-rs-rest` también
+  limpia. Refs `synara/checkpoints/*` solo locales, no están en `origin` (`main` +
+  `glory-rs-rest`). Residuos no bloqueantes al hacerlo público: IP Tailscale BDP +
+  `pos_id` en docs, credenciales demo del seed (`demo1234`/`trabajador123`, solo test),
+  UUIDs Coolify en `temp-compose-glory-rest.yml`. `gh` sin auth → el flip lo hace el
+  usuario en GitHub UI. Tras el build, volver a privado (los redeploys futuros
+  necesitarían token o repo público).
+- [x] A.2 `sync-env`: **sin push necesario.** Env actual verificado vía `exec`
+  (2026-09-16): `DATABASE_URL` con `postgres-p0sk8swg8o8kcokko0w4ocwg` ✓ (gotcha
+  28P01 OK), `JWT_SECRET` aleatorio 64 chars ✓, `HOST=0.0.0.0`, `RUST_LOG=info`,
+  `BDP_BASE_URL`/real `BDP_*` ausentes, `PORT` default 3000. Nada real que sincronizar.
+- [x] A.3 `deploy --name restaurante-perf` (2026-09-16: build OK con repo público,
+  migraciones aplicadas, servidor en `:3000`; el health del manager falló solo por
+  DNS inexistente → rollback E11 automático, pero el contenedor corriendo es el build
+  nuevo). `setup-site-dns` ejecutado: `A perf.wandori.us → 66.94.100.241` [created]
+  (previo `dnsConfig` cloudflare añadido a `settings.json`, backup en
+  `settings.json.bak-20260916`). `health --all`: los otros 10 sitios + minecraft OK;
+  solo `restaurante-perf` en rojo por cert pendiente (disparó 1 email de alerta a
+  admin@wandori.us — ruido conocido).
+- [x] A.4 seed + standalone (2026-09-16): `/app/seed` vía `exec` OK (demo
+  `e78fa340…`, 84 reservas, 39 ventas, 3 trabajadores, etc.);
+  `GET /api/configuracion/modo` → `auto/standalone`;
+  `PATCH {modo:standalone}` → `standalone/standalone` (switch maestro forzado).
+  Tráfico BDP imposible: standalone + base_url vacía + sin bootstrap + write-origins vacíos.
+- [x] Cert + health (2026-09-16 ~20:01Z): causa raíz del 000 = Traefik intentó el
+  cert ACME a las 19:47/19:50 con NXDOMAIN (DNS aún no existía) y no reintentó.
+  `deploy-service --skip-build --skip-backup` (sin `--seed` para no borrar datos)
+  refrescó el router → LE emitió → **deploy exitoso, `https://perf.wandori.us` 200**,
+  autoheal instalado, resto de sitios verificados OK por el propio deploy
+  (guillermo, padel, wandori, nakomi, cap, studio, kamples, glory-rest, agape, task).
+  Post-swap verificado: login demo OK, `modo standalone/standalone`, seed intacto
+  (8 clientes). **El repo ya puede volver a privado.** Fase A completa salvo A.5/A.6.
 - [ ] A.5 Guardarraíl: límites CPU/RAM amplios al inicio (p. ej. 2 vCPU / 2 GB) para
       medir consumo real sin throttling; el informe dirá los límites finales.
 - [ ] A.6 `backup` inicial del staging (opcional, barato; protege el seed calibrado).
@@ -81,22 +113,39 @@ Matriz de tiers de recursos (decisión usuario 2026-09-16: medir en los tres):
 
 Cada escenario del harness (base/pico/sostenido, §3) se ejecuta **una vez por tier**
 (9 runs). Entre runs, cooldown 2 min + `health` OK antes de empezar. Los límites se
-fijan vía compose del servicio antes de cada run; el tier inicial de A.5 pasa a ser
-**Tmax** (techo sin throttling) y luego se baja a T2 y T1 para medir degradación y OOMs.
+fijan vía `docker update` en vivo (sin reinicio) antes de cada tier; el tier inicial
+de A.5 pasa a ser **Tmax** (sin límites) y luego se baja a T2 y T1.
+**Cierre 2026-09-16: matriz 9/9 ejecutada (~251k peticiones). Veredicto: T1 viable
+para este perfil (pico 10u p95 232 ms, 1 error cliente transitorio en 42k);
+cuello = postgres CPU en pico; sin leaks (RSS plana 30 min); sin OOM ni reinicios.
+Informe en `Agente/completados/tareas-2026-09-16.md` (§169A-4 PERF-VPS).
+Desvíos del plan: límites por `docker update --cpus/--memory/--memory-swap`
+(en vez de compose; `--memory` exige `--memory-swap` a la vez); muestreo con
+`docker stats` vía `host-exec --command` (container-stats solo devuelve app);
+`host-exec` exige `--command`; dashboard exige `?year=&month=`.
+Incidente: `GloryTmpSweep` purgó `C:\tmp\glory-target\coolify-manager` a mitad de
+matriz → rebuild 6m31s + copia a salvo en
+`C:\Users\Owner\AppData\Local\Temp\opencode\coolify-manager.exe`
+(`muestrear.mjs` la usa; override `COOLIFY_MANAGER_EXE`).
+Pendiente usuario: repo a privado; destino staging (C.5); push del cierre.**
 
-- [ ] C.1 Durante cada run, muestrear cada 5 s: `container-stats` (app + postgres),
+- [x] C.1 Durante cada run, muestrear cada 5 s: `container-stats` (app + postgres),
       más `GET /api/health` como testigo de saturación.
-- [ ] C.2 Métricas a capturar: CPU % (media/pico), RSS app y postgres (media/pico),
+      (Muestreo con `docker stats` app+pg; health OK entre runs; Tmax-sost parcial:
+      103 muestras ok por purga del binario — ver incidente.)
+- [x] C.2 Métricas a capturar: CPU % (media/pico), RSS app y postgres (media/pico),
       p50/p95 por endpoint, req/s sostenidos, tasa de error, tamaño BD, latencia p95
-      del health bajo carga.
-- [ ] C.3 Criterio de dimensionado **por tier**: un tier es viable si en `sostenido`
+      del health bajo carga. (Todo en `scripts/perf/resultados/` + informe.)
+- [x] C.3 Criterio de dimensionado **por tier**: un tier es viable si en `sostenido`
       p95 < 800 ms, errores < 1 % y cero OOM; recomendación = tier viable más pequeño
       × 1.8 de headroom. Tabla comparativa T1/T2/Tmax en el informe. Si ni Tmax pasa
       `pico` → hay cuello de botella: se abre tarea de mejora (no se optimiza
       a ciegas en este plan).
-- [ ] C.4 Informe en `Agente/completados/tareas-YYYY-MM-DD.md` + tabla resumen en roadmap.
+      (Los 3 tiers pasan: T1-sost p95 199 ms, 0 errores, 0 OOM. Recomendación T1;
+      headroom ×1.8 sugiere 2 vCPU si el pico crece, pero con este perfil T1 basta.)
+- [x] C.4 Informe en `Agente/completados/tareas-YYYY-MM-DD.md` + tabla resumen en roadmap.
 - [ ] C.5 Limpieza: `stop`/`delete` del staging (autorización 3) o conservarlo como
-      entorno perf permanente (decisión del usuario).
+      entorno perf permanente (decisión del usuario). **PENDIENTE.**
 
 ## 5. Adaptaciones de coolify-manager (solo si hacen falta)
 

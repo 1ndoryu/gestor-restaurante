@@ -1,0 +1,82 @@
+{
+  "url": "https://perf.wandori.us",
+  "escenario": "sostenido",
+  "usuarios": 3,
+  "duracion_s": 1800,
+  "reales_s": 1800,
+  "peticiones": 40155,
+  "req_s": 22.31,
+  "errores": 0,
+  "global_ms": {
+    "p50": 123,
+    "p95": 199,
+    "p99": 336,
+    "n": 40155
+  },
+  "por_op_ms": {
+    "dashboard_resumen": {
+      "p50": 132,
+      "p95": 206,
+      "p99": 348,
+      "n": 8033,
+      "fallos": 0
+    },
+    "ventas_listar": {
+      "p50": 147,
+      "p95": 257,
+      "p99": 467,
+      "n": 8034,
+      "fallos": 0
+    },
+    "article_maps": {
+      "p50": 108,
+      "p95": 152,
+      "p99": 230,
+      "n": 5355,
+      "fallos": 0
+    },
+    "article_stock": {
+      "p50": 108,
+      "p95": 150,
+      "p99": 234,
+      "n": 5353,
+      "fallos": 0
+    },
+    "clientes_listar": {
+      "p50": 113,
+      "p95": 161,
+      "p99": 306,
+      "n": 2676,
+      "fallos": 0
+    },
+    "reservas_listar": {
+      "p50": 112,
+      "p95": 155,
+      "p99": 262,
+      "n": 2676,
+      "fallos": 0
+    },
+    "gastos_listar": {
+      "p50": 125,
+      "p95": 188,
+      "p99": 289,
+      "n": 2676,
+      "fallos": 0
+    },
+    "venta_crear": {
+      "p50": 115,
+      "p95": 169,
+      "p99": 276,
+      "n": 2676,
+      "fallos": 0
+    },
+    "gasto_crear": {
+      "p50": 113,
+      "p95": 165,
+      "p99": 270,
+      "n": 2676,
+      "fallos": 0
+    }
+  },
+  "generado": "2026-09-16T22:57:01.310Z"
+}

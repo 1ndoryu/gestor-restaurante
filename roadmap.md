@@ -148,9 +148,13 @@ VPS, push de `main` autorizado. Staging separado `restaurante-perf` en `standalo
 (cero tráfico BDP por construcción); harness versionado con operaciones mínimas reales
 (login, dashboard, venta+cobro, catálogo, stock, gasto/reserva); métricas con
 `container-stats`; informe con p50/p95 + CPU/RAM + recomendación de recursos.
-**Siguiente paso:** P0 preflight (compilar manager, `container-stats --help`, `list`).
-Autorizaciones pendientes: crear servicio, deploy+sync-env+seed, lecturas reales,
-destino del staging.
+**Matriz 9/9 ejecutada 2026-09-16 (~251k peticiones, `https://perf.wandori.us`):
+T1-sost p95 199 ms 0 errores; T2-pico 76 req/s p95 196 ms; T1-pico 70 req/s p95
+232 ms con 1 error cliente transitorio en 42k; sin OOM ni leaks. Veredicto: T1
+(1 vCPU/1 GB) sobrado para este perfil; cuello = postgres CPU en pico.**
+Informe: `Agente/completados/tareas-2026-09-16.md` (§169A-4 PERF-VPS).
+**Pendiente del usuario:** repo a privado; destino del staging (C.5 borrar/conservar);
+push del cierre.
 
 ### Bloque 099A-1 — Paquete restaurante 2026-09-09: hosting ES/UE + MFA + SaaS + seguridad (plan activo 2026-09-09)
 
