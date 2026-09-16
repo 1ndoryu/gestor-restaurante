@@ -57,6 +57,10 @@ function operacionLabel(operacion: string): string {
     stock_ajuste: 'Ajuste de stock',
     inventory: 'Conteo de inventario',
     regularize_stock: 'Regularizar stock',
+    albaran_local_crear: 'Crear albarán local',
+    albaran_local_borrador: 'Pasar albarán a borrador',
+    albaran_local_conciliar: 'Conciliar albarán',
+    gasto_local_crear: 'Crear gasto',
   };
   return labels[operacion] ?? operacion;
 }

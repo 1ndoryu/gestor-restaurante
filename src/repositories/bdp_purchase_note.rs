@@ -134,6 +134,48 @@ impl BdpPurchaseNoteRepository {
      * la serie reservada `L` por defecto para no chocar con el
      * UNIQUE(user_id, serie, numero) de los importados de BDP. */
 
+    /* [169A-1] Auditoría obligatoria del ciclo de vida local (crear,
+     * borrador, conciliar + gasto creado al conciliar). Misma tabla
+     * `bdp_audit_log` y mismo patrón que pagos/menús/ventas: `direccion`
+     * 'internal', `origen_operacion` 'local', clave de idempotencia
+     * determinista por (operación, albarán) para que un reintento no
+     * duplique el rastro. Si la auditoría falla, la operación entera
+     * revierte (fail-closed: sin rastro no hay escritura). */
+    pub async fn auditar_ciclo_local<'e, E>(
+        executor: E,
+        user_id: Uuid,
+        operacion: &str,
+        target_entity_type: &str,
+        target_entity_id: Uuid,
+        datos: serde_json::Value,
+        motivo: String,
+        idempotency_key: &str,
+    ) -> Result<Uuid, sqlx::Error>
+    where
+        E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+    {
+        sqlx::query_scalar(
+            r"INSERT INTO bdp_audit_log
+                  (user_id, operacion, direccion, datos_enviados, resultado, origen_operacion,
+                   target_entity_type, target_entity_id, authorization_reason, idempotency_key)
+                VALUES ($1, $2, 'internal', $3, 'exito', 'local', $4, $5, $6, $7)
+                ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+                RETURNING id",
+        )
+        .bind(user_id)
+        .bind(operacion)
+        .bind(datos)
+        .bind(target_entity_type)
+        .bind(target_entity_id)
+        .bind(motivo)
+        .bind(idempotency_key)
+        .fetch_optional(executor)
+        .await?
+        .ok_or_else(|| {
+            sqlx::Error::Protocol("No se pudo auditar el ciclo de compra local".into())
+        })
+    }
+
     /// Crea un albarán de compra local (`origen='local'`, estado `pendiente`).
     pub async fn crear_local(
         pool: &PgPool,
@@ -179,6 +221,10 @@ impl BdpPurchaseNoteRepository {
                 .as_deref()
                 .and_then(|f| chrono::NaiveDate::parse_from_str(f, "%Y-%m-%d").ok());
 
+            /* [169A-1] Alta + auditoría en la misma transacción: sin rastro
+             * no hay albarán (fail-closed). La tx se abre por intento para no
+             * arrastrar una tx abortada al reintentar la numeración. */
+            let mut tx = pool.begin().await?;
             let resultado = sqlx::query_as::<_, BdpPurchaseNote>(
                 "INSERT INTO bdp_purchase_notes \
                     (id, user_id, serie, numero, fecha, codigo_proveedor, nombre_proveedor, \
@@ -196,14 +242,36 @@ impl BdpPurchaseNoteRepository {
             .bind(req.nombre_proveedor.as_deref())
             .bind(total)
             .bind(datos_bdp.clone())
-            .fetch_one(pool)
+            .fetch_one(&mut *tx)
             .await;
 
             match resultado {
-                Ok(note) => return Ok(note),
+                Ok(note) => {
+                    Self::auditar_ciclo_local(
+                        &mut *tx,
+                        user_id,
+                        "albaran_local_crear",
+                        "albaran",
+                        note.id,
+                        serde_json::json!({
+                            "serie": note.serie,
+                            "numero": note.numero,
+                            "total": note.total,
+                            "nombre_proveedor": note.nombre_proveedor,
+                        }),
+                        format!(
+                            "Alta de albarán local {}-{} — operación interna, no requiere autorización BDP",
+                            note.serie, note.numero
+                        ),
+                        &format!("albaran-local-crear-{}", note.id),
+                    )
+                    .await?;
+                    tx.commit().await?;
+                    return Ok(note);
+                }
                 Err(sqlx::Error::Database(ref db))
                     if db.is_unique_violation() && req.numero.is_none() && intentos < 3 =>
-                { /* Carrera de numeración: recalcular y reintentar. */ }
+                { /* Carrera de numeración: la tx revierte al caer; recalcular y reintentar. */ }
                 Err(e) => return Err(e),
             }
         }

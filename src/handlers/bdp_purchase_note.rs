@@ -364,15 +364,33 @@ pub async fn marcar_borrador_purchase_note(
         ));
     }
 
-    if !BdpPurchaseNoteRepository::marcar_borrador(&state.pool, id, auth.user_id).await? {
+    /* [169A-1] Transición + auditoría en la misma transacción: sin rastro
+     * no hay cambio de estado (fail-closed). */
+    let mut tx = state.pool.begin().await?;
+    if !BdpPurchaseNoteRepository::marcar_borrador(&mut *tx, id, auth.user_id).await? {
         return Err(AppError::Validation(
             "No se puede marcar como borrador un albarán que no esté pendiente".into(),
         ));
     }
 
-    let note = BdpPurchaseNoteRepository::find_by_id(&state.pool, id, auth.user_id)
+    let note = BdpPurchaseNoteRepository::find_by_id(&mut *tx, id, auth.user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Albarán no encontrado".into()))?;
+    BdpPurchaseNoteRepository::auditar_ciclo_local(
+        &mut *tx,
+        auth.user_id,
+        "albaran_local_borrador",
+        "albaran",
+        note.id,
+        serde_json::json!({ "serie": note.serie, "numero": note.numero, "estado": "borrador" }),
+        format!(
+            "Albarán local {}-{} pasado a borrador — operación interna, no requiere autorización BDP",
+            note.serie, note.numero
+        ),
+        &format!("albaran-local-borrador-{id}"),
+    )
+    .await?;
+    tx.commit().await?;
 
     tracing::info!(
         "[247A-12] Albarán {} marcado como borrador por usuario {}",
@@ -431,11 +449,11 @@ pub async fn conciliar_purchase_note(
 
     let mut tx = state.pool.begin().await?;
 
-    let gasto_id = if let Some(gasto_existente_id) = req.gasto_existente_id {
+    let (gasto_id, gasto_nuevo) = if let Some(gasto_existente_id) = req.gasto_existente_id {
         let gasto = GastoRepository::find_by_id(&mut *tx, gasto_existente_id, auth.user_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Gasto no encontrado".into()))?;
-        gasto.id
+        (gasto.id, None)
     } else {
         let proveedor = note.nombre_proveedor.as_deref().unwrap_or("Proveedor BDP");
         let numero_documento = format!("{}-{}", note.serie, note.numero);
@@ -474,13 +492,61 @@ pub async fn conciliar_purchase_note(
             importe_iva,
         };
         let gasto = GastoRepository::create(&mut *tx, &nuevo).await?;
-        gasto.id
+        (
+            gasto.id,
+            Some((numero_documento, importe_base, importe_iva)),
+        )
     };
 
     if !BdpPurchaseNoteRepository::vincular_gasto(&mut *tx, id, auth.user_id, gasto_id).await? {
         return Err(AppError::Validation(
             "El albarán ya está conciliado o no está en estado borrador".into(),
         ));
+    }
+
+    /* [169A-1] Conciliación + auditoría en la misma transacción (fail-closed).
+     * El gasto solo se audita como creado cuando lo crea esta conciliación;
+     * si se vincula uno existente, su alta es anterior al rastro y no se
+     * fabrica. */
+    BdpPurchaseNoteRepository::auditar_ciclo_local(
+        &mut *tx,
+        auth.user_id,
+        "albaran_local_conciliar",
+        "albaran",
+        id,
+        serde_json::json!({
+            "serie": note.serie,
+            "numero": note.numero,
+            "gasto_id": gasto_id,
+            "accion": if req.gasto_existente_id.is_some() { "vinculado" } else { "creado" },
+        }),
+        format!(
+            "Albarán local {}-{} conciliado con gasto {} — operación interna, no requiere autorización BDP",
+            note.serie, note.numero, gasto_id
+        ),
+        &format!("albaran-local-conciliar-{id}"),
+    )
+    .await?;
+    if let Some((numero_documento, importe_base, importe_iva)) = gasto_nuevo {
+        BdpPurchaseNoteRepository::auditar_ciclo_local(
+            &mut *tx,
+            auth.user_id,
+            "gasto_local_crear",
+            "gasto",
+            gasto_id,
+            serde_json::json!({
+                "numero_documento": numero_documento,
+                "importe_base": importe_base,
+                "importe_iva": importe_iva,
+                "albaran_id": id,
+            }),
+            format!(
+                "Gasto {} creado al conciliar albarán local {}-{} — operación interna, no requiere autorización BDP",
+                numero_documento, note.serie, note.numero
+            ),
+            &format!("gasto-local-albaran-{id}"),
+        )
+        .await?;
     }
 
     tx.commit().await?;

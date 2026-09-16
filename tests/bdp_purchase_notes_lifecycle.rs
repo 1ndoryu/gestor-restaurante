@@ -1054,3 +1054,166 @@ async fn handler_listar_modo_bdp_flag_off_devuelve_locales(pool: PgPool) {
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0].origen, "local");
 }
+
+/* ── Tests 169A-1: rastro de auditoría del ciclo local ─────────────────── */
+
+/// Lee el rastro de auditoría de un usuario en orden cronológico:
+/// (operacion, origen_operacion, target_entity_type, target_entity_id).
+async fn audit_rows(pool: &PgPool, user_id: Uuid) -> Vec<(String, String, Option<String>, Option<Uuid>)> {
+    sqlx::query_as::<_, (String, String, Option<String>, Option<Uuid>)>(
+        "SELECT operacion, origen_operacion, target_entity_type, target_entity_id \
+         FROM bdp_audit_log WHERE user_id = $1 ORDER BY created_at",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await
+    .expect("leer auditoría")
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn ciclo_local_crear_borrador_conciliar_deja_rastro_auditoria(pool: PgPool) {
+    /* [169A-1] Crear → borrador → conciliar (gasto nuevo) deja 4 filas de
+     * auditoría local: albaran_local_crear, albaran_local_borrador,
+     * albaran_local_conciliar y gasto_local_crear. */
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración por defecto");
+
+    let req = crear_request_local(
+        "Proveedor Auditado",
+        Some(Decimal::from_str("30.00").unwrap()),
+        None,
+    );
+    let state = make_app_state(pool.clone());
+    let Json(note) = crear_purchase_note_local(State(state), make_auth(user_id), Json(req))
+        .await
+        .expect("crear local");
+
+    let rows = audit_rows(&pool, user_id).await;
+    assert_eq!(
+        rows,
+        vec![(
+            "albaran_local_crear".to_string(),
+            "local".to_string(),
+            Some("albaran".to_string()),
+            Some(note.id),
+        )],
+        "el alta debe auditarse con origen local y target albarán"
+    );
+
+    let state = make_app_state(pool.clone());
+    marcar_borrador_purchase_note(
+        State(state),
+        make_auth(user_id),
+        Path(note.id),
+        Json(BdpPurchaseNoteDraftRequest {}),
+    )
+    .await
+    .expect("pasar a borrador");
+
+    let rows = audit_rows(&pool, user_id).await;
+    assert_eq!(rows.len(), 2);
+    assert_eq!(
+        rows[1],
+        (
+            "albaran_local_borrador".to_string(),
+            "local".to_string(),
+            Some("albaran".to_string()),
+            Some(note.id),
+        )
+    );
+
+    let state = make_app_state(pool.clone());
+    let req = BdpPurchaseNoteReconcileRequest {
+        gasto_existente_id: None,
+        categoria_id: None,
+    };
+    let Json(result) =
+        conciliar_purchase_note(State(state), make_auth(user_id), Path(note.id), Json(req))
+            .await
+            .expect("conciliar con gasto nuevo");
+
+    let rows = audit_rows(&pool, user_id).await;
+    assert_eq!(rows.len(), 4);
+    /* conciliar + gasto se insertan en la misma tx (mismo NOW()): el orden
+     * entre ambas filas no está garantizado; se comparan como conjunto. */
+    let mut ultimas: Vec<(String, String, Option<String>, Option<Uuid>)> =
+        rows.into_iter().skip(2).collect();
+    ultimas.sort();
+    let mut esperadas = vec![
+        (
+            "albaran_local_conciliar".to_string(),
+            "local".to_string(),
+            Some("albaran".to_string()),
+            Some(note.id),
+        ),
+        (
+            "gasto_local_crear".to_string(),
+            "local".to_string(),
+            Some("gasto".to_string()),
+            Some(result.gasto_id),
+        ),
+    ];
+    esperadas.sort();
+    assert_eq!(ultimas, esperadas);
+
+    /* Reconciliar de nuevo falla (guard) y no añade rastro. */
+    let state = make_app_state(pool.clone());
+    let req = BdpPurchaseNoteReconcileRequest {
+        gasto_existente_id: None,
+        categoria_id: None,
+    };
+    let result =
+        conciliar_purchase_note(State(state), make_auth(user_id), Path(note.id), Json(req)).await;
+    assert!(result.is_err(), "conciliar un conciliado debe fallar");
+    assert_eq!(audit_rows(&pool, user_id).await.len(), 4);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn conciliar_gasto_existente_no_fabrica_auditoria_gasto(pool: PgPool) {
+    /* [169A-1] Al vincular un gasto preexistente solo se audita la
+     * conciliación: el alta del gasto es anterior al rastro y no se fabrica. */
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración por defecto");
+
+    let req = crear_request_local(
+        "Proveedor Auditado",
+        Some(Decimal::from_str("20.00").unwrap()),
+        None,
+    );
+    let state = make_app_state(pool.clone());
+    let Json(note) = crear_purchase_note_local(State(state), make_auth(user_id), Json(req))
+        .await
+        .expect("crear local");
+
+    let state = make_app_state(pool.clone());
+    marcar_borrador_purchase_note(
+        State(state),
+        make_auth(user_id),
+        Path(note.id),
+        Json(BdpPurchaseNoteDraftRequest {}),
+    )
+    .await
+    .expect("pasar a borrador");
+
+    let gasto = create_test_gasto(&pool, user_id, Decimal::from_str("20.00").unwrap()).await;
+
+    let state = make_app_state(pool.clone());
+    let req = BdpPurchaseNoteReconcileRequest {
+        gasto_existente_id: Some(gasto.id),
+        categoria_id: None,
+    };
+    let Json(result) =
+        conciliar_purchase_note(State(state), make_auth(user_id), Path(note.id), Json(req))
+            .await
+            .expect("conciliar con gasto existente");
+    assert_eq!(result.gasto_id, gasto.id);
+
+    let rows = audit_rows(&pool, user_id).await;
+    assert_eq!(rows.len(), 3, "crear + borrador + conciliar, sin gasto_local_crear");
+    assert!(rows.iter().all(|r| r.0 != "gasto_local_crear"));
+    assert_eq!(rows[2].0, "albaran_local_conciliar");
+}
