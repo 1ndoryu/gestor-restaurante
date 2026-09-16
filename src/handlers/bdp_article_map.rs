@@ -24,6 +24,7 @@ use validator::Validate;
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
+use crate::models::UserRole;
 use crate::models::{
     ActualizarBdpArticleMapRequest, AjustarBdpArticleStockRequest, BdpArticleMap, BdpArticleStock,
     BdpConteoInventario, ConteoInventarioCreado, CrearBdpArticleMapRequest,
@@ -555,6 +556,9 @@ pub async fn importar_catalogo(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    /* [149A-3/F4-B] Importar escribe mapeos locales: permiso de edición de
+     * catálogo (default solo Admin, delegable por el dueño). */
+    verificar_permiso(&state.pool, AccionPermiso::CatalogoEdicion, &auth).await?;
     exigir_modo_bdp(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
@@ -611,6 +615,9 @@ pub async fn sync_catalog(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<BdpCatalogSyncResult>, AppError> {
+    /* [149A-3/F4-B] Sync escribe catálogo local: permiso de edición (ver
+     * importar_catalogo). */
+    verificar_permiso(&state.pool, AccionPermiso::CatalogoEdicion, &auth).await?;
     exigir_modo_bdp(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
@@ -660,6 +667,9 @@ async fn sync_prices(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<BdpCatalogSyncResult>, AppError> {
+    /* [149A-3/F4-B] Sync de precios escribe precio_tarifa1 local: permiso de
+     * edición de catálogo. */
+    verificar_permiso(&state.pool, AccionPermiso::CatalogoEdicion, &auth).await?;
     exigir_modo_bdp(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
         .await
@@ -703,6 +713,9 @@ async fn sync_tables(
     auth: AuthUser,
     Json(req): Json<SyncTablesRequest>,
 ) -> Result<Json<SyncTablesResult>, AppError> {
+    /* [149A-3/F4-B] Con aplicar=true escribe ZonaSala+Mesa (plano): solo
+     * Admin (sin AccionPermiso de plano; mismo patrón que bdp_push). */
+    auth.require_role(&[UserRole::Admin])?;
     exigir_modo_bdp(&state, auth.user_id).await?;
     if req.aplicar && req.confirmacion.as_deref() != Some("IMPORTAR MESAS BDP") {
         return Err(AppError::Validation(
