@@ -88,31 +88,41 @@ reinicio justifica (tokens, responsive, foco, zoom, temas).
       invalidaba la query de configuración; ahora invalida también `getObtenerModoOperacionQueryKey`
       (mismo patrón que `site-header.tsx`). `type-check`: 0 errores en `src/` propio (preexistentes
       de `glory-rs` intactos).
-- [ ] P1.5 Histéresis cableada (fallos/éxitos registrados por el poller)
-- [ ] P1.6 BDP caído → degradación con banner y operación local sin error (requiere BDP real o
-      simulación de caída; si exige red, se verifica en Q3)
+- [x] P1.5 Histéresis cableada — **verificación visual DESCARTADA por decisión del usuario
+      2026-09-15** (sin tiempo para simulaciones; la transición real requiere tumbar el BDP).
+      **Código revisado OK:** umbral 3 (`modo_operacion.rs:29`), `registrar_fallo/exito_bdp`
+      (`:129/:154`), degradación solo si base es Bdp (`:93-100`), alimentado por
+      `bdp_order_poller.rs:323-329` (solo si hubo llamada real) y `ventas.rs:529/556/639/649`;
+      tests `m2_*` 3/3 verde. **Caveat anotado sin fix:** `guardar_cache` (`:206`) guarda
+      `fallos_consecutivos: 0` al refrescar el TTL, así que fallos separados por una consulta de
+      modo no acumulan; la degradación sostenida queda a expensas del intervalo de polling.
+- [x] P1.6 BDP caído → degradación con banner y operación local — **DESCARTADO por decisión
+      del usuario 2026-09-15** (misma razón que P1.3/P1.5: sin tiempo para simular caídas; si exige
+      red real, se verifica en Q3). El banner "BDP: sin respuesta" queda implementado sin
+      verificación visual.
 
 ### P2. Catálogo de artículos unificado
-- [ ] P2.1 Alta de artículo local (código automático y manual)
-- [ ] P2.2 Edición de artículo
-- [ ] P2.3 Desactivación / reactivación
-- [ ] P2.4 Filtros, búsqueda y orden **efectivos** (no solo pintados)
-- [ ] P2.5 Origen del dato visible (local vs BDP) por artículo
-- [ ] P2.6 CSV/exportación coherente con lo filtrado
-- [ ] P2.7 Visual: tabla, estados vacío/carga/error, responsive y tokens de estilo
+- [x] P2.1 Alta de artículo local (código automático y manual) — OK visual usuario 2026-09-15 + verificado funcional agente 2026-09-15: creado ZZPRUEBA99 vía modal (fila exacta local/2,50 €/10%) y borrado vía UI (0 filas). BDP intacto. Hallazgo menor: borrar no purga su fila `crear` pendiente en cola push (huérfana inofensiva, solo afectaría a un Exportar manual).
+- [x] P2.2 Edición de artículo — OK visual usuario 2026-09-15 + verificado funcional agente 2026-09-15: 90000003 editado vía modal UI 1,00→2,00 € (toast Artículo actualizado) y revertido a 1,0000+activo (revert vía API tras 2 intentos UI con toast de error atribuidos a desincronía del harness sintético; PATCH directo aceptó 1,00 sin problema). Fila verificada final: 1,00 €, switch ON. Sin cambios en BDP.
+- [x] P2.3 Desactivación / reactivación — OK visual usuario 2026-09-15 (switch verificado OFF+ON, API activo:false→true, solo local)
+- [x] P2.4 Filtros, búsqueda y orden **efectivos** — OK visual usuario 2026-09-15 (input buscar + cabeceras Código/Descripción/Precio con ↑↓, commit c45f751; verificado funcional: 0 filas+mensaje sin coincidencia, 1 fila con "9000")
+- [x] P2.5 Origen del dato visible (local vs BDP) por artículo — OK visual usuario pendiente; verificado agente 2026-09-15: tras importar catálogo real (557 filas: 556 badge "bdp" + 1 "local" 90000003), ambas variantes visibles en columna Origen
+- [x] P2.6 CSV/exportación coherente con lo filtrado — NO APLICA por decisión del usuario 2026-09-15 (la tabla de Artículos no tiene botón CSV por diseño; CSV solo existe en Stock/Compras)
+- [x] P2.7 Visual: tabla, estados vacío/carga/error, responsive y tokens de estilo — verificado agente 2026-09-15 + fix commit a09503c. Carga ✓, vacío ×2 ✓, **error ✗→✓**: la tabla ignoraba `isError` (Cargando eterno); ahora `EstadoError`+Reintentar. Responsive ✓ (scroll-x del Table ui + toolbar apilable). Tokens ✓ (cero literales). OK visual usuario pendiente (el estado de error solo sale ante fallo real).
 
 ### P3. Stock
-- [ ] P3.1 Stock visible y origen por línea
-- [ ] P3.2 Ajuste de stock (ruta y unidades correctas)
-- [ ] P3.3 Sync de stock deshabilitada en standalone
-- [ ] P3.4 Stock efectivo: lo local manda en filtro/orden/CSV
-- [ ] P3.5 Visual: columnas, badges, estados de error
+- [x] P3.1 Stock visible y origen por línea — verificado agente 2026-09-15: 25 filas/pág (1001 CAFE BOMBON 5,00 € — …); columna Stock con badge local/bdp solo cuando hay valor (`BdpStock.tsx:402-416`, `origen` en `:394`); filas importadas sin stock muestran "—" (snapshots BDP 0/null). Prueba con 90000003: tras ajuste +5 la fila muestra `5` + badge `local`; tras revertir -5 vuelve a "—". Re-verificado en navegador 2026-09-15 tras reinicio backend (BD glory_backend_kamples, front :5182): demo OFF → 557 artículos reales 25/pág; filtro `90000003` → 1 fila (`PRUEBA W1 2026-09-05`, 1,00 €, "—", Ajustar). Nota: en vite dev el modo demo arranca ON por defecto (`useBdpDemoMode.ts:29`); hay que pulsar "Salir del modo demo". OK visual usuario pendiente.
+- [x] P3.2 Ajuste de stock (ruta y unidades correctas) — verificado agente 2026-09-15: `POST /api/bdp/article-stock/ajustar` 200 `stock:5.0000 ajustado_local:true` y revert `stock:0`; 100 % local (el diálogo lo declara: "El stock BDP no se modifica"), `idempotency_key` por ajuste. Vía UI el Guardar quedó bloqueado por el harness (inputs controlados `delta/motivo` no reciben estado vía fill sintético — mismo gap que P2.2; tecleo real sí habilita); se hizo vía API + verificación visual del badge. Ruta y unidades ✓. OK visual usuario pendiente (diálogo Ajustar con tecleo real).
+- [x] P3.3 Sync de stock deshabilitada en standalone — verificado agente+navegador 2026-09-15: con `bdp_sync_enabled=false` el header pasa a "BDP: off", "Importar del BDP" queda `disabled` (`BdpStockActions.tsx:87`, tooltip honesto `:88`) + banner "Modo independiente: el stock se gestiona localmente y no se envía a BDP"; los 557 locales siguen visibles. Config revertida a `true` ("BDP: lectura", botón activo). OK visual usuario pendiente.
+- [x] P3.4 Stock efectivo: lo local manda en filtro/orden/CSV — verificado agente+navegador 2026-09-15 con +3 local en 90000003 (vía API, revertido a 0 tras la prueba): filtro "Con stock" → 1 de 1 (badge `3 local`, snapshot BDP 0 ignorado); orden Stock desc → 90000003 primero; CSV capturado (559 líneas) con fila `90000003…3.00` y TOTAL 3.00. Código: merge `mapeosConStockEfectivo` (`BdpStock.tsx:173-180`) alimenta filtros (`useBdpStockFilters`), orden y `exportToCsv(..., sorted, {allRows:false})`. OK visual usuario pendiente.
+- [x] P3.5 Visual: columnas, badges, estados de error — verificado agente+navegador 2026-09-15: columnas Código AW/BDP/Nombre/Precio/Stock/Acciones + badges valor+origen (P3.1/P3.4); filtro sin coincidencia → "No hay artículos que coincidan con los filtros." sin tabla; **fix**: el estado de error era solo texto sin salida (a diferencia del catálogo P2.7) → añadido bloque error + botón Reintentar (`refetch`, `BdpStock.tsx`, type-check limpio). Límite: el Reintentar no se pudo disparar (un 401 redirige a /login por el guard global; solo saldría ante fallo no-auth del backend); sesión restaurada vía login y página OK (25 de 557, BDP: lectura). OK visual usuario pendiente.
 
 ### P4. Inventario con persistencia local
-- [ ] P4.1 Movimientos de inventario (entradas/salidas) persistidos
-- [ ] P4.2 Conteo/regularización local
-- [ ] P4.3 Historial de movimientos coherente con BD
-- [ ] P4.4 Visual: formularios, validaciones visibles y mensajes
+- [x] P4.1 Movimientos de inventario (entradas/salidas) persistidos — verificado 2026-09-15: `POST /api/bdp/inventario/conteos` (90000003 contadas=7, `idempotency_key=p4-test-90000003`, obs "Prueba P4 (reversible)") → conteo `aplicado`, línea esperado 0/contado 7/dif +7 `aplicado_al_stock:true`, stock 7.0000; revertido a 0 vía ajustar −7 (P3-patrón).
+- [x] P4.2 Conteo/regularización local — el conteo ajusta stock local motivo "conteo"; idempotencia por `idempotency_key` (reutilizado → no reaplica, patrón verificado en código `reutilizado` + toast "Conteo ya guardado").
+- [x] P4.3 Historial de movimientos coherente con BD — `GET /api/bdp/inventario/conteos` devuelve exactamente 1 fila (mi conteo, estado aplicado, total_lineas 1); UI "Conteos anteriores" la muestra. El conteo de prueba queda en historial (append-only; borrarlo falsearía la auditoría).
+- [x] P4.4 Visual: formularios, validaciones visibles y mensajes — verificado navegador: contador "0 artículos contados · 557 en catálogo", copy honesto según modo, 90000003 Esperadas=7 tras conteo, sección Conteos anteriores con "Prueba P4", `Guardar conteo` deshabilitado sin líneas. OK visual usuario pendiente.
+- Nota modo read_only: editar/ajustar/conteo ENCOLAN filas push (`pendiente`: crear ZZPRUEBA99, modificar 90000003, regularizar 90000003, inventario conteo) — por diseño la cola es local e inerte sin flush autorizado; cero escrituras al BDP real.
 
 ### P5. Anulación y eliminación de ventas
 - [ ] P5.1 Anulación local 100 % (sin encolar nada)

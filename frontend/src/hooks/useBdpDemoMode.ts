@@ -1,6 +1,9 @@
 /* [BDP-DEMO] Hook reutilizable para activar datos de prueba en páginas BDP.
  * El modo demo es voluntario y se mantiene en estado local de la sesión.
- * No persiste ni afecta a producción. */
+ * No persiste ni afecta a producción.
+ * [159A-3] El modo demo arranca APAGADO por defecto (antes arrancaba
+ * encendido en dev y el badge de la toolbar rompía el layout). La única
+ * forma de activarlo es el switch de Configuración → pestaña BDP. */
 
 import { useEffect, useState } from 'react';
 
@@ -19,14 +22,13 @@ function readStoredDemoMode(): boolean | null {
 
 export function useBdpDemoMode() {
   /* [BDP-DEMO-INIT] Persistimos la preferencia en localStorage para que
-   * todas las páginas BDP compartan el mismo estado. Si no hay preferencia
-   * previa, en desarrollo local cargamos la demo automáticamente para que el
-   * usuario pueda visualizar las páginas sin conectar con BDP; en producción
-   * siempre arranca apagada. */
+   * todas las páginas BDP compartan el mismo estado. Sin preferencia previa
+   * arranca APAGADO [159A-3]: el modo demo solo se activa desde el switch
+   * de Configuración → pestaña BDP. */
   const [demoMode, setDemoMode] = useState(() => {
     const stored = readStoredDemoMode();
     if (stored !== null) return stored;
-    return import.meta.env.DEV;
+    return false;
   });
 
   useEffect(() => {

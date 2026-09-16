@@ -53,12 +53,21 @@ function BdpSyncBadge({ synced, orderStatus, syncError, orderId }: Props) {
   };
 
   const labelMap: Record<BdpStatus, string> = {
-    none: 'No sincronizada',
-    pending: 'Esperando validación',
+    none: 'No enviada',
+    pending: 'Pendiente',
     accepted: 'Aceptada',
     cancelled: 'Cancelada',
     invoiced: 'Facturada',
-    error: `Error: ${syncError ?? 'desconocido'}`,
+    error: 'Error',
+  };
+
+  const descriptionMap: Record<BdpStatus, string> = {
+    none: 'Esta venta aún no se ha enviado al BDP.',
+    pending: 'Enviada al BDP, a la espera de que el terminal la valide.',
+    accepted: 'El BDP aceptó esta venta.',
+    cancelled: 'Esta venta fue cancelada en el BDP.',
+    invoiced: 'Esta venta ya está facturada en el BDP.',
+    error: `No se pudo sincronizar: ${syncError ?? 'error desconocido'}. Usa «Reintentar» en la fila.`,
   };
 
   return (
@@ -67,13 +76,15 @@ function BdpSyncBadge({ synced, orderStatus, syncError, orderId }: Props) {
         <TooltipTrigger asChild>
           <Badge variant="outline" className={`${variantMap[status]} text-xs`}>
             {iconMap[status]}
+            {labelMap[status]}
           </Badge>
         </TooltipTrigger>
         <TooltipContent side="left" className="max-w-xs">
           <div className="flex flex-col gap-1">
-            <span>{labelMap[status]}</span>
+            <span className="font-medium">{labelMap[status]}</span>
+            <span>{descriptionMap[status]}</span>
             {orderId && (
-              <span className="text-xs text-muted-foreground">Orden: {orderId}</span>
+              <span className="text-xs text-muted-foreground">Orden BDP: {orderId}</span>
             )}
           </div>
         </TooltipContent>

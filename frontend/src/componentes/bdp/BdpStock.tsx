@@ -13,6 +13,7 @@ import {
   ChevronUp,
   SlidersHorizontal,
   Plus,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -133,7 +134,8 @@ function AjustarStockDialog({
 
 function BdpStock() {
   const queryClient = useQueryClient();
-  const { demoMode, setDemoMode } = useBdpDemoMode();
+  /* [159A-3] El toggle demo vive en Configuración → BDP; aquí solo se lee. */
+  const { demoMode } = useBdpDemoMode();
   /* [208A-2/C2] Modo efectivo (misma lógica que el backend/site-header):
    * en standalone no se ofrecen acciones BDP (H7). */
   const { data: configResponse } = useObtenerConfiguracion();
@@ -144,7 +146,7 @@ function BdpStock() {
       && configData.bdp_sync_enabled
       && (configData.bdp_base_url ?? '').trim() !== '')
   );
-  const { data, isLoading, error: listError } = useListarArticleMaps({
+  const { data, isLoading, error: listError, refetch } = useListarArticleMaps({
     query: { enabled: !demoMode },
   });
   const stockLocalQuery = useBdpArticleStock(!demoMode);
@@ -263,21 +265,19 @@ function BdpStock() {
         demoMode={demoMode}
         bdpMode={modoEfectivoBdp}
         exportDisabled={paginated.length === 0}
-        onToggleDemo={setDemoMode}
         onExport={handleExport}
+        onNuevo={() => setNuevoOpen(true)}
+        nuevoDisabled={demoMode}
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">
-          {modoEfectivoBdp
-            ? 'Stock local editable; con BDP conectado, el ajuste también se encola al terminal.'
-            : 'Modo independiente: el stock se gestiona localmente y no se envía a BDP.'}
-        </p>
-        <Button variant="default" size="sm" onClick={() => setNuevoOpen(true)} disabled={demoMode}>
-          <Plus className="size-3.5 mr-1" />
-          Nuevo artículo
-        </Button>
-      </div>
+      {/* [159A-4] El BDP no devuelve existencias (spike verificado: todo
+        * artículo "NO ES DEL TIPO WEB", `ExportArticles` vacío). «—» significa
+        * que el artículo aún no tiene stock local; se fija con «Ajustar» o con
+        * un conteo en Inventario. */}
+      <p className="text-sm text-muted-foreground">
+        El BDP no devuelve existencias: «—» significa que el artículo aún no tiene stock local.
+        Fíjalo con «Ajustar» o con un conteo en Inventario.
+      </p>
 
       <NuevoArticuloDialog open={nuevoOpen} onOpenChange={setNuevoOpen} />
 
@@ -342,9 +342,15 @@ function BdpStock() {
       </div>
 
       {hasError ? (
-        <p className="text-sm text-destructive">
-          Error al cargar el stock. Revisa que la sesión esté activa y vuelve a intentarlo.
-        </p>
+        <div className="flex flex-col items-start gap-3 rounded-md border border-destructive/50 p-4">
+          <p className="text-sm text-destructive">
+            Error al cargar el stock. Vuelve a intentarlo; si persiste, revisa la conexión con el servidor.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="size-3.5 mr-1.5" />
+            Reintentar
+          </Button>
+        </div>
       ) : isLoadingEffective ? (
         <TableSkeleton />
       ) : filteredCount === 0 ? (

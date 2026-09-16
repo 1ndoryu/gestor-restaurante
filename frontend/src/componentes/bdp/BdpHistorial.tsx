@@ -19,7 +19,6 @@ import {
 import { useBdpAudit, useBdpSnapshots, type BdpAuditEntry, type BdpSnapshot } from '@/api/bdp-backup';
 import { useBdpDemoMode } from '@/hooks/useBdpDemoMode';
 import { mockAuditEntries, mockSnapshots } from './bdp-mocks';
-import { BdpDemoToggle } from './BdpDemoToggle';
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -164,7 +163,8 @@ function SnapshotDetail({ snapshot }: { snapshot: BdpSnapshot }) {
 }
 
 function BdpHistorial() {
-  const { demoMode, setDemoMode } = useBdpDemoMode();
+  /* [159A-3] El toggle demo vive en Configuración → BDP; aquí solo se lee. */
+  const { demoMode } = useBdpDemoMode();
   const [filtro, setFiltro] = useState('');
   const [filtroOrigen, setFiltroOrigen] = useState<'todos' | 'local' | 'bdp'>('todos');
   const [entrySeleccionado, setEntrySeleccionado] = useState<BdpAuditEntry | null>(null);
@@ -211,7 +211,6 @@ function BdpHistorial() {
         <p className="text-sm text-muted-foreground">
           {auditFiltrado.length} registros de auditoría · {snapshots.length} snapshots
         </p>
-        <BdpDemoToggle demoMode={demoMode} onToggle={setDemoMode} />
       </div>
 
       <div className="flex flex-wrap gap-3 items-center">

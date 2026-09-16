@@ -10,7 +10,6 @@ import { TooltipButton } from '@/components/ui/tooltip-button';
 import { BdpRequiredSetting } from '@/components/bdp-required-setting';
 import { useSyncBdpPurchaseNotes } from '@/api/bdp';
 import { useBdpReadProfiles } from '@/hooks/useBdpReadProfiles';
-import { BdpDemoToggle } from './BdpDemoToggle';
 
 interface BdpPurchaseSyncControlsProps {
   count: number;
@@ -18,7 +17,6 @@ interface BdpPurchaseSyncControlsProps {
   featureEnabled: boolean;
   fechaDesde: string;
   fechaHasta: string;
-  onToggleDemo: (enabled: boolean) => void;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -32,7 +30,6 @@ export function BdpPurchaseSyncControls({
   featureEnabled,
   fechaDesde,
   fechaHasta,
-  onToggleDemo,
 }: BdpPurchaseSyncControlsProps) {
   const queryClient = useQueryClient();
   const { purchaseProfileId, saveProfile, isSaving } = useBdpReadProfiles();
@@ -104,8 +101,8 @@ export function BdpPurchaseSyncControls({
             </p>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <BdpDemoToggle demoMode={demoMode} onToggle={onToggleDemo} />
+        {/* [159A-3] Sin toggle demo en la toolbar (vive en Configuración → BDP). */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <TooltipButton
             variant="outline"
             onClick={syncWithSavedProfile}

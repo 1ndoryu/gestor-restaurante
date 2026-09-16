@@ -3,7 +3,7 @@
  * Modo demo incluido para visualizar datos de prueba. */
 
 import { useMemo, useState } from 'react';
-import { Search, Plus, CheckCircle } from 'lucide-react';
+import { Search, Plus, CheckCircle, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -57,7 +57,8 @@ const SKELETON_IDS = [0, 1, 2, 3, 4];
 
 function BdpCompras() {
   const queryClient = useQueryClient();
-  const { demoMode, setDemoMode } = useBdpDemoMode();
+  /* [159A-3] El toggle demo vive en Configuración → BDP; aquí solo se lee. */
+  const { demoMode } = useBdpDemoMode();
   const { data: configResponse, isLoading: isLoadingConfig } = useObtenerConfiguracion();
   const {
     proveedor,
@@ -81,12 +82,23 @@ function BdpCompras() {
       && configData.bdp_sync_enabled
       && (configData.bdp_base_url ?? '').trim() !== '')
   );
+  /* El flag `ff_bdp_purchase_notes_read` solo gatea la IMPORTACIÓN desde BDP
+   * (sync). El CRUD local (crear/editar/eliminar/listar albaranes `L-`)
+   * funciona sin BDP y sin flag — igual que el backend, que solo exige el
+   * flag en `sync`. */
   const purchaseFeatureEnabled = !isLoadingConfig
     && (!modoEfectivoBdp || !!configData?.ff_bdp_purchase_notes_read);
   /* [287A-7] El backend protege Compras con feature flag en modo bdp. No generar
    * 422 previsibles mientras la función está apagada; la pantalla explica cómo activarla. */
-  const shouldLoadPurchases = !demoMode && !isLoadingConfig && purchaseFeatureEnabled;
-  const { data, isLoading, error } = useBdpPurchaseNotes(filters, shouldLoadPurchases);
+  const shouldLoadPurchases = !demoMode && !isLoadingConfig;
+  const { data, isLoading, error, refetch } = useBdpPurchaseNotes(filters, shouldLoadPurchases);
+  /* Mensaje de error honesto: el fallo de hoy era el flag apagado (422 con
+   * "La lectura de albaranes de compra BDP no está activada"), no la sesión.
+   * Solo se habla de sesión ante un 401 real; si el backend explica el motivo,
+   * se muestra tal cual. */
+  const purchaseAxiosResponse = (error as { response?: { status?: number; data?: { message?: string } } } | null)?.response;
+  const purchaseErrorStatus = purchaseAxiosResponse?.status;
+  const purchaseErrorMessage = purchaseAxiosResponse?.data?.message;
   const draftMutation = useDraftBdpPurchaseNote(queryClient);
   const reconcileMutation = useReconcileBdpPurchaseNote(queryClient);
   const crearMutation = useCrearBdpPurchaseNote(queryClient);
@@ -224,7 +236,6 @@ function BdpCompras() {
         featureEnabled={modoEfectivoBdp && purchaseFeatureEnabled}
         fechaDesde={fechaDesde}
         fechaHasta={fechaHasta}
-        onToggleDemo={setDemoMode}
       />
 
       {!demoMode && !isLoadingConfig && !purchaseFeatureEnabled && <BdpPurchaseFeatureNotice />}
@@ -263,7 +274,7 @@ function BdpCompras() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="default" onClick={openNuevoAlbaran} disabled={!purchaseFeatureEnabled}>
+          <Button variant="default" onClick={openNuevoAlbaran} disabled={demoMode}>
             <Plus className="mr-1 size-4" />
             Nuevo albarán
           </Button>
@@ -277,23 +288,32 @@ function BdpCompras() {
           ))}
         </div>
       ) : error && !demoMode ? (
-        <p className="text-sm text-destructive">
-          Error al cargar los albaranes. Revisa que la sesión esté activa y vuelve a intentarlo.
-        </p>
+        <div className="flex flex-col items-start gap-3 rounded-md border border-destructive/50 p-4">
+          <p className="text-sm text-destructive">
+            {purchaseErrorStatus === 401
+              ? 'Tu sesión ha caducado. Vuelve a iniciar sesión y reintenta.'
+              : purchaseErrorMessage
+                ? `Error al cargar los albaranes: ${purchaseErrorMessage}`
+                : 'Error al cargar los albaranes. Vuelve a intentarlo.'}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="size-3.5 mr-1.5" />
+            Reintentar
+          </Button>
+        </div>
       ) : notes.length === 0 ? (
         <div className="flex flex-col items-start gap-3 rounded-md border border-dashed p-4">
           <p className="text-sm text-muted-foreground">
             {purchaseFeatureEnabled
               ? "No hay albaranes todavía. Puedes crear uno local (serie L-) o, si la integración BDP está activa, sincronizarlos desde el terminal."
-              : "No hay albaranes todavía. La lectura de albaranes de BDP está desactivada: hasta que la actives, no se pueden crear ni consultar albaranes."}
+              : "No hay albaranes todavía. Puedes crear uno local (serie L-) sin necesidad del BDP; la importación desde el terminal requiere activar la lectura de albaranes en Configuración → BDP."}
           </p>
+          {/* [159A-3] Sin botón "Cargar demo": el modo demo se activa desde
+            * Configuración → pestaña BDP. */}
           <div className="flex flex-wrap gap-2">
-            <Button variant="default" size="sm" onClick={openNuevoAlbaran} disabled={!purchaseFeatureEnabled}>
+            <Button variant="default" size="sm" onClick={openNuevoAlbaran} disabled={demoMode}>
               <Plus className="mr-1 size-3.5" />
               Nuevo albarán
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setDemoMode(true)}>
-              Cargar demo
             </Button>
           </div>
         </div>

@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useConfiguracion } from '../hooks/useConfiguracion';
+import { useBdpDemoMode } from '../hooks/useBdpDemoMode';
 import IntegracionesMarketing from './IntegracionesMarketing';
 import ConfigChatbot from './ConfigChatbot';
 import ConfigBdp from './ConfigBdp';
@@ -23,6 +24,7 @@ import { toast } from 'sonner';
 
 function Configuracion() {
   const { config, cambiarCampo, guardar, mensaje, cargando, guardando } = useConfiguracion();
+  const { demoMode, setDemoMode } = useBdpDemoMode();
   const [operandoSeed, setOperandoSeed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -411,6 +413,25 @@ function Configuracion() {
       </TabsContent>
 
       <TabsContent value="bdp" className="mt-4 flex flex-col gap-6">
+        {/* [159A-3] Único punto de activación del modo demo BDP. Las páginas
+          * BDP (Stock, Compras, Explorador, Historial) ya no llevan toggle en
+          * sus toolbars: el badge ámbar rompía el layout y sobrecargaba la UI. */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Modo demo BDP</CardTitle>
+            <CardDescription>Muestra datos de ejemplo en las páginas BDP (Stock, Compras, Explorador e Historial) sin tocar datos reales</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="bdp-demo">Activar datos de ejemplo</Label>
+              <Switch
+                id="bdp-demo"
+                checked={demoMode}
+                onCheckedChange={setDemoMode}
+              />
+            </div>
+          </CardContent>
+        </Card>
         <ConfigBdp config={config} cambiarCampo={cambiarCampo} guardar={guardar} guardando={guardando} mensaje={mensaje} />
         <div ref={bdpPanelRef}>
           <PanelBdpBackup config={config} />

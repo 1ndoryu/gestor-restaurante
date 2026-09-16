@@ -2,7 +2,7 @@
  * responde sin artículos. Cambiar TypePrice sigue siendo una lectura BDP. */
 
 import { useEffect, useState } from 'react';
-import { Download, Loader2, RefreshCw } from 'lucide-react';
+import { Download, Loader2, Plus, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,6 @@ import { TooltipButton } from '@/components/ui/tooltip-button';
 import { BdpRequiredSetting } from '@/components/bdp-required-setting';
 import { useSyncCatalog } from '@/api/generated/bdp-mapeos/bdp-mapeos';
 import { useBdpReadProfiles } from '@/hooks/useBdpReadProfiles';
-import { BdpDemoToggle } from './BdpDemoToggle';
 
 interface BdpStockActionsProps {
   summary: string;
@@ -19,8 +18,9 @@ interface BdpStockActionsProps {
    * acciones que consultan BDP se deshabilitan (H7). */
   bdpMode: boolean;
   exportDisabled: boolean;
-  onToggleDemo: (enabled: boolean) => void;
   onExport: () => void;
+  onNuevo: () => void;
+  nuevoDisabled: boolean;
 }
 
 export function BdpStockActions({
@@ -28,8 +28,9 @@ export function BdpStockActions({
   demoMode,
   bdpMode,
   exportDisabled,
-  onToggleDemo,
   onExport,
+  onNuevo,
+  nuevoDisabled,
 }: BdpStockActionsProps) {
   const queryClient = useQueryClient();
   const { catalogPriceType, saveProfile, isSaving } = useBdpReadProfiles();
@@ -76,11 +77,17 @@ export function BdpStockActions({
     <div className="flex w-full flex-col gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">{summary}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <BdpDemoToggle demoMode={demoMode} onToggle={onToggleDemo} />
+        {/* [159A-3] Sin toggle demo en la toolbar (vive en Configuración → BDP).
+          * `justify-end`: si los botones hacen wrap en pantallas estrechas, las
+          * filas envueltas alinean a la derecha en vez de quedar a la izquierda. */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button variant="outline" onClick={onExport} disabled={exportDisabled} title="Descargar CSV con BOM para Excel">
             <Download className="mr-1.5 size-4" />
             Descargar CSV
+          </Button>
+          <Button variant="default" onClick={onNuevo} disabled={nuevoDisabled}>
+            <Plus className="mr-1.5 size-4" />
+            Nuevo artículo
           </Button>
           <TooltipButton
             variant="outline"
