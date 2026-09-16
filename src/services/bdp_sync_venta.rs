@@ -668,12 +668,19 @@ impl BdpSyncService {
             })]
         };
 
+        /* [169A-2] Pago dentro del CreateOrder: la gratuita solo bloquea agregar
+         * pago/propina/factura a una comanda EXISTENTE; Payments/Tip/Invoice en la
+         * llamada inicial sí están permitidos (manual: "Comandos quitados" vs
+         * CreateOrder/Payments/Tip). Solo con tender (venta cobrada) y total
+         * positivo: el pago es total, así que Invoice=true. Sin tender: como antes. */
+        let pago_incluido = order_ctx.tender_id.is_some() && total > 0.0;
+
         BdpCreateOrderRequest {
             employee_id: config.bdp_employee_id,
             items_profile_id: config.bdp_items_profile_id,
             order_end_type: 1, /* Pendiente de validación — no factura, no imprime ticket */
             order_operation_type: 0, /* Escritura real (0=CheckAndCreate) */
-            invoice: Some(false),
+            invoice: Some(pago_incluido),
             order: {
                 /* [F3.1-3.3] Construir order JSON con campos opcionales */
                 let mut order = json!({
@@ -698,6 +705,21 @@ impl BdpSyncService {
                 /* [F3.2] TenderId — mapeo de método de pago */
                 if let Some(tender_id) = order_ctx.tender_id {
                     order["TenderId"] = json!(tender_id);
+                }
+                /* [169A-2] Payments — pago total dentro de la creación.
+                 * PaymentId: identificador del pago en nuestro sistema
+                 * (MarketplaceOrderId estable, max 15 chars). */
+                if pago_incluido {
+                    order["Payments"] = json!([{
+                        "TenderId": order_ctx.tender_id,
+                        "Amount": total,
+                        "PaymentId": &marketplace_order_id[..15.min(marketplace_order_id.len())],
+                    }]);
+                }
+                /* [169A-2] Tip — propina de la venta, solo si positiva. */
+                let propina = Self::decimal_to_f64(&venta.propina);
+                if propina > 0.0 {
+                    order["Tip"] = json!(propina);
                 }
                 /* [F3.1] Customer — datos del cliente si existe */
                 if let Some(ref name) = order_ctx.customer_name {

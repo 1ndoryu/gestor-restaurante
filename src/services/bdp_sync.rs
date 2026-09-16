@@ -456,6 +456,107 @@ mod tests {
         );
     }
 
+    /* [169A-2] Test: con tender y total positivo, Payments va dentro del
+     * CreateOrder y la petición pide factura (pago total). */
+    #[test]
+    fn build_order_con_tender_incluye_payments_e_invoice_true() {
+        let config = test_config();
+        let venta = test_venta(); /* base 25 + iva 2.5 = total 27.5 */
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
+
+        let ctx = OrderContext {
+            tender_id: Some(2),
+            order_type: 0,
+            customer_code: None,
+            customer_name: None,
+            customer_phone: None,
+        };
+        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &ctx);
+        let payments = order
+            .order
+            .get("Payments")
+            .and_then(serde_json::Value::as_array)
+            .expect("Payments should be present");
+        assert_eq!(payments.len(), 1, "un solo pago total");
+        assert_eq!(
+            payments[0].get("TenderId").and_then(serde_json::Value::as_i64),
+            Some(2)
+        );
+        assert_eq!(
+            payments[0].get("Amount").and_then(serde_json::Value::as_f64),
+            Some(27.5)
+        );
+        assert!(
+            payments[0]
+                .get("PaymentId")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|id| !id.is_empty()),
+            "PaymentId identificador no vacío"
+        );
+        assert_eq!(order.invoice, Some(true), "pago total => pide factura");
+    }
+
+    /* [169A-2] Test: sin tender no hay Payments y no se pide factura
+     * (comportamiento anterior intacto para comandas no cobradas). */
+    #[test]
+    fn build_order_sin_tender_sin_payments_e_invoice_false() {
+        let config = test_config();
+        let venta = test_venta();
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
+
+        let ctx = OrderContext {
+            tender_id: None,
+            order_type: 0,
+            customer_code: None,
+            customer_name: None,
+            customer_phone: None,
+        };
+        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &ctx);
+        assert!(
+            order.order.get("Payments").is_none(),
+            "Payments should not be present"
+        );
+        assert_eq!(order.invoice, Some(false));
+    }
+
+    /* [169A-2] Test: propina positiva va en Tip; cero no pinta la clave. */
+    #[test]
+    fn build_order_con_propina_incluye_tip() {
+        let config = test_config();
+        let mut venta = test_venta();
+        venta.propina = Decimal::from_str("1.50").unwrap();
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
+
+        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
+        assert_eq!(
+            order.order.get("Tip").and_then(serde_json::Value::as_f64),
+            Some(1.5)
+        );
+
+        let venta_sin = test_venta(); /* propina ZERO */
+        let order_sin =
+            BdpSyncService::build_order(&config, &venta_sin, &article, None, None, &test_order_ctx());
+        assert!(
+            order_sin.order.get("Tip").is_none(),
+            "Tip should not be present without propina"
+        );
+    }
+
     /* [F3.3] Test: Order type se mapea desde canal */
     #[test]
     fn build_order_uses_order_type_from_canal() {
