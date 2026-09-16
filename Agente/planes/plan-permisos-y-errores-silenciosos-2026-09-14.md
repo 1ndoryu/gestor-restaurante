@@ -145,7 +145,16 @@ aparte). Verificado **en vivo** con las dos cuentas en la pestaña Preview (trab
       `configuracion.rs` (PATCH config, PUT sync-mode, GET/PUT integraciones, diagnóstico, dry-run),
       `modo_operacion.rs` (PATCH), `bdp_backup.rs` (snapshot completo/parcial, borrar snapshot,
       restaurar), `admin.rs` (seed/reset) y `api_keys.rs` (crear/listar/revocar).
-- [ ] F4 Tanda B — pendiente (`bdp_article_map.rs`, revisión de `bdp_push.rs` según F1)
+- [x] **F4 Tanda B — HECHA (2026-09-16, commit `c40de93`)**: `verificar_permiso(CatalogoEdicion)`
+      en `importar_catalogo`, `sync_catalog`, `sync_prices` (default solo Admin, delegable por el
+      dueño; lecturas —listar, stock, conteos, definiciones de menú/pack— siguen operativas) y
+      `require_role(Admin)` en `sync_tables` (escribe ZonaSala+Mesa, sin AccionPermiso de plano;
+      patrón Tanda A como `bdp_push`). Tests nuevos `tests/permisos_catalogo_edicion.rs` 3/3
+      (default fail-closed, delegación `admin_trabajador`, patrón sync-tables). Sondas vivas :3100
+      con las dos cuentas (sara.lopez@demo.com / demo@restaurante.com): trabajador **403** en los 4
+      endpoints; dueño `422` en sync-tables sin confirmación (pasa guards, cero escrituras) y `200`
+      en lectura. Cero daño (los 403 abortan antes de modo/BDP). `bdp_push.rs` ya era Admin-only:
+      su revisión queda supeditada a F1 (si el trabajador debe ver la cola).
 - [x] **Hallazgo nuevo (bloqueante, preexistente) — RESUELTO (2026-09-14)**: `cargo test --lib` no
       compilaba — 28 errores en `src/services/bdp_sync.rs` porque el split del 2026-09-12 movió
       `Venta`, `VentaLinea`, `BdpArticleMapRepository` y `chrono::Utc` a los submódulos y el módulo
