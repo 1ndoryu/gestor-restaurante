@@ -45,6 +45,7 @@
 - **F1 — Decisión de modelo (requiere al usuario).** Por sección: ¿oculta / deshabilitada con
   explicación / visible con aviso? ¿Se usa `permisos_trabajador` (recomendado, ya existe) o se
   simplifica a "dueño vs trabajador"? ¿Qué puede hacer un trabajador hoy por diseño?
+  **DIFERIDA por el usuario el 2026-09-16 (retomar más tarde); F3, F5 y F6 quedan en espera tras ella.**
 - **F2 — UI honesta ante 401/403.** Estado de error explícito ("No tienes permiso para ver esta
   sección") en lugar de "Cargando..." infinito o de un vacío falso; **sin reintentos en 4xx**
   (React Query) y sin pintar "0 elementos" cuando la consulta falló.

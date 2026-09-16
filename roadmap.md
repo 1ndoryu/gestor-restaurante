@@ -181,7 +181,9 @@ Plan activo: `Agente/planes/plan-seguridad-escrituras-bdp-2026-09-14.md`. Sustit
 Repite desde cero Fase 1 (auditoría anti-desastre de las 13 operaciones Q2.1–Q2.13 × 13 dimensiones),
 Fase 2 (simulaciones: suites + simulador Python `:18765`; escenarios S1–S9 con confirmación visual
 de los estados de cola) y Fase 3 (escrituras reales una a una, **solo con autorización explícita por
-operación**; pago/factura/cancel `⏸` hasta activar la suscripción WebLink).
+operación**; pago/factura/cancel `⏸` hasta activar la suscripción WebLink — **matiz 2026-09-16:**
+ver bloque 169A-2, el pago dentro del `CreateOrder` inicial puede funcionar en gratuita y se
+prueba de noche; el `⏸` sigue valiendo para `Payment/Add` a comanda existente).
 **Historia que no se borra:** bajo 049A-1 sí se ejecutó **W-Q2.1 real** (alta de `90000003` →
 INCIDENTE `200109`) y su fix local `sync_catalog`; el residuo `90000003` sigue en el BDP real
 (pendiente 1g) y `ModifyArticleAndUpdateProfile` sigue sin funcionar contra el BDP real con payload
@@ -204,13 +206,37 @@ rol, F4 guardas consistentes en backend, F5 propuesta de regla al gate (sin modi
 autorización), F6 verificación con ambas cuentas y confirmación visual por ítem.
 
 **Hecho:** F4 Tanda A (guardas `require_role` en los 9 endpoints críticos, probadas con las dos
-cuentas, cero daño) y **F2 (UI honesta)**: `EstadoError` compartido, `retry` que no repite 4xx y las
+cuentas, cero daño), **F4 Tanda B (2026-09-16, commit `c40de93`)**: `CatalogoEdicion` en
+import-catalog/sync-catalog/sync-prices + `require_role(Admin)` en sync-tables, tests 3/3 y
+sondas vivas (trabajador 403 ×4, dueño pasa guards) y **F2 (UI honesta)**: `EstadoError` compartido, `retry` que no repite 4xx y las
 3 pantallas que mentían (Trabajadores, Sincronización, Chatbot) ya dicen "no tienes permiso". También
 reparado el bloqueo preexistente de `cargo test --lib` (176 passed / 0 failed, imports del split).
 
-**Siguiente paso:** decisión de **F1** (modelo de permisos: ocultar / deshabilitar / visible con
-aviso, y si se usa `permisos_trabajador`), que es lo que habilita F3; luego F4 Tanda B, F0 (barrido
-del dueño) y F5.
+**F1 diferida por el usuario (2026-09-16, retomar más tarde)**; F3, F5 y F6 en espera tras ella.
+
+**Siguiente paso:** F0 (barrido del dueño) y 169A-2 (prueba nocturna de pago en creación).
+
+### Bloque 169A-2 — Pago dentro del CreateOrder + prueba nocturna en gratuita (plan activo 2026-09-16)
+
+Hallazgo 2026-09-16 (chat Guillermo): el `301010` es solo de `GetOrder`; nuestro pago de 0,11 €
+nunca se envió (lo frenó el guard propio de reconciliación) y la sonda directa a `Payment/Add`
+con importe 0 devolvió `[301201]` (validación de negocio, no de licencia). El manual solo quita
+en gratuita "agregar pago/propina/factura a comanda **existente**" (`# WEBLINK RESTAPI.md:166-174`)
+y documenta `Payments` (máx 3, total o parcial), `Tip` e `Invoice=true` dentro del `CreateOrder`
+inicial. Hoy `build_order` (`bdp_sync_venta.rs:671-719`) envía sin `Payments`/`Tip` e
+`Invoice=false`: ese flujo en dos pasos es el bloqueado. `GetApplicationVersion` 84 → WeblinkRestAPI
+v1.2 sin errores; 89 → Hostelería v36.2; ninguna indica el tipo de suscripción.
+
+**De día (sin red BDP):** incluir en `build_order` `Payments: [{TenderId, Amount, PaymentId}]`
+desde el `OrderContext` (tender ya mapeado), `Tip` si hay propina e `Invoice` según pago total;
+tests unitarios del payload; build. Commit.
+**De noche (BDP real, momento de poco movimiento):** venta mínima (0,11 €) sincronizada con pago
+incluido; verificar `OrderId` + `InvoiceNumber` + `Status` por `GetOrder`; si `OrderEndType=1`
+rechaza el pago, reintentar con `OrderEndType=0` (autoacepta e **imprime en cocina**: avisar);
+después anular la comanda de prueba (`CancelOrder` funciona en gratuita) para limpiar y auditar.
+Si BDP devuelve error de licencia, queda confirmado que hace falta suscripción de pago.
+**Supersede:** deja obsoleta la hipótesis "pago/factura ⏸ hasta suscripción" del bloque 149A-2
+para pagos (la factura vía `Invoice=true` también entra en la prueba).
 
 ### Bloque 039A-1 — Revisión integral BDP: independencia funcional + integración completa (3 rondas) (CERRADO POR REINICIO 2026-09-14)
 
