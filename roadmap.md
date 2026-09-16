@@ -229,7 +229,7 @@ entradas deshabilitadas + aviso, desplegable BDP con las 2 opciones admin deshab
 honesto (cero escrituras), dueño todo habilitado + lista 3 trabajadores. **Subplan 149A-3
 COMPLETO** (detalle en el plan §7 + `tareas-2026-09-16.md`).
 
-**Siguiente paso:** 169A-2 (prueba nocturna de pago en creación), luego 169A-3.
+**Siguiente paso:** 169A-2 nocturna (venta con pago en BDP real). 169A-3 HECHO 2026-09-16.
 
 ### Bloque 169A-3 — Permisos de menú por trabajador: qué ve cada rol, todo configurable (nueva 2026-09-16)
 
@@ -270,8 +270,9 @@ re-login `permisos`=9 + `secs`=9; navegador: 9 links + 14 deshabilitados (`disab
 `title`=aviso) + `+Venta disabled=false`. Gotchas: preview :3100 necesita `.env` exportado
 explícito (`dotenvy` no basta tras reinicio; `BDP_DEFAULT_ARTICLE_NAME` obligatorio) + `PORT=3100`
 + CWD=repo; Json-extractor 422 precede al handler (sondas 403 exigen body válido);
-`PUT /trabajadores/:id` no existe (405) → es `PATCH`. Queda: docs finales + commit
-(push pendiente de autorización, igual que los 37+ previos).
+`PUT /trabajadores/:id` no existe (405) → es `PATCH`. Docs + commits hechos
+(`9296119` M1-M5, `203cf8e` N1 NavUser, `3e19107` lote barato). Solo queda el
+push (pendiente de autorización, igual que los previos).
 
 ### Bloque 169A-2 — Pago dentro del CreateOrder + prueba nocturna en gratuita (plan activo 2026-09-16)
 
