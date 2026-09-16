@@ -1016,3 +1016,41 @@ async fn handler_listar_standalone_sin_flags_devuelve_locales_y_bdp(pool: PgPool
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0].origen, "local");
 }
+
+#[sqlx::test(migrations = "./migrations")]
+async fn handler_listar_modo_bdp_flag_off_devuelve_locales(pool: PgPool) {
+    /* Los albaranes locales no dependen del BDP: listar no se gatea por
+     * `ff_bdp_purchase_notes_read` en ningún modo. Solo `sync` lo exige. */
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración por defecto");
+    sqlx::query("UPDATE configuracion_restaurante SET modo_operacion = 'bdp' WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let req = crear_request_local(
+        "Proveedor Local",
+        Some(Decimal::from_str("10.00").unwrap()),
+        None,
+    );
+    let state = make_app_state(pool.clone());
+    let auth = make_auth(user_id);
+    let creado = crear_purchase_note_local(State(state), auth, Json(req))
+        .await
+        .expect("crear local debe funcionar en modo bdp con flag apagado");
+    assert_eq!(creado.0.origen, "local");
+
+    let state2 = make_app_state(pool);
+    let auth2 = make_auth(user_id);
+    let result = listar_purchase_notes(State(state2), auth2, Query(default_filters())).await;
+    assert!(
+        result.is_ok(),
+        "listar debe funcionar en modo bdp con flag apagado"
+    );
+    let Json(notes) = result.unwrap();
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0].origen, "local");
+}

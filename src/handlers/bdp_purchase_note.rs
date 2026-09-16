@@ -69,19 +69,9 @@ pub async fn listar_purchase_notes(
     auth: AuthUser,
     Query(params): Query<BdpPurchaseNoteListParams>,
 ) -> Result<Json<Vec<BdpPurchaseNote>>, AppError> {
-    let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
-    /* [128A-1/F5][M12] Los flags BDP solo gatean en modo efectivo `bdp`;
-     * en `standalone` el CRUD local siempre está disponible. */
-    /* [128A-1/F1-3] M3: modo efectivo con cache real (servicio del estado). */
-    let modo = state
-        .modo_operacion
-        .modo_efectivo(&state.pool, auth.user_id)
-        .await?;
-    if modo == ModoEfectivo::Bdp && !config.ff_bdp_purchase_notes_read {
-        return Err(AppError::Validation(
-            "La lectura de albaranes de compra BDP no está activada".into(),
-        ));
-    }
+    /* Listar es lectura local (incluye albaranes `origen='local'` que nunca
+     * tocan BDP): no se gatea por flag. Solo `sync` importa desde BDP y
+     * exige `ff_bdp_purchase_notes_read`. */
     let notes = BdpPurchaseNoteRepository::listar(&state.pool, auth.user_id, &params).await?;
     Ok(Json(notes))
 }
