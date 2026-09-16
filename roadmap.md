@@ -140,6 +140,18 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Tareas pendientes
 
+### Bloque 169A-4 — Staging en VPS + informe de rendimiento sin BDP real (plan activo 2026-09-16)
+
+Plan: `Agente/planes/plan-perf-vps-2026-09-16.md`. **Decisión 2026-09-16:** alcance C
+(standalone + mock BDP + 2-3 lecturas reales puntuales autorizadas), pruebas directo en
+VPS, push de `main` autorizado. Staging separado `restaurante-perf` en `standalone`
+(cero tráfico BDP por construcción); harness versionado con operaciones mínimas reales
+(login, dashboard, venta+cobro, catálogo, stock, gasto/reserva); métricas con
+`container-stats`; informe con p50/p95 + CPU/RAM + recomendación de recursos.
+**Siguiente paso:** P0 preflight (compilar manager, `container-stats --help`, `list`).
+Autorizaciones pendientes: crear servicio, deploy+sync-env+seed, lecturas reales,
+destino del staging.
+
 ### Bloque 099A-1 — Paquete restaurante 2026-09-09: hosting ES/UE + MFA + SaaS + seguridad (plan activo 2026-09-09)
 
 Origen: reunión del restaurante trasladada por Guillermo el 2026-09-09 (chat 04–09/09/2026 en
