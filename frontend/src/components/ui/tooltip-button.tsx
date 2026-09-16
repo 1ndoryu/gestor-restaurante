@@ -27,10 +27,29 @@ function TooltipButton({ tooltip, tooltipSide = 'top', children, ...buttonProps 
     return <Button {...buttonProps}>{children}</Button>;
   }
 
+  const button = <Button {...buttonProps}>{children}</Button>;
+  /* [149A-1/H-06] Un <button disabled> no emite hover/foco: el tooltip con la
+   * explicación honesta (p. ej. "Requiere BDP conectado") sería inalcanzable.
+   * En ese caso el trigger va en un span envolvente que sí lo recibe. */
+  if (buttonProps.disabled) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex" tabIndex={0}>
+            {button}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side={tooltipSide}>
+          <p>{tooltip}</p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button {...buttonProps}>{children}</Button>
+        {button}
       </TooltipTrigger>
       <TooltipContent side={tooltipSide}>
         <p>{tooltip}</p>

@@ -162,9 +162,12 @@ reinicio justifica (tokens, responsive, foco, zoom, temas).
 > y que se **reintentan 4–5 veces**, y que el gate **no tiene ninguna regla** que detecte este
 > tipo de fallo silencioso. Los tres ítems de abajo se verifican allí con **ambas cuentas**.
 
-- [ ] P10.1 Permisos por trabajador aplicados en UI (ocultar/deshabilitar) — ver 149A-3
-- [ ] P10.2 Permisos aplicados en API (no solo en pantalla) — ver 149A-3 (F4)
-- [ ] P10.3 Visual: pantalla de trabajadores/permisos — ver 149A-3 (F0/F6)
+- [x] P10.1 Permisos por trabajador aplicados en UI (deshabilitar+aviso) — ver 149A-3/169A-3
+      - ✅ confirmado por usuario 2026-09-16 (navegador: Sara 9 links + 14 deshabilitados con aviso + `+Venta` habilitado; Marta 0 permisos → 23 deshabilitados; commit `9296119`)
+- [x] P10.2 Permisos aplicados en API (no solo en pantalla) — ver 149A-3 (F4) + 169A-3
+      - ✅ confirmado por usuario 2026-09-16 (sondas: trabajadora crear/actualizar válida → 403, dueño inexistente → 404; suites `permisos_secciones_menu` 4/4 + `permisos_catalogo_edicion` 3/3, commit `1989124`; guardas fail-closed antes de `validate()`)
+- [x] P10.3 Visual: pantalla de trabajadores/permisos — ver 149A-3 (F0/F6) + 169A-3
+      - ✅ confirmado por usuario 2026-09-16 (panel dueño con 24 etiquetas + nota defecto/re-login; diálogo de edición de Sara mostrado en captura; commit `9296119`)
 
 ### P11. Invariante central de red
 - [ ] P11.1 En standalone **cero tráfico** al BDP (verificado en red, no en código)
@@ -245,6 +248,18 @@ de que la suscripción/credenciales están vigentes. Sin eso, esta parte no se e
 
 ## 9. Hallazgos y bitácora de confirmaciones
 
+**H-149A-1-06 (UI, corregido pendiente de OK visual) — tooltip inalcanzable en botones BDP
+deshabilitados (P11.2):** en `standalone`, "Importar del BDP"/"Exportar al BDP" del catálogo
+(`BdpArticleCatalogActions.tsx:91-95`) salen `disabled` con tooltip honesto ("Requiere BDP
+conectado (modo BDP)..."), pero un `<button disabled>` no emite hover/foco y el tooltip de
+shadcn nunca se abría: la explicación existía en código pero era inalcanzable con ratón o
+teclado. Fix global en `frontend/src/components/ui/tooltip-button.tsx`: si `disabled`, el
+trigger va en un `<span tabIndex={0}>` envolvente (patrón estándar shadcn; beneficia a todos
+los `TooltipButton` deshabilitados: catálogo, stock, compras, plano...). `check:front`: 0
+errores en `frontend/src`. Verificado en vivo en `:5183` (standalone): botón `disabled` +
+`<span class="inline-flex" tabindex="0" data-slot="tooltip-trigger">` envolvente. Falta: el
+usuario pasa el ratón y confirma que se lee "Requiere BDP conectado (modo BDP)...".
+
 **H-149A-1-05 (UI, corregido) — en "BDP: lectura" no había botón para desactivar la integración:**
 reporte del usuario. El menú del badge (`site-header.tsx`) solo ofrecía, en ese estado, "Activar
 escritura temporal", "Sincronizar a BDP", "Ver historial BDP" y "Configuración BDP": la única vuelta
@@ -289,6 +304,11 @@ en P1.1). Fix: `h-auto px-2.5 py-1` en los tres (mismo aspecto entre ellos) → 
 | P1.2 | Menú del badge: `PATCH /api/configuracion/modo` 200 + persistencia en BD; badge cambia en vivo ("Modo independiente" → "BDP: off") sin recargar. Sandbox devuelto a `standalone` | ✅ OK | 2026-09-14 |
 | P1.2b | `Desactivar BDP (quedar solo en local)` desde "BDP: lectura": click real → badge "BDP: off" sin recargar, BD `bdp_sync_enabled=f` | ✅ OK | 2026-09-14 |
 | Obs. | `GET /api/configuracion/bdp/diagnostico` **sí contacta el BDP** estando en `standalone` (`health_ok:true`, `login_ok:true`, v36.2) al invocarlo explícitamente → a clasificar en P11.1 (¿debe gatearse en modo independiente?) | ⏳ | — |
+| P10.1 | Sara (9 permisos): 9 links + 14 deshabilitados con aviso + `+Venta` habilitado; Marta (0 permisos): 23 deshabilitados (navegador `:5183`; commit `9296119`) | ✅ OK | 2026-09-16 |
+| P10.2 | Sondas: trabajadora crear/actualizar válida → 403, dueño inexistente → 404; suites `permisos_secciones_menu` 4/4 + `permisos_catalogo_edicion` 3/3 (commit `1989124`); guardas fail-closed antes de `validate()` | ✅ OK | 2026-09-16 |
+| P10.3 | Panel dueño con 24 etiquetas + nota defecto/re-login; diálogo de edición de Sara mostrado en captura (commit `9296119`) | ✅ OK | 2026-09-16 |
+| P11.1 | `PATCH modo=standalone` (normalización `bdp_sync_enabled=false`); 18 peticiones (ventas+catálogo+stock) con 6 muestreos `Get-NetTCPConnection -RemoteAddress 100.83.196.35` → **0 conexiones**; poller gateado en código (`bdp_order_poller.rs:46` `modo_operacion <> 'standalone'`); push no envía (`bdp_push.rs:492`). Clasificación Obs. diagnóstico: NO se gatea — es acción explícita solo-admin (`configuracion.rs:485-490` `require_role Admin`), no tráfico de fondo; no se invocó (Parte 2 requiere autorización) | ⏳ falta tu OK | — |
+| P11.2 | Sincronización: botón "Requiere BDP conectado" + párrafo honesto ("...se guardan localmente y quedan pendientes...") + cola con estado por ítem; catálogo: Importar/Exportar `disabled` + fix H-149A-1-06 (tooltip alcanzable vía span) | ⏳ falta tu OK + hover del tooltip | — |
 
 ## 10. Próximo paso
 
