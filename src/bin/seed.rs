@@ -861,6 +861,30 @@ async fn seed_trabajadores(pool: &PgPool, user_id: Uuid) -> Result<(), Box<dyn s
         .bind(cargo)
         .execute(pool)
         .await?;
+        /* [169A-3] Demo con el defecto de operativa diaria (el dueño lo
+         * reconfigura por trabajador desde la UI). Copia local de
+         * `models::PERMISOS_DEFECTO_TRABAJADOR` (el bin no enlaza el lib). */
+        for seccion in [
+            "dashboard",
+            "ventas",
+            "gastos",
+            "reservas",
+            "calendario",
+            "clientes",
+            "canales",
+            "no_shows",
+            "plano_sala",
+        ] {
+            sqlx::query(
+                "INSERT INTO permisos_trabajador (id, trabajador_id, seccion, permitido) \
+                 VALUES ($1, $2, $3, true)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(id)
+            .bind(seccion)
+            .execute(pool)
+            .await?;
+        }
     }
     println!("  {} trabajadores insertados.", trabajadores.len());
     Ok(())

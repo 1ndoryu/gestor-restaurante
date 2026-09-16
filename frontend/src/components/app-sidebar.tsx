@@ -56,36 +56,40 @@ import {
 } from "lucide-react"
 import { useObtenerConfiguracion } from "@/api/generated/configuracion/configuracion"
 
+/* [169A-3] Cada entrada declara su `seccion` (1 clave = 1 entrada): el menú
+ * queda deshabilitado con aviso para el trabajador sin esa sección concedida.
+ * Sincronización/Trabajadores/Configuración mantienen además `soloAdmin`
+ * (el backend exige rol propietario aunque la sección se conceda). */
 const navPrincipal = [
-  { title: "Dashboard", url: "/", icon: <LayoutDashboard /> },
-  { title: "Ventas", url: "/ventas", icon: <DollarSign /> },
-  { title: "Gastos", url: "/gastos", icon: <BarChart3 /> },
-  { title: "Compras", url: "/bdp/compras", icon: <Receipt /> },
-  { title: "Stock", url: "/bdp/stock", icon: <Package /> },
-  { title: "Inventario", url: "/bdp/inventario", icon: <Warehouse /> },
-  { title: "Catálogo", url: "/bdp/catalogo", icon: <Tags /> },
-  { title: "Menús y Packs", url: "/bdp/explorador", icon: <UtensilsCrossed /> },
-  { title: "Reservas", url: "/reservas", icon: <ClipboardList /> },
-  { title: "Calendario", url: "/reservas/calendario", icon: <Calendar /> },
-  { title: "Clientes", url: "/clientes", icon: <Users /> },
-  { title: "Canales", url: "/canales", icon: <Radio /> },
-  { title: "No-Shows", url: "/reservas/no-shows", icon: <UserX /> },
-  { title: "Plano de Sala", url: "/plano-sala", icon: <Map /> },
-  { title: "Campañas", url: "/marketing/campanas", icon: <Megaphone /> },
-  { title: "Plantillas WA", url: "/marketing/plantillas", icon: <MessageSquare /> },
-  { title: "Recordatorios", url: "/marketing/recordatorios", icon: <Bell /> },
-  { title: "Historial", url: "/bdp/historial", icon: <Database /> },
+  { title: "Dashboard", url: "/", icon: <LayoutDashboard />, seccion: "dashboard" },
+  { title: "Ventas", url: "/ventas", icon: <DollarSign />, seccion: "ventas" },
+  { title: "Gastos", url: "/gastos", icon: <BarChart3 />, seccion: "gastos" },
+  { title: "Compras", url: "/bdp/compras", icon: <Receipt />, seccion: "compras" },
+  { title: "Stock", url: "/bdp/stock", icon: <Package />, seccion: "stock" },
+  { title: "Inventario", url: "/bdp/inventario", icon: <Warehouse />, seccion: "inventario" },
+  { title: "Catálogo", url: "/bdp/catalogo", icon: <Tags />, seccion: "catalogo" },
+  { title: "Menús y Packs", url: "/bdp/explorador", icon: <UtensilsCrossed />, seccion: "menus_packs" },
+  { title: "Reservas", url: "/reservas", icon: <ClipboardList />, seccion: "reservas" },
+  { title: "Calendario", url: "/reservas/calendario", icon: <Calendar />, seccion: "calendario" },
+  { title: "Clientes", url: "/clientes", icon: <Users />, seccion: "clientes" },
+  { title: "Canales", url: "/canales", icon: <Radio />, seccion: "canales" },
+  { title: "No-Shows", url: "/reservas/no-shows", icon: <UserX />, seccion: "no_shows" },
+  { title: "Plano de Sala", url: "/plano-sala", icon: <Map />, seccion: "plano_sala" },
+  { title: "Campañas", url: "/marketing/campanas", icon: <Megaphone />, seccion: "campanas" },
+  { title: "Plantillas WA", url: "/marketing/plantillas", icon: <MessageSquare />, seccion: "plantillas_wa" },
+  { title: "Recordatorios", url: "/marketing/recordatorios", icon: <Bell />, seccion: "recordatorios" },
+  { title: "Historial", url: "/bdp/historial", icon: <Database />, seccion: "historial" },
   /* [149A-3/F3] Sincronización y Trabajadores exigen Admin en backend
    * (flush/retry push + CRUD trabajadores 403 para trabajador). */
-  { title: "Sincronización", url: "/bdp/sincronizacion", icon: <RefreshCw />, soloAdmin: true },
-  { title: "Trabajadores", url: "/trabajadores", icon: <Shield />, soloAdmin: true },
-  { title: "Reseñas", url: "/resenas", icon: <Star /> },
-  { title: "Inactividad", url: "/inactividad", icon: <Clock /> },
+  { title: "Sincronización", url: "/bdp/sincronizacion", icon: <RefreshCw />, soloAdmin: true, seccion: "sincronizacion" },
+  { title: "Trabajadores", url: "/trabajadores", icon: <Shield />, soloAdmin: true, seccion: "trabajadores" },
+  { title: "Reseñas", url: "/resenas", icon: <Star />, seccion: "resenas" },
+  { title: "Inactividad", url: "/inactividad", icon: <Clock />, seccion: "inactividad" },
 ]
 
 const navSecundario = [
   /* [149A-3/F3] Configuración (PATCH/PUT/integraciones/diagnóstico) exige Admin en backend. */
-  { title: "Configuración", url: "/configuracion", icon: <Settings />, soloAdmin: true },
+  { title: "Configuración", url: "/configuracion", icon: <Settings />, soloAdmin: true, seccion: "configuracion" },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

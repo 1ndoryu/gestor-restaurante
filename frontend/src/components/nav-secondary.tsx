@@ -12,7 +12,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { useAuthStore } from "@/stores/authStore"
-import { AVISO_SOLO_PROPIETARIO } from "@/components/nav-main"
+import { AVISO_SECCION } from "@/components/nav-main"
 
 export function NavSecondary({
   items,
@@ -24,11 +24,13 @@ export function NavSecondary({
     url: string
     icon: React.ReactNode
     soloAdmin?: boolean
+    seccion?: string
   }[]
   label?: string
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
   const location = useLocation()
   const esTrabajador = useAuthStore((s) => s.esTrabajador)()
+  const tieneSeccion = useAuthStore((s) => s.tieneSeccion)
 
   return (
     <SidebarGroup {...props}>
@@ -36,7 +38,10 @@ export function NavSecondary({
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => {
-            const deshabilitado = Boolean(item.soloAdmin && esTrabajador)
+            /* [169A-3] Mismo filtro que NavMain: soloAdmin o sección no concedida. */
+            const deshabilitado = esTrabajador
+              && (Boolean(item.soloAdmin)
+                || (typeof item.seccion === "string" && !tieneSeccion(item.seccion)))
             return (
               <SidebarMenuItem key={item.title}>
                 {/* [208A-2] Mismo tamaño compacto que la navegación principal. */}
@@ -44,10 +49,10 @@ export function NavSecondary({
                 {deshabilitado ? (
                   <SidebarMenuButton
                     size="sm"
-                    tooltip={AVISO_SOLO_PROPIETARIO}
+                    tooltip={AVISO_SECCION}
                     aria-disabled="true"
                     disabled
-                    title={AVISO_SOLO_PROPIETARIO}
+                    title={AVISO_SECCION}
                     className="opacity-50 cursor-not-allowed"
                   >
                     {item.icon}

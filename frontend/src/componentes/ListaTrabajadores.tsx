@@ -1,6 +1,39 @@
 /* [134A-2] Página de gestión de trabajadores con permisos por sección.
  * CRUD + panel de permisos con checkboxes por sección.
- * El propietario asigna/quita acceso a cada sección del sistema. */
+ * El propietario asigna/quita acceso a cada sección del sistema.
+ * [169A-3] Etiquetas legibles de las 24 secciones (grano por entrada de
+ * menú). Las marcadas "(dueño)" además exigen rol propietario en backend:
+ * concederlas a un trabajador no les da acceso (defensa en profundidad). */
+export const ETIQUETAS_SECCION: Record<string, string> = {
+  dashboard: "Panel principal",
+  ventas: "Ventas",
+  gastos: "Gastos",
+  compras: "Compras (BDP)",
+  stock: "Stock (BDP)",
+  inventario: "Inventario (BDP)",
+  catalogo: "Catálogo (BDP)",
+  menus_packs: "Menús y Packs",
+  reservas: "Reservas",
+  calendario: "Calendario",
+  clientes: "Clientes",
+  canales: "Canales de reserva",
+  no_shows: "No-Shows",
+  plano_sala: "Plano de Sala",
+  campanas: "Campañas WhatsApp",
+  plantillas_wa: "Plantillas WhatsApp",
+  recordatorios: "Recordatorios automáticos",
+  historial: "Historial (BDP)",
+  sincronizacion: "Sincronización (dueño)",
+  trabajadores: "Trabajadores (dueño)",
+  resenas: "Reseñas",
+  inactividad: "Reactivación clientes",
+  configuracion: "Configuración (dueño)",
+  notificaciones: "Notificaciones",
+}
+
+export function etiquetaSeccion(seccion: string): string {
+  return ETIQUETAS_SECCION[seccion] ?? seccion.replace(/_/g, " ")
+}
 
 import { useState, type FormEvent } from 'react';
 import { useTrabajadores } from '../hooks/useTrabajadores';
@@ -133,7 +166,7 @@ function FormularioTrabajador({
                 checked={campos.permisos.includes(seccion)}
                 onCheckedChange={() => togglePermiso(seccion)}
               />
-              <span className="text-sm capitalize">{seccion.replace(/_/g, ' ')}</span>
+              <span className="text-sm capitalize">{etiquetaSeccion(seccion)}</span>
             </div>
           ))}
           {secciones.length === 0 && (
@@ -144,6 +177,14 @@ function FormularioTrabajador({
             </p>
           )}
         </div>
+        {/* [169A-3] Semántica visible: sin marcar nada = defecto de operativa
+         * diaria; los cambios se aplican cuando el trabajador vuelve a entrar
+         * (su token guarda los permisos). */}
+        <p className="text-xs text-muted-foreground">
+          Sin marcar nada se concede la operativa diaria (Panel, Ventas, Gastos,
+          Reservas, Calendario, Clientes, Canales, No-Shows, Plano de Sala).
+          Los cambios se aplican cuando el trabajador vuelve a entrar.
+        </p>
       </div>
 
       <Button type="submit" disabled={cargando} className="self-end">
@@ -264,8 +305,8 @@ export default function ListaTrabajadores() {
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {t.permisos.filter((p) => p.permitido).map((p) => (
-                        <Badge key={p.seccion} variant="secondary" className="text-xs capitalize">
-                          {p.seccion.replace(/_/g, ' ')}
+<Badge key={p.seccion} variant="secondary" className="text-xs capitalize">
+                {etiquetaSeccion(p.seccion)}
                         </Badge>
                       ))}
                       {t.permisos.filter((p) => p.permitido).length === 0 && (

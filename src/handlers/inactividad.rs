@@ -15,6 +15,7 @@ use crate::models::{
     ActualizarReglaInactividadRequest, CrearReglaInactividadRequest, ReglaInactividad,
 };
 use crate::repositories::InactividadRepository;
+use crate::services::verificar_seccion;
 use crate::AppState;
 
 #[utoipa::path(
@@ -47,6 +48,8 @@ pub async fn crear(
     auth: AuthUser,
     Json(req): Json<CrearReglaInactividadRequest>,
 ) -> Result<(StatusCode, Json<ReglaInactividad>), AppError> {
+    /* [169A-3] Reglas que contactan clientes inactivos: exige "inactividad". */
+    verificar_seccion(&state.pool, &auth, "inactividad").await?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let regla = InactividadRepository::create(
@@ -77,6 +80,8 @@ pub async fn actualizar(
     Path(id): Path<Uuid>,
     Json(req): Json<ActualizarReglaInactividadRequest>,
 ) -> Result<Json<ReglaInactividad>, AppError> {
+    /* [169A-3] Ver crear. */
+    verificar_seccion(&state.pool, &auth, "inactividad").await?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let regla = InactividadRepository::update(
@@ -108,6 +113,8 @@ pub async fn eliminar(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
+    /* [169A-3] Ver crear. */
+    verificar_seccion(&state.pool, &auth, "inactividad").await?;
     if InactividadRepository::delete(&state.pool, id, auth.user_id).await? {
         Ok(StatusCode::NO_CONTENT)
     } else {

@@ -88,17 +88,52 @@ pub struct TrabajadorAuthResponse {
     pub permisos: Vec<String>,
 }
 
-/* Secciones válidas del sistema */
+/* Secciones válidas del sistema.
+ * [169A-3] Grano por entrada de menú (1 clave = 1 entrada del sidebar), para
+ * que el dueño configure qué ve cada trabajador. "notificaciones" no tiene
+ * entrada de menú (campana del header) pero sigue siendo configurable.
+ * La clave gruesa histórica "marketing" se migra a sus hijas
+ * (campanas, plantillas_wa, recordatorios) — ver migración
+ * 20260916000000_permisos_secciones_granulares. */
 pub const SECCIONES_VALIDAS: &[&str] = &[
-    "reservas",
+    "dashboard",
     "ventas",
     "gastos",
+    "compras",
+    "stock",
+    "inventario",
+    "catalogo",
+    "menus_packs",
+    "reservas",
+    "calendario",
     "clientes",
-    "marketing",
+    "canales",
+    "no_shows",
     "plano_sala",
-    "configuracion",
     "campanas",
+    "plantillas_wa",
     "recordatorios",
-    "dashboard",
+    "historial",
+    "sincronizacion",
+    "trabajadores",
+    "resenas",
+    "inactividad",
+    "configuracion",
     "notificaciones",
+];
+
+/* [169A-3] Secciones concedidas por defecto a un trabajador nuevo (cuando el
+ * dueño no envía `permisos` explícitos al crearlo): operativa diaria del
+ * local. Todo lo técnico (BDP), comunicación con clientes y administración
+ * queda denegado por defecto; el dueño lo habilita por trabajador. */
+pub const PERMISOS_DEFECTO_TRABAJADOR: &[&str] = &[
+    "dashboard",
+    "ventas",
+    "gastos",
+    "reservas",
+    "calendario",
+    "clientes",
+    "canales",
+    "no_shows",
+    "plano_sala",
 ];

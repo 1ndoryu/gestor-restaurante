@@ -15,6 +15,11 @@ interface AuthState {
    * siempre la aplica el backend (403). */
   rolEfectivo: () => 'admin' | 'trabajador' | null;
   esTrabajador: () => boolean;
+  /* [169A-3] Secciones de menú concedidas (claim `secs` firmado en el JWT de
+   * trabajador; vacío en dueño y en tokens antiguos). Solo para filtrar el
+   * menú; el backend decide con `verificar_seccion` + guards de rol. */
+  secciones: () => string[];
+  tieneSeccion: (seccion: string) => boolean;
 }
 
 /* Decodifica el rol efectivo del JWT sin verificar firma (solo UI honesta).
@@ -30,7 +35,19 @@ function rolDelToken(token: string): 'admin' | 'trabajador' | null {
     return null;
   }
 }
-/* Decodifica el payload del JWT sin verificar firma (solo para checar exp client-side). */
+/* Decodifica el payload del JWT sin verificar firma (solo UI honesta).
+ * `secs` lo firma el backend al login del trabajador; manipularlo en local
+ * solo re-activa entradas del menú — el backend sigue devolviendo 403. */
+function seccionesDelToken(token: string): string[] {
+  try {
+    const [, payload] = token.split('.');
+    const decoded = JSON.parse(atob(payload)) as { secs?: unknown };
+    if (!Array.isArray(decoded.secs)) return [];
+    return decoded.secs.filter((s): s is string => typeof s === 'string');
+  } catch {
+    return [];
+  }
+}
 function tokenEsValido(token: string): boolean {
   try {
     const [, payload] = token.split('.');
@@ -70,6 +87,20 @@ export const useAuthStore = create<AuthState>((set, get) => {
     esTrabajador: () => {
       const token = get().token;
       return token ? rolDelToken(token) === 'trabajador' : false;
+    },
+
+    secciones: () => {
+      const token = get().token;
+      /* El dueño lo ve todo; el trabajador solo sus secciones firmadas. */
+      if (!token || rolDelToken(token) !== 'trabajador') return [];
+      return seccionesDelToken(token);
+    },
+
+    tieneSeccion: (seccion: string) => {
+      const token = get().token;
+      if (!token) return false;
+      if (rolDelToken(token) !== 'trabajador') return true;
+      return seccionesDelToken(token).includes(seccion);
     },
 
     estaAutenticado: () => {

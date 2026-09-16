@@ -16,6 +16,7 @@ use crate::models::{
     SegmentoPreview, SegmentoPreviewQuery,
 };
 use crate::services::CampanaService;
+use crate::services::verificar_seccion;
 use crate::AppState;
 
 /// Crear una campaña de marketing
@@ -36,6 +37,9 @@ pub async fn crear_campana(
     auth: AuthUser,
     Json(req): Json<CrearCampanaRequest>,
 ) -> Result<(StatusCode, Json<Campana>), AppError> {
+    /* [169A-3] Enviar WhatsApp a clientes: exige sección "campanas".
+     * El guard va primero (fail-closed antes de validar). */
+    verificar_seccion(&state.pool, &auth, "campanas").await?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let campana = CampanaService::create(&state.pool, auth.user_id, req).await?;
@@ -105,6 +109,8 @@ pub async fn actualizar_campana(
     Path(id): Path<Uuid>,
     Json(req): Json<ActualizarCampanaRequest>,
 ) -> Result<Json<Campana>, AppError> {
+    /* [169A-3] Ver crear_campana (guard primero). */
+    verificar_seccion(&state.pool, &auth, "campanas").await?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let campana = CampanaService::update(&state.pool, id, auth.user_id, req).await?;
@@ -129,6 +135,8 @@ pub async fn eliminar_campana(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
+    /* [169A-3] Ver crear_campana. */
+    verificar_seccion(&state.pool, &auth, "campanas").await?;
     CampanaService::delete(&state.pool, id, auth.user_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -175,6 +183,8 @@ pub async fn enviar_campana(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Campana>, AppError> {
+    /* [169A-3] Ver crear_campana. */
+    verificar_seccion(&state.pool, &auth, "campanas").await?;
     let campana = CampanaService::enviar(&state.pool, id, auth.user_id).await?;
     Ok(Json(campana))
 }

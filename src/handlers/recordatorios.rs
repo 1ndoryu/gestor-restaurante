@@ -15,6 +15,7 @@ use crate::models::{
     ReglasPaginadas, ReglasQuery,
 };
 use crate::services::RecordatorioService;
+use crate::services::verificar_seccion;
 use crate::AppState;
 
 /// Crear una regla de recordatorio automático
@@ -35,6 +36,8 @@ pub async fn crear_regla(
     auth: AuthUser,
     Json(req): Json<CrearReglaRequest>,
 ) -> Result<(StatusCode, Json<ReglaRecordatorio>), AppError> {
+    /* [169A-3] Reglas que envían WhatsApp solos: exige "recordatorios". */
+    verificar_seccion(&state.pool, &auth, "recordatorios").await?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
@@ -105,6 +108,8 @@ pub async fn actualizar_regla(
     Path(id): Path<Uuid>,
     Json(req): Json<ActualizarReglaRequest>,
 ) -> Result<Json<ReglaRecordatorio>, AppError> {
+    /* [169A-3] Ver crear_regla. */
+    verificar_seccion(&state.pool, &auth, "recordatorios").await?;
     let regla = RecordatorioService::actualizar_regla(&state.pool, id, auth.user_id, req).await?;
     Ok(Json(regla))
 }
@@ -126,6 +131,8 @@ pub async fn eliminar_regla(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
+    /* [169A-3] Ver crear_regla. */
+    verificar_seccion(&state.pool, &auth, "recordatorios").await?;
     RecordatorioService::eliminar_regla(&state.pool, id, auth.user_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

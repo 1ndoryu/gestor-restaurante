@@ -88,7 +88,7 @@ pub use modo_operacion::{
     ModoEfectivo, ServicioModoOperacion, MODO_AUTO, MODO_BDP, MODO_STANDALONE,
 };
 pub use notificacion::NotificacionService;
-pub use permisos::{permiso_habilitado, verificar_permiso, AccionPermiso, NivelPermiso};
+pub use permisos::{permiso_habilitado, verificar_permiso, verificar_seccion, AccionPermiso, NivelPermiso};
 pub use plano_sala::PlanoSalaService;
 pub use plantilla_whatsapp::PlantillaService;
 pub use recordatorio::RecordatorioService;

@@ -20,9 +20,16 @@ import { useAuthStore } from "@/stores/authStore"
 
 /* [149A-3/F3] Entradas con soloAdmin quedan deshabilitadas con aviso para
  * sesiones de trabajador (se muestran, no se ocultan). La autorización real
- * la aplica el backend (403); esto es UI honesta, no control de acceso. */
-export const AVISO_SOLO_PROPIETARIO =
-  "Solo disponible para el propietario (tu sesión es de trabajador)"
+ * la aplica el backend (403); esto es UI honesta, no control de acceso.
+ * [169A-3] Añadido filtro por sección concedida (`seccion`): el trabajador
+ * solo tiene habilitadas sus secciones firmadas en el JWT (`secs`). Las
+ * `soloAdmin` (dueño por rol en backend) quedan deshabilitadas aunque la
+ * sección aparezca concedida. */
+export const AVISO_SECCION =
+  "No tienes permiso para esta sección (tu sesión es de trabajador; pídele al propietario que te la habilite)"
+
+/* Compat: el aviso anterior de solo-propietario ahora es este unificado. */
+export const AVISO_SOLO_PROPIETARIO = AVISO_SECCION
 
 export function NavMain({
   items,
@@ -32,12 +39,18 @@ export function NavMain({
     url: string
     icon?: React.ReactNode
     soloAdmin?: boolean
+    seccion?: string
   }[]
 }) {
   const location = useLocation()
   const esTrabajador = useAuthStore((s) => s.esTrabajador)()
+  const tieneSeccion = useAuthStore((s) => s.tieneSeccion)
   const [modalVenta, setModalVenta] = useState(false)
   const [modalGasto, setModalGasto] = useState(false)
+  /* [169A-3] Acciones rápidas también respetan la sección (abren modales de
+   * escritura: sin "ventas"/"gastos" no tienen sentido para el trabajador). */
+  const puedeVender = tieneSeccion("ventas")
+  const puedeGastar = tieneSeccion("gastos")
 
   return (
     <SidebarGroup>
@@ -47,19 +60,23 @@ export function NavMain({
         <SidebarMenu>
           <SidebarMenuItem className="flex items-center gap-1.5">
             <SidebarMenuButton
-              tooltip="Nueva Venta"
+              tooltip={puedeVender ? "Nueva Venta" : AVISO_SECCION}
               size="sm"
-              className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
+              className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={() => setModalVenta(true)}
+              disabled={!puedeVender}
+              aria-disabled={!puedeVender}
             >
               <CirclePlusIcon />
               <span>Venta</span>
             </SidebarMenuButton>
             <SidebarMenuButton
-              tooltip="Nuevo Gasto"
+              tooltip={puedeGastar ? "Nuevo Gasto" : AVISO_SECCION}
               size="sm"
-              className="min-w-8 bg-secondary text-secondary-foreground duration-200 ease-linear hover:bg-secondary/80 group-data-[collapsible=icon]:opacity-0"
+              className="min-w-8 bg-secondary text-secondary-foreground duration-200 ease-linear hover:bg-secondary/80 group-data-[collapsible=icon]:opacity-0 disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={() => setModalGasto(true)}
+              disabled={!puedeGastar}
+              aria-disabled={!puedeGastar}
             >
               <ReceiptIcon />
               <span>Gasto</span>
@@ -71,17 +88,19 @@ export function NavMain({
             const activo = item.url === "/"
               ? location.pathname === "/"
               : location.pathname.startsWith(item.url)
-            const deshabilitado = Boolean(item.soloAdmin && esTrabajador)
+            const deshabilitado = esTrabajador
+              && (Boolean(item.soloAdmin)
+                || (typeof item.seccion === "string" && !tieneSeccion(item.seccion)))
 
             return (
               <SidebarMenuItem key={item.title}>
                 {deshabilitado ? (
                   <SidebarMenuButton
                     size="sm"
-                    tooltip={AVISO_SOLO_PROPIETARIO}
+                    tooltip={AVISO_SECCION}
                     aria-disabled="true"
                     disabled
-                    title={AVISO_SOLO_PROPIETARIO}
+                    title={AVISO_SECCION}
                     className="[&_svg]:size-3.5 opacity-50 cursor-not-allowed"
                   >
                     {item.icon}

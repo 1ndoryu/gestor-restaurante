@@ -229,7 +229,49 @@ entradas deshabilitadas + aviso, desplegable BDP con las 2 opciones admin deshab
 honesto (cero escrituras), dueño todo habilitado + lista 3 trabajadores. **Subplan 149A-3
 COMPLETO** (detalle en el plan §7 + `tareas-2026-09-16.md`).
 
-**Siguiente paso:** 169A-2 (prueba nocturna de pago en creación).
+**Siguiente paso:** 169A-2 (prueba nocturna de pago en creación), luego 169A-3.
+
+### Bloque 169A-3 — Permisos de menú por trabajador: qué ve cada rol, todo configurable (nueva 2026-09-16)
+
+Pide el usuario: hoy el trabajador ve las 23 entradas del menú (WA, recordatorios, historial,
+campañas, no-shows…). Lo lógico por defecto + configurable por el dueño (no se sabe qué querrá
+el cliente). Estado actual verificado: existe `permisos_trabajador` + `SECCIONES_VALIDAS` (11
+gruesas) + panel de checkboxes del dueño + `permisos` en el JWT, **pero nada lo aplica** (cero
+`require_seccion` en backend, menú no lo lee).
+
+**Propuesta de defecto (todo reconfigurable por el dueño y por trabajador):**
+- SÍ por defecto (operativa diaria): Dashboard, Ventas, Gastos, Reservas, Calendario, Clientes,
+  Canales, No-Shows, Plano de Sala.
+- NO por defecto (técnico/propietario/encargado): Configuración, Sincronización, Trabajadores,
+  Historial, Catálogo, Stock, Inventario, Compras, Menús y Packs, Campañas, Plantillas WA,
+  Recordatorios, Reseñas, Inactividad.
+- Las 3 admin por rol (Configuración, Sincronización, Trabajadores) siguen además con guard
+  backend + deshabilitado-con-aviso F1 aunque se concedan por error.
+
+**Fases:** M1 extender `SECCIONES_VALIDAS` a grano por entrada (~23 claves, conviviendo con las 11
+actuales) + sembrar defecto por rol; M2 panel del dueño con las nuevas claves; M3 menú filtra por
+`permisos` del trabajador (decidir: ocultar vs deshabilitar-con-aviso); M4 `require_seccion` en
+backend para las sensibles (hoy el array es informativo); M5 verificación con ambas cuentas.
+**Decisión del usuario 2026-09-16: deshabilitar con aviso (no ocultar) + luz verde (implementar ahora).**
+
+**HECHA 2026-09-16 (M1-M5, sin commit):** `SECCIONES_VALIDAS` 24 por entrada de menú
+(`campanas,plantillas_wa,recordatorios,resenas,inactividad` + `notificaciones` sin entrada pero
+configurable; `marketing` gruesa migrada a hijas vía `20260916000000_*.sql` up/down); defecto
+trabajador 9 claves operativa diaria (solo en creación; `Some([])` = sin acceso); JWT `secs`
+firmado; `verificar_seccion` (desconocida→403, dueño siempre pasa) en crear/actualizar/eliminar/
+enviar campañas+plantillas+recordatorios, solicitar reseña e inactividad (guard primero,
+fail-closed); `GET /trabajadores/secciones` devuelve array 24; `PATCH /:id {permisos}` reemplaza.
+Panel dueño con `ETIQUETAS_SECCION` + nota semántica defecto/re-login; menú filtra por
+`tieneSeccion()` con deshabilitado+`AVISO_SECCION` (`disabled`+`aria-disabled`+`title`),
+quick-actions Venta/Gasto/Reserva condicionadas. Tests `permisos_secciones_menu` 4/4 +
+`cargo check --lib` OK. Verificado en vivo :3100+:5183: `/secciones`=24; trabajadora crear/
+actualizar campaña válida→403, dueño actualizar inexistente→404; PATCH Sara=9 defecto →
+re-login `permisos`=9 + `secs`=9; navegador: 9 links + 14 deshabilitados (`disabled=true`,
+`title`=aviso) + `+Venta disabled=false`. Gotchas: preview :3100 necesita `.env` exportado
+explícito (`dotenvy` no basta tras reinicio; `BDP_DEFAULT_ARTICLE_NAME` obligatorio) + `PORT=3100`
++ CWD=repo; Json-extractor 422 precede al handler (sondas 403 exigen body válido);
+`PUT /trabajadores/:id` no existe (405) → es `PATCH`. Queda: docs finales + commit
+(push pendiente de autorización, igual que los 37+ previos).
 
 ### Bloque 169A-2 — Pago dentro del CreateOrder + prueba nocturna en gratuita (plan activo 2026-09-16)
 

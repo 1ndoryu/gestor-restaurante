@@ -127,3 +127,36 @@ pub async fn verificar_permiso(
         ))
     }
 }
+
+/* [169A-3] Guard por sección de menú para trabajadores (M4).
+ * Modelo: el dueño pasa siempre (sin `tid` en el JWT); el trabajador solo
+ * si la sección está en sus `permisos_trabajador` con `permitido = true`.
+ * Sección desconocida → fail-closed (403). Las lecturas de operativa diaria
+ * quedan fuera: este guard protege escrituras con efecto real (enviar
+ * campañas/plantillas, reglas de recordatorios/reactivación, solicitar
+ * reseñas) más lo ya protegido por rol (catálogo, sync, trabajadores,
+ * configuración). */
+pub async fn verificar_seccion(
+    pool: &PgPool,
+    user: &AuthUser,
+    seccion: &str,
+) -> Result<(), AppError> {
+    if !crate::models::SECCIONES_VALIDAS.contains(&seccion) {
+        return Err(AppError::Forbidden("Sección desconocida".into()));
+    }
+    let Some(trabajador_id) = user.trabajador_id else {
+        /* Dueño: acceso total, sin importar sus filas de permisos. */
+        return Ok(());
+    };
+    let permitidas =
+        crate::repositories::TrabajadorRepository::secciones_permitidas(pool, trabajador_id)
+            .await?;
+    if permitidas.iter().any(|s| s == seccion) {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(
+            "No tienes permiso para esta sección. Pídele al propietario que te la habilite."
+                .into(),
+        ))
+    }
+}

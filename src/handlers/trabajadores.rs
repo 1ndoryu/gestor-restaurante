@@ -141,6 +141,14 @@ pub async fn crear(
 
     if let Some(ref permisos) = req.permisos {
         Repo::set_permisos(&state.pool, trabajador.id, permisos).await?;
+    } else {
+        /* [169A-3] Sin `permisos` explícitos → defecto de operativa diaria.
+         * `Some(vec![])` explícito significa "sin acceso a nada". */
+        let defecto: Vec<String> = crate::models::PERMISOS_DEFECTO_TRABAJADOR
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+        Repo::set_permisos(&state.pool, trabajador.id, &defecto).await?;
     }
 
     let permisos = Repo::obtener_permisos(&state.pool, trabajador.id).await?;
@@ -284,14 +292,17 @@ pub async fn login_trabajador(
         .verify_password(req.password.as_bytes(), &parsed_hash)
         .map_err(|_| AppError::Unauthorized)?;
 
-    /* [094A-3] El token tiene sub=user_id (propietario) + tid=trabajador_id */
-    let token = AuthService::generate_token_with_tid(
+    /* [094A-3] El token tiene sub=user_id (propietario) + tid=trabajador_id.
+     * [169A-3] Además firma las secciones concedidas (`secs`) para que la UI
+     * filtre el menú sin endpoint extra. */
+    let permisos = Repo::secciones_permitidas(&state.pool, trabajador.id).await?;
+
+    let token = AuthService::generate_token_with_secciones(
         trabajador.user_id,
         Some(trabajador.id),
+        permisos.clone(),
         &state.jwt_secret,
     )?;
-
-    let permisos = Repo::secciones_permitidas(&state.pool, trabajador.id).await?;
 
     Ok(Json(TrabajadorAuthResponse {
         token,

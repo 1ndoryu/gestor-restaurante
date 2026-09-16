@@ -16,6 +16,11 @@ use crate::services::email::EmailService;
 /// Claims del JWT — `sub` es el `user_id`, `exp` la expiración Unix
 /// [094A-3] `tid` opcional = `trabajador_id` (si el token es de un trabajador)
 /// [cargo-fix] `role`/`effective_role`/`impersonator` para middleware `AuthUser`.
+/// [169A-3] `secs` = secciones de menú concedidas al trabajador (firmadas en
+/// el token; la UI filtra el menú con ellas). Vacío en tokens de dueño y en
+/// tokens antiguos (`default`, decodifican igual: compat hacia atrás).
+/// Al cambiar permisos, el trabajador debe volver a entrar: el token nuevo
+/// trae las secciones actualizadas.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: Uuid,
@@ -26,6 +31,8 @@ pub struct Claims {
     pub effective_role: UserRole,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub impersonator: Option<Uuid>,
+    #[serde(default)]
+    pub secs: Vec<String>,
 }
 
 pub struct AuthService;
@@ -95,6 +102,16 @@ impl AuthService {
         trabajador_id: Option<Uuid>,
         secret: &str,
     ) -> Result<String, AppError> {
+        Self::generate_token_with_secciones(user_id, trabajador_id, Vec::new(), secret)
+    }
+
+    /* [169A-3] Variante con secciones de menú firmadas (tokens de trabajador). */
+    pub fn generate_token_with_secciones(
+        user_id: Uuid,
+        trabajador_id: Option<Uuid>,
+        secciones: Vec<String>,
+        secret: &str,
+    ) -> Result<String, AppError> {
         let timestamp = chrono::Utc::now()
             .checked_add_signed(chrono::Duration::hours(24))
             .ok_or_else(|| AppError::Internal("Error calculando expiración del token".into()))?
@@ -117,6 +134,7 @@ impl AuthService {
             role,
             effective_role,
             impersonator: None,
+            secs: secciones,
         };
 
         encode(

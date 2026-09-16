@@ -16,6 +16,7 @@ use crate::models::{
     PlantillasQuery,
 };
 use crate::services::PlantillaService;
+use crate::services::verificar_seccion;
 use crate::AppState;
 
 /// Crear una plantilla `WhatsApp`
@@ -36,6 +37,9 @@ pub async fn crear_plantilla(
     auth: AuthUser,
     Json(req): Json<CrearPlantillaRequest>,
 ) -> Result<(StatusCode, Json<PlantillaWhatsapp>), AppError> {
+    /* [169A-3] Plantillas que salen a Meta/clientes: exige "plantillas_wa".
+     * El guard va primero (fail-closed antes de validar). */
+    verificar_seccion(&state.pool, &auth, "plantillas_wa").await?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let plantilla = PlantillaService::create(&state.pool, auth.user_id, req).await?;
@@ -106,6 +110,8 @@ pub async fn actualizar_plantilla(
     Path(id): Path<Uuid>,
     Json(req): Json<ActualizarPlantillaRequest>,
 ) -> Result<Json<PlantillaWhatsapp>, AppError> {
+    /* [169A-3] Ver crear_plantilla. */
+    verificar_seccion(&state.pool, &auth, "plantillas_wa").await?;
     let plantilla = PlantillaService::update(&state.pool, id, auth.user_id, req).await?;
     Ok(Json(plantilla))
 }
@@ -128,6 +134,8 @@ pub async fn eliminar_plantilla(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
+    /* [169A-3] Ver crear_plantilla. */
+    verificar_seccion(&state.pool, &auth, "plantillas_wa").await?;
     PlantillaService::delete(&state.pool, id, auth.user_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -151,6 +159,8 @@ pub async fn enviar_a_meta(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PlantillaWhatsapp>, AppError> {
+    /* [169A-3] Ver crear_plantilla. */
+    verificar_seccion(&state.pool, &auth, "plantillas_wa").await?;
     let plantilla = PlantillaService::enviar_a_meta(&state.pool, id, auth.user_id).await?;
     Ok(Json(plantilla))
 }

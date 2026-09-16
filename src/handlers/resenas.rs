@@ -17,6 +17,7 @@ use crate::models::{
     ResponderResenaResponse,
 };
 use crate::repositories::{ConfiguracionRepository, ResenaRepository};
+use crate::services::verificar_seccion;
 use crate::AppState;
 
 /* ========== Panel del propietario (autenticado) ========== */
@@ -77,6 +78,8 @@ pub async fn solicitar_resena(
     Query(params): Query<SolicitarParams>,
 ) -> Result<(StatusCode, Json<SolicitarResponse>), AppError> {
     /* Si ya existe una reseña para esta reserva, no duplicar */
+    /* [169A-3] Mensaje que sale al cliente: exige sección "resenas". */
+    verificar_seccion(&state.pool, &auth, "resenas").await?;
     if let Some(reserva_id) = params.reserva_id {
         if ResenaRepository::existe_para_reserva(&state.pool, reserva_id).await? {
             return Err(AppError::Conflict(
