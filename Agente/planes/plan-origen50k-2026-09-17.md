@@ -97,10 +97,18 @@ regla de honestidad (cifra = tramo verde redondeado abajo).
   (`src/services/dashboard.rs:28`): config + total_ventas + total_gastos son
   independientes → `tokio::join`. DoD: miss de caché p50 dividido ~×3
   (de ~30-45 ms a ~12-18 ms en staging).
-- [ ] **F4. Pool y pg, con compuerta de medición.** Solo si F1-F3 no bastan:
-  subir `max_connections` 10 → 20 (`src/main.rs:22-23`) **si** pg tiene CPU
-  libre tras F1-F3; si pg sigue a >80 %, no subir (más conexiones no crean
-  CPU). DoD: decisión sí/no con `stats.jsonl` delante, no por intuición.
+- [x] **F4. Pool y pg, con compuerta de medición.** Decisión: **NO subir**
+  (2026-09-17, sin código). Evidencia `50k-u250.stats.jsonl` (169A-5): pg
+  69-106 % CPU (1 núcleo saturado) con pool 8/10 sin agotar. Más conexiones
+  contra pg sin CPU libre = más contención, no más throughput. Se re-evalúa
+  solo si pg baja de 80 % tras F1-F3 con queries <5 ms.
+- [ ] **F5. Re-medición y claim.** BLOQUEADO hasta reconstruir
+  `coolify-manager-rs` (binario perdido): el saneamiento de base (vuelta a
+  ~0 filas demo como en 169A-5) y el muestreo pg (`container-stats`,
+  `run-sql`, `muestrear.mjs`) lo exigen; sin sanear, cada tramo añade miles
+  de filas de escritores y el baseline deriva (~17k hoy). No lanzar más
+  tramos hasta entonces. Al re-medir: `consulta50k` mix-90 u500 → u1000,
+  informe nuevo, cifra redondeada abajo.
 - [ ] **F5. Re-medición y claim.** `consulta50k` mix-90 u500 → u1000 (+T1/T2
   solo si el contenedor pasa a ser el cuello); informe individual nuevo;
   cifra redondeada abajo. Si el hito 2 no sale, el informe dice el nuevo

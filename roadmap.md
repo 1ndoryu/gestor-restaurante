@@ -208,7 +208,14 @@ F2 recorte por query (índice default, vía sin JOIN, COUNT estimado), F3
 dashboard en paralelo (`tokio::join`), F4 pool/pg con compuerta de medición,
 F5 re-medición y claim (hito 1: 2.500 req/s ≈ 25k; hito 2: 5.000 req/s = 50k).
 Descartado explícito: caché CF para privados, réplica/VPS mayor, subir TTLs.
-Autorización pendiente: empezar F1.
+**Estado 2026-09-17:** F1 hecho (`524aaa0`, en vivo verificado por cabeceras)
+pero 2× u100 por debajo del baseline — causa: harness 1 sola cuenta (los
+escritores invalidan su caché) + tablas en ~17k filas vs base saneada del
+baseline. F2 hecho (`fc787e2`: índices clientes/reservas + COUNT barato;
+F2a EXPLAIN y F2c vía sin JOIN aparcados/descartados con motivo). F3 hecho
+(`2fdee6a`: `resumen_mes` en paralelo). F4 decidido NO (pg saturada 1 núcleo,
+pool sin agotar). F5 BLOQUEADO: binario `coolify-manager-rs` perdido (sin
+`run-sql`/muestreo/saneamiento); no más tramos hasta reconstruirlo + sanear.
 
 ### Bloque 099A-1 — Paquete restaurante 2026-09-09: hosting ES/UE + MFA + SaaS + seguridad (plan activo 2026-09-09)
 
