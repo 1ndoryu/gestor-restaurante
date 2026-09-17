@@ -1,0 +1,128 @@
+{
+  "url": "https://perf.wandori.us",
+  "usuarios": 250,
+  "duracion_s": 75,
+  "reales_s": 31,
+  "origen_directo": false,
+  "parado_antes": "p95 962.3 ms > 800",
+  "peticiones": 15391,
+  "req_s": 489.54,
+  "errores": 0,
+  "err_ratio": 0,
+  "fallos_login": 0,
+  "global_ms": {
+    "p50": 221.5,
+    "p95": 1014.5,
+    "p99": 2633.1,
+    "n": 15391
+  },
+  "cf_totales": {
+    "REVALIDATED": 2,
+    "HIT": 9544,
+    "DYNAMIC": 5845
+  },
+  "por_op": {
+    "article_maps": {
+      "p50": 169,
+      "p95": 519.5,
+      "p99": 737.9,
+      "n": 3718,
+      "ok": 3718,
+      "fallos": 0,
+      "cf": {
+        "REVALIDATED": 1,
+        "HIT": 3717
+      }
+    },
+    "article_stock": {
+      "p50": 172,
+      "p95": 550.9,
+      "p99": 1530.9,
+      "n": 5828,
+      "ok": 5828,
+      "fallos": 0,
+      "cf": {
+        "REVALIDATED": 1,
+        "HIT": 5827
+      }
+    },
+    "dashboard_resumen": {
+      "p50": 366,
+      "p95": 871.5,
+      "p99": 3808.8,
+      "n": 2258,
+      "ok": 2258,
+      "fallos": 0,
+      "cf": {
+        "DYNAMIC": 2258
+      }
+    },
+    "ventas_listar": {
+      "p50": 745.3,
+      "p95": 1421.4,
+      "p99": 3681.6,
+      "n": 1871,
+      "ok": 1871,
+      "fallos": 0,
+      "cf": {
+        "DYNAMIC": 1871
+      }
+    },
+    "gastos_listar": {
+      "p50": 718.2,
+      "p95": 1333.1,
+      "p99": 3663.6,
+      "n": 674,
+      "ok": 674,
+      "fallos": 0,
+      "cf": {
+        "DYNAMIC": 674
+      }
+    },
+    "clientes_listar": {
+      "p50": 739.1,
+      "p95": 1430.4,
+      "p99": 3356.3,
+      "n": 579,
+      "ok": 579,
+      "fallos": 0,
+      "cf": {
+        "DYNAMIC": 579
+      }
+    },
+    "reservas_listar": {
+      "p50": 669.3,
+      "p95": 1375.3,
+      "p99": 3614.9,
+      "n": 455,
+      "ok": 455,
+      "fallos": 0,
+      "cf": {
+        "DYNAMIC": 455
+      }
+    },
+    "venta_crear": {
+      "p50": 765,
+      "p95": 1251.5,
+      "p99": 1251.5,
+      "n": 4,
+      "ok": 4,
+      "fallos": 0,
+      "cf": {
+        "DYNAMIC": 4
+      }
+    },
+    "gasto_crear": {
+      "p50": 1067.4,
+      "p95": 2325.3,
+      "p99": 2325.3,
+      "n": 4,
+      "ok": 4,
+      "fallos": 0,
+      "cf": {
+        "DYNAMIC": 4
+      }
+    }
+  },
+  "generado": "2026-09-17T10:50:52.437Z"
+}

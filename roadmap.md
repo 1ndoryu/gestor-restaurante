@@ -187,8 +187,15 @@ estable + `304`; en origen 36,6 ms frío y ~7 ms p50 caliente (≤30 ms ✓);
 `/api/bdp/article-maps*|article-stock*` → elegible + TTL del origen;
 rutas reales `/api/bdp/*`, no `/api/*`), MISS→HIT verificado, negativo OK
 (sin token 401, con token DYNAMIC siempre + ETag estable).
-Autorizaciones pendientes: tramos de carga, publicar cifra.
-tramos de carga, publicar cifra. Límite abierto:
+Autorizaciones pendientes: publicar cifra (tramos ya ejecutados).
+**D4/D5 hechos 2026-09-17:** harness `scripts/perf/consulta50k.mjs` (mix-60 +
+mix-90, auto-stop p95>800 ms, `cf-cache-status` por op); u100 VERDE 180 s
+(560 req/s, p95 349 ms, 0 err) + repetición 120 s VERDE; u150 VERDE 60 s
+(628 req/s); u250/u500 ROJO (techo origen ~230 DYNAMIC/s, pg ~1 núcleo,
+pool 8/10 — no es cuello de pool); control `--origen-directo` inválido como
+bypass (CF siguió dando HIT). **Claim: ≥5.000 personas consultando
+(lecturas); 50k NO alcanzado.** Informe:
+`Agente/completados/informe-50k-2026-09-17.md`. Límite abierto:
 `rust-test` ~350 s supera el budget 300 s del gate (solución pendiente).
 
 ### Bloque 099A-1 — Paquete restaurante 2026-09-09: hosting ES/UE + MFA + SaaS + seguridad (plan activo 2026-09-09)
