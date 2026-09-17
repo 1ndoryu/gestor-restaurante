@@ -56,6 +56,17 @@ regla de honestidad (cifra = tramo verde redondeado abajo).
   saneada del baseline) → cada MISS (SELECT + COUNT exacto) es más caro.
   Conclusión: F2 (COUNT estimado + índice default) ataca la causa real; antes
   de re-medir, sanear la base como en 169A-5 o el baseline deriva.
+  Verificación 2026-09-17 con manager reconstruido (`1.0.0` release,
+  `C:\tmp\glory-target\coolify-manager` + copia en `%TEMP%\opencode`):
+  F2a EXPLAIN en staging (base con bloat): ventas default 0,52 ms
+  (Index Scan `idx_ventas_user_fecha_origen50k` + Nested Loop Memoize a PK:
+  F2c bien descartado), clientes 0,36 ms, reservas 0,59 ms. DoD F2
+  (ventas_listar <5 ms) cumplido a nivel query.
+  Saneamiento 2026-09-17: DELETE solo filas `perf-harness` del harness
+  (16.939 ventas + 16.936 gamas; quedan 40/33 manuales demo). Tramo u100/120s
+  posterior sobre base limpia con build F1: **629 req/s, p50 134 ms,
+  p95 259 ms, 0 err** (`50k-u100-f1-limpio.json`) — supera el baseline pre-F1
+  (560-567 req/s, p95 ~340 ms). La "regresión" era 100 % bloat, no F1.
   Extender el patrón `resumen_cache` (`src/lib.rs` + `invalidar_*` en
   escrituras) a `listar_ventas/gastos/clientes/reservas` **solo combo
   default** (1ª página, sin filtros/búsqueda) con TTL 15-30 s; clave
@@ -97,11 +108,18 @@ regla de honestidad (cifra = tramo verde redondeado abajo).
   (`src/services/dashboard.rs:28`): config + total_ventas + total_gastos son
   independientes → `tokio::join`. DoD: miss de caché p50 dividido ~×3
   (de ~30-45 ms a ~12-18 ms en staging).
-- [x] **F4. Pool y pg, con compuerta de medición.** Decisión: **NO subir**
-  (2026-09-17, sin código). Evidencia `50k-u250.stats.jsonl` (169A-5): pg
-  69-106 % CPU (1 núcleo saturado) con pool 8/10 sin agotar. Más conexiones
-  contra pg sin CPU libre = más contención, no más throughput. Se re-evalúa
-  solo si pg baja de 80 % tras F1-F3 con queries <5 ms.
+- [x] **F4. Pool y pg, con compuerta de medición.** Decisión inicial (2026-09-17,
+  sin código): NO subir — evidencia `50k-u250.stats.jsonl` (169A-5): pg
+  69-106 % CPU (1 núcleo saturado) con pool 8/10 sin agotar.
+  **Revisado el mismo día: la compuerta se cumplió tras F1-F3.**
+  Evidencia `50k-u500-f2f3.stats.jsonl` (u500 mix-90, 1490 req/s VERDE):
+  pg p50 40 % / max 55 %, app p50 47 % / max 139 % — CPU libre en ambos;
+  u1000 colapsa (529 req/s, auto-stop 50 s) con p95 uniforme incluso en
+  CF-HIT = firma de cola de pool, no de pg. Cambio aplicado:
+  `src/main.rs:22-23` `max_connections(10)` → **20** (+ comentario con
+  criterio de reversión: si pg >80 % en re-medición, revertir).
+  Verificado `npm run check:back` (solo warning `dead_code` preexistente
+  169A-2). DoD: u1000 no colapsa por cola de pool.
 - [ ] **F5. Re-medición y claim.** BLOQUEADO hasta reconstruir
   `coolify-manager-rs` (binario perdido): el saneamiento de base (vuelta a
   ~0 filas demo como en 169A-5) y el muestreo pg (`container-stats`,

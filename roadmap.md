@@ -214,8 +214,14 @@ escritores invalidan su caché) + tablas en ~17k filas vs base saneada del
 baseline. F2 hecho (`fc787e2`: índices clientes/reservas + COUNT barato;
 F2a EXPLAIN y F2c vía sin JOIN aparcados/descartados con motivo). F3 hecho
 (`2fdee6a`: `resumen_mes` en paralelo). F4 decidido NO (pg saturada 1 núcleo,
-pool sin agotar). F5 BLOQUEADO: binario `coolify-manager-rs` perdido (sin
-`run-sql`/muestreo/saneamiento); no más tramos hasta reconstruirlo + sanear.
+pool sin agotar). F5 DESBLOQUEADO: manager `1.0.0` reconstruido, EXPLAIN F2a OK
+(<5 ms), base saneada, deploy F2/F3 en vivo, índices F2 aplicados.
+Tramos 2026-09-17 (base limpia, mix-90): u100 629 req/s p95 259 ms;
+u500 1490 req/s p95 795 ms VERDE ×2 (techo origen 231→419 DYNAMIC/s);
+u1000 colapsa (529 req/s, auto-stop 50 s). Muestreo pg en u500:
+app p50 47 %/max 139 %, pg p50 40 %/max 55 % → **F4 REVISADO: pool 10→20**
+(`src/main.rs:22-23`, compuerta cumplida; revertir si pg >80 %).
+Pdte: commit F4 + deploy + re-medir u1000.
 
 ### Bloque 099A-1 — Paquete restaurante 2026-09-09: hosting ES/UE + MFA + SaaS + seguridad (plan activo 2026-09-09)
 

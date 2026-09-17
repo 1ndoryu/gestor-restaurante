@@ -19,8 +19,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = AppConfig::from_env()?;
 
+    /* [179A-1/F4-revisado] Pool 10 → 20: la compuerta de medición se cumplió
+     * tras F1-F3 (`50k-u500-f2f3.stats.jsonl`: pg p50 40 % / max 55 %,
+     * app p50 47 % — CPU libre en ambos; el colapso de u1000 apunta a cola
+     * del pool, no a pg). Si pg vuelve a >80 % en la re-medición, revertir. */
     let pool = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(10)
+        .max_connections(20)
         .min_connections(2)
         .connect(&config.database_url)
         .await?;
