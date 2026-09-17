@@ -206,22 +206,34 @@ impl ClienteRepository {
             .fetch_all(pool)
             .await?;
 
-        let rec: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*)::BIGINT FROM clientes WHERE user_id = $1 \
-             AND ($2::TEXT IS NULL \
-                  OR nombre ILIKE $2 \
-                  OR apellidos ILIKE $2 \
-                  OR telefono ILIKE $2 \
-                  OR email ILIKE $2 \
-                  OR empresa ILIKE $2 \
-                  OR notas ILIKE $2)",
-        )
-        .bind(user_id)
-        .bind(patron.as_deref())
-        .fetch_one(pool)
-        .await?;
+        /* [179A-1/F2d] COUNT exacto solo con búsqueda; sin filtros, conteo
+         * barato por índice (mismo patrón que ventas/gastos). */
+        let total = if patron.is_some() {
+            let rec: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*)::BIGINT FROM clientes WHERE user_id = $1 \
+                 AND ($2::TEXT IS NULL \
+                      OR nombre ILIKE $2 \
+                      OR apellidos ILIKE $2 \
+                      OR telefono ILIKE $2 \
+                      OR email ILIKE $2 \
+                      OR empresa ILIKE $2 \
+                      OR notas ILIKE $2)",
+            )
+            .bind(user_id)
+            .bind(patron.as_deref())
+            .fetch_one(pool)
+            .await?;
+            rec.0
+        } else {
+            let rec: (i64,) =
+                sqlx::query_as("SELECT COUNT(*)::BIGINT FROM clientes WHERE user_id = $1")
+                    .bind(user_id)
+                    .fetch_one(pool)
+                    .await?;
+            rec.0
+        };
 
-        Ok((items, rec.0))
+        Ok((items, total))
     }
 
     pub async fn update(

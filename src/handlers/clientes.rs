@@ -14,8 +14,8 @@ use crate::middleware::{
     respuesta_cacheable_bytes, AuthUser, VisibilidadCache, ENDPOINT_CLIENTES,
 };
 use crate::models::{
-    ActualizarClienteRequest, BdpPuntoCliente, Cliente, ClientesQuery,
-    CrearClienteRequest, MergeClientesRequest, MergeClientesResponse, SumarPuntosRequest,
+    ActualizarClienteRequest, BdpPuntoCliente, Cliente, ClientesQuery, CrearClienteRequest,
+    MergeClientesRequest, MergeClientesResponse, SumarPuntosRequest,
 };
 use crate::repositories::BdpPuntoClienteRepository;
 use crate::services::{payload_puntos, BdpPushService, ClienteService};

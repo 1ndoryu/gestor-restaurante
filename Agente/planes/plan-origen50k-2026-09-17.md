@@ -33,7 +33,29 @@ regla de honestidad (cifra = tramo verde redondeado abajo).
 ## Fases (cada una: código → fmt/clippy/test → deploy staging → EXPLAIN +
 `consulta50k` corto → commit propio)
 
-- [ ] **F1. Caché en app para listados** (mayor impacto, menor riesgo).
+- [x] **F1. Caché en app para listados** (mayor impacto, menor riesgo).
+  Implementado 2026-09-17, commit `524aaa0` + push (despliegue Coolify en
+  curso): `ListadosCache` en `src/lib.rs` (clave `(user_id, endpoint)`,
+  TTL 15 s, solo combo default), `respuesta_cacheable_bytes` +
+  `leer/guardar/invalidar_listado` en `src/middleware/cache_control.rs`,
+  aplicado en `ventas/gastos/clientes/reservas` + invalidación en escrituras
+  (incl. `chatbot`). Verificado local: `fmt:check` limpio, `cargo check`
+  limpio, `clippy` limpio salvo `dead_code` preexistente ajeno de 169A-2
+  (`bdp_sync_preflight.rs:609`, no tocado), `cargo test --lib` 186/186.
+  Suite de integración NO ejecutada (petición usuario 2026-09-17: congela
+  la máquina). Pendiente: confirmar deploy, cabeceras en staging,
+  `pg_stat_activity` + tramo `consulta50k` corto.
+  Hallazgo verificación 2026-09-17 (sin suite local, 1 tramo cada vez):
+  F1 en vivo (`Cache-Control: public, max-age=15` + ETag en staging) pero
+  2× u100 (90 s: 404 req/s p95 540 ms; 120 s: 477 req/s p95 462 ms) por
+  debajo del baseline pre-F1 (560-567 req/s, p95 ~331-349 ms). No es
+  regresión del código (overhead F1 = un Mutex + clone por petición):
+  (a) el harness usa UNA sola cuenta compartida y 5 VUs escritores invalidan
+  su caché en bucle → hit rate bajo con esta mezcla; (b) las tablas crecieron
+  con los escritores de todos los tramos (17k ventas/gastos demo hoy vs base
+  saneada del baseline) → cada MISS (SELECT + COUNT exacto) es más caro.
+  Conclusión: F2 (COUNT estimado + índice default) ataca la causa real; antes
+  de re-medir, sanear la base como en 169A-5 o el baseline deriva.
   Extender el patrón `resumen_cache` (`src/lib.rs` + `invalidar_*` en
   escrituras) a `listar_ventas/gastos/clientes/reservas` **solo combo
   default** (1ª página, sin filtros/búsqueda) con TTL 15-30 s; clave
@@ -41,7 +63,24 @@ regla de honestidad (cifra = tramo verde redondeado abajo).
   escrituras como `invalidar_resumen`. DoD: EXPLAIN sin cambios pero
   `pg_stat_activity` en tramo u100 muestra <50 % de queries de listado vs
   hoy; tramo mix-60 u100 p95 < 250 ms.
-- [ ] **F2. Recortar coste por query.**
+- [x] **F2. Recortar coste por query** (2026-09-17, commit pendiente push).
+  F2a EXPLAIN en staging: BLOQUEADO (binario `coolify-manager-rs`
+  desaparecido de `%TEMP%\opencode`; reconstruirlo es una compilación
+  release pesada — aparcado para no cargar la máquina; el informe 169A-5 ya
+  documentó ~14 ms por listado). Se sigue sin esa medición.
+  F2b: ventas/gastos YA cubiertos por D2 (`idx_ventas_user_fecha_origen50k`,
+  `idx_gastos_user_fecha_origen50k`); añadidos los que faltaban, migración
+  reversible `20260917000001_origen50k_f2`: `idx_clientes_user_apellidos_f2`
+  `(user_id, apellidos DESC, nombre ASC)` y `idx_reservas_user_fecha_f2`
+  `(user_id, fecha DESC, hora ASC)` = defaults exactos de `cliente.rs:175-186`
+  y `reserva.rs:137-155`.
+  F2c (vía sin JOIN): DESCARTADO con motivo — el JOIN de ventas es a PK de
+  clientes sobre ≤20 filas tras early-stop por índice, y `nombre_cliente`
+  forma parte del contrato de respuesta; quitarlo cambiaría la API.
+  F2d: ventas/gastos/reservas YA tenían COUNT barato sin filtros; solo
+  clientes hacía siempre el COUNT con la cadena ILIKE → split aplicado en
+  `cliente.rs` (COUNT exacto solo con búsqueda).
+  DoD: `ventas_listar` default p50 < 5 ms en `EXPLAIN ANALYZE` staging.
   F2a: `EXPLAIN ANALYZE` de los 4 listados en staging (con y sin filtros);
   F2b: índice compuesto default `(user_id, fecha DESC, created_at DESC)` en
   ventas/gastos vía migración reversible (como `20260917000000_origen50k`);
