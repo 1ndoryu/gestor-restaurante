@@ -182,7 +182,12 @@ migración `20260917000000` aplicada + índices origen50k presentes en staging;
 `GET /api/dashboard/resumen` con `Cache-Control: max-age=30, private` + `ETag`
 estable + `304`; en origen 36,6 ms frío y ~7 ms p50 caliente (≤30 ms ✓);
 `EXPLAIN` 7–12 ms (Seq Scan correcto para usuario demo 16,8k/17k filas).
-Autorizaciones pendientes: proxy+reglas CF,
+**D3 borde hecho 2026-09-17** (con sesión CF del usuario): proxy naranja en
+`perf` (cf-ray EWR), regla `perf-compartido-cache` (GET
+`/api/bdp/article-maps*|article-stock*` → elegible + TTL del origen;
+rutas reales `/api/bdp/*`, no `/api/*`), MISS→HIT verificado, negativo OK
+(sin token 401, con token DYNAMIC siempre + ETag estable).
+Autorizaciones pendientes: tramos de carga, publicar cifra.
 tramos de carga, publicar cifra. Límite abierto:
 `rust-test` ~350 s supera el budget 300 s del gate (solución pendiente).
 
