@@ -484,11 +484,15 @@ mod tests {
             .expect("Payments should be present");
         assert_eq!(payments.len(), 1, "un solo pago total");
         assert_eq!(
-            payments[0].get("TenderId").and_then(serde_json::Value::as_i64),
+            payments[0]
+                .get("TenderId")
+                .and_then(serde_json::Value::as_i64),
             Some(2)
         );
         assert_eq!(
-            payments[0].get("Amount").and_then(serde_json::Value::as_f64),
+            payments[0]
+                .get("Amount")
+                .and_then(serde_json::Value::as_f64),
             Some(27.5)
         );
         assert!(
@@ -542,15 +546,22 @@ mod tests {
             vat_pct: 10.0,
         };
 
-        let order = BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
+        let order =
+            BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
         assert_eq!(
             order.order.get("Tip").and_then(serde_json::Value::as_f64),
             Some(1.5)
         );
 
         let venta_sin = test_venta(); /* propina ZERO */
-        let order_sin =
-            BdpSyncService::build_order(&config, &venta_sin, &article, None, None, &test_order_ctx());
+        let order_sin = BdpSyncService::build_order(
+            &config,
+            &venta_sin,
+            &article,
+            None,
+            None,
+            &test_order_ctx(),
+        );
         assert!(
             order_sin.order.get("Tip").is_none(),
             "Tip should not be present without propina"

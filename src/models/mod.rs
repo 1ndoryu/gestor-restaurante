@@ -66,7 +66,8 @@ pub use reserva::{
 };
 pub use trabajador::{
     ActualizarTrabajadorRequest, CrearTrabajadorRequest, LoginTrabajadorRequest, PermisoSeccion,
-    Trabajador, TrabajadorAuthResponse, TrabajadorResponse, PERMISOS_DEFECTO_TRABAJADOR, SECCIONES_VALIDAS,
+    Trabajador, TrabajadorAuthResponse, TrabajadorResponse, PERMISOS_DEFECTO_TRABAJADOR,
+    SECCIONES_VALIDAS,
 };
 pub use user::{
     AuthResponse, ForgotPasswordRequest, LoginRequest, MessageResponse, RegisterRequest,

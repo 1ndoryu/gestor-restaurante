@@ -36,9 +36,10 @@ pub struct BdpDepartamentoImportado {
     pub nombre: String,
 }
 
-/// Aplana la respuesta cruda de ExportFromProfile:
+/// Aplana la respuesta cruda de `ExportFromProfile`:
 /// `{"Departamentos":[{Codigo, Descripcion, SubDepartamentos:[...]}]}`.
 /// `Codigo` puede venir como número entero o float. Función pura (testeable sin BDP).
+#[must_use]
 pub fn aplanar_departamentos(valor: &serde_json::Value) -> Vec<BdpDepartamentoImportado> {
     let mut salida = Vec::new();
     if let Some(lista) = valor.get("Departamentos").and_then(|v| v.as_array()) {
@@ -68,6 +69,9 @@ fn aplanar_nodo(nodo: &serde_json::Value, salida: &mut Vec<BdpDepartamentoImport
     }
 }
 
+/// Códigos BDP reales 1..999: `as` satura fuera de rango i32 y esos valores se
+/// omiten aguas abajo (fuera del CHECK 1..999), sin truncado silencioso válido.
+#[allow(clippy::cast_possible_truncation)]
 fn codigo_entero(valor: Option<&serde_json::Value>) -> Option<i32> {
     match valor {
         Some(serde_json::Value::Number(n)) => {
@@ -136,7 +140,10 @@ impl BdpImportDepartamentosService {
             )
             .await
             {
-                tracing::warn!("[159A-2] No se pudo importar depto {code}: {e}", code = item.code);
+                tracing::warn!(
+                    "[159A-2] No se pudo importar depto {code}: {e}",
+                    code = item.code
+                );
                 resultado.errores += 1;
                 continue;
             }
@@ -166,9 +173,18 @@ mod tests {
         assert_eq!(
             planos,
             vec![
-                BdpDepartamentoImportado { code: 1, nombre: "CAFES".into() },
-                BdpDepartamentoImportado { code: 51, nombre: "ALCOHOLES (GRUPO)".into() },
-                BdpDepartamentoImportado { code: 8, nombre: "GINEBRAS".into() },
+                BdpDepartamentoImportado {
+                    code: 1,
+                    nombre: "CAFES".into()
+                },
+                BdpDepartamentoImportado {
+                    code: 51,
+                    nombre: "ALCOHOLES (GRUPO)".into()
+                },
+                BdpDepartamentoImportado {
+                    code: 8,
+                    nombre: "GINEBRAS".into()
+                },
             ]
         );
     }

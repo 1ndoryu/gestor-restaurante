@@ -15,8 +15,8 @@ use crate::models::{
     ActualizarCampanaRequest, Campana, CampanasPaginadas, CampanasQuery, CrearCampanaRequest,
     SegmentoPreview, SegmentoPreviewQuery,
 };
-use crate::services::CampanaService;
 use crate::services::verificar_seccion;
+use crate::services::CampanaService;
 use crate::AppState;
 
 /// Crear una campaña de marketing

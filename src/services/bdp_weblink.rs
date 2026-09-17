@@ -893,7 +893,7 @@ pub fn response_error_message(value: &Value) -> Option<String> {
 const BDP_EMBEDDED_ERROR_LISTS: &[&str] = &["ListaErroresArticulo"];
 
 /// [049A-1/H-W] Detecta errores embebidos del BDP en listas tipo
-/// `ListaErroresArticulo` (HTTP 200 + ErrorMessage vacío). Devuelve `Remote`
+/// `ListaErroresArticulo` (HTTP 200 + `ErrorMessage` vacío). Devuelve `Remote`
 /// con el primer error legible cuando la lista no está vacía.
 pub fn ensure_embedded_errors_empty(value: &Value) -> Result<(), BdpWeblinkError> {
     for key in BDP_EMBEDDED_ERROR_LISTS {

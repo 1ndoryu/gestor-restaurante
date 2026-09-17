@@ -165,8 +165,11 @@ caché en app + headers), D3 borde (proxy naranja + reglas CF + test negativo
 de privacidad), D4 harness `consulta50k` (rampa por tramos con parada
 automática), D5 medición y claim (cifra = tramo verde redondeado abajo).
 Hechos: cero caché hoy, sin CDN en path (gris), índices base OK, manager con
-`cache` pero sin reglas CF visibles. Autorizaciones pendientes: push D2,
-deploy, proxy+reglas CF, tramos de carga, publicar cifra.
+`cache` pero sin reglas CF visibles. **D0 saneamiento base (2026-09-17,
+previo a D2, decisión usuario):** gate 169A-5 rojo por 7 items pre-existentes
+en `main` — 3 planes sin checklist, `type-check` por `node_modules` ausente
+en `glory-rs`, `clippy -D warnings` (17), deriva `rustfmt`. Autorizaciones
+pendientes: push D2, deploy, proxy+reglas CF, tramos de carga, publicar cifra.
 
 ### Bloque 099A-1 — Paquete restaurante 2026-09-09: hosting ES/UE + MFA + SaaS + seguridad (plan activo 2026-09-09)
 
@@ -621,7 +624,7 @@ Plan cerrado en
 | 267A-9 | **F4 monolitos** (mismo plan + sub-plan `Agente/planes/plan-f4-split-bdp-sync-2026-09-12.md`): `services/bdp_sync.rs` 3606 → 1041 líneas (hub + `bdp_sync_venta.rs` + `bdp_sync_pago.rs` + `bdp_sync_factura.rs` + `bdp_sync_catalogo.rs`; `limite-lineas-nivel-3` resuelto). F4.4 medido 2026-09-12/13: sentinel PASS 0 errores (`build_order` 130 ef. warning EXC, 0 funciones >200 propias); fix clippy `AuditoriaDirecta` (error preexistente `bdp_backup.rs:482` cerrado con autorización); 2 planes cerrados movidos a `completados/` (docs PASS). Gate 267A-9 PASS (sentinel/rust/docs) + commit/push `ef6b830` (2026-09-13). Pendiente: `services/bdp_weblink_catalog.rs` (1708 líneas, deuda aparte) + `--full` tras cooldown + cierre. | Después de 267A-7/8 | En curso (tomada T-1789288127359; código + gate + push hechos) |
 | 159A-2 | **Unificar botones sync en Importar/Exportar + importar departamentos/familias del BDP** — plan: `Agente/planes/plan-sync-importar-exportar-bdp-2026-09-15.md`. 13 botones sync reales inventariados (catálogo, stock, clientes, ventas, plano, sincronización, config); objetivo 2 botones por sección + endpoint nuevo importar-departamentos (factible: ExportDepartments ya cableado) + spike familias. | F0 spike (rango códigos 1..999, export familias, filtro flush) | ~1-2d |
 | 159A-3 | **Modo demo BDP centralizado en Configuración** — quitar `BdpDemoToggle` de las toolbars (Stock/Compras/Explorador/Historial: el badge ámbar + botones rompen el layout y sobrecargan), switch único en pestaña BDP de Configuración, demo OFF por defecto (hoy `useBdpDemoMode` arranca ON en dev) + fix wrap toolbar a la derecha. | Ninguno | Hecho 2026-09-15 (código + type-check limpio + verificado en navegador :5182; OK visual usuario pendiente) |
-| 159A-4 | **Importar snapshot de stock desde BDP** — CERRADO 2026-09-15: spike contra BDP real demuestra NO VIABLE (todo artículo → "NO ES DEL TIPO WEB", almacén 1 inexistente, `ExportArticles` vacío; sin tienda web no hay stock BDP). Fuente de stock = 100 % local. Cierre: subtítulo honesto en Stock + paginación 50/pág en Inventario (verificada). Subplan: `Agente/planes/plan-import-stock-bdp-2026-09-15.md`. | — | Hecho |
+| 159A-4 | **Importar snapshot de stock desde BDP** — CERRADO 2026-09-15: spike contra BDP real demuestra NO VIABLE (todo artículo → "NO ES DEL TIPO WEB", almacén 1 inexistente, `ExportArticles` vacío; sin tienda web no hay stock BDP). Fuente de stock = 100 % local. Cierre: subtítulo honesto en Stock + paginación 50/pág en Inventario (verificada). Subplan: `Agente/planes/completados/plan-import-stock-bdp-2026-09-15.md`. | — | Hecho |
 | 169A-1 | **Auditar ciclo de compras locales en `bdp_audit_log`** — hallazgo P9.1 (2026-09-16): crear/pasar-a-borrador/conciliar albarán (serie L) y crear gasto por conciliación NO escriben auditoría. Cierre 2026-09-16: `auditar_ciclo_local` + tx en crear/borrador/conciliar (fail-closed), idempotencia `albaran-local-crear/borrador/conciliar-{id}` + `gasto-local-albaran-{id}`, 4 etiquetas en Historial; `cargo test bdp_purchase_notes_lifecycle` 21/21 + ciclo vivo en :3100 (L-4 borrador→conciliado, audit 6 filas nuevas) + Historial :5182 47 registros con etiquetas; flags restaurados False; commit `e48c8dc`. | Ninguno (local) | Hecho |
 
 ---

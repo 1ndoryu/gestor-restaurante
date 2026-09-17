@@ -14,8 +14,8 @@ use crate::models::{
     ActualizarReglaRequest, CrearReglaRequest, HistorialRecordatorios, ReglaRecordatorio,
     ReglasPaginadas, ReglasQuery,
 };
-use crate::services::RecordatorioService;
 use crate::services::verificar_seccion;
+use crate::services::RecordatorioService;
 use crate::AppState;
 
 /// Crear una regla de recordatorio automático

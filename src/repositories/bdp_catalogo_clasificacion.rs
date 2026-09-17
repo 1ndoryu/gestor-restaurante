@@ -101,7 +101,8 @@ impl BdpCatalogoClasificacionRepository {
         .await
     }
 
-    pub async fn siguiente_code(        pool: &PgPool,
+    pub async fn siguiente_code(
+        pool: &PgPool,
         user_id: Uuid,
         tipo: &str,
     ) -> Result<i32, sqlx::Error> {

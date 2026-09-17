@@ -141,6 +141,7 @@ impl BdpPurchaseNoteRepository {
      * determinista por (operación, albarán) para que un reintento no
      * duplique el rastro. Si la auditoría falla, la operación entera
      * revierte (fail-closed: sin rastro no hay escritura). */
+    #[allow(clippy::too_many_arguments)]
     pub async fn auditar_ciclo_local<'e, E>(
         executor: E,
         user_id: Uuid,
@@ -171,9 +172,7 @@ impl BdpPurchaseNoteRepository {
         .bind(idempotency_key)
         .fetch_optional(executor)
         .await?
-        .ok_or_else(|| {
-            sqlx::Error::Protocol("No se pudo auditar el ciclo de compra local".into())
-        })
+        .ok_or_else(|| sqlx::Error::Protocol("No se pudo auditar el ciclo de compra local".into()))
     }
 
     /// Crea un albarán de compra local (`origen='local'`, estado `pendiente`).

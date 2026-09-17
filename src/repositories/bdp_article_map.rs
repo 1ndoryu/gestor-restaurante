@@ -685,6 +685,8 @@ impl BdpArticleMapRepository {
     /// transacción (D4, motivo 'conteo', auditoría idempotente por línea con
     /// clave `conteo:{id}:{codigo}`). Si una línea dejaría stock negativo se
     /// revierte todo el conteo con `AjusteStockError::StockNegativo`.
+    // `total_lineas` no puede envolver i64 en la práctica (conteo de líneas en memoria).
+    #[allow(clippy::too_many_lines, clippy::cast_possible_wrap)]
     pub async fn crear_conteo(
         pool: &PgPool,
         user_id: Uuid,

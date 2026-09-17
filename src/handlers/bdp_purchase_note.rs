@@ -417,6 +417,7 @@ pub async fn marcar_borrador_purchase_note(
     ),
     security(("bearer_auth" = []))
 )]
+#[allow(clippy::too_many_lines)]
 pub async fn conciliar_purchase_note(
     State(state): State<AppState>,
     auth: AuthUser,

@@ -95,7 +95,10 @@ impl BdpOrderPollerService {
     /// un éxito resetea el contador y el modo efectivo retorna a Bdp en la
     /// siguiente consulta. Si sigue caído, no hace nada y se reintenta en el
     /// siguiente turno de la agenda (sin bucle apretado).
-    async fn probar_recuperacion(config: &ConfiguracionRestaurante, servicio: &ServicioModoOperacion) {
+    async fn probar_recuperacion(
+        config: &ConfiguracionRestaurante,
+        servicio: &ServicioModoOperacion,
+    ) {
         let client = BdpWeblinkClient::new(config);
         match client.health().await {
             Ok(health) if health.is_alive => {

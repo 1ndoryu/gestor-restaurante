@@ -49,10 +49,8 @@ pub use bdp_config_bootstrap::{
     BdpBootstrapOutcome, BdpBootstrapSettings, BdpConfigBootstrapService,
 };
 pub use bdp_explorer::{BdpExploracionResultado, BdpExplorerService, ExploracionCategoria};
-pub use bdp_import_departamentos::{
-    BdpImportDepartamentosResult, BdpImportDepartamentosService,
-};
 pub use bdp_import_departamentos::aplanar_departamentos;
+pub use bdp_import_departamentos::{BdpImportDepartamentosResult, BdpImportDepartamentosService};
 pub use bdp_order_poller::BdpOrderPollerService;
 pub use bdp_push::{
     payload_cancelar, payload_crear_articulo, payload_crear_departamento, payload_crear_familia,
@@ -88,7 +86,9 @@ pub use modo_operacion::{
     ModoEfectivo, ServicioModoOperacion, MODO_AUTO, MODO_BDP, MODO_STANDALONE,
 };
 pub use notificacion::NotificacionService;
-pub use permisos::{permiso_habilitado, verificar_permiso, verificar_seccion, AccionPermiso, NivelPermiso};
+pub use permisos::{
+    permiso_habilitado, verificar_permiso, verificar_seccion, AccionPermiso, NivelPermiso,
+};
 pub use plano_sala::PlanoSalaService;
 pub use plantilla_whatsapp::PlantillaService;
 pub use recordatorio::RecordatorioService;

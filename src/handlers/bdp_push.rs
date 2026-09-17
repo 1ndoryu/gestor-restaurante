@@ -52,10 +52,14 @@ pub async fn flush_manual(
 ) -> Result<Json<BdpPushFlushResumen>, AppError> {
     /* Escritura BDP: disparar el push (armado + envío) es acción de Admin. */
     auth.require_role(&[UserRole::Admin])?;
-    let resumen =
-        BdpPushFlushService::flush_con_dominios(&state.pool, auth.user_id, true, query.dominios.as_deref())
-            .await
-            .map_err(AppError::Internal)?;
+    let resumen = BdpPushFlushService::flush_con_dominios(
+        &state.pool,
+        auth.user_id,
+        true,
+        query.dominios.as_deref(),
+    )
+    .await
+    .map_err(AppError::Internal)?;
     Ok(Json(resumen))
 }
 

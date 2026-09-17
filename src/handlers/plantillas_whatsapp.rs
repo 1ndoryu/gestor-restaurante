@@ -15,8 +15,8 @@ use crate::models::{
     ActualizarPlantillaRequest, CrearPlantillaRequest, PlantillaWhatsapp, PlantillasPaginadas,
     PlantillasQuery,
 };
-use crate::services::PlantillaService;
 use crate::services::verificar_seccion;
+use crate::services::PlantillaService;
 use crate::AppState;
 
 /// Crear una plantilla `WhatsApp`

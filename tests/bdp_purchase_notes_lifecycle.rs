@@ -1059,7 +1059,10 @@ async fn handler_listar_modo_bdp_flag_off_devuelve_locales(pool: PgPool) {
 
 /// Lee el rastro de auditoría de un usuario en orden cronológico:
 /// (operacion, origen_operacion, target_entity_type, target_entity_id).
-async fn audit_rows(pool: &PgPool, user_id: Uuid) -> Vec<(String, String, Option<String>, Option<Uuid>)> {
+async fn audit_rows(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Vec<(String, String, Option<String>, Option<Uuid>)> {
     sqlx::query_as::<_, (String, String, Option<String>, Option<Uuid>)>(
         "SELECT operacion, origen_operacion, target_entity_type, target_entity_id \
          FROM bdp_audit_log WHERE user_id = $1 ORDER BY created_at",
@@ -1213,7 +1216,11 @@ async fn conciliar_gasto_existente_no_fabrica_auditoria_gasto(pool: PgPool) {
     assert_eq!(result.gasto_id, gasto.id);
 
     let rows = audit_rows(&pool, user_id).await;
-    assert_eq!(rows.len(), 3, "crear + borrador + conciliar, sin gasto_local_crear");
+    assert_eq!(
+        rows.len(),
+        3,
+        "crear + borrador + conciliar, sin gasto_local_crear"
+    );
     assert!(rows.iter().all(|r| r.0 != "gasto_local_crear"));
     assert_eq!(rows[2].0, "albaran_local_conciliar");
 }

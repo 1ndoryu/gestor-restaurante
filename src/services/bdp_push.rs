@@ -405,7 +405,7 @@ fn fecha_hoy() -> String {
 
 /// Construye el payload de `departamento/crear` (D7) con `AllProfiles=true` (D4).
 /// `ShortDescription` se trunca a 10 caracteres y `PrinterLevel=1`: el manual
-/// WebLink exige abreviada no vacía de máx 10 y nivel de impresión 1-9; sin
+/// `WebLink` exige abreviada no vacía de máx 10 y nivel de impresión 1-9; sin
 /// ellos el BDP real devuelve avisos en `ListaErroresArticulo` (W-Q2.3).
 pub fn payload_crear_departamento(code: i32, nombre: &str) -> Result<Value, String> {
     let short_description: String = nombre.chars().take(10).collect();
@@ -445,7 +445,7 @@ pub fn payload_propina(bdp_order_id: i64, amount: Decimal, add_tip: bool) -> Res
     serde_json::to_value(&req).map_err(|error| format!("No se pudo serializar push: {error}"))
 }
 
-/// Construye el payload de `venta/cancelar` (CancelOrder, F6/D2). Usa
+/// Construye el payload de `venta/cancelar` (`CancelOrder`, F6/D2). Usa
 /// `OrderIdentifier { OrderId }` (M26: el local solo guarda `bdp_order_id`;
 /// sin Room/Table/Market). Requiere `pos_id` de la configuración.
 pub fn payload_cancelar(
@@ -567,15 +567,15 @@ impl BdpPushFlushService {
     }
 
     /// [159A-2/F1] Predicado del filtro por dominio del flush.
-/// `None` o vacío = todo pasa (flush global histórico).
-fn dominio_en_filtro(dominio: &str, dominios: Option<&[String]>) -> bool {
-    match dominios {
-        None => true,
-        Some(filtro) => filtro.is_empty() || filtro.iter().any(|d| d == dominio),
+    /// `None` o vacío = todo pasa (flush global histórico).
+    fn dominio_en_filtro(dominio: &str, dominios: Option<&[String]>) -> bool {
+        match dominios {
+            None => true,
+            Some(filtro) => filtro.is_empty() || filtro.iter().any(|d| d == dominio),
+        }
     }
-}
 
-/// [208A-2/C4] Reintento individual de una fila (decisión D5). Respeta las
+    /// [208A-2/C4] Reintento individual de una fila (decisión D5). Respeta las
     /// mismas reglas que el flush manual: en standalone no envía nada y la
     /// fila bloqueada por suscripción se reintenta (D2: solo manual). El
     /// reintento manual se permite aunque se hayan agotado los reintentos
@@ -611,6 +611,7 @@ fn dominio_en_filtro(dominio: &str, dominios: Option<&[String]>) -> bool {
         Ok(resumen)
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn procesar_uno(
         pool: &PgPool,
         config: &ConfiguracionRestaurante,
@@ -1075,22 +1076,18 @@ mod article_data_merge_tests {
     /* [149A-2/W-Q2.2] Desactivar un map despublica el artículo en BDP. */
     #[test]
     fn map_inactivo_envia_web_article_false() {
-        let parcial = article_data_desde_map(
-            &ConfiguracionRestaurante::default(),
-            &map_fixture(false),
-        )
-        .unwrap();
+        let parcial =
+            article_data_desde_map(&ConfiguracionRestaurante::default(), &map_fixture(false))
+                .unwrap();
         let v = serde_json::to_value(&parcial).unwrap();
         assert_eq!(v["WebArticle"], false);
     }
 
     #[test]
     fn map_activo_envia_web_article_true() {
-        let parcial = article_data_desde_map(
-            &ConfiguracionRestaurante::default(),
-            &map_fixture(true),
-        )
-        .unwrap();
+        let parcial =
+            article_data_desde_map(&ConfiguracionRestaurante::default(), &map_fixture(true))
+                .unwrap();
         let v = serde_json::to_value(&parcial).unwrap();
         assert_eq!(v["WebArticle"], true);
     }

@@ -155,8 +155,7 @@ pub async fn verificar_seccion(
         Ok(())
     } else {
         Err(AppError::Forbidden(
-            "No tienes permiso para esta sección. Pídele al propietario que te la habilite."
-                .into(),
+            "No tienes permiso para esta sección. Pídele al propietario que te la habilite.".into(),
         ))
     }
 }

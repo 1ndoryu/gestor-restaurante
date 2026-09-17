@@ -498,7 +498,7 @@ pub struct BdpArticlePriceEntry {
 #[serde(rename_all = "PascalCase")]
 pub struct BdpExportArticleItem {
     /// Código del artículo (puede venir como string o número en BDP).
-    /// `ArtCode` es la clave real de GetPOSList; `Code` la de ExportArticles.
+    /// `ArtCode` es la clave real de `GetPOSList`; `Code` la de `ExportArticles`.
     #[serde(
         default,
         alias = "ArtCode",
@@ -512,7 +512,7 @@ pub struct BdpExportArticleItem {
         deserialize_with = "deserialize_optional_string"
     )]
     pub item_code: Option<String>,
-    /// Descripción / nombre del artículo (`ArtDescription` en GetPOSList)
+    /// Descripción / nombre del artículo (`ArtDescription` en `GetPOSList`)
     #[serde(default, alias = "ArtDescription", alias = "Description")]
     pub name: Option<String>,
     /// Código de familia
@@ -524,7 +524,7 @@ pub struct BdpExportArticleItem {
     /// Código de departamento
     #[serde(default)]
     pub department: Option<i32>,
-    /// Porcentaje IVA 1 (venta). En GetPOSList el IVA llega como `TAVPer`.
+    /// Porcentaje IVA 1 (venta). En `GetPOSList` el IVA llega como `TAVPer`.
     #[serde(default, alias = "TAVPer")]
     pub tax1: Option<Decimal>,
     /// Porcentaje IVA 2
@@ -623,7 +623,7 @@ pub const BDP_ARTICLE_LIST_KEYS: &[&str] = &[
 /// `BdpExportArticleItem`, probando las claves de colección conocidas.
 /// Devuelve vacío (nunca errora) si la respuesta no trae colección.
 /// Por ítem se intenta primero el parseo estricto (riqueza completa de
-/// ExportArticles); si un campo desconocido con tipo raro lo tumbaría, se
+/// `ExportArticles`); si un campo desconocido con tipo raro lo tumbaría, se
 /// cae a un mapeo laxo de los campos esenciales para que un ítem legítimo
 /// nunca desaparezca silenciosamente del import.
 #[must_use]

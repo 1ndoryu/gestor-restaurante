@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { redact, truncate } from '../redaction.mjs';
@@ -13,9 +14,14 @@ export function normalizeSeverity(value) {
 export function npmInvocation(args) {
   /* [028A-6 Fase 3] Bajo `npm run` el ejecutor es npm_execpath; bajo `node
    * ...` directo (p. ej. stage-process.mjs del gate agnóstico) se usa el npm
-   * del PATH. Ambos caminos resuelven el mismo npm. */
-  if (process.env.npm_execpath) {
-    return { executable: process.execPath, args: [process.env.npm_execpath, ...args] };
+   * del PATH. Ambos caminos resuelven el mismo npm.
+   * [169A-5] npm_execpath puede llegar envenenado (p. ej. el exe de Bun
+   * heredado del shell del agente): solo se usa si apunta a un .js real
+   * (npm-cli.js). Sin esto, `node bun.exe` muere con SyntaxError MZ y el
+   * conciseFailure solo muestra la cola del stack (wrapModuleLoad). */
+  const candidate = process.env.npm_execpath;
+  if (candidate && candidate.toLowerCase().endsWith('.js') && existsSync(candidate)) {
+    return { executable: process.execPath, args: [candidate, ...args] };
   }
   return { executable: process.platform === 'win32' ? 'npm.cmd' : 'npm', args };
 }

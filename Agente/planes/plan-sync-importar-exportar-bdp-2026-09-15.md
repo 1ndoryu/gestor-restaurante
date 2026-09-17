@@ -121,3 +121,11 @@ Lo que es archivo se renombra para no confundir.
 - Importar departamentos (+familias si F0 OK) funciona contra simulador y respeta ediciones
   locales; omitidos fuera de rango reportados.
 - Type-check + tests verdes; preview 1x1 con OK usuario; commit por bloque con ID 159A-2.
+
+## Checklist
+
+- [x] F0 spike (rango códigos 1..63, familias no importables, `flush_con_dominios`)
+- [x] F1 backend (`POST importar-departamentos` + tests contra simulador)
+- [ ] F2 frontend (`BdpImportExportButtons` + par Importar/Exportar por sección + renombres archivo-vs-BDP)
+- [ ] F3 verificación (type-check + tests + preview 1x1 con OK usuario, solo lecturas BDP)
+- [ ] Cierre 159A-2 (commit por bloque + evidencia en `Agente/completados/`)

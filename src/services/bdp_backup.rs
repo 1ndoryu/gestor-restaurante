@@ -289,6 +289,7 @@ impl BdpBackupService {
 
     /// Snapshot de datos locales de Glory (query local, 0 llamadas BDP).
     /// Tipos válidos: 'ventas', 'clientes', 'mapeos'
+    #[allow(clippy::too_many_lines)]
     pub async fn snapshot_glory(
         pool: &PgPool,
         user_id: Uuid,

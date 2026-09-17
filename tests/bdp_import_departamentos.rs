@@ -8,9 +8,7 @@
 use glory_backend::models::TIPO_DEPARTAMENTO;
 use glory_backend::repositories::BdpCatalogoClasificacionRepository;
 use glory_backend::repositories::ConfiguracionRepository;
-use glory_backend::services::{
-    aplanar_departamentos, BdpImportDepartamentosService,
-};
+use glory_backend::services::{aplanar_departamentos, BdpImportDepartamentosService};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -77,15 +75,11 @@ async fn importar_departamentos_crea_vincula_y_reporta(pool: PgPool) {
     assert_eq!(r.errores, 0, "{r:?}");
 
     /* El nombre local del vinculado manda. */
-    let vinculada = BdpCatalogoClasificacionRepository::buscar_por_code(
-        &pool,
-        user_id,
-        TIPO_DEPARTAMENTO,
-        8,
-    )
-    .await
-    .expect("buscar vinculada")
-    .expect("existe");
+    let vinculada =
+        BdpCatalogoClasificacionRepository::buscar_por_code(&pool, user_id, TIPO_DEPARTAMENTO, 8)
+            .await
+            .expect("buscar vinculada")
+            .expect("existe");
     assert_eq!(vinculada.nombre, "GINEBRAS MÍAS");
 
     /* Segunda pasada: todo vinculado/sin cambios nuevos. */

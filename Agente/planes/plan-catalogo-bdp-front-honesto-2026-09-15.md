@@ -85,3 +85,13 @@ validando type-check + build al cierre de cada uno (edición por módulo).
 2. Crear familia de prueba: toast con código + badge `pendiente`/`sincronizado`.
 3. Forzar error (p.ej. BDP offline): mensaje honesto, sin falso éxito.
 4. Responsive ≥320px (regla del proyecto) en la tabla con la columna nueva.
+
+## Checklist
+
+- [ ] F1.1 toast de alta con código (`resp.code`)
+- [ ] F1.2 badge estado push por fila (`pendiente`/`sincronizado`/`error` + `ultimo_error`)
+- [ ] F1.3 error honesto (409 local vs fallo de envío a BDP)
+- [ ] F2 pre-chequeo código libre (`GET codigo-libre` + test backend con simulador)
+- [ ] Decisión F3 (código manual) al cierre de F2, no antes
+- [ ] Verificación visual diferida (items 1–4 de arriba) + type-check/build limpios
+- [ ] Cierre (evidencia en `Agente/completados/tareas-YYYY-MM-DD.md`)
