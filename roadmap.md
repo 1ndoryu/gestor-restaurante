@@ -175,8 +175,10 @@ con invalidación + `Cache-Control`/`ETag` en 5 GETs; `check` limpio, tests
 verdes). **D0 saneamiento base (2026-09-17, previo a D2, decisión usuario):**
 7 items reparados — 3 planes con checklist/archivado, `type-check`
 (`node_modules` en `glory-rs`), `clippy -D warnings` (17→0), `rustfmt`,
-`npm_execpath` robusto (commit 27007ce). Autorizaciones pendientes: push D2,
-deploy, proxy+reglas CF, tramos de carga, publicar cifra. Límite abierto:
+`npm_execpath` robusto (commit 27007ce). **D2 commit 49b56c2 + push 2026-09-17**
+(verificado: fmt/check/clippy limpios, suite 33 binarios verde).
+Autorizaciones pendientes: deploy, proxy+reglas CF,
+tramos de carga, publicar cifra. Límite abierto:
 `rust-test` ~350 s supera el budget 300 s del gate (solución pendiente).
 
 ### Bloque 099A-1 — Paquete restaurante 2026-09-09: hosting ES/UE + MFA + SaaS + seguridad (plan activo 2026-09-09)
@@ -330,11 +332,16 @@ propina positiva e `Invoice=true` solo con tender y total positivo; sin tender t
 Tests nuevos 3/3 + regresión `cargo test --lib` 182/182 + `build --bins` OK. Nota: se purgó el
 target de rama `C:\tmp\glory-target\glory_backend_main` (4,56 GB, permitido por AGENTS.md) porque
 el gate del wrapper exige 6 GB libres; el workflow actual compila en `C:\tmp\glory-target\debug`.
-**De noche (BDP real, momento de poco movimiento):** venta mínima (0,11 €) sincronizada con pago
-incluido; verificar `OrderId` + `InvoiceNumber` + `Status` por `GetOrder`; si `OrderEndType=1`
-rechaza el pago, reintentar con `OrderEndType=0` (autoacepta e **imprime en cocina**: avisar);
-después anular la comanda de prueba (`CancelOrder` funciona en gratuita) para limpiar y auditar.
-Si BDP devuelve error de licencia, queda confirmado que hace falta suscripción de pago.
+**Protocolo silencioso y cuidadoso (no romper nada, 2026-09-17):** `EndType=0` **PROHIBIDO**
+(imprime en cocina; solo con autorización separada + aviso a cocina/TPV). Orden obligatorio:
+P0 solo-lectura (`Health` + `GetApplicationVersion` + `sync-dry-run` existente, cero escrituras) →
+P1 `OnlyCheck` (`OrderOperationType=1`) con el payload exacto de pago-en-creación
+(`Payments/Tip/Invoice=true`, `EndType=1`, `MarketplaceOrderId PRUEBA-*`), cero creación →
+P2 real mínima (0,11 €, artículo genérico, `EndType=1` pendiente en autocomanda, hueco muerto
+16-18h, ver `OrderId`, anular en <1 min vía `CancelOrder`, verificar modo `read_only` restaurado).
+Parar ante cualquier error de licencia/5xx/impresión inesperada. Prohibido tocar `.env`,
+reiniciar el backend sin backup, tocar datos reales (solo `PRUEBA-*`), o dejar residuos.
+Si BDP devuelve error de licencia en P1/P2, queda confirmado que hace falta suscripción de pago.
 **Supersede:** deja obsoleta la hipótesis "pago/factura ⏸ hasta suscripción" del bloque 149A-2
 para pagos (la factura vía `Invoice=true` también entra en la prueba).
 
