@@ -9,7 +9,10 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::errors::AppError;
-use crate::middleware::{respuesta_cacheable, AuthUser, VisibilidadCache};
+use crate::middleware::{
+    guardar_listado_cache, invalidar_listado, leer_listado_cache, respuesta_cacheable,
+    respuesta_cacheable_bytes, AuthUser, VisibilidadCache, ENDPOINT_VENTAS,
+};
 use crate::models::{
     ActualizarVentaRequest, AnularVentaRequest, CrearVentaRequest, Venta, VentaLinea, VentasQuery,
 };
@@ -43,6 +46,8 @@ pub async fn crear_venta(
     let venta = VentaService::create(&state.pool, auth.user_id, req).await?;
     /* [169A-5/D2.2] Toda escritura de ventas invalida el resumen cacheado. */
     DashboardService::invalidar_resumen(&state, auth.user_id).await;
+    /* [179A-1/F1] Toda escritura de ventas invalida su listado default. */
+    invalidar_listado(&state, auth.user_id, ENDPOINT_VENTAS).await;
     Ok((StatusCode::CREATED, Json(venta)))
 }
 
@@ -108,6 +113,25 @@ pub async fn listar_ventas(
     Query(params): Query<VentasQuery>,
     headers: HeaderMap,
 ) -> Result<Response, AppError> {
+    /* [179A-1/F1] Combo default (1ª página, sin filtros ni orden): se sirve
+     * de la caché en app y no toca postgres. Cualquier otro combo va a DB. */
+    let es_default = params.page == 1
+        && params.per_page == 20
+        && params.desde.is_none()
+        && params.hasta.is_none()
+        && params.busqueda.is_none()
+        && params.turno.is_none()
+        && params.canal.is_none()
+        && params.metodo_pago.is_none()
+        && params.estado_haddock.is_none()
+        && params.estado_bdp.is_none()
+        && params.sort_by.is_none()
+        && params.sort_order.is_none();
+    if es_default {
+        if let Some(bytes) = leer_listado_cache(&state, auth.user_id, ENDPOINT_VENTAS).await {
+            return respuesta_cacheable_bytes(bytes, VisibilidadCache::Publica, 15, &headers);
+        }
+    }
     let ventas = VentaService::list(
         &state.pool,
         auth.user_id,
@@ -125,6 +149,11 @@ pub async fn listar_ventas(
         params.sort_order,
     )
     .await?;
+    if es_default {
+        if let Ok(bytes) = serde_json::to_vec(&ventas) {
+            guardar_listado_cache(&state, auth.user_id, ENDPOINT_VENTAS, bytes).await;
+        }
+    }
     /* [169A-5/D2.3] Listado base: mismo cuerpo para todo el restaurante,
      * TTL corto (15 s) porque cambia con cada venta. */
     respuesta_cacheable(&ventas, VisibilidadCache::Publica, 15, &headers)
@@ -155,6 +184,8 @@ pub async fn actualizar_venta(
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let venta = VentaService::update(&state.pool, id, auth.user_id, req).await?;
     DashboardService::invalidar_resumen(&state, auth.user_id).await;
+    /* [179A-1/F1] Toda escritura de ventas invalida su listado default. */
+    invalidar_listado(&state, auth.user_id, ENDPOINT_VENTAS).await;
     Ok(Json(venta))
 }
 
@@ -183,6 +214,8 @@ pub async fn eliminar_venta(
     verificar_permiso(&state.pool, AccionPermiso::AnulacionVentas, &auth).await?;
     VentaService::delete(&state.pool, id, auth.user_id).await?;
     DashboardService::invalidar_resumen(&state, auth.user_id).await;
+    /* [179A-1/F1] Toda escritura de ventas invalida su listado default. */
+    invalidar_listado(&state, auth.user_id, ENDPOINT_VENTAS).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -221,6 +254,8 @@ pub async fn anular_venta(
     verificar_permiso(&state.pool, AccionPermiso::AnulacionVentas, &auth).await?;
     let venta = VentaService::anular(&state.pool, id, auth.user_id, req).await?;
     DashboardService::invalidar_resumen(&state, auth.user_id).await;
+    /* [179A-1/F1] Toda escritura de ventas invalida su listado default. */
+    invalidar_listado(&state, auth.user_id, ENDPOINT_VENTAS).await;
     Ok(Json(AnularVentaResponse {
         anulada: venta.anulada,
         venta,

@@ -32,6 +32,18 @@ pub type ResumenCacheValor = (Instant, ResumenEconomico);
 /// Caché en memoria del resumen económico, compartida por clones de `AppState`.
 pub type ResumenCache = Arc<RwLock<HashMap<ResumenCacheKey, ResumenCacheValor>>>;
 
+/// Clave (restaurante, endpoint) → (instante de cálculo, JSON serializado).
+/// [179A-1/F1] Solo se cachea el combo default de cada listado (1ª página,
+/// sin filtros ni ordenación): una entrada por (usuario, endpoint) acota la
+/// memoria y cubre el tráfico lector caliente (UI abre siempre el default).
+/// Clavea por `user_id` (= restaurante, igual que el resumen): jamás sale a
+/// un borde compartido sin `Authorization` delante (CF ve DYNAMIC con token).
+pub type ListadosCacheKey = (Uuid, &'static str);
+/// Valor cacheado de un listado default con su instante de cálculo.
+pub type ListadosCacheValor = (Instant, Vec<u8>);
+/// Caché en memoria de listados default, compartida por clones de `AppState`.
+pub type ListadosCache = Arc<RwLock<HashMap<ListadosCacheKey, ListadosCacheValor>>>;
+
 /// Estado compartido de la aplicación — accesible desde handlers y middleware
 #[derive(Clone)]
 pub struct AppState {
@@ -49,4 +61,8 @@ pub struct AppState {
      * invalidación en escrituras de ventas/gastos (handlers). Un nodo,
      * memoria local: sin Redis a propósito. */
     pub resumen_cache: ResumenCache,
+    /* [179A-1/F1] Caché en memoria de listados default por (restaurante,
+     * endpoint). TTL 15 s + invalidación en escrituras del endpoint (handlers);
+     * el TTL cubre escrituras de fondo (sync BDP/Haddock) igual que en D2. */
+    pub listados_cache: ListadosCache,
 }

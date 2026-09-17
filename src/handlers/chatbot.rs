@@ -10,7 +10,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::errors::AppError;
-use crate::middleware::ApiKeyAuth;
+use crate::middleware::{invalidar_listado, ApiKeyAuth, ENDPOINT_RESERVAS};
 use crate::models::{
     ChatbotBuscarReservasQuery, ChatbotCrearReservaRequest, ChatbotReservaResponse,
     DisponibilidadResponse, RestauranteInfoResponse,
@@ -85,6 +85,8 @@ pub async fn crear_reserva(
 
     let reserva = ChatbotService::crear_reserva(&state.pool, auth.user_id, req).await?;
 
+    /* [179A-1/F1] La reserva vía chatbot también invalida el listado default. */
+    invalidar_listado(&state, auth.user_id, ENDPOINT_RESERVAS).await;
     /* [283A-20] Notificación en tiempo real al panel del usuario */
     let _ = NotificacionService::emitir(
         &state.pool,

@@ -10,7 +10,10 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::errors::AppError;
-use crate::middleware::{respuesta_cacheable, AuthUser, VisibilidadCache};
+use crate::middleware::{
+    guardar_listado_cache, invalidar_listado, leer_listado_cache, respuesta_cacheable,
+    respuesta_cacheable_bytes, AuthUser, VisibilidadCache, ENDPOINT_GASTOS,
+};
 use crate::models::{
     ActualizarGastoRequest, CategoriaGasto, CrearGastoRequest, DatosDocumentoExtraidos,
     DigitalizarDocumentoRequest, Gasto, GastosQuery, ProveedoresQuery,
@@ -41,6 +44,8 @@ pub async fn crear_gasto(
     let gasto = GastoService::create(&state.pool, auth.user_id, req).await?;
     /* [169A-5/D2.2] Toda escritura de gastos invalida el resumen cacheado. */
     DashboardService::invalidar_resumen(&state, auth.user_id).await;
+    /* [179A-1/F1] Toda escritura de gastos invalida su listado default. */
+    invalidar_listado(&state, auth.user_id, ENDPOINT_GASTOS).await;
     Ok((StatusCode::CREATED, Json(gasto)))
 }
 
@@ -84,6 +89,22 @@ pub async fn listar_gastos(
     Query(params): Query<GastosQuery>,
     headers: HeaderMap,
 ) -> Result<Response, AppError> {
+    /* [179A-1/F1] Combo default: caché en app, sin tocar postgres. */
+    let es_default = params.page == 1
+        && params.per_page == 20
+        && params.desde.is_none()
+        && params.hasta.is_none()
+        && params.categoria_id.is_none()
+        && params.busqueda.is_none()
+        && params.tipo_documento.is_none()
+        && params.metodo_pago.is_none()
+        && params.sort_by.is_none()
+        && params.sort_order.is_none();
+    if es_default {
+        if let Some(bytes) = leer_listado_cache(&state, auth.user_id, ENDPOINT_GASTOS).await {
+            return respuesta_cacheable_bytes(bytes, VisibilidadCache::Publica, 15, &headers);
+        }
+    }
     let gastos = GastoService::list(
         &state.pool,
         auth.user_id,
@@ -99,6 +120,11 @@ pub async fn listar_gastos(
         params.sort_order,
     )
     .await?;
+    if es_default {
+        if let Ok(bytes) = serde_json::to_vec(&gastos) {
+            guardar_listado_cache(&state, auth.user_id, ENDPOINT_GASTOS, bytes).await;
+        }
+    }
     /* [169A-5/D2.3] Listado base compartido del restaurante, TTL 15 s. */
     respuesta_cacheable(&gastos, VisibilidadCache::Publica, 15, &headers)
 }
@@ -128,6 +154,8 @@ pub async fn actualizar_gasto(
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let gasto = GastoService::update(&state.pool, id, auth.user_id, req).await?;
     DashboardService::invalidar_resumen(&state, auth.user_id).await;
+    /* [179A-1/F1] Toda escritura de gastos invalida su listado default. */
+    invalidar_listado(&state, auth.user_id, ENDPOINT_GASTOS).await;
     Ok(Json(gasto))
 }
 
@@ -151,6 +179,8 @@ pub async fn eliminar_gasto(
 ) -> Result<StatusCode, AppError> {
     GastoService::delete(&state.pool, id, auth.user_id).await?;
     DashboardService::invalidar_resumen(&state, auth.user_id).await;
+    /* [179A-1/F1] Toda escritura de gastos invalida su listado default. */
+    invalidar_listado(&state, auth.user_id, ENDPOINT_GASTOS).await;
     Ok(StatusCode::NO_CONTENT)
 }
 

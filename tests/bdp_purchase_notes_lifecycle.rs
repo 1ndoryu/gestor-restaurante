@@ -377,6 +377,7 @@ fn make_app_state(pool: PgPool) -> AppState {
         notif_tx,
         modo_operacion: glory_backend::services::ServicioModoOperacion::default(),
         resumen_cache: Default::default(),
+        listados_cache: Default::default(),
     }
 }
 

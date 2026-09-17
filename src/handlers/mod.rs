@@ -518,6 +518,9 @@ pub fn create_router(
         resumen_cache: std::sync::Arc::new(tokio::sync::RwLock::new(
             std::collections::HashMap::new(),
         )),
+        listados_cache: std::sync::Arc::new(tokio::sync::RwLock::new(
+            std::collections::HashMap::new(),
+        )),
     };
 
     /* [303A-2] CORS: restringir orígenes en producción.

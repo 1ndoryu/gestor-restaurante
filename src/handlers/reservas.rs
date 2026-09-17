@@ -2,17 +2,21 @@
 263A-6: Filtros turno/estado para vista día, resumen mensual para vista mes */
 
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::errors::AppError;
-use crate::middleware::AuthUser;
+use crate::middleware::{
+    guardar_listado_cache, invalidar_listado, leer_listado_cache, respuesta_cacheable,
+    respuesta_cacheable_bytes, AuthUser, VisibilidadCache, ENDPOINT_RESERVAS,
+};
 use crate::models::{
     ActualizarReservaRequest, CrearReservaRequest, NoShowQuery, NoShowStats, Reserva,
-    ReservasConteo, ReservasPaginadas, ReservasQuery, ResumenDiario, ResumenMesQuery,
+    ReservasConteo, ReservasQuery, ResumenDiario, ResumenMesQuery,
 };
 use crate::services::ReservaService;
 use crate::AppState;
@@ -38,6 +42,8 @@ pub async fn crear_reserva(
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let reserva = ReservaService::create(&state.pool, auth.user_id, req).await?;
+    /* [179A-1/F1] Toda escritura de reservas invalida su listado default. */
+    invalidar_listado(&state, auth.user_id, ENDPOINT_RESERVAS).await;
     Ok((StatusCode::CREATED, Json(reserva)))
 }
 
@@ -79,9 +85,31 @@ pub async fn listar_reservas(
     State(state): State<AppState>,
     auth: AuthUser,
     Query(params): Query<ReservasQuery>,
-) -> Result<Json<ReservasPaginadas>, AppError> {
+    headers: HeaderMap,
+) -> Result<Response, AppError> {
+    /* [179A-1/F1] Combo default: caché en app, sin tocar postgres. */
+    let es_default = params.page == 1
+        && params.per_page == 20
+        && params.fecha.is_none()
+        && params.fecha_desde.is_none()
+        && params.fecha_hasta.is_none()
+        && params.estado.is_none()
+        && params.turno.is_none()
+        && params.busqueda.is_none()
+        && params.sort_by.is_none()
+        && params.sort_order.is_none();
+    if es_default {
+        if let Some(bytes) = leer_listado_cache(&state, auth.user_id, ENDPOINT_RESERVAS).await {
+            return respuesta_cacheable_bytes(bytes, VisibilidadCache::Publica, 15, &headers);
+        }
+    }
     let reservas = ReservaService::list(&state.pool, auth.user_id, &params).await?;
-    Ok(Json(reservas))
+    if es_default {
+        if let Ok(bytes) = serde_json::to_vec(&reservas) {
+            guardar_listado_cache(&state, auth.user_id, ENDPOINT_RESERVAS, bytes).await;
+        }
+    }
+    respuesta_cacheable(&reservas, VisibilidadCache::Publica, 15, &headers)
 }
 
 /// Actualizar una reserva
@@ -107,6 +135,8 @@ pub async fn actualizar_reserva(
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let reserva = ReservaService::update(&state.pool, id, auth.user_id, req).await?;
+    /* [179A-1/F1] Toda escritura de reservas invalida su listado default. */
+    invalidar_listado(&state, auth.user_id, ENDPOINT_RESERVAS).await;
     Ok(Json(reserva))
 }
 
@@ -129,6 +159,8 @@ pub async fn eliminar_reserva(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
     ReservaService::delete(&state.pool, id, auth.user_id).await?;
+    /* [179A-1/F1] Toda escritura de reservas invalida su listado default. */
+    invalidar_listado(&state, auth.user_id, ENDPOINT_RESERVAS).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
