@@ -5,7 +5,7 @@ use serde::Serialize;
 use utoipa::ToSchema;
 
 /// Resumen económico: Gastos totales, Ventas totales, Margen
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ResumenEconomico {
     pub total_ventas: rust_decimal::Decimal,
     pub total_gastos: rust_decimal::Decimal,

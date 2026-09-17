@@ -3,6 +3,7 @@
 
 use rust_decimal::Decimal;
 use sqlx::PgPool;
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use crate::errors::AppError;
@@ -12,8 +13,15 @@ use crate::models::{
 use crate::repositories::{
     ConfiguracionRepository, DashboardReservasRepository, GastoRepository, VentaRepository,
 };
+use crate::AppState;
 
 pub struct DashboardService;
+
+/* [169A-5/D2.2] TTL del resumen en memoria: 30 s. Un dashboard de
+ * restaurante tolera medio minuto de dato viejo; a cambio el endpoint más
+ * caliente del perfil lector (3 queries secuenciales) deja de tocar
+ * postgres en cada refresco de la UI. */
+const RESUMEN_TTL: Duration = Duration::from_secs(30);
 
 impl DashboardService {
     /// Resumen económico de un mes: total ventas, total gastos, margen
@@ -52,6 +60,43 @@ impl DashboardService {
             margen,
             mes,
         })
+    }
+
+    /// Resumen con caché en memoria por (restaurante, año, mes).
+    /// Clavea por `user_id` (= restaurante: el `sub` del JWT es el
+    /// propietario también para trabajadores). Escribe con TTL y lee sin
+    /// tocar postgres dentro del TTL.
+    pub async fn resumen_mes_cacheado(
+        state: &AppState,
+        user_id: Uuid,
+        year: i32,
+        month: u32,
+    ) -> Result<ResumenEconomico, AppError> {
+        {
+            let cache = state.resumen_cache.read().await;
+            if let Some((instante, datos)) = cache.get(&(user_id, year, month)) {
+                if instante.elapsed() < RESUMEN_TTL {
+                    return Ok(datos.clone());
+                }
+            }
+        }
+        let datos = Self::resumen_mes(&state.pool, user_id, year, month).await?;
+        state
+            .resumen_cache
+            .write()
+            .await
+            .insert((user_id, year, month), (Instant::now(), datos.clone()));
+        Ok(datos)
+    }
+
+    /// Invalida el resumen cacheado del restaurante. Llamar tras cada
+    /// escritura de ventas/gastos (handlers); el TTL cubre el resto.
+    pub async fn invalidar_resumen(state: &AppState, user_id: Uuid) {
+        state
+            .resumen_cache
+            .write()
+            .await
+            .retain(|clave, _| clave.0 != user_id);
     }
 
     /// Dashboard completo de reservas: resumen + ocupacion + analisis

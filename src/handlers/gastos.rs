@@ -2,19 +2,20 @@
 283A-8: + digitalización de documentos vía Groq IA */
 
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::errors::AppError;
-use crate::middleware::AuthUser;
+use crate::middleware::{respuesta_cacheable, AuthUser, VisibilidadCache};
 use crate::models::{
     ActualizarGastoRequest, CategoriaGasto, CrearGastoRequest, DatosDocumentoExtraidos,
-    DigitalizarDocumentoRequest, Gasto, GastosPaginados, GastosQuery, ProveedoresQuery,
+    DigitalizarDocumentoRequest, Gasto, GastosQuery, ProveedoresQuery,
 };
-use crate::services::{DigitalizacionService, GastoService};
+use crate::services::{DashboardService, DigitalizacionService, GastoService};
 use crate::AppState;
 
 /// Crear un gasto
@@ -38,6 +39,8 @@ pub async fn crear_gasto(
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let gasto = GastoService::create(&state.pool, auth.user_id, req).await?;
+    /* [169A-5/D2.2] Toda escritura de gastos invalida el resumen cacheado. */
+    DashboardService::invalidar_resumen(&state, auth.user_id).await;
     Ok((StatusCode::CREATED, Json(gasto)))
 }
 
@@ -79,7 +82,8 @@ pub async fn listar_gastos(
     State(state): State<AppState>,
     auth: AuthUser,
     Query(params): Query<GastosQuery>,
-) -> Result<Json<GastosPaginados>, AppError> {
+    headers: HeaderMap,
+) -> Result<Response, AppError> {
     let gastos = GastoService::list(
         &state.pool,
         auth.user_id,
@@ -95,7 +99,8 @@ pub async fn listar_gastos(
         params.sort_order,
     )
     .await?;
-    Ok(Json(gastos))
+    /* [169A-5/D2.3] Listado base compartido del restaurante, TTL 15 s. */
+    respuesta_cacheable(&gastos, VisibilidadCache::Publica, 15, &headers)
 }
 
 /// Actualizar un gasto
@@ -122,6 +127,7 @@ pub async fn actualizar_gasto(
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let gasto = GastoService::update(&state.pool, id, auth.user_id, req).await?;
+    DashboardService::invalidar_resumen(&state, auth.user_id).await;
     Ok(Json(gasto))
 }
 
@@ -144,6 +150,7 @@ pub async fn eliminar_gasto(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
     GastoService::delete(&state.pool, id, auth.user_id).await?;
+    DashboardService::invalidar_resumen(&state, auth.user_id).await;
     Ok(StatusCode::NO_CONTENT)
 }
 

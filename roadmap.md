@@ -158,6 +158,8 @@ push del cierre.
 
 ### Bloque 169A-5 — Escalar a 50.000 personas consultando con evidencia (plan activo 2026-09-16)
 
+169A-5 (plan activo 2026-09-16)
+
 Plan: `Agente/planes/plan-50k-2026-09-16.md`. Aritmética: 50k × 1 req/10s ≈
 5.000 req/s en borde; con ≥95 % HIT en Cloudflare el origen ve ≤250 req/s.
 Fases: D1 perfilado (EXPLAIN + clasificación cacheable), D2 origen (índices +
@@ -165,11 +167,17 @@ caché en app + headers), D3 borde (proxy naranja + reglas CF + test negativo
 de privacidad), D4 harness `consulta50k` (rampa por tramos con parada
 automática), D5 medición y claim (cifra = tramo verde redondeado abajo).
 Hechos: cero caché hoy, sin CDN en path (gris), índices base OK, manager con
-`cache` pero sin reglas CF visibles. **D0 saneamiento base (2026-09-17,
-previo a D2, decisión usuario):** gate 169A-5 rojo por 7 items pre-existentes
-en `main` — 3 planes sin checklist, `type-check` por `node_modules` ausente
-en `glory-rs`, `clippy -D warnings` (17), deriva `rustfmt`. Autorizaciones
-pendientes: push D2, deploy, proxy+reglas CF, tramos de carga, publicar cifra.
+`cache` pero sin reglas CF visibles. **D1 hecho 2026-09-17:** SUMs dashboard
+13–15 ms Seq Scan, `ventas_listar` 14,2 ms, maps/stock <0,3 ms; trabajadores
+comparten `sub`=propietario → caché por URL segura en single-tenant (D3.3 la
+confirma). **D2 código hecho 2026-09-17** (migración + caché resumen TTL 30 s
+con invalidación + `Cache-Control`/`ETag` en 5 GETs; `check` limpio, tests
+verdes). **D0 saneamiento base (2026-09-17, previo a D2, decisión usuario):**
+7 items reparados — 3 planes con checklist/archivado, `type-check`
+(`node_modules` en `glory-rs`), `clippy -D warnings` (17→0), `rustfmt`,
+`npm_execpath` robusto (commit 27007ce). Autorizaciones pendientes: push D2,
+deploy, proxy+reglas CF, tramos de carga, publicar cifra. Límite abierto:
+`rust-test` ~350 s supera el budget 300 s del gate (solución pendiente).
 
 ### Bloque 099A-1 — Paquete restaurante 2026-09-09: hosting ES/UE + MFA + SaaS + seguridad (plan activo 2026-09-09)
 

@@ -16,6 +16,8 @@
  * [157A-9] F9.3-F9.5: sync-prices, sync-tables, menús/fastfoods/packs. */
 
 use axum::extract::{Path, State};
+use axum::http::HeaderMap;
+use axum::response::Response;
 use axum::routing::{get, patch};
 use axum::{Json, Router};
 use rust_decimal::Decimal;
@@ -23,7 +25,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::errors::AppError;
-use crate::middleware::AuthUser;
+use crate::middleware::{respuesta_cacheable, AuthUser, VisibilidadCache};
 use crate::models::UserRole;
 use crate::models::{
     ActualizarBdpArticleMapRequest, AjustarBdpArticleStockRequest, BdpArticleMap, BdpArticleStock,
@@ -110,9 +112,11 @@ pub fn routes() -> Router<AppState> {
 pub async fn listar_article_maps(
     State(state): State<AppState>,
     auth: AuthUser,
-) -> Result<Json<Vec<BdpArticleMap>>, AppError> {
+    headers: HeaderMap,
+) -> Result<Response, AppError> {
     let maps = BdpArticleMapRepository::listar(&state.pool, auth.user_id).await?;
-    Ok(Json(maps))
+    /* [169A-5/D2.3] Catálogo del restaurante: 0,1 ms en origen, TTL 60 s. */
+    respuesta_cacheable(&maps, VisibilidadCache::Publica, 60, &headers)
 }
 
 /// Listar stock de artículos por almacén. Por defecto devuelve el almacén
@@ -130,9 +134,11 @@ pub async fn listar_article_maps(
 pub async fn listar_article_stock(
     State(state): State<AppState>,
     auth: AuthUser,
-) -> Result<Json<Vec<BdpArticleStock>>, AppError> {
+    headers: HeaderMap,
+) -> Result<Response, AppError> {
     let stock = BdpArticleMapRepository::listar_stock(&state.pool, auth.user_id, None).await?;
-    Ok(Json(stock))
+    /* [169A-5/D2.3] Stock del restaurante: 0,2 ms en origen, TTL 60 s. */
+    respuesta_cacheable(&stock, VisibilidadCache::Publica, 60, &headers)
 }
 
 /* [128A-1/F3] Ajuste manual de stock local. Funciona sin BDP: escribe en

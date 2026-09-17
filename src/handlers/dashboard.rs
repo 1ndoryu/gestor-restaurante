@@ -2,14 +2,16 @@
  * 263A-13: Dashboard de reservas Fase 2 */
 
 use axum::extract::{Query, State};
+use axum::http::HeaderMap;
+use axum::response::Response;
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::Deserialize;
 use utoipa::IntoParams;
 
 use crate::errors::AppError;
-use crate::middleware::AuthUser;
-use crate::models::{DashboardReservas, ResumenEconomico};
+use crate::middleware::{respuesta_cacheable, AuthUser, VisibilidadCache};
+use crate::models::DashboardReservas;
 use crate::services::DashboardService;
 use crate::AppState;
 
@@ -38,10 +40,15 @@ pub async fn resumen(
     State(state): State<AppState>,
     auth: AuthUser,
     Query(params): Query<ResumenQuery>,
-) -> Result<Json<ResumenEconomico>, AppError> {
+    headers: HeaderMap,
+) -> Result<Response, AppError> {
+    /* [169A-5/D2.2+D2.3] Agregado cacheado en memoria (TTL 30 s) + `private`
+     * con ETag/304. Mismo cuerpo para todos los usuarios del restaurante,
+     * pero se marca privado hasta que D3 demuestre aislamiento en el borde. */
     let data =
-        DashboardService::resumen_mes(&state.pool, auth.user_id, params.year, params.month).await?;
-    Ok(Json(data))
+        DashboardService::resumen_mes_cacheado(&state, auth.user_id, params.year, params.month)
+            .await?;
+    respuesta_cacheable(&data, VisibilidadCache::Privada, 30, &headers)
 }
 
 /// Dashboard completo de reservas: resumen, ocupacion y analisis

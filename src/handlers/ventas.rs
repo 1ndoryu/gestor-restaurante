@@ -1,22 +1,22 @@
 /* 253A-5: Handlers de ventas — CRUD endpoints */
 
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::errors::AppError;
-use crate::middleware::AuthUser;
+use crate::middleware::{respuesta_cacheable, AuthUser, VisibilidadCache};
 use crate::models::{
-    ActualizarVentaRequest, AnularVentaRequest, CrearVentaRequest, Venta, VentaLinea,
-    VentasPaginadas, VentasQuery,
+    ActualizarVentaRequest, AnularVentaRequest, CrearVentaRequest, Venta, VentaLinea, VentasQuery,
 };
 use crate::repositories::{BdpAuditLogRepository, VentaRepository};
 use crate::services::{
     payload_propina, verificar_permiso, AccionPermiso, BdpOrderPollerService, BdpPushService,
-    BdpSyncService, ModoEfectivo, ServicioModoOperacion, VentaService,
+    BdpSyncService, DashboardService, ModoEfectivo, ServicioModoOperacion, VentaService,
 };
 use crate::AppState;
 
@@ -41,6 +41,8 @@ pub async fn crear_venta(
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let venta = VentaService::create(&state.pool, auth.user_id, req).await?;
+    /* [169A-5/D2.2] Toda escritura de ventas invalida el resumen cacheado. */
+    DashboardService::invalidar_resumen(&state, auth.user_id).await;
     Ok((StatusCode::CREATED, Json(venta)))
 }
 
@@ -104,7 +106,8 @@ pub async fn listar_ventas(
     State(state): State<AppState>,
     auth: AuthUser,
     Query(params): Query<VentasQuery>,
-) -> Result<Json<VentasPaginadas>, AppError> {
+    headers: HeaderMap,
+) -> Result<Response, AppError> {
     let ventas = VentaService::list(
         &state.pool,
         auth.user_id,
@@ -122,7 +125,9 @@ pub async fn listar_ventas(
         params.sort_order,
     )
     .await?;
-    Ok(Json(ventas))
+    /* [169A-5/D2.3] Listado base: mismo cuerpo para todo el restaurante,
+     * TTL corto (15 s) porque cambia con cada venta. */
+    respuesta_cacheable(&ventas, VisibilidadCache::Publica, 15, &headers)
 }
 
 /// Actualizar una venta
@@ -149,6 +154,7 @@ pub async fn actualizar_venta(
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let venta = VentaService::update(&state.pool, id, auth.user_id, req).await?;
+    DashboardService::invalidar_resumen(&state, auth.user_id).await;
     Ok(Json(venta))
 }
 
@@ -176,6 +182,7 @@ pub async fn eliminar_venta(
      * escritura destructiva sobre ventas, default 'admin'). */
     verificar_permiso(&state.pool, AccionPermiso::AnulacionVentas, &auth).await?;
     VentaService::delete(&state.pool, id, auth.user_id).await?;
+    DashboardService::invalidar_resumen(&state, auth.user_id).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -213,6 +220,7 @@ pub async fn anular_venta(
     /* [128A-1/F8] Permiso por acción: anulación de ventas (D8/M17). */
     verificar_permiso(&state.pool, AccionPermiso::AnulacionVentas, &auth).await?;
     let venta = VentaService::anular(&state.pool, id, auth.user_id, req).await?;
+    DashboardService::invalidar_resumen(&state, auth.user_id).await;
     Ok(Json(AnularVentaResponse {
         anulada: venta.anulada,
         venta,

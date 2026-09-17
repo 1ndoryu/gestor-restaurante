@@ -33,6 +33,7 @@ fn make_app_state(pool: PgPool) -> AppState {
         },
         notif_tx,
         modo_operacion: ServicioModoOperacion::default(),
+        resumen_cache: Default::default(),
     }
 }
 

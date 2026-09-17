@@ -515,6 +515,9 @@ pub fn create_router(
         config,
         notif_tx,
         modo_operacion,
+        resumen_cache: std::sync::Arc::new(tokio::sync::RwLock::new(
+            std::collections::HashMap::new(),
+        )),
     };
 
     /* [303A-2] CORS: restringir orígenes en producción.
