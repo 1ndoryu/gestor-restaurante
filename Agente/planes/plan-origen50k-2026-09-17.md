@@ -120,17 +120,26 @@ regla de honestidad (cifra = tramo verde redondeado abajo).
   criterio de reversión: si pg >80 % en re-medición, revertir).
   Verificado `npm run check:back` (solo warning `dead_code` preexistente
   169A-2). DoD: u1000 no colapsa por cola de pool.
-- [ ] **F5. Re-medición y claim.** BLOQUEADO hasta reconstruir
-  `coolify-manager-rs` (binario perdido): el saneamiento de base (vuelta a
-  ~0 filas demo como en 169A-5) y el muestreo pg (`container-stats`,
-  `run-sql`, `muestrear.mjs`) lo exigen; sin sanear, cada tramo añade miles
-  de filas de escritores y el baseline deriva (~17k hoy). No lanzar más
-  tramos hasta entonces. Al re-medir: `consulta50k` mix-90 u500 → u1000,
-  informe nuevo, cifra redondeada abajo.
+- [x] **F5-desbloqueo.** Manager `1.0.0` reconstruido (`C:\tmp\glory-target\…`
+  + copia `%TEMP%\opencode`); F2a EXPLAIN staging OK (ventas 0,52 ms,
+  clientes 0,36 ms, reservas 0,59 ms; DoD <5 ms cumplido); base saneada
+  (`C:\tmp\sanear_harness.sql`); F2/F3 desplegados e índices `%f2` en vivo.
 - [ ] **F5. Re-medición y claim.** `consulta50k` mix-90 u500 → u1000 (+T1/T2
   solo si el contenedor pasa a ser el cuello); informe individual nuevo;
   cifra redondeada abajo. Si el hito 2 no sale, el informe dice el nuevo
   techo y su causa (misma honestidad que 169A-5).
+  **Hallazgo 2026-09-17 (freno externo, no del código):** tras el primer
+  u1000 (~13:10, colapso 529 req/s con pool 10) los tramos se degradan en
+  cascada — u1000 pool-20 13 req/s, u500 pool-20 47 req/s — mientras
+  app (p50 0 %) y pg (p50 2 %) están IDLE y las sondas secuenciales pasan
+  (356-584 ms, sin `cf-mitigated`). Firma de throttle por IP concurrente
+  aguas arriba (CF) tras la inundación u1000, NO de regresión del pool
+  (20 > 10 no puede reducir throughput con pg idle). Evidencia archivada:
+  `50k-u500-f2f3.json` (1490 VERDE ×2), `50k-u1000-pool10.json`,
+  `50k-u1000-pool20.stats.jsonl`, `50k-u500-postflood.json`.
+  Protocolo: pausar inundaciones, re-sondear en escalera u100→u250→u500
+  cuando decaiga el throttle; si u500 vuelve a ~1400+, reintentar u1000
+  con rampa (no 1000 VU de golpe).
 
 ## Opciones descartadas (explícito)
 
