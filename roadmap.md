@@ -198,6 +198,18 @@ bypass (CF siguió dando HIT). **Claim: ≥5.000 personas consultando
 `Agente/completados/informe-50k-2026-09-17.md`. Límite abierto:
 `rust-test` ~350 s supera el budget 300 s del gate (solución pendiente).
 
+### Bloque 179A-1 — Abaratar origen y llegar a 50k (plan activo 2026-09-17)
+
+Plan: `Agente/planes/plan-origen50k-2026-09-17.md`. Origen: techo 230 DYNAMIC/s
+(informe-50k-2026-09-17): cada listado = 2 queries pesadas
+(`src/repositories/venta.rs:158-219`), solo el dashboard tiene caché en app.
+Fases: F1 caché en app para listados default (TTL 15-30 s + invalidación),
+F2 recorte por query (índice default, vía sin JOIN, COUNT estimado), F3
+dashboard en paralelo (`tokio::join`), F4 pool/pg con compuerta de medición,
+F5 re-medición y claim (hito 1: 2.500 req/s ≈ 25k; hito 2: 5.000 req/s = 50k).
+Descartado explícito: caché CF para privados, réplica/VPS mayor, subir TTLs.
+Autorización pendiente: empezar F1.
+
 ### Bloque 099A-1 — Paquete restaurante 2026-09-09: hosting ES/UE + MFA + SaaS + seguridad (plan activo 2026-09-09)
 
 Origen: reunión del restaurante trasladada por Guillermo el 2026-09-09 (chat 04–09/09/2026 en
