@@ -88,7 +88,12 @@ regla de honestidad (cifra = tramo verde redondeado abajo).
   caminos en el repositorio, no un flag global); F2d: COUNT exacto solo con
   filtros, sin filtros usar estimado/`COUNT` cacheado con el mismo TTL.
   DoD: `ventas_listar` default p50 < 5 ms en `EXPLAIN ANALYZE` staging.
-- [ ] **F3. Dashboard en paralelo.** `resumen_mes`
+- [x] **F3. Dashboard en paralelo.** (2026-09-17) `resumen_mes`
+  (`src/services/dashboard.rs:28`): `obtener_o_crear` + `total_gastos` en
+  `tokio::join!`; `total_ventas` después (depende de la modalidad).
+  Verificado local: `fmt` + `check` + `clippy` limpios (salvo `dead_code`
+  ajeno 169A-2), `test --lib` 186/186. DoD: miss de caché p50 dividido ~×3
+  (de ~30-45 ms a ~12-18 ms en staging).
   (`src/services/dashboard.rs:28`): config + total_ventas + total_gastos son
   independientes → `tokio::join`. DoD: miss de caché p50 dividido ~×3
   (de ~30-45 ms a ~12-18 ms en staging).
