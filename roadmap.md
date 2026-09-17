@@ -228,6 +228,14 @@ u500 47 req/s) con app/pg IDLE y sondas secuenciales OK (sin
 `cf-mitigated`) = throttle por IP concurrente aguas arriba (CF), no
 regresión. Protocolo: pausa de inundaciones + re-sondeo en escalera
 u100→u250→u500; rampa hacia u1000, no 1000 VU de golpe.
+**Cierre F5 2026-09-17:** el throttle persiste/agravado con cada sonda
+(u100 92 req/s) pero el egress local está sano (100 paralelos a google
+p95 628 ms, 0 fallos) = throttle CF por IP, no código ni PC.
+**Claim provisional: ≥14.000 personas (u500 mix-90 1.490 req/s VERDE,
+techo origen 419 DYNAMIC/s, +59 % vs baseline).** Pool 20 sin probar
+(desplegado en ventana throttled). Informe:
+`Agente/completados/informe-50k-f5-2026-09-17.md`. Reintento u1000 con
+rampa o IP rotada a decisión del usuario.
 
 ### Bloque 099A-1 — Paquete restaurante 2026-09-09: hosting ES/UE + MFA + SaaS + seguridad (plan activo 2026-09-09)
 
