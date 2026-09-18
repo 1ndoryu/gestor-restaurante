@@ -202,3 +202,29 @@
 .chartLegendColor {
   background-color: var(--color);
 }
+
+/* [189A-2] Scroll minimalista del menú lateral: fino (6px), pista transparente
+ * y pulgar sutil que se acentúa al hover. Sustituye al `no-scrollbar` que
+ * SidebarContent traía de la plantilla (clase muerta: sin plugin ni @utility
+ * que la defina, el scroll existía pero sin ningún indicador visible).
+ * Regla sin @layer: gana a las utilidades de Tailwind. */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--sidebar-foreground) 22%, transparent) transparent;
+}
+.sidebar-scroll:hover {
+  scrollbar-color: color-mix(in srgb, var(--sidebar-foreground) 45%, transparent) transparent;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--sidebar-foreground) 22%, transparent);
+  border-radius: 999px;
+}
+.sidebar-scroll:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--sidebar-foreground) 45%, transparent);
+}
