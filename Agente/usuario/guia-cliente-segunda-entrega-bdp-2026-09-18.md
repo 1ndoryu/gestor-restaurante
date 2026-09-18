@@ -123,3 +123,35 @@ aplicación:
 | Crear el almacén en el TPV                 | Restaurante (en el terminal)    | Stock e inventario                            |
 | IP del servidor de mensajes en el terminal | Restaurante (en el terminal)    | Aviso de camarero                             |
 | Anular comanda 6258 y departamento 901     | Restaurante (cuando se indique) | Limpieza de pruebas                           |
+| Anular cliente 900001 y comanda 5330       | Restaurante (cuando se indique) | Limpieza de pruebas                           |
+
+## 9. Historial de pruebas en el BDP real
+
+Todo lo escrito en el BDP fue prueba (`PRUEBA-*`, importes mínimos, fuera de
+horas de servicio):
+
+| Fecha | Operación | Estado hoy |
+|---|---|---|
+| 05/08 | Cliente 900001 creado | Sigue en el BDP → borrar a mano en el TPV |
+| 05/08 | Comanda 5330 (5,50 €), quedó abierta | Sigue abierta → anular a mano en el TPV |
+| 05/09 | Artículo 90000003 de prueba | Neutralizado el 15/09 (invisible en web); no se puede borrar |
+| 15/09 | Departamento 901 de prueba | Pendiente anular en el TPV |
+| 15/09 | Comanda 6258 (0,11 €), quedó abierta | Sigue abierta → anular a mano en el TPV |
+| 16/09 | Puntos +1/−1 al cliente 900001 | Neto cero, sin residuo |
+| 16/09 | Llamada de camarero (mesa 99) | Rechazada por el BDP, nada entregado |
+| 18/09 | Comanda 6338 creada ya cobrada (0,11 €) | Anulada por la aplicación esa noche, cerrada |
+| 18/09 | Propina 0,01 € en la comanda 6258 | Registrada en el BDP |
+| 15 y 18/09 | Intento de cobrar la 6258 | Bloqueado antes de escribir, nada enviado |
+
+## 10. Datos de acceso al BDP
+
+| Dato | Valor |
+|---|---|
+| Dirección | `http://100.83.196.35:8068` (red Tailscale) |
+| Usuario | `admin` |
+| Clave | `kamples2026` |
+| Código de integrador | `VBW2MBM5` |
+| Puesto (POS) / empleado / perfil | 31 / 1 / 1 |
+| Artículo de prueba | 1001 (CAFE BOMBON) |
+| Almacén / motivo | 1 (sin crear en el TPV) / 1 |
+| Versión | 36.2, Hostelería |
