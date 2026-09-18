@@ -287,7 +287,9 @@ prueba de noche; el `⏸` sigue valiendo para `Payment/Add` a comanda existente.
 INCIDENTE `200109`) y su fix local `sync_catalog`; el residuo `90000003` sigue en el BDP real
 (pendiente 1g) y `ModifyArticleAndUpdateProfile` sigue sin funcionar contra el BDP real con payload
 mínimo.
-**Siguiente paso:** Fase 1 (no toca red ni BDP).
+**Siguiente paso:** Fase 3 ejecutada 2026-09-18 (Q2.7/Q2.9/Q2.11 VERDES, Q2.5
+bloqueo vigente, Q2.6 no intentada; detalle en `Agente/completados/tareas-2026-09-18.md`).
+Queda: S9 visual + TPV restaurante (anular 6258, depto 901, crear almacén 1).
 **Subplan 2026-09-15 (navegador diferido):** `Agente/planes/plan-catalogo-bdp-front-honesto-2026-09-15.md`
 — front honesto de Catálogo (código visible + estado push + error que distingue),
 lecciones de W-Q2.3; F1 obligatorio, F2 recomendado, F3 diferible.
