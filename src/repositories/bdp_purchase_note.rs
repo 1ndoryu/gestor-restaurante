@@ -42,15 +42,17 @@ impl BdpPurchaseNoteRepository {
             );
             let _ = args.add(format!("%{proveedor}%"));
         }
-        if let Some(ref desde) = params.fecha_desde {
+        /* [fix-fechas-compras-2026-09-18] `fecha` es columna `date`:
+         * se bindea `NaiveDate` (el modelo ya lo exige), nunca texto. */
+        if let Some(desde) = params.fecha_desde {
             param_idx += 1;
             let _ = write!(query, " AND fecha >= ${param_idx}");
-            let _ = args.add(desde.clone());
+            let _ = args.add(desde);
         }
-        if let Some(ref hasta) = params.fecha_hasta {
+        if let Some(hasta) = params.fecha_hasta {
             param_idx += 1;
             let _ = write!(query, " AND fecha <= ${param_idx}");
-            let _ = args.add(hasta.clone());
+            let _ = args.add(hasta);
         }
 
         query.push_str(" ORDER BY fecha DESC NULLS LAST, serie, numero");

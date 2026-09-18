@@ -114,14 +114,17 @@ pub struct ActualizarBdpPurchaseNoteRequest {
 }
 
 /// Parámetros de consulta para listar albaranes.
+/* [fix-fechas-compras-2026-09-18] `NaiveDate` en vez de `String`: axum
+ * rechaza formatos inválidos con 400 y sqlx bindea `date` contra la
+ * columna `fecha` (`date >= text` devolvía 500). */
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct BdpPurchaseNoteListParams {
     #[serde(default)]
     pub proveedor: Option<String>,
     #[serde(default)]
-    pub fecha_desde: Option<String>,
+    pub fecha_desde: Option<chrono::NaiveDate>,
     #[serde(default)]
-    pub fecha_hasta: Option<String>,
+    pub fecha_hasta: Option<chrono::NaiveDate>,
 }
 
 /// Request para sincronizar albaranes desde BDP.

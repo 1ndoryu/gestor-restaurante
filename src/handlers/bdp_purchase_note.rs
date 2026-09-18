@@ -54,8 +54,8 @@ pub fn routes() -> Router<AppState> {
     tag = "BDP Compras",
     params(
         ("proveedor" = Option<String>, Query, description = "Filtro por código o nombre de proveedor"),
-        ("fecha_desde" = Option<String>, Query, description = "Fecha inicial (YYYY-MM-DD)"),
-        ("fecha_hasta" = Option<String>, Query, description = "Fecha final (YYYY-MM-DD)")
+        ("fecha_desde" = Option<chrono::NaiveDate>, Query, description = "Fecha inicial (YYYY-MM-DD)"),
+        ("fecha_hasta" = Option<chrono::NaiveDate>, Query, description = "Fecha final (YYYY-MM-DD)")
     ),
     responses(
         (status = 200, description = "Lista de albaranes", body = [BdpPurchaseNote]),
