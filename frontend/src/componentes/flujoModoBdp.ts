@@ -3,7 +3,9 @@
  * funcionan en el navegador empaquetado) y mensajes de error reales del
  * backend. Lo usan las tarjetas de `ConfigBdp`, el selector de
  * `PanelBdpBackup` y el menú del badge en `site-header`, para no triplicar
- * la secuencia confirmar → destino → alcance/objetivo → mutación. */
+ * la secuencia confirmar → alcance/objetivo → mutación. [189A-7] Sin
+ * diálogo de teclear el destino: el front ya conoce la URL configurada y
+ * la envía directamente como `confirmarDestino` tras la confirmación. */
 
 import { toast } from 'sonner';
 import { useSetSyncMode, type SyncMode } from '@/api/bdp-backup';
@@ -44,19 +46,6 @@ export function useFlujoModoBdp() {
 
   function baseLimpia(bdpBaseUrl: string): string {
     return bdpBaseUrl.trim().replace(/\/$/, '');
-  }
-
-  async function confirmarDestino(base: string, titulo: string): Promise<boolean> {
-    const typed = await pedirTextoConDialogo({
-      titulo,
-      descripcion: 'Escribe exactamente la URL BDP de destino para confirmar.',
-      placeholder: base,
-      validar: (valor) =>
-        valor.trim().replace(/\/$/, '') === base && base
-          ? null
-          : 'La URL escrita no coincide exactamente.',
-    });
-    return typed !== null;
   }
 
   function exigirBaseUrl(bdpBaseUrl: string): string | null {
@@ -107,7 +96,6 @@ export function useFlujoModoBdp() {
       textoConfirmar: 'Sí, continuar',
     });
     if (!confirmed) return;
-    if (!(await confirmarDestino(base, 'Confirma el destino BDP'))) return;
     mutate(
       {
         modo: 'automatic',
@@ -137,7 +125,6 @@ export function useFlujoModoBdp() {
       textoConfirmar: 'Sí, continuar',
     });
     if (!confirmed) return;
-    if (!(await confirmarDestino(base, 'Confirma el destino BDP'))) return;
     const operacion = await elegirOpcionConDialogo({
       titulo: 'Elige una sola operación',
       opciones: [
