@@ -387,6 +387,13 @@ inicial. Hoy `build_order` (`bdp_sync_venta.rs:671-719`) envía sin `Payments`/`
 `Invoice=false`: ese flujo en dos pasos es el bloqueado. `GetApplicationVersion` 84 → WeblinkRestAPI
 v1.2 sin errores; 89 → Hostelería v36.2; ninguna indica el tipo de suscripción.
 
+En cristiano: la comanda 6258 se creó sin cobrar y al intentar cobrarla después nuestro
+propio sistema de seguridad lo frenó (para cobrar necesita leer la comanda y la versión
+gratuita no deja leerla). Guillermo leyó el manual y vio que la gratuita sí permite crear
+comandas ya cobradas desde el inicio —lo bloqueado es cobrar después—. Lo probamos esa
+noche (comanda 6338, ya cobrada al crearla) y funcionó. Moraleja: no se puede cobrar la
+6258 (quedó pendiente para anular en TPV), pero sí crear comandas cobradas.
+
 **De día (sin red BDP) — HECHO 2026-09-16 (commit `263155b`):** `build_order` incluye
 `Payments: [{TenderId, Amount, PaymentId}]` (PaymentId = MarketplaceOrderId estable), `Tip` si
 propina positiva e `Invoice=true` solo con tender y total positivo; sin tender todo como antes.
