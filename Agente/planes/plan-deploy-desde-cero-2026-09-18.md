@@ -26,6 +26,14 @@
 2. Confirmar que `glory-rest` = `restaurante.wandori.us` = `serviceId 14` = contenedores `app-b8s0cks444o0sogo8kg8wcgw` + `postgres-b8s0cks444o0sogo8kg8wcgw`.
 3. Ese inventario se te enseña y solo se sigue con tu visto bueno. Sin inventario verificado, no hay F1.
 
+### F0.0b — Estado de backups verificado 2026-09-18 (solo-lectura, sin secretos)
+Fuente: `coolify-manager-rs` (`settings.json`: 11 sitios, `backupPolicy` enabled en todos; incidente `incidente-backups-2026-08-27.md` + desenlace 05/09 + veredictos WP 09/09).
+- **Sistema canónico = VPS** (`/usr/local/bin/backup-server.sh`, crontab diario 03:00 UTC, `errors=0` hasta 27/08; `daily_keep=2 weekly_keep=2`). Sistema legacy Windows roto desde 14/08 (redundante, no protege nada).
+- WordPress (5): `guillermo`, `padel`, `wandori`, `nakomi`, `cap` — último veredicto 09/09 AMARILLO benigno (spam + transients), ningún restore procede.
+- Rust: `studio` restaurado 05/09 desde weekly 23/08 (verificado 0 huérfanos FK); `kamples` OK (pendiente pgvector ajeno a backups); `glory-rest` OK (dump 27/08 40 tablas); `agape` OK; `task` cubierto (db-compare 28/08 23/23).
+- **Sin verificar:** `restaurante-perf` (no aparece en el incidente 27/08; confirmar cobertura en F0) y frescura posterior al 09/09 (requiere manager compilado).
+- **Huecos conocidos:** los dumps VPS son solo BD (`.sql.gz`); uploads solo los cubría el legacy roto — `glory-rest` (`_uploads-data`) y `agape`/`task` sin backup de ficheros. Lección del 05/09: con `daily_keep=2` un vaciado silencioso puede rotar antes de detectarse (proponer subir retención, no ejecutar ahora).
+
 ### Alcance acotado por nombre y por UUID
 - Los recursos de restaurante llevan prefijo propio en todo: contenedores `*-b8s0cks444o0sogo8kg8wcgw`, volúmenes `b8s0cks444o0sogo8kg8wcgw_*` (`pg-data`, `app-data`, `uploads-data`), red `b8s0cks444o0sogo8kg8wcgw`. Cualquier comando que no mencione ese UUID o `--name glory-rest` no se ejecuta.
 - El borrado de BD entra SOLO al contenedor `postgres-b8s0cks444o0sogo8kg8wcgw` (BD `rust_db`). Las BD ajenas viven en otros contenedores/volúmenes y no se listan ni se tocan.
