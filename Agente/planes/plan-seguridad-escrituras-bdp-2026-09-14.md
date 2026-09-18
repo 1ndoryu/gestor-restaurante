@@ -150,8 +150,12 @@ credenciales/token; NIF/teléfonos/emails enmascarados).
 3. **Pendiente de ellos tras reactivar**: reintentar pago 0,11€ orden 6258, factura, y limpieza (anular 6258 + depto 901 `PRUEBA-149A2-DEP-20260915`).
 4. **Configurar IP de Servidor de Mensajes en su terminal** (Q2.10): el aviso de camarero llega al BDP pero no se entrega por `[404602]` — falta esa IP en la Configuración de Servicios Web del terminal por defecto.
 
-## 10. Próximo paso
+## 10. Próximo paso (protocolo silencioso 2026-09-17 — no romper nada)
 
-Fase 1 (auditoría) puede empezar sin BDP y sin red; Fase 3 no se toca hasta que lo autorices.
-
-Siguiente prueba propuesta (2026-09-16, pendiente de tu autorización explícita): **W-Q2.10 llamada a camarero** — aviso sin estado persistente, sin dependencia del pago bloqueado, la más probable que funcione en tier gratuito. Alternativa: W-Q2.8 puntos de fidelidad (cliente de prueba, motivo `PRUEBA-149A2`). W-Q2.6/W-Q2.7 siguen bloqueadas hasta el tier de pago.
+Fase 1 (auditoría) puede empezar sin BDP y sin red; Fase 3 no se toca hasta que lo autorices
+**por operación**. Para 169A-2 rige el protocolo silencioso del roadmap: P0 solo-lectura →
+P1 `OnlyCheck` con payload de pago-en-creación (`EndType=1`, cero creación) → P2 real mínima
+(0,11 €, `EndType=1`, hueco muerto, anulación <1 min). **`EndType=0` PROHIBIDO** (imprime en
+cocina; requiere autorización separada + aviso). Prohibido tocar `.env`, reiniciar sin backup,
+tocar datos reales (solo `PRUEBA-*`) o dejar residuos. Parar ante licencia/5xx/impresión
+inesperada. Detalle y estado en bloque 169A-2 del roadmap.

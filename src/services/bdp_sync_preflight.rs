@@ -18,6 +18,9 @@ use crate::services::bdp_weblink_catalog::{
 
 const BDP_DRY_RUN_MARKET_ID: i32 = 9_901;
 const BDP_DRY_RUN_PAGE_SIZE: i32 = 10;
+/* [169A-2] Nombres de los checks OnlyCheck del dry-run (clásico y P1 con pago). */
+const ONLY_CHECK: &str = "CreateOrder OnlyCheck";
+const ONLY_CHECK_CON_PAGO: &str = "CreateOrder OnlyCheck con pago";
 
 #[derive(Debug, Serialize, ToSchema)]
 #[allow(clippy::struct_excessive_bools)]
@@ -51,10 +54,15 @@ struct BdpDryRunArticle {
 pub struct BdpSyncPreflightService;
 
 impl BdpSyncPreflightService {
+    /* [169A-2] `con_pago_tender`: P1 silencioso. Con `Some(tender)` el
+     * OnlyCheck final valida el payload exacto de pago-en-creación
+     * (Payments + Invoice, EndType=1) sin crear nada; con `None` el dry-run
+     * anterior sin pago. El tender se valida contra la lista del POS. */
     pub async fn execute(
         pool: &PgPool,
         user_id: uuid::Uuid,
         config: &ConfiguracionRestaurante,
+        con_pago_tender: Option<i32>,
     ) -> BdpSyncDryRunResponse {
         let mut response = BdpSyncDryRunResponse::new(config.bdp_sync_enabled);
         if !bdp_configurado(config) {
@@ -150,7 +158,15 @@ impl BdpSyncPreflightService {
         .await;
 
         if pos.is_some() && employee.is_some() && departments.is_some() {
-            Self::check_order_only(config, &client, articles.as_ref(), &mut response).await;
+            Self::check_order_only(
+                config,
+                &client,
+                articles.as_ref(),
+                tenders.as_ref(),
+                con_pago_tender,
+                &mut response,
+            )
+            .await;
         }
 
         response.listo_para_sincronizar = response.checks.iter().all(|check| check.ok);
@@ -360,14 +376,7 @@ impl BdpSyncPreflightService {
         };
 
         /* Extraer IDs válidos del POS */
-        let valid_ids: Vec<i64> = value_array(tenders_value, &["TenderList", "Tenders"])
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(|item| number_i64(item, &["Id"]))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let valid_ids: Vec<i64> = tender_ids_presentes(Some(tenders_value));
 
         let mut issues = Vec::new();
         let mut mapped = 0;
@@ -458,6 +467,8 @@ impl BdpSyncPreflightService {
         config: &ConfiguracionRestaurante,
         client: &BdpWeblinkClient<'_>,
         articles: Option<&Value>,
+        tenders: Option<&Value>,
+        con_pago_tender: Option<i32>,
         response: &mut BdpSyncDryRunResponse,
     ) {
         /* [R12] Pasar iva_por_defecto de config como fallback */
@@ -474,18 +485,42 @@ impl BdpSyncPreflightService {
             return;
         };
 
-        let request = build_only_check_order(config, &article);
+        /* [169A-2] Con tender se valida el payload de pago-en-creación en modo
+         * OnlyCheck (OperationType=1: BDP valida sin crear comanda, pago ni
+         * factura). El tender debe existir en el POS; si no, error local sin
+         * llamar a BDP. Sin tender, el dry-run sin pago de siempre. */
+        let (request, nombre) = match con_pago_tender {
+            None => (build_only_check_order(config, &article), ONLY_CHECK),
+            Some(tender_id) => {
+                if tender_id <= 0
+                    || !tender_ids_presentes(tenders).contains(&i64::from(tender_id))
+                {
+                    response.checks.push(BdpSyncDryRunCheck::error(
+                        ONLY_CHECK_CON_PAGO,
+                        "/API/Orders/Create",
+                        format!(
+                            "tender_id={tender_id} no existe en el POS; no se llamo a BDP"
+                        ),
+                    ));
+                    return;
+                }
+                (
+                    build_only_check_order_con_pago(config, &article, tender_id),
+                    ONLY_CHECK_CON_PAGO,
+                )
+            }
+        };
         response.payload_preview = serde_json::to_value(&request).ok();
         let check = match client.check_order(&request).await {
             Ok(value) => BdpSyncDryRunCheck::ok(
-                "CreateOrder OnlyCheck",
+                nombre,
                 "/API/Orders/Create",
                 "El destino aceptó OnlyCheck; no se asume que una instalación real sea no persistente",
                 None,
                 summarize_value(&value, &["OrderId", "InvoiceNumber"]),
             ),
             Err(error) => BdpSyncDryRunCheck::error(
-                "CreateOrder OnlyCheck",
+                nombre,
                 "/API/Orders/Create",
                 format!("BDP rechazo el payload de comanda: {error}"),
             ),
@@ -551,7 +586,10 @@ fn build_only_check_order(
     BdpCreateOrderRequest {
         employee_id: config.bdp_employee_id,
         items_profile_id: config.bdp_items_profile_id,
-        order_end_type: 0,
+        /* [169A-2] EndType=1 como el flujo real: pendiente en autocomanda, sin
+         * cocina. En OnlyCheck nada se crea de todos modos; esto alinea el
+         * dry-run con lo que se enviará de noche. */
+        order_end_type: 1,
         order_operation_type: 1,
         invoice: Some(false),
         order: json!({
@@ -598,6 +636,74 @@ fn build_only_check_order(
     }
 }
 
+/* [169A-2] Variante OnlyCheck que replica el payload de pago-en-creación
+ * (P1 silencioso de la prueba nocturna): EndType=1, Payments con el total,
+ * PaymentId = MarketplaceOrderId (≤15), Invoice=true. OperationType=1, así que
+ * BDP solo valida sin crear comanda, pago ni factura. Sin tender no hay pago:
+ * usar `build_only_check_order` en ese caso. */
+fn build_only_check_order_con_pago(
+    config: &ConfiguracionRestaurante,
+    article: &BdpDryRunArticle,
+    tender_id: i32,
+) -> BdpCreateOrderRequest {
+    let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let marketplace_order_id = format!("GDRY{:010}", Utc::now().timestamp() % 10_000_000_000);
+    /* PaymentId = MarketplaceOrderId: BDP vincula el pago a la comanda por este
+     * id estable; va clonado porque `json!` consume los valores. */
+    let payment_id = marketplace_order_id.clone();
+    BdpCreateOrderRequest {
+        employee_id: config.bdp_employee_id,
+        items_profile_id: config.bdp_items_profile_id,
+        order_end_type: 1,
+        order_operation_type: 1,
+        invoice: Some(true),
+        order: json!({
+            "MarketplaceOrderId": marketplace_order_id,
+            "MarketId": BDP_DRY_RUN_MARKET_ID,
+            "MarketName": "Glory Dry Run",
+            "PreparationTime": now,
+            "OrderId": 0,
+            "PosId": config.bdp_pos_id,
+            "Type": 0,
+            "RoomNumber": 0,
+            "TableNumber": 0,
+            "Items": [{
+                "Lin": 1,
+                "Id": article.id,
+                "Name": article.name,
+                "Units": 1.0,
+                "Price": article.price,
+                "Supplement": 0.0,
+                "Discount": 0.0,
+                "DiscountPct": false,
+                "Total": article.price,
+                "VatPct": article.vat_pct,
+                "Comments": [],
+                "Supplements": [],
+                "OrderItemType": 0,
+                "OrderItemTypeMetaInfo": "",
+                "TyC_D1": 0,
+                "TyC_D2": 0,
+                "TyC_D3": 0,
+                "OnSale": false
+            }],
+            "TenderId": tender_id,
+            "Payments": [{
+                "TenderId": tender_id,
+                "Amount": article.price,
+                "PaymentId": payment_id,
+            }],
+            "Discount": 0.0,
+            "DiscountPct": false,
+            "Total": article.price,
+            "ExecutionTime": now,
+            "Status": 0,
+            "AlreadyInvoiced": false,
+            "Comments": "GLORY DRY RUN CON PAGO - NO CREAR"
+        }),
+    }
+}
+
 fn first_article(value: &Value, default_iva_pct: f64) -> Option<BdpDryRunArticle> {
     value_array(
         value,
@@ -627,6 +733,20 @@ fn first_article(value: &Value, default_iva_pct: f64) -> Option<BdpDryRunArticle
 fn value_array<'a>(value: &'a Value, keys: &[&str]) -> Option<&'a Vec<Value>> {
     keys.iter()
         .find_map(|key| value.get(*key).and_then(Value::as_array))
+}
+
+/* [169A-2] IDs de tenders del POS (respuesta de Tenders/GetPOSList).
+ * Sin lista (None) no hay ningún id válido: el P1 con pago exige tenders. */
+fn tender_ids_presentes(tenders: Option<&Value>) -> Vec<i64> {
+    tenders
+        .and_then(|value| value_array(value, &["TenderList", "Tenders"]))
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| number_i64(item, &["Id"]))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn summarize_value(value: &Value, keys: &[&str]) -> Option<String> {
@@ -703,6 +823,8 @@ mod tests {
     use chrono::NaiveTime;
     use rust_decimal::Decimal;
     use uuid::Uuid;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn config() -> ConfiguracionRestaurante {
         ConfiguracionRestaurante {
@@ -859,10 +981,201 @@ mod tests {
         let order = build_only_check_order(&config, &article);
 
         assert_eq!(order.order_operation_type, 1);
+        /* [169A-2] EndType=1 como el flujo real (pendiente, sin cocina). */
+        assert_eq!(order.order_end_type, 1);
         assert_eq!(order.invoice, Some(false));
         assert_eq!(order.order["Items"][0]["Id"], 1001);
         assert_eq!(order.order["AlreadyInvoiced"], false);
         assert!(order.order.get("Payments").is_none());
         assert!(order.order["MarketplaceOrderId"].as_str().unwrap().len() <= 15);
+    }
+
+    /* [169A-2] P1 silencioso: el OnlyCheck con pago replica el payload real
+     * (EndType=1, Payments=total, PaymentId=MarketplaceOrderId, Invoice=true)
+     * sin crear nada (OperationType=1). */
+    #[test]
+    fn only_check_con_pago_replica_payload_real() {
+        let config = config();
+        let article = BdpDryRunArticle {
+            id: 1001,
+            name: "COCA-COLA".to_string(),
+            price: 1.05,
+            vat_pct: 10.0,
+        };
+        let order = build_only_check_order_con_pago(&config, &article, 1);
+
+        assert_eq!(order.order_operation_type, 1, "OnlyCheck: no crea nada");
+        assert_eq!(order.order_end_type, 1, "pendiente, sin cocina");
+        assert_eq!(order.invoice, Some(true));
+        let payments = order
+            .order
+            .get("Payments")
+            .and_then(Value::as_array)
+            .expect("Payments presente");
+        assert_eq!(payments.len(), 1);
+        assert_eq!(payments[0].get("TenderId").and_then(Value::as_i64), Some(1));
+        assert!(
+            (payments[0].get("Amount").and_then(Value::as_f64).unwrap() - 1.05).abs()
+                < f64::EPSILON
+        );
+        assert_eq!(
+            payments[0].get("Amount").and_then(Value::as_f64),
+            order.order.get("Total").and_then(Value::as_f64),
+            "el pago iguala el total (si no, BDP no factura)"
+        );
+        let market_id = order
+            .order
+            .get("MarketplaceOrderId")
+            .and_then(Value::as_str)
+            .unwrap();
+        assert_eq!(
+            payments[0].get("PaymentId").and_then(Value::as_str),
+            Some(market_id)
+        );
+        assert!(market_id.len() <= 15);
+    }
+
+    /* [169A-2] Cableado P1: el OnlyCheck con tender válido del POS valida el
+     * payload de pago-en-creación contra BDP (mock) sin crear nada. */
+    fn dry_run_articles() -> Value {
+        json!({
+            "ArticleListData": [{
+                "ArtCode": 1001,
+                "ArtDescription": "CAFE",
+                "Price1": 1.10,
+                "TAVPer": 10.0
+            }]
+        })
+    }
+
+    fn dry_run_tenders() -> Value {
+        json!({
+            "TenderList": [
+                {"Id": 1, "Name": "EFECTIVO"},
+                {"Id": 2, "Name": "TARJETA"}
+            ]
+        })
+    }
+
+    fn mock_config(base_url: String) -> ConfiguracionRestaurante {
+        let mut cfg = config();
+        cfg.bdp_base_url = base_url;
+        cfg
+    }
+
+    async fn mock_bdp_only_check(server: &MockServer) {
+        Mock::given(method("POST"))
+            .and(path("/Auth/Login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "ErrorMessage": "",
+                "AuthSession": {"Token": "token-test", "ExpiresIn_InSecconds": 3540}
+            })))
+            .mount(server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/API/Orders/Create"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"ErrorMessage": ""})))
+            .mount(server)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn check_order_only_sin_tender_mantiene_dry_run_clasico() {
+        let server = MockServer::start().await;
+        mock_bdp_only_check(&server).await;
+        let cfg = mock_config(server.uri());
+        let client = BdpWeblinkClient::new(&cfg);
+        let articles = dry_run_articles();
+        let tenders = dry_run_tenders();
+        let mut response = BdpSyncDryRunResponse::new(true);
+
+        BdpSyncPreflightService::check_order_only(
+            &cfg,
+            &client,
+            Some(&articles),
+            Some(&tenders),
+            None,
+            &mut response,
+        )
+        .await;
+
+        let check = response.checks.last().expect("check OnlyCheck");
+        assert!(check.ok, "OnlyCheck clásico aceptado: {}", check.mensaje);
+        assert_eq!(check.nombre, "CreateOrder OnlyCheck");
+        let preview = response.payload_preview.as_ref().expect("preview del payload");
+        assert!(preview.get("Order").and_then(|o| o.get("Payments")).is_none());
+    }
+
+    #[tokio::test]
+    async fn check_order_only_con_pago_valido_envia_payments_en_only_check() {
+        let server = MockServer::start().await;
+        mock_bdp_only_check(&server).await;
+        let cfg = mock_config(server.uri());
+        let client = BdpWeblinkClient::new(&cfg);
+        let articles = dry_run_articles();
+        let tenders = dry_run_tenders();
+        let mut response = BdpSyncDryRunResponse::new(true);
+
+        BdpSyncPreflightService::check_order_only(
+            &cfg,
+            &client,
+            Some(&articles),
+            Some(&tenders),
+            Some(1),
+            &mut response,
+        )
+        .await;
+
+        let check = response.checks.last().expect("check OnlyCheck con pago");
+        assert!(check.ok, "OnlyCheck con pago aceptado: {}", check.mensaje);
+        assert_eq!(check.nombre, "CreateOrder OnlyCheck con pago");
+        let preview = response.payload_preview.as_ref().expect("preview del payload");
+        assert_eq!(
+            preview.get("OrderOperationType").and_then(Value::as_i64),
+            Some(1),
+            "sigue siendo OnlyCheck: cero creación"
+        );
+        assert_eq!(
+            preview.get("OrderEndType").and_then(Value::as_i64),
+            Some(1),
+            "pendiente en autocomanda, sin cocina"
+        );
+        assert_eq!(preview.get("Invoice").and_then(Value::as_bool), Some(true));
+        let payments = preview
+            .get("Order")
+            .and_then(|o| o.get("Payments"))
+            .and_then(Value::as_array)
+            .expect("Payments en el preview");
+        assert_eq!(payments.len(), 1);
+        assert_eq!(payments[0].get("TenderId").and_then(Value::as_i64), Some(1));
+    }
+
+    /* [169A-2] Tender inexistente en el POS: error local, BDP ni se llama. */
+    #[tokio::test]
+    async fn check_order_only_con_pago_rechaza_tender_desconocido_sin_red() {
+        let server = MockServer::start().await;
+        let cfg = mock_config(server.uri());
+        let client = BdpWeblinkClient::new(&cfg);
+        let articles = dry_run_articles();
+        let tenders = dry_run_tenders();
+        let mut response = BdpSyncDryRunResponse::new(true);
+
+        BdpSyncPreflightService::check_order_only(
+            &cfg,
+            &client,
+            Some(&articles),
+            Some(&tenders),
+            Some(99),
+            &mut response,
+        )
+        .await;
+
+        let check = response.checks.last().expect("check de error");
+        assert!(!check.ok);
+        assert_eq!(check.nombre, "CreateOrder OnlyCheck con pago");
+        assert!(
+            server.received_requests().await.unwrap_or_default().is_empty(),
+            "tender inválido: ninguna llamada de red"
+        );
     }
 }

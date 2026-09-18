@@ -442,17 +442,17 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
           <div>
             <div className="flex items-center gap-2">
               <Label htmlFor="ff-cancel-order">Cancelar comandas</Label>
-              <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700">Bloqueado por BDP</Badge>
+              <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-700">Verificado en BDP 2026-09-18</Badge>
               <TooltipButton
                 variant="ghost"
                 size="icon"
                 className="size-5"
-                tooltip="El endpoint de cancelación responde «Subscripción no activada». El módulo se habilita solo cuando BDP lo active y se compruebe con una instalación real; mientras tanto el interruptor permanece bloqueado."
+                tooltip="CancelOrder verificado funcionando contra el BDP real el 2026-09-18 (comanda 6338 cancelada vía API, auditoría «exito»). La anulación local encola venta/cancelar y el push la envía."
               >
                 <Info className="size-3.5 text-muted-foreground" />
               </TooltipButton>
             </div>
-            <p className="text-xs text-muted-foreground">Permitiría cancelar comandas directamente en BDP. El endpoint devuelve "Subscripción no activada" — activar solo cuando BDP habilite el módulo.</p>
+            <p className="text-xs text-muted-foreground">Permite cancelar comandas directamente en BDP (verificado 2026-09-18: CancelOrder con éxito). La anulación local la encola y el push la envía.</p>
           </div>
           <Switch
             id="ff-cancel-order"

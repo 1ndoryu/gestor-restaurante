@@ -3,7 +3,7 @@
  * PATCH /api/configuracion — actualizar campos parcialmente.
  * [283A-23] GET/PUT /api/configuracion/integraciones — credentials marketing. */
 
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
@@ -585,12 +585,21 @@ fn bdp_configurado(config: &ConfiguracionRestaurante) -> bool {
         && !config.bdp_integrator_code.trim().is_empty()
 }
 
+/* [169A-2] Query opt-in del dry-run: con `tender_id` el OnlyCheck final valida
+ * el payload exacto de pago-en-creación (P1 silencioso, cero creación BDP).
+ * Sin `tender_id`, el dry-run sin pago de siempre. */
+#[derive(Debug, Deserialize)]
+pub struct BdpDryRunQuery {
+    pub tender_id: Option<i32>,
+}
+
 /// Validar el contrato BDP contra el simulador local. `OnlyCheck` permanece
 /// bloqueado para destinos externos salvo allowlist extraordinaria separada.
 #[utoipa::path(
     get,
     path = "/api/configuracion/bdp/sync-dry-run",
     tag = "Configuracion",
+    params(("tender_id" = Option<i32>, Query, description = "Tender del POS para validar pago-en-creación en OnlyCheck (P1, cero creación)")),
     responses(
         (status = 200, description = "Dry-run de sincronización BDP", body = BdpSyncDryRunResponse),
         (status = 401, description = "No autorizado", body = ErrorResponse)
@@ -600,12 +609,13 @@ fn bdp_configurado(config: &ConfiguracionRestaurante) -> bool {
 pub async fn diagnosticar_bdp_sync_dry_run(
     State(state): State<AppState>,
     auth: AuthUser,
+    Query(query): Query<BdpDryRunQuery>,
 ) -> Result<Json<BdpSyncDryRunResponse>, AppError> {
     /* [149A-3/H-06] El preflight contacta el BDP real: solo el propietario. */
     auth.require_role(&[UserRole::Admin])?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     Ok(Json(
-        BdpSyncPreflightService::execute(&state.pool, auth.user_id, &config).await,
+        BdpSyncPreflightService::execute(&state.pool, auth.user_id, &config, query.tender_id).await,
     ))
 }
 

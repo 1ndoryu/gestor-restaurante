@@ -100,7 +100,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 | **Clientes BDP** (importar/sincronizar)                             | Clientes → "Importar BDP"                            | ✅ Funcional; lista clientes de BDP                                              |
 | **Plano de Sala** (mesas BDP)                                       | Plano de Sala → "Sync BDP"                           | ✅ Funcional                                                                     |
 | **Comandas** (crear orden en BDP)                                   | Ventas → "Enviar a BDP"                              | ✅ Funcional, requiere autorización temporal                                     |
-| **Pagos completos** (AddOrderPayment)                               | Ventas → "Pagar en BDP"                              | ✅ Implementado (verificado en simulador). **Verificación real pendiente**: `Payment/Add` responde "Subscripción no activada" (2026-08-05, prueba 2.3) — requiere suscripción WebLink de pago activa en la instalación. |
+| **Pagos completos** (AddOrderPayment)                               | Ventas → "Pagar en BDP"                              | ✅ Implementado (verificado en simulador). **Verificación real 2026-09-18**: pago-en-creación dentro del `CreateOrder` inicial funciona en gratuita (comanda 6338, 0,11 € con `Payments`, `bdp_synced=true`). El `Payment/Add` a comanda **existente** sigue pendiente de suscripción (prueba 2.3, 2026-08-05). |
 | **Pagos parciales** (AddOrderPayment parcial)                       | Ventas → icono de tarjeta en fila de venta           | ✅ Implementado bajo feature flag `ff_bdp_partial_payments`. Configurable desde UI. (Misma dependencia de suscripción de pago para BDP real). |
 | **Facturas** (InvoiceOrder)                                         | Ventas → "Facturar en BDP"                           | ✅ Implementado (verificado en simulador). **Verificación real pendiente**: misma dependencia de suscripción WebLink de pago (prueba 2.4). |
 | **Estado BDP**                                                      | Navbar (badge BDP: lectura/escritura)                | ✅ Visible e interactivo                                                         |
@@ -115,7 +115,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 | **Compras** (albaranes/facturas de proveedores) | **Fases 1-3 implementadas.** Lectura, borradores y conciliación. Protegidas por feature flags `ff_bdp_purchase_notes_*`. Configurables desde UI. | ✅ Implementado      |
 | **Pagos parciales**                             | Implementado bajo feature flag `ff_bdp_partial_payments`. Ledger local `bdp_pagos` con idempotency_key. Configurable desde UI.                   | ✅ Implementado      |
 | **Sincronización bidireccional automática**     | Riesgo de bucles y conflictos; no soportada por BDP                                                                                              | ❌ Rechazado         |
-| **CancelOrder**                                 | BDP responde "Subscripción no activada"                                                                                                          | ❌ Bloqueado por BDP |
+| **CancelOrder**                                 | ✅ Verificado funcionando contra BDP real 2026-09-18 (comanda 6338 cancelada vía API, auditoría `exito`); la anulación local encola `venta/cancelar` y el push la envía | ✅ Funcional |
 | **Modificación de stock**                       | Alcance solo lectura en integración actual                                                                                                       | ❌ Fuera de alcance  |
 
 ### 🔒 Autorización temporal para escrituras
@@ -278,9 +278,11 @@ Plan activo: `Agente/planes/plan-seguridad-escrituras-bdp-2026-09-14.md`. Sustit
 Repite desde cero Fase 1 (auditoría anti-desastre de las 13 operaciones Q2.1–Q2.13 × 13 dimensiones),
 Fase 2 (simulaciones: suites + simulador Python `:18765`; escenarios S1–S9 con confirmación visual
 de los estados de cola) y Fase 3 (escrituras reales una a una, **solo con autorización explícita por
-operación**; pago/factura/cancel `⏸` hasta activar la suscripción WebLink — **matiz 2026-09-16:**
-ver bloque 169A-2, el pago dentro del `CreateOrder` inicial puede funcionar en gratuita y se
-prueba de noche; el `⏸` sigue valiendo para `Payment/Add` a comanda existente).
+operación**; pago-a-existente/factura-a-existente `⏸` hasta activar la suscripción WebLink —
+**matiz 2026-09-16:** ver bloque 169A-2, el pago dentro del `CreateOrder` inicial puede funcionar en gratuita y se
+prueba de noche; el `⏸` sigue valiendo para `Payment/Add` a comanda existente.
+**Matiz 2026-09-18:** `CancelOrder` verificado funcionando contra el BDP real
+—comanda 6338 cancelada vía API, auditoría `exito`—; el `⏸` de cancelación queda levantado).
 **Historia que no se borra:** bajo 049A-1 sí se ejecutó **W-Q2.1 real** (alta de `90000003` →
 INCIDENTE `200109`) y su fix local `sync_catalog`; el residuo `90000003` sigue en el BDP real
 (pendiente 1g) y `ModifyArticleAndUpdateProfile` sigue sin funcionar contra el BDP real con payload
@@ -326,7 +328,8 @@ entradas deshabilitadas + aviso, desplegable BDP con las 2 opciones admin deshab
 honesto (cero escrituras), dueño todo habilitado + lista 3 trabajadores. **Subplan 149A-3
 COMPLETO** (detalle en el plan §7 + `tareas-2026-09-16.md`).
 
-**Siguiente paso:** 169A-2 nocturna (venta con pago en BDP real). 169A-3 HECHO 2026-09-16.
+**Siguiente paso:** 169A-2 P2 HECHO 2026-09-18 (ver bloque; incluye verificación
+empírica de `CancelOrder`). 169A-3 HECHO 2026-09-16.
 
 ### Bloque 169A-3 — Permisos de menú por trabajador: qué ve cada rol, todo configurable (nueva 2026-09-16)
 
@@ -398,8 +401,25 @@ P2 real mínima (0,11 €, artículo genérico, `EndType=1` pendiente en autocom
 Parar ante cualquier error de licencia/5xx/impresión inesperada. Prohibido tocar `.env`,
 reiniciar el backend sin backup, tocar datos reales (solo `PRUEBA-*`), o dejar residuos.
 Si BDP devuelve error de licencia en P1/P2, queda confirmado que hace falta suscripción de pago.
+**Hecho noche 2026-09-17:** P0 PASS (36.2 Hostelería, 557 art., 10 tenders, cero
+errores licencia) y P1 PASS (`?tender_id=1` → OnlyCheck con pago aceptado:
+`EndType=1`, `Payments=[{T1, Amount=total}]`, `Invoice=true`, cero creación).
+La gratuita **valida** pago-en-creación. Detalle en
+`Agente/completados/tareas-2026-09-17.md`.
+**P2 HECHO madrugada 2026-09-18** (detalle en `Agente/completados/tareas-2026-09-18.md`):
+venta `PRUEBA-169A2-PAGO-20260917` 0,10+0,01 € con `Payments` e `Invoice=false`
+(seam temporal `BDP_P2_SIN_FACTURA`, ya retirado) → comanda BDP **6338**
+(`bdp_synced=true`, `bdp_sync_error=null`); modo `read_only`/`standalone` restaurado.
+**Hallazgo: `CancelOrder` FUNCIONA en esta conexión** (el usuario tenía razón; el
+"Subscripción no activada" de 2026-08-05 ya no aplica): anulación local +
+`POST /api/bdp/push/:id/reintentar` → fila `venta/6338/cancelar` = `sincronizado`,
+auditoría `cancel_order` = `exito` (`cfde8212-…`). Documentación viva corregida
+(`bdp_sync.rs`, `ConfigBdp.tsx`, filas de este roadmap); el historial fechado se conserva.
 **Supersede:** deja obsoleta la hipótesis "pago/factura ⏸ hasta suscripción" del bloque 149A-2
 para pagos (la factura vía `Invoice=true` también entra en la prueba).
+**Seguimiento propuesto (no iniciado):** permitir armado manual `cancel_order` vía
+`PUT sync-mode` (hoy 422: el validador objetivo/alcance no lo clasifica como `venta`
+aunque el push lo usa); decidir con el cliente si se retira el flag `ff_bdp_cancel_order`.
 
 ### Bloque 039A-1 — Revisión integral BDP: independencia funcional + integración completa (3 rondas) (CERRADO POR REINICIO 2026-09-14)
 
@@ -584,7 +604,7 @@ Plan cerrado en
 ### Bloque 247A-9 — Decisiones pendientes del cliente
 
 | ID | Item | Pregunta al cliente | Esfuerzo estimado |
-| --- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- || D2 | **Compras** (albaranes) | ✅ Fases 1-3 implementadas y testeadas sin llamar a BDP: lectura, borradores locales y conciliación con gastos. Protegidas por feature flags `ff_bdp_purchase_notes_*`. | ~12h || D5 | **CancelOrder** | BDP responde "Subscripción no activada". ¿Pueden activar el módulo? | ~12-16h si BDP lo activa |
+| --- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- || D2 | **Compras** (albaranes) | ✅ Fases 1-3 implementadas y testeadas sin llamar a BDP: lectura, borradores locales y conciliación con gastos. Protegidas por feature flags `ff_bdp_purchase_notes_*`. | ~12h || D5 | **CancelOrder** | ✅ Verificado funcionando 2026-09-18 (comanda 6338 cancelada vía API). Pendiente decidir con el cliente: retirar el flag `ff_bdp_cancel_order` y permitir armado manual `cancel_order` | ~2h limpieza/contrato |
 
 ### Bloque 247A-11 — Modo Demo y Refuerzos Compras BDP (completado)
 
@@ -683,7 +703,7 @@ Plan cerrado en
 | 1b  | **Lecturas reales BDP, sin escrituras** — conexión, acceso y formas de pago verificados. Catálogo y Compras ya muestran configuración guiada y persistente cuando BDP devuelve cero artículos o rechaza la plantilla. El Explorador queda fuera del criterio de entrega. No se efectuó ningún cambio en BDP. | Cliente: elegir la tarifa que devuelva artículos y aportar un código de plantilla de Compras existente | ~30 min |
 | 1b  | **Tests E2E servicio contra simulador con DB** (sync_venta, add_payment, invoice)                                                                                                                                                 | ✅ Hecho (267A-5) — 11 tests: 8 guard + 3 E2E contra simulador+PostgreSQL | ✅ Hecho          |
 | 2   | **Activar 6 feature flags** en producción                                                                                                                                                                                         | ✅ UI implementada — se puede activar desde Configuración BDP             | ~1h verificación  |
-| 3   | **CancelOrder**                                                                                                                                                                                                                   | BDP: "Subscripción no activada"                                           | ~12-16h           |
+| 3   | **CancelOrder** — ✅ verificado funcionando 2026-09-18 (comanda 6338 cancelada vía API). Solo queda limpieza/contrato: retirar flag `ff_bdp_cancel_order`, permitir armado manual | BDP verificado | ~2h |
 | 4   | **S16-H3/H4**: Tests para allowlist y canonical_target                                                                                                                                                                            | ✅ Hecho (267A-4)                                                         | ✅ Hecho          |
 | 5   | **Tests simulador** (pagos parciales + compras)                                                                                                                                                                                   | ✅ Hecho — 92 Python + 23 Rust pasando                                    | ✅ Hecho (267A-2) |
 | 6   | **Runbook operativo BDP**                                                                                                                                                                                                         | ✅ Hecho                                                                  | ✅ Hecho          |

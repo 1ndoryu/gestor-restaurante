@@ -20,7 +20,10 @@
  * - OrderEndType=1 crea comanda pendiente (no facturada, no impresa). El TPV la muestra en autocomanda.
  * - MarketplaceOrderId max 15 chars (error 301011).
  * - AlreadyInvoiced e Invoice son campos REQUERIDOS dentro de Order.
- * - CancelOrder devuelve "Subscripción no activada" — no se puede cancelar vía API.
+ * - CancelOrder FUNCIONA en esta conexión (verificado 2026-09-18: comanda
+ *   6338 cancelada vía API, auditoría `cancel_order` = `exito`; la anulación
+ *   local encola `venta/cancelar` y el push la envía). El antiguo
+ *   "Subscripción no activada" era de 2026-08-05 y ya no aplica.
  * - Serie 00031TI (IVA incluido) configurada en POS 31 desde 2026-06-07. */
 
 use std::collections::HashMap;
@@ -566,6 +569,95 @@ mod tests {
             order_sin.order.get("Tip").is_none(),
             "Tip should not be present without propina"
         );
+    }
+
+    /* [169A-2] Resiliencia: total cero con tender NO genera Payments.
+     * BDP rechaza Amount=0 con [301201]; mejor no enviar pago que enviar uno
+     * que seguro falla (la sonda directa de 2026-09-15 lo demostró). */
+    #[test]
+    fn build_order_total_cero_con_tender_sin_payments() {
+        let config = test_config();
+        let mut venta = test_venta();
+        venta.importe_base = Decimal::ZERO;
+        venta.importe_iva = Decimal::ZERO;
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
+
+        let order =
+            BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
+        assert!(
+            order.order.get("Payments").is_none(),
+            "con total 0 no hay pago"
+        );
+        assert_eq!(order.invoice, Some(false));
+    }
+
+    /* [169A-2] Resiliencia: PaymentId = MarketplaceOrderId (≤15, ASCII) y
+     * estable entre reintentos de la misma venta → BDP puede deduplicar si la
+     * respuesta se pierde tras aplicar la escritura. */
+    #[test]
+    fn build_order_payment_id_estable_y_acotado() {
+        let config = test_config();
+        let venta = test_venta();
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
+
+        let primero =
+            BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
+        let segundo =
+            BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
+        let id_mercado = primero
+            .order
+            .get("MarketplaceOrderId")
+            .and_then(serde_json::Value::as_str)
+            .unwrap();
+        assert!(id_mercado.len() <= 15 && id_mercado.is_ascii());
+        assert_eq!(
+            segundo
+                .order
+                .get("MarketplaceOrderId")
+                .and_then(serde_json::Value::as_str),
+            Some(id_mercado),
+            "mismo id entre reintentos"
+        );
+        for orden in [&primero, &segundo] {
+            let pago = &orden
+                .order
+                .get("Payments")
+                .and_then(serde_json::Value::as_array)
+                .unwrap()[0];
+            assert_eq!(
+                pago.get("PaymentId").and_then(serde_json::Value::as_str),
+                Some(id_mercado)
+            );
+        }
+    }
+
+    /* [169A-2] Resiliencia: propina negativa no pinta Tip (BDP la rechazaría;
+     * es corrupción local, no se propaga). */
+    #[test]
+    fn build_order_propina_negativa_sin_tip() {
+        let config = test_config();
+        let mut venta = test_venta();
+        venta.propina = Decimal::from_str("-2.00").unwrap();
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
+
+        let order =
+            BdpSyncService::build_order(&config, &venta, &article, None, None, &test_order_ctx());
+        assert!(order.order.get("Tip").is_none(), "Tip negativo no se envía");
     }
 
     /* [F3.3] Test: Order type se mapea desde canal */
