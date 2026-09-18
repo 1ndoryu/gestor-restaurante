@@ -7,7 +7,34 @@
 > de prueba en septiembre (importes mínimos, fuera de horas de servicio,
 > anuladas después).
 
-## 1. Lo que la aplicación puede recibir del BDP (lectura)
+## 1. Lo que funciona sin el BDP (casi todo)
+
+El día a día del restaurante no necesita la conexión:
+
+- **Ventas:** vender y cobrar (en uno o varios pagos), propinas, anular ventas
+  con motivo, factura local e historial de ventas.
+- **Reservas:** calendario, canales de reserva y control de no-shows.
+- **Clientes:** altas, edición y puntos de fidelización.
+- **Catálogo local:** artículos, departamentos, familias, precios e impuestos.
+- **Menús y packs** locales.
+- **Compras y gastos:** albaranes, borradores y conciliación.
+- **Stock local e inventario:** ajustes de stock, conteos y aplicación al stock.
+- **Plano de sala** local (zonas y mesas).
+- **Marketing:** campañas, plantillas y recordatorios de WhatsApp.
+- **Gestión:** trabajadores y permisos, reseñas, control de inactividad,
+  configuración, copias de seguridad y reporte de errores.
+- **Acceso** con usuario y contraseña.
+
+## 2. Lo que necesita conexión al BDP (solo esto)
+
+- Traer datos del BDP (botones "Importar del BDP").
+- Enviar datos al BDP (comandas, pagos, facturas, puntos, cancelaciones, avisos).
+- La pantalla de Sincronización y el diagnóstico de la conexión.
+
+Sin conexión, todo lo del punto 1 sigue funcionando y los botones que
+requieren conexión aparecen ocultos o desactivados.
+
+## 3. Lo que la aplicación puede recibir del BDP (lectura)
 
 - **Catálogo:** 559 artículos con precio, impuesto y familia (verificado 18/09).
 - **Clientes,** con revisión previa: lo nuevo se copia, lo existente se vincula,
@@ -23,7 +50,7 @@
   explícita antes de aplicar. Al aplicar solo se crea lo que falta; nunca se
   borra nada.
 
-## 2. Lo que la aplicación puede enviar al BDP (escritura)
+## 4. Lo que la aplicación puede enviar al BDP (escritura)
 
 Verificado con operaciones reales:
 
@@ -44,31 +71,29 @@ aplicación:
 - Mostrar el aviso de camarero en el terminal (pendiente: poner la IP del
   servidor de mensajes en la configuración del terminal).
 
-## 3. Lo que no puede escribir (limitación del BDP, sin arreglo posible)
+## 5. Lo que no puede escribir (limitación del BDP, sin arreglo posible)
 
 - **Borrar** artículos o departamentos: solo se pueden desactivar.
 - **Modificar** una comanda ya enviada: hay que anularla y crear otra.
 
-## 4. Lo que no puede leer (limitación del BDP, sin arreglo posible)
+## 6. Lo que no puede leer (limitación del BDP, sin arreglo posible)
 
 - **Avisos automáticos:** el BDP no avisa cuando algo cambia; la aplicación
   tiene que preguntar.
 
-## 5. Cómo se trabaja
+## 7. Cómo se trabaja
 
 - Estado normal en solo lectura; cada envío requiere autorización puntual y el
   sistema vuelve solo a lectura después de operar.
 - No existe sincronización automática en las dos direcciones, para evitar
   duplicados.
-- La aplicación funciona también sin conexión: vender, cobrar, crear artículos,
-  ajustar el stock local, anular ventas (pidiendo motivo), crear albaranes y
-  menús, y ver el historial. Lo editado a mano no lo borra la conexión.
+- Lo editado a mano no lo borra la conexión.
 - Cada trabajador ve su menú según su función; lo técnico queda reservado al
   dueño (delegable por sección si se desea).
 - Los respaldos protegen los datos de la aplicación; no pueden deshacer nada
   dentro del BDP.
 
-## 6. Pendiente del restaurante (nada urgente, nada bloqueante)
+## 8. Pendiente del restaurante (nada urgente, nada bloqueante)
 
 1. Código del perfil de exportación (albaranes).
 2. Suscripción de pago (cobrar comandas existentes, detalle y factura).
