@@ -354,3 +354,69 @@ async fn auditoria_directa_registra_error_sin_romper(pool: PgPool) {
     assert_eq!(resultado, "error");
     assert!(error_mensaje.unwrap().contains("500"));
 }
+
+/// [267A-7] El modo automático autoriza sin armado y sin volver a `read_only`.
+#[sqlx::test(migrations = "./migrations")]
+async fn modo_automatico_autoriza_sin_armado_ni_cierre(pool: PgPool) {
+    assert!(BdpWriteGuard::modo_permite_escritura("automatic"));
+    assert!(BdpWriteGuard::modo_permite_escritura("unidirectional"));
+    assert!(!BdpWriteGuard::modo_permite_escritura("read_only"));
+
+    let user_id = create_test_user(&pool).await;
+    let mut config = ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración");
+    config.bdp_base_url = "http://127.0.0.1:18765".into();
+    config.bdp_sync_mode = "automatic".into();
+    sqlx::query(
+        "UPDATE configuracion_restaurante SET bdp_base_url = $2, bdp_sync_mode = 'automatic' WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .bind(&config.bdp_base_url)
+    .execute(&pool)
+    .await
+    .expect("configurar BDP local en automático");
+
+    let venta_id = Uuid::new_v4();
+    let audit_id = BdpWriteGuard::authorize(
+        &pool,
+        user_id,
+        &config,
+        "create_order",
+        "venta",
+        venta_id,
+        "venta_id",
+        &serde_json::json!({"venta_id": venta_id}),
+        None,
+        None,
+    )
+    .await
+    .expect("el modo automático autoriza sin armado");
+
+    let (resultado, motivo): (String, Option<String>) = sqlx::query_as(
+        "SELECT resultado, authorization_reason FROM bdp_audit_log WHERE id = $1",
+    )
+    .bind(audit_id)
+    .fetch_one(&pool)
+    .await
+    .expect("leer auditoría");
+    assert_eq!(resultado, "pendiente");
+    assert_eq!(motivo.as_deref(), Some("modo_automatico"));
+
+    let mode: String = sqlx::query_scalar(
+        "SELECT bdp_sync_mode FROM configuracion_restaurante WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .expect("leer modo");
+    assert_eq!(mode, "automatic", "el automático no se cierra tras operar");
+
+    let arming_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM bdp_write_arming WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("contar arming");
+    assert_eq!(arming_count, 0, "el automático no crea ni consume arming");
+}

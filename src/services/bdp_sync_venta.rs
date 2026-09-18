@@ -87,7 +87,7 @@ impl BdpSyncService {
         }
 
         /* [F3] Gate: en modo read_only, no enviar ventas a BDP */
-        if config.bdp_sync_mode != "unidirectional" {
+        if !crate::services::BdpWriteGuard::modo_permite_escritura(&config.bdp_sync_mode) {
             info!(
                 "[F3] BDP en modo read_only — sync_venta omitida para venta {}",
                 venta.id

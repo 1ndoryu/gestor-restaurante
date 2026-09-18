@@ -29,6 +29,15 @@ const VALID_BDP_WRITE_SCOPES: &[&str] = &[
 ];
 
 impl BdpWriteGuard {
+    /// Modos de `bdp_sync_mode` que permiten escrituras Glory → BDP:
+    /// `unidirectional` (con armado por operación) y `automatic` (autorización
+    /// permanente, siempre auditada). `read_only` y cualquier otro valor
+    /// bloquean.
+    #[allow(clippy::must_use_candidate)]
+    pub fn modo_permite_escritura(mode: &str) -> bool {
+        matches!(mode, "unidirectional" | "automatic")
+    }
+
     /// Un registro pendiente o ambiguo puede representar una operación remota
     /// aplicada sin confirmación local. Se bloquea cualquier nueva escritura
     /// sobre la misma entidad hasta reconciliación manual.
@@ -73,6 +82,11 @@ impl BdpWriteGuard {
     ) -> Result<(), String> {
         if !config.ff_bdp_auto_arm {
             return Err("Auto-arming BDP no está habilitado para este restaurante".into());
+        }
+        /* [267A-7] En modo automático no hay nada que armar: la autorización
+         * permanente ya cubre la operación. No-op para no degradar el modo. */
+        if config.bdp_sync_mode == "automatic" {
+            return Ok(());
         }
         if ServicioModoOperacion::modo_efectivo_desde_config(config) != ModoEfectivo::Bdp {
             return Err("La integración BDP no está activa".into());
@@ -352,10 +366,142 @@ impl BdpWriteGuard {
     /* [187A-1] Esta transacción es deliberadamente lineal: lock, bloqueo por
      * ambigüedad, consumo, auditoría y kill switch deben ser indivisibles. */
     #[allow(clippy::too_many_lines)]
+    /// Autoriza una escritura en modo `automatic`: verifica que la configuración
+    /// siga apuntando al mismo destino con las mismas credenciales y registra
+    /// la intención auditable. No consume armado (no hay) y no altera el modo.
+    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_lines)]
+    async fn authorize_automatic(
+        pool: &PgPool,
+        user_id: Uuid,
+        config: &ConfiguracionRestaurante,
+        scope: &str,
+        target_entity_type: &str,
+        target_entity_id: Uuid,
+        entity_json_field: &str,
+        datos_enviados: &serde_json::Value,
+        snapshot_pre_id: Option<Uuid>,
+        idempotency_key: Option<&str>,
+        base: &str,
+    ) -> Result<Uuid, String> {
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|error| format!("No se pudo iniciar autorización BDP: {error}"))?;
+
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!(
+                "bdp-write:{user_id}:{target_entity_type}:{target_entity_id}:{scope}"
+            ))
+            .execute(&mut *tx)
+            .await
+            .map_err(|error| format!("No se pudo bloquear la intención BDP: {error}"))?;
+
+        let unresolved: bool = sqlx::query_scalar(
+            r"SELECT EXISTS (
+                 SELECT 1 FROM bdp_audit_log
+                 WHERE user_id = $1
+                   AND resultado IN ('pendiente', 'ambiguo')
+                   AND (
+                     (target_entity_type = $2 AND target_entity_id = $3)
+                     OR datos_enviados ->> $4 = $3::TEXT
+                   )
+               )",
+        )
+        .bind(user_id)
+        .bind(target_entity_type)
+        .bind(target_entity_id)
+        .bind(entity_json_field)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|error| format!("No se pudo verificar intención previa BDP: {error}"))?;
+        if unresolved {
+            return Err(format!(
+                "Escritura BDP bloqueada: {target_entity_type}={target_entity_id} tiene una operación pendiente o ambigua"
+            ));
+        }
+
+        /* La configuración debe seguir en automático contra el mismo destino
+         * con las mismas credenciales/parámetros (un PATCH de conexión fuerza
+         * `read_only`, así que este check es segunda barrera, no la única). */
+        let config_ok: bool = sqlx::query_scalar(
+            r"SELECT EXISTS (
+                 SELECT 1 FROM configuracion_restaurante c
+                 WHERE c.user_id = $1
+                   AND TRIM(TRAILING '/' FROM TRIM(c.bdp_base_url)) = $2
+                   AND c.bdp_login = $3
+                   AND c.bdp_password = $4
+                   AND c.bdp_integrator_code = $5
+                   AND c.bdp_pos_id = $6
+                   AND c.bdp_employee_id = $7
+                   AND c.bdp_items_profile_id = $8
+                   AND c.bdp_sync_mode = 'automatic'
+               )",
+        )
+        .bind(user_id)
+        .bind(base)
+        .bind(&config.bdp_login)
+        .bind(&config.bdp_password)
+        .bind(&config.bdp_integrator_code)
+        .bind(config.bdp_pos_id)
+        .bind(config.bdp_employee_id)
+        .bind(config.bdp_items_profile_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|error| format!("No se pudo verificar el modo automático BDP: {error}"))?;
+        if !config_ok {
+            return Err(
+                "Escritura BDP bloqueada: el modo automático ya no está activo para este destino exacto"
+                    .into(),
+            );
+        }
+
+        let maybe_id: Option<Uuid> = sqlx::query_scalar(
+            r"INSERT INTO bdp_audit_log
+               (user_id, operacion, direccion, snapshot_pre_id, datos_enviados,
+                resultado, target_base_url, target_entity_type, target_entity_id,
+                authorization_reason, idempotency_key)
+               VALUES ($1, $2, 'glory_to_bdp', $3, $4, 'pendiente', $5, $6, $7, $8, $9)
+               ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+               RETURNING id",
+        )
+        .bind(user_id)
+        .bind(scope)
+        .bind(snapshot_pre_id)
+        .bind(datos_enviados)
+        .bind(base)
+        .bind(target_entity_type)
+        .bind(target_entity_id)
+        .bind("modo_automatico")
+        .bind(idempotency_key)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|error| format!("No se pudo registrar intención BDP: {error}"))?;
+
+        let Some(audit_id) = maybe_id else {
+            let key = idempotency_key.unwrap_or("");
+            let (existing_id, resultado): (Uuid, String) = sqlx::query_as(
+                "SELECT id, resultado FROM bdp_audit_log WHERE user_id = $1 AND idempotency_key = $2",
+            )
+            .bind(user_id)
+            .bind(key)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|error| format!("No se pudo leer auditoría BDP existente: {error}"))?;
+            return Err(format!("idempotencia_duplicada:{existing_id}:{resultado}"));
+        };
+
+        tx.commit()
+            .await
+            .map_err(|error| format!("No se pudo confirmar autorización BDP: {error}"))?;
+        Ok(audit_id)
+    }
+
     /// Autoriza una escritura BDP consumiendo un armado existente.
     /// Si `idempotency_key` se proporciona, se guarda en el registro de auditoría
     /// para permitir deduplicación posterior (C1 auto-arming).
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_lines)]
     pub async fn authorize(
         pool: &PgPool,
         user_id: Uuid,
@@ -375,6 +521,26 @@ impl BdpWriteGuard {
             .map_err(|error| error.to_string())?;
         let base = BdpBackupService::canonical_target(config)?;
         let fingerprint = BdpBackupService::connection_fingerprint(config)?;
+
+        /* [267A-7] Modo automático: autorización permanente sin armado por
+         * operación. Misma auditoría e idempotencia que el modo manual, pero
+         * no consume armado ni devuelve el modo a `read_only`. */
+        if config.bdp_sync_mode == "automatic" {
+            return Self::authorize_automatic(
+                pool,
+                user_id,
+                config,
+                scope,
+                target_entity_type,
+                target_entity_id,
+                entity_json_field,
+                datos_enviados,
+                snapshot_pre_id,
+                idempotency_key,
+                &base,
+            )
+            .await;
+        }
 
         let mut tx = pool
             .begin()

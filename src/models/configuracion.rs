@@ -84,7 +84,7 @@ pub struct ConfiguracionRestaurante {
     /* [F7.5] Auto-sync de clientes Glory→BDP al crear venta. Requiere autorización explícita del usuario. */
     pub bdp_auto_sync_customers: bool,
     /* [BKP-002] Configuración de backup BDP.
-     * bdp_sync_mode: 'read_only' | 'unidirectional' — permiso operativo.
+      * bdp_sync_mode: 'read_only' | 'unidirectional' | 'automatic' — permiso operativo.
      * bdp_backup_retention_days: días que se retienen snapshots (0 = indefinido).
      * bdp_auto_backup_before_write: si true, genera snapshot pre-escritura selectivo. */
     pub bdp_sync_mode: String,

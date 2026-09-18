@@ -375,7 +375,7 @@ fn validar_puerta_sincronizacion(
         ));
     }
 
-    if config.bdp_sync_mode != "unidirectional" {
+    if !crate::services::BdpWriteGuard::modo_permite_escritura(&config.bdp_sync_mode) {
         return Err(AppError::Validation(
             "BDP está en modo solo lectura; no se ejecutó ninguna escritura.".into(),
         ));

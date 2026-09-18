@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { confirmarConDialogo } from '../dialogoConfirmacion';
 import { useQueryClient } from '@tanstack/react-query';
 import { ErrorResponse } from '@/api/generated/gestionRestauranteAPI.schemas';
 import {
@@ -230,12 +231,18 @@ function BdpExplorador() {
     }
   }
 
-  function handleEliminar(menu: BdpMenuLocalConLineas) {
+  /* [267A-8] Confirmación con diálogo propio: `window.confirm` no funciona
+   * en el navegador empaquetado. */
+  async function handleEliminar(menu: BdpMenuLocalConLineas) {
     if (demoMode) {
       toast.info('En modo demo no se borran datos reales');
       return;
     }
-    if (!window.confirm(`¿Eliminar «${menu.nombre}»?`)) return;
+    const confirmado = await confirmarConDialogo({
+      titulo: `¿Eliminar «${menu.nombre}»?`,
+      textoConfirmar: 'Eliminar',
+    });
+    if (!confirmado) return;
     eliminarMutation.mutate(menu.id, {
       onSuccess: () => toast.success('Menú/pack eliminado'),
       onError: () => toast.error('No se pudo eliminar el menú/pack'),

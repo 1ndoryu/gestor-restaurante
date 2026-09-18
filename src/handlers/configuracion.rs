@@ -263,7 +263,7 @@ pub async fn actualizar_configuracion(
 /// Request para cambiar el modo de sincronización BDP
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CambiarBdpSyncModeRequest {
-    /// Nuevo modo: `read_only` o `unidirectional`.
+    /// Nuevo modo: `read_only`, `unidirectional` o `automatic`.
     #[validate(length(min = 1, message = "modo es requerido"))]
     pub modo: String,
     /// Confirmación explícita de que el usuario autoriza escrituras reales en BDP.
@@ -303,10 +303,13 @@ const VALID_BDP_WRITE_SCOPES: &[&str] = &[
     "add_points",
 ];
 
-/// Cambiar el modo de sincronización BDP (`read_only` / `unidirectional`)
+/// Cambiar el modo de sincronización BDP (`read_only` / `unidirectional` / `automatic`)
 ///
 /// En modo `read_only` ningún dato se envía a BDP (solo lectura).
 /// En modo `unidirectional` Glory → BDP (ventas, clientes).
+/// En modo `automatic` Glory → BDP sin confirmación por operación: cada
+/// escritura sigue auditada y sujeta a preflight, pero no requiere armado
+/// temporal ni vuelve sola a `read_only`.
 /// Las importaciones BDP→Glory son lecturas explícitas y no requieren un modo
 /// de escritura distinto. `bidirectional` permanece bloqueado hasta definir un
 /// contrato real para esa capacidad.
@@ -330,15 +333,15 @@ pub async fn cambiar_bdp_sync_mode(
     auth: AuthUser,
     Json(req): Json<CambiarBdpSyncModeRequest>,
 ) -> Result<Json<ConfiguracionRestaurante>, AppError> {
-    /* [149A-3/H-06] `read_only` ↔ `unidirectional` habilita escrituras reales al BDP:
+    /* [149A-3/H-06] `read_only` ↔ `unidirectional`/`automatic` habilita escrituras reales al BDP:
      * solo el propietario puede cambiarlo. */
     auth.require_role(&[UserRole::Admin])?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
-    if !matches!(req.modo.as_str(), "read_only" | "unidirectional") {
+    if !matches!(req.modo.as_str(), "read_only" | "unidirectional" | "automatic") {
         return Err(AppError::Validation(
-            "Modo BDP inválido; use read_only o unidirectional. bidirectional está bloqueado hasta que exista un contrato implementado y auditado.".into(),
+            "Modo BDP inválido; use read_only, unidirectional o automatic. bidirectional está bloqueado hasta que exista un contrato implementado y auditado.".into(),
         ));
     }
 
@@ -434,6 +437,60 @@ pub async fn cambiar_bdp_sync_mode(
         )
         .await
         .map_err(|error| AppError::Internal(format!("No se pudo crear armado BDP: {error}")))?;
+    } else if req.modo == "automatic" {
+        /* Modo automático: autorización permanente sin armado por operación.
+         * Exige la misma confirmación explícita, destino exacto, respaldo
+         * previo y snapshot vigente que el modo manual; la diferencia es que
+         * no hay objetivo/alcance por operación y el modo no vuelve solo a
+         * `read_only`. */
+        if !req.confirmar_escritura {
+            return Err(AppError::Validation(
+                "Se requiere confirmación explícita para activar el modo automático de escritura en BDP."
+                    .into(),
+            ));
+        }
+
+        let actual = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+        let target = BdpBackupService::canonical_target(&actual).map_err(AppError::Validation)?;
+        if req.confirmar_destino.trim().trim_end_matches('/') != target {
+            return Err(AppError::Validation(
+                "La confirmación del destino no coincide exactamente con la URL BDP configurada."
+                    .into(),
+            ));
+        }
+        BdpWeblinkClient::new(&actual)
+            .ensure_write_target_allowed()
+            .map_err(|error| AppError::Validation(error.to_string()))?;
+        if !actual.bdp_auto_backup_before_write {
+            return Err(AppError::Validation(
+                "No se puede activar el modo automático: bdp_auto_backup_before_write está desactivado."
+                    .into(),
+            ));
+        }
+
+        let fingerprint =
+            BdpBackupService::connection_fingerprint(&actual).map_err(AppError::Validation)?;
+        let snapshot_ok: bool = BdpWriteArmingRepository::buscar_snapshot_vigente(
+            &state.pool,
+            auth.user_id,
+            &target,
+            &fingerprint,
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("Error verificando snapshot BDP: {e}")))?
+        .is_some();
+
+        if !snapshot_ok {
+            return Err(AppError::Validation(
+                "No se puede activar el modo automático: falta un snapshot completo de esta conexión BDP exacta, vigente y sin lecturas fallidas."
+                    .into(),
+            ));
+        }
+
+        /* Sin armados colgados: en automático no hay armado por operación. */
+        BdpWriteArmingRepository::desarmar(&state.pool, auth.user_id)
+            .await
+            .map_err(|error| AppError::Internal(format!("No se pudo desarmar BDP: {error}")))?;
     } else {
         BdpWriteArmingRepository::desarmar(&state.pool, auth.user_id)
             .await

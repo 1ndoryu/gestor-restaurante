@@ -12,6 +12,7 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/c
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
 import {Textarea} from '@/components/ui/textarea';
 import {toast} from 'sonner';
+import { confirmarConDialogo, elegirOpcionConDialogo, pedirTextoConDialogo } from './dialogoConfirmacion';
 import {useBdpSnapshots, useBdpAudit, useCreateSnapshotCompleto, useCreateSnapshotParcial, useCreateSnapshotGlory, useDeleteSnapshot, useRestoreSnapshot, useSetSyncMode, type BdpSnapshot, type BdpAuditEntry, type SyncMode} from '@/api/bdp-backup';
 import type {EstadoConfiguracion} from '@/hooks/useConfiguracion';
 
@@ -19,7 +20,8 @@ import type {EstadoConfiguracion} from '@/hooks/useConfiguracion';
 
 const SYNC_MODES: {value: SyncMode; label: string; desc: string}[] = [
     {value: 'read_only', label: 'Solo lectura (BDP → Aplicación Web)', desc: 'Permite consultas e importaciones; la Aplicación Web no crea ni modifica datos en BDP.'},
-    {value: 'unidirectional', label: 'Autorizar una operación (Aplicación Web → BDP)', desc: 'Permiso excepcional para un cliente o venta exactos. Se cierra después de una operación.'}
+    {value: 'unidirectional', label: 'Autorizar una operación (Aplicación Web → BDP)', desc: 'Permiso excepcional para un cliente o venta exactos. Se cierra después de una operación.'},
+    {value: 'automatic', label: 'Automático (Aplicación Web → BDP sin pedir)', desc: 'Las escrituras se envían sin confirmación por operación, siempre auditadas. Reversible en un clic.'}
 ];
 
 const SNAPSHOT_TIPOS_BDP = ['articulos', 'clientes', 'departamentos', 'salones', 'empleados'];
@@ -102,51 +104,96 @@ function SyncModeSelector({currentMode, bdpBaseUrl, deshabilitado = false}: Sync
     const effective = currentMode || 'read_only';
     const selectedMode = SYNC_MODES.find(mode => mode.value === effective) ?? SYNC_MODES[0];
 
-    function handleChange(value: string) {
+    /* [267A-8] Confirmaciones con diálogo propio: los diálogos nativos
+     * (`window.confirm`/`prompt`) no funcionan en el navegador empaquetado. */
+    async function handleChange(value: string) {
+        const destino = bdpBaseUrl.trim().replace(/\/$/, '');
+        const confirmarDestino = async (titulo: string): Promise<boolean> => {
+            const typed = await pedirTextoConDialogo({
+                titulo,
+                descripcion: 'Escribe exactamente la URL BDP de destino para confirmar.',
+                placeholder: destino,
+                validar: (valor) =>
+                    valor.trim().replace(/\/$/, '') === destino && destino
+                        ? null
+                        : 'La URL escrita no coincide exactamente.',
+            });
+            return typed !== null;
+        };
         let alcances: string[] = [];
         let motivo = '';
         let maxOperaciones = 0;
         let duracionMinutos = 0;
         let targetEntityType: 'venta' | 'cliente' | '' = '';
         let targetEntityId = '';
-        if (value !== 'read_only') {
-            const confirmed = window.confirm(
-                'Este modo habilita escrituras reales e irreversibles en BDP/TPV. ' +
-                    'Confirma únicamente si existe autorización explícita y se completó el checklist pre-write.'
-            );
+        if (value === 'automatic') {
+            const confirmed = await confirmarConDialogo({
+                titulo: '¿Activar el modo automático?',
+                descripcion:
+                    'El modo automático envía las escrituras a BDP/TPV sin pedir confirmación por operación (siempre auditadas). ' +
+                    'Solo la activación y la vuelta a Solo lectura requieren confirmación.',
+                textoConfirmar: 'Sí, continuar',
+            });
             if (!confirmed) return;
-            const typed = window.prompt(
-                'Escribe exactamente la URL BDP de destino para confirmar:',
-                ''
-            );
-            if (typed !== bdpBaseUrl.trim().replace(/\/$/, '')) {
-                toast.error('Destino no confirmado', {description: 'La URL escrita no coincide exactamente.'});
-                return;
-            }
-            const operationChoice = window.prompt(
-                'Elige una sola operación: 1=Crear comanda, 2=Crear cliente, 3=Registrar pago, 4=Facturar',
-                ''
-            );
-            const scopeByChoice: Record<string, string> = {
-                '1': 'create_order',
-                '2': 'create_customer',
-                '3': 'add_payment',
-                '4': 'invoice'
-            };
-            const selectedScope = scopeByChoice[operationChoice?.trim() ?? ''];
-            alcances = selectedScope ? [selectedScope] : [];
-            const customerOnly = alcances.length > 0 && alcances.every(scope => scope === 'create_customer');
-            const saleOnly = alcances.length > 0 && alcances.every(scope => ['create_order', 'add_payment', 'invoice'].includes(scope));
+            if (!(await confirmarDestino('Confirma el destino BDP'))) return;
+        } else if (value !== 'read_only') {
+            const confirmed = await confirmarConDialogo({
+                titulo: '¿Habilitar escrituras en BDP/TPV?',
+                descripcion:
+                    'Este modo habilita escrituras reales e irreversibles en BDP/TPV. ' +
+                    'Confirma únicamente si existe autorización explícita y se completó el checklist pre-write.',
+                textoConfirmar: 'Sí, continuar',
+            });
+            if (!confirmed) return;
+            if (!(await confirmarDestino('Confirma el destino BDP'))) return;
+            const operacion = await elegirOpcionConDialogo({
+                titulo: 'Elige una sola operación',
+                opciones: [
+                    { valor: 'create_order', etiqueta: 'Crear comanda' },
+                    { valor: 'create_customer', etiqueta: 'Crear cliente' },
+                    { valor: 'add_payment', etiqueta: 'Registrar pago' },
+                    { valor: 'invoice', etiqueta: 'Facturar' },
+                ],
+            });
+            if (!operacion) return;
+            alcances = [operacion];
+            const customerOnly = alcances.every(scope => scope === 'create_customer');
+            const saleOnly = alcances.every(scope => ['create_order', 'add_payment', 'invoice'].includes(scope));
             if (!customerOnly && !saleOnly) {
                 toast.error('Alcances incompatibles', {description: 'No mezcles clientes con operaciones de venta en un mismo armado.'});
                 return;
             }
             targetEntityType = customerOnly ? 'cliente' : 'venta';
-            targetEntityId = window.prompt(`Pega el identificador interno exacto del ${targetEntityType} que se probará:`, '')?.trim() ?? '';
-            motivo = window.prompt('Describe brevemente quién autorizó la prueba y para qué se realizará:', '')?.trim() ?? '';
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            const entityId = await pedirTextoConDialogo({
+                titulo: `Identificador del ${targetEntityType}`,
+                descripcion: `Pega el identificador interno exacto (UUID) del ${targetEntityType} que se probará.`,
+                placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+                validar: (valor) => (uuidRegex.test(valor.trim()) ? null : 'Debe ser un UUID válido.'),
+            });
+            if (entityId === null) return;
+            targetEntityId = entityId.trim();
+            const motivoEscrito = await pedirTextoConDialogo({
+                titulo: 'Motivo del armado',
+                descripcion: 'Describe brevemente quién autorizó la prueba y para qué se realizará.',
+                placeholder: 'Autorizado por … para …',
+                validar: (valor) => (valor.trim().length >= 5 ? null : 'Mínimo 5 caracteres.'),
+            });
+            if (motivoEscrito === null) return;
+            motivo = motivoEscrito.trim();
             maxOperaciones = 1;
-            duracionMinutos = Number(window.prompt('Duración del armado en minutos (1-15):', '5'));
-            if (!alcances.length || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetEntityId) || motivo.length < 5 || !Number.isInteger(maxOperaciones) || !Number.isInteger(duracionMinutos)) {
+            const duracion = await pedirTextoConDialogo({
+                titulo: 'Duración del armado',
+                descripcion: 'Duración del armado en minutos (1-15).',
+                placeholder: '5',
+                validar: (valor) => {
+                    const n = Number(valor.trim());
+                    return Number.isInteger(n) && n >= 1 && n <= 15 ? null : 'Introduce un entero entre 1 y 15.';
+                },
+            });
+            if (duracion === null) return;
+            duracionMinutos = Number(duracion.trim());
+            if (!alcances.length || !uuidRegex.test(targetEntityId) || motivo.length < 5 || !Number.isInteger(maxOperaciones) || !Number.isInteger(duracionMinutos)) {
                 toast.error('Armado incompleto', {description: 'Revisa alcance, UUID objetivo, motivo, duración y máximo de operaciones.'});
                 return;
             }
@@ -384,8 +431,13 @@ function SnapshotTable({snapshots}: {snapshots: BdpSnapshot[]}) {
                                             size="sm"
                                             variant="outline"
                                             className="bg-muted/40 hover:bg-muted"
-                                            onClick={() => {
-                                                if (window.confirm('¿Eliminar este snapshot permanentemente?')) {
+                                            onClick={async () => {
+                                                /* [267A-8] Confirmación con diálogo propio. */
+                                                const confirmado = await confirmarConDialogo({
+                                                    titulo: '¿Eliminar este snapshot permanentemente?',
+                                                    textoConfirmar: 'Eliminar',
+                                                });
+                                                if (confirmado) {
                                                     eliminar.mutate(s.id, {
                                                         onSuccess: () => toast.success('Snapshot eliminado'),
                                                         onError: (e: unknown) => toast.error('Error', {description: String(e)})

@@ -21,6 +21,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner';
 import type { EstadoConfiguracion } from '../hooks/useConfiguracion';
 import type { BdpDiagnosticoResponse } from '../api/generated/gestionRestauranteAPI.schemas';
+import { useSetSyncMode } from '../api/bdp-backup';
+import { confirmarConDialogo, pedirTextoConDialogo } from './dialogoConfirmacion';
 import ConfigBdpMapeos from '@/components/config-bdp-mapeos';
 
 interface BdpSyncDryRunCheck {
@@ -54,6 +56,113 @@ interface ConfigBdpProps {
   guardar?: () => void;
   guardando?: boolean;
   mensaje?: string;
+}
+
+/* El backend devuelve el motivo en response.data.message (axios); err.message
+ * solo trae "Request failed with status code 422". Extraer el real.
+ * Los rechazos del extractor axum llegan como texto plano: usarlos tal cual. */
+function mensajeErrorBackend(err: unknown): string {
+  const datos = (err as { response?: { data?: unknown } })?.response?.data;
+  if (typeof datos === 'string' && datos.length > 0) return datos.slice(0, 300);
+  const mensaje = (datos as { message?: string } | null)?.message;
+  if (typeof mensaje === 'string' && mensaje.length > 0) return mensaje;
+  return String((err as { message?: string })?.message ?? 'Error desconocido');
+}
+
+/* [267A-7] Tercera tarjeta del modo de operaciones: activar/desactivar el modo
+ * automático con confirmación explícita (irreversibilidad de escrituras).
+ * [267A-8] Confirmación con diálogo propio: los diálogos nativos
+ * (`window.confirm`/`prompt`) no funcionan en el navegador empaquetado. */
+function BotonModoAutomatico({ config }: { config: EstadoConfiguracion }) {
+  const setMode = useSetSyncMode();
+  const activo = config.bdp_sync_mode === 'automatic';
+  const baseUrl = String(config.bdp_base_url ?? '').trim().replace(/\/$/, '');
+
+  async function activar() {
+    const confirmed = await confirmarConDialogo({
+      titulo: '¿Activar el modo automático?',
+      descripcion:
+        'El modo automático envía las escrituras a BDP/TPV sin pedir confirmación por operación (siempre auditadas). ' +
+        'Confirma solo si hay autorización explícita.',
+      textoConfirmar: 'Sí, continuar',
+    });
+    if (!confirmed) return;
+    const typed = await pedirTextoConDialogo({
+      titulo: 'Confirma el destino BDP',
+      descripcion: 'Escribe exactamente la URL BDP de destino para confirmar.',
+      placeholder: baseUrl,
+      textoConfirmar: 'Activar modo automático',
+      validar: (valor) =>
+        valor.trim().replace(/\/$/, '') === baseUrl && baseUrl
+          ? null
+          : 'La URL escrita no coincide exactamente.',
+    });
+    if (typed === null) return;
+    setMode.mutate(
+      {
+        modo: 'automatic',
+        confirmarDestino: baseUrl,
+        alcances: [],
+        duracionMinutos: 0,
+        maxOperaciones: 0,
+        motivo: '',
+        targetEntityType: '',
+        targetEntityId: '',
+      },
+      {
+        onSuccess: () => toast.success('Modo automático activado'),
+        onError: (err: unknown) => {
+          const msg = mensajeErrorBackend(err);
+          toast.error('No se pudo activar el modo automático', { description: msg });
+        },
+      }
+    );
+  }
+
+  function desactivar() {
+    setMode.mutate(
+      {
+        modo: 'read_only',
+        confirmarDestino: '',
+        alcances: [],
+        duracionMinutos: 0,
+        maxOperaciones: 0,
+        motivo: '',
+        targetEntityType: '',
+        targetEntityId: '',
+      },
+      {
+        onSuccess: () => toast.success('BDP vuelve a modo solo lectura'),
+        onError: (err: unknown) =>
+          toast.error('No se pudo cambiar el modo BDP', {
+            description: mensajeErrorBackend(err),
+          }),
+      }
+    );
+  }
+
+  return (
+    <div className={`rounded-md border p-3 transition-colors ${activo ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20' : ''}`}>
+      <div className="flex items-center gap-2 mb-1">
+        {activo && (
+          <Badge variant="default" className="bg-emerald-600">Activo</Badge>
+        )}
+        <p className="text-sm font-medium">Automático (Aplicación Web → BDP)</p>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Las escrituras se envían sin confirmación por operación. Solo la activación y la vuelta a Solo lectura piden confirmación.
+      </p>
+      <Button
+        variant={activo ? 'outline' : 'default'}
+        size="sm"
+        className="mt-2"
+        disabled={setMode.isPending}
+        onClick={activo ? desactivar : activar}
+      >
+        {setMode.isPending ? 'Cambiando…' : activo ? 'Volver a Solo lectura' : 'Activar modo automático'}
+      </Button>
+    </div>
+  );
 }
 
 function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: ConfigBdpProps) {
@@ -372,7 +481,7 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-3">
           <div className={`rounded-md border p-3 transition-colors ${(config.bdp_sync_mode || 'read_only') === 'read_only' ? 'border-primary bg-primary/5' : ''}`}>
             <div className="flex items-center gap-2 mb-1">
               {(config.bdp_sync_mode || 'read_only') === 'read_only' && (
@@ -395,10 +504,11 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
               Para cada operación de escritura se requiere confirmación textual y un arming temporal. Después vuelve automáticamente a Solo lectura.
             </p>
           </div>
+          <BotonModoAutomatico config={config} />
         </div>
         <div className="rounded-md border border-dashed p-3">
           <p className="text-sm text-muted-foreground">
-            Para cambiar el modo de autorización, usa el selector <strong>"Permiso de operación"</strong> en el panel de <strong>Seguridad, respaldos e historial BDP</strong> más abajo en esta misma pestaña. Ese flujo incluye la confirmación de destino, alcance, motivo y duración requeridos para cada escritura.
+            Para cambiar el modo de autorización, usa el selector <strong>"Permiso de operación"</strong> en el panel de <strong>Seguridad, respaldos e historial BDP</strong> más abajo en esta misma pestaña. Ese flujo incluye la confirmación de destino, alcance, motivo y duración requeridos para cada escritura. El modo <strong>Automático</strong> se activa con su propio botón en la tarjeta de arriba.
           </p>
         </div>
       </CardContent>

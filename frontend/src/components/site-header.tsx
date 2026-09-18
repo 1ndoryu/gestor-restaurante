@@ -228,6 +228,7 @@ function BdpStatusIndicator() {
   }
 
   const isWrite = syncMode === 'unidirectional'
+  const isAuto = syncMode === 'automatic'
   const bdpBaseUrl = String(cfg?.bdp_base_url ?? configSync?.bdp_base_url ?? '')
 
   async function desactivarIntegracion() {
@@ -285,6 +286,12 @@ function BdpStatusIndicator() {
               className="h-auto gap-1 px-2.5 py-1 text-xs bg-amber-600 cursor-pointer hover:bg-amber-700">
               BDP: escritura
             </Badge>
+          ) : isAuto ? (
+            <Badge
+              variant="default"
+              className="h-auto gap-1 px-2.5 py-1 text-xs bg-emerald-600 cursor-pointer hover:bg-emerald-700">
+              BDP: automático
+            </Badge>
           ) : (
             <Badge
               variant="secondary"
@@ -296,17 +303,19 @@ function BdpStatusIndicator() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
         <div className="px-2 py-1.5 text-sm font-medium">
-          Estado BDP: {isWrite ? 'Escritura temporal' : 'Solo lectura'}
+          Estado BDP: {isWrite ? 'Escritura temporal' : isAuto ? 'Modo automático' : 'Solo lectura'}
         </div>
         <p className="px-2 pb-1.5 text-xs text-muted-foreground">
           {isWrite
             ? 'Permiso temporal de escritura Aplicación Web → BDP. Tras operar, se vuelve solo a lectura sin pasos manuales.'
-            : 'Modo seguro: consultas e importaciones de BDP activas, sin escrituras.'}
+            : isAuto
+              ? 'Las escrituras se envían sin confirmación por operación. Vuelve a Solo lectura cuando quieras.'
+              : 'Modo seguro: consultas e importaciones de BDP activas, sin escrituras.'}
         </p>
         <DropdownMenuSeparator />
-        {isWrite ? (
+        {isWrite || isAuto ? (
           <DropdownMenuItem onClick={desactivarEscritura} disabled={isChangingMode}>
-            {isChangingMode ? 'Cambiando...' : 'Desactivar escritura'}
+            {isChangingMode ? 'Cambiando...' : isAuto ? 'Desactivar modo automático' : 'Desactivar escritura'}
           </DropdownMenuItem>
         ) : (
           <>
@@ -318,6 +327,13 @@ function BdpStatusIndicator() {
               title={esTrabajador ? AVISO_SOLO_PROPIETARIO : undefined}
             >
               {esTrabajador ? 'Activar escritura temporal (solo propietario)' : 'Activar escritura temporal'}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => navigate('/configuracion', { state: { bdpSection: 'bdp' } })}
+              disabled={esTrabajador}
+              title={esTrabajador ? AVISO_SOLO_PROPIETARIO : undefined}
+            >
+              {esTrabajador ? 'Activar modo automático (solo propietario)' : 'Activar modo automático'}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={desactivarIntegracion}

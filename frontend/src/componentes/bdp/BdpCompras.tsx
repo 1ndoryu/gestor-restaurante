@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { confirmarConDialogo } from '../dialogoConfirmacion';
 import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
@@ -207,12 +208,18 @@ function BdpCompras() {
     });
   }
 
-  function handleEliminarLocal(note: BdpPurchaseNote) {
+  /* [267A-8] Confirmación con diálogo propio: `window.confirm` no funciona
+   * en el navegador empaquetado. */
+  async function handleEliminarLocal(note: BdpPurchaseNote) {
     if (demoMode) {
       toast.info('En modo demo no se guardan cambios reales');
       return;
     }
-    if (!window.confirm(`¿Eliminar el albarán local ${note.serie}-${note.numero}?`)) return;
+    const confirmado = await confirmarConDialogo({
+      titulo: `¿Eliminar el albarán local ${note.serie}-${note.numero}?`,
+      textoConfirmar: 'Eliminar',
+    });
+    if (!confirmado) return;
     eliminarMutation.mutate(note.id, {
       onSuccess: () => {
         toast.success('Albarán local eliminado');

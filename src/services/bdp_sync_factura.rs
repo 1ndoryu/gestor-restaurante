@@ -31,7 +31,7 @@ impl BdpSyncService {
         }
 
         /* [F3] Gate: en modo read_only, no facturar en BDP */
-        if config.bdp_sync_mode != "unidirectional" {
+        if !crate::services::BdpWriteGuard::modo_permite_escritura(&config.bdp_sync_mode) {
             return Err(
                 "BDP en modo solo lectura. Cambia el modo en configuración para facturar.".into(),
             );

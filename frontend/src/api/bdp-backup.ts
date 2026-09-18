@@ -51,7 +51,7 @@ export interface RestoreResult {
   detalles: string;
 }
 
-export type SyncMode = 'read_only' | 'unidirectional';
+export type SyncMode = 'read_only' | 'unidirectional' | 'automatic';
 
 /* Fetchers */
 
@@ -136,8 +136,10 @@ async function setSyncMode(input: SetSyncModeInput): Promise<unknown> {
       duracion_minutos: modo === 'read_only' ? 0 : duracionMinutos,
       max_operaciones: modo === 'read_only' ? 0 : maxOperaciones,
       motivo: modo === 'read_only' ? '' : motivo,
-      target_entity_type: modo === 'read_only' ? null : targetEntityType,
-      target_entity_id: modo === 'read_only' ? null : targetEntityId,
+      /* El backend declara target_entity_id: Option<Uuid>: "" no deserializa
+       * (el extractor axum devuelve 422 en texto plano). Sin objetivo → null. */
+      target_entity_type: modo === 'read_only' || !targetEntityType ? null : targetEntityType,
+      target_entity_id: modo === 'read_only' || !targetEntityId ? null : targetEntityId,
     }),
   });
 }
