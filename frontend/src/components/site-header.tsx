@@ -21,7 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useSetSyncMode } from "@/api/bdp-backup"
+import { useFlujoModoBdp } from "@/componentes/flujoModoBdp"
 import { useFlushBdpPush } from "@/api/bdp"
 import { toast } from "sonner"
 import axios from "@/api/axios-instance"
@@ -55,6 +55,18 @@ const titulos: Record<string, string> = {
   "/bdp/sincronizacion": "Sincronización",
 }
 
+/* Punto semáforo de conexión BDP: verde = conectado, ámbar pulsante =
+ * intermedio (cambiando de modo o sin respuesta), rojo = desconectado. */
+function PuntoConexion({ estado }: { estado: 'conectado' | 'intermedio' | 'desconectado' }) {
+  const color =
+    estado === 'conectado'
+      ? 'bg-emerald-500'
+      : estado === 'intermedio'
+        ? 'bg-amber-500 animate-pulse'
+        : 'bg-red-500'
+  return <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${color}`} />
+}
+
 function BdpStatusIndicator() {
   const { data: config } = useObtenerConfiguracion()
   /* [149A-3/F3] El trabajador no puede cambiar el modo BDP (PATCH exige Admin):
@@ -72,7 +84,7 @@ function BdpStatusIndicator() {
     [config],
   )
   const { config: configSync } = useConfiguracionSync(serverData)
-  const { mutate: setSyncMode, isPending: isChangingMode } = useSetSyncMode()
+  const { volverSoloLectura, isPending: isChangingMode } = useFlujoModoBdp()
   /* [198A-1/F1] Flush manual de la cola de push (botón "Exportar a BDP").
    * Requerido por D1 (botón manual siempre) y D2 (reintento tras suscripción
    * solo manual). El backend exige rol Admin; aquí se muestra el resultado.
@@ -127,8 +139,9 @@ function BdpStatusIndicator() {
           <button type="button" className="focus:outline-none">
             <Badge
               variant="outline"
-              className="h-auto gap-1 border-amber-600 px-2.5 py-1 text-xs text-amber-600 cursor-pointer hover:bg-muted">
-              BDP: sin respuesta
+              className="h-auto gap-1.5 border-amber-600 px-2.5 py-1 text-xs text-amber-600 cursor-pointer hover:bg-muted">
+              <PuntoConexion estado="intermedio" />
+              BDP Sin respuesta
             </Badge>
           </button>
         </DropdownMenuTrigger>
@@ -161,16 +174,17 @@ function BdpStatusIndicator() {
           <button type="button" className="focus:outline-none">
             <Badge
               variant="outline"
-              className="h-auto gap-1 px-2.5 py-1 text-xs cursor-pointer hover:bg-muted">
-              {modoIndependiente ? 'Modo independiente' : 'BDP: off'}
+              className="h-auto gap-1.5 px-2.5 py-1 text-xs cursor-pointer hover:bg-muted">
+              <PuntoConexion estado="desconectado" />
+              {modoIndependiente ? 'BDP Desconectado · Solo local' : 'BDP Desconectado'}
             </Badge>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
           <div className="px-2 py-1.5 text-sm font-medium">
             {modoIndependiente
-              ? 'Modo independiente (sin BDP)'
-              : 'Integración BDP desactivada'}
+              ? 'BDP Desconectado · Solo local'
+              : 'BDP Desconectado'}
           </div>
           <p className="px-2 pb-1.5 text-xs text-muted-foreground">
             {modoIndependiente
@@ -229,7 +243,10 @@ function BdpStatusIndicator() {
 
   const isWrite = syncMode === 'unidirectional'
   const isAuto = syncMode === 'automatic'
-  const bdpBaseUrl = String(cfg?.bdp_base_url ?? configSync?.bdp_base_url ?? '')
+  /* Mientras hay un cambio de modo en vuelo el punto pasa a ámbar pulsante:
+   * estado intermedio honesto en vez de afirmar un modo que aún no aplicó. */
+  const transitorio = isChangingMode || desactivandoBdp
+  const etiquetaModo = isWrite ? 'Escritura' : isAuto ? 'Automático' : 'Solo lectura'
 
   async function desactivarIntegracion() {
     if (desactivandoBdp) return
@@ -252,28 +269,11 @@ function BdpStatusIndicator() {
     }
   }
 
+  /* [189A-1] Vuelta a Solo lectura con el flujo compartido (pide
+   * confirmación: es el freno consciente que cierra cualquier escritura). */
   function desactivarEscritura() {
     if (isChangingMode) return
-    const baseUrl = bdpBaseUrl
-    setSyncMode(
-      {
-        modo: 'read_only',
-        confirmarDestino: baseUrl,
-        alcances: [],
-        duracionMinutos: 0,
-        maxOperaciones: 0,
-        motivo: '',
-        targetEntityType: '',
-        targetEntityId: '',
-      },
-      {
-        onSuccess: () => toast.success('BDP vuelve a modo solo lectura'),
-        onError: (err: unknown) =>
-          toast.error('No se pudo cambiar el modo BDP', {
-            description: String((err as { message?: string })?.message ?? 'Error desconocido'),
-          }),
-      }
-    )
+    void volverSoloLectura()
   }
 
   return (
@@ -283,27 +283,30 @@ function BdpStatusIndicator() {
           {isWrite ? (
             <Badge
               variant="default"
-              className="h-auto gap-1 px-2.5 py-1 text-xs bg-amber-600 cursor-pointer hover:bg-amber-700">
-              BDP: escritura
+              className="h-auto gap-1.5 px-2.5 py-1 text-xs bg-amber-600 cursor-pointer hover:bg-amber-700">
+              <PuntoConexion estado={transitorio ? 'intermedio' : 'conectado'} />
+              BDP Conectado · Escritura
             </Badge>
           ) : isAuto ? (
             <Badge
               variant="default"
-              className="h-auto gap-1 px-2.5 py-1 text-xs bg-emerald-600 cursor-pointer hover:bg-emerald-700">
-              BDP: automático
+              className="h-auto gap-1.5 px-2.5 py-1 text-xs bg-emerald-600 cursor-pointer hover:bg-emerald-700">
+              <PuntoConexion estado={transitorio ? 'intermedio' : 'conectado'} />
+              BDP Conectado · Automático
             </Badge>
           ) : (
             <Badge
               variant="secondary"
-              className="h-auto gap-1 px-2.5 py-1 text-xs cursor-pointer hover:bg-secondary/80">
-              BDP: lectura
+              className="h-auto gap-1.5 px-2.5 py-1 text-xs cursor-pointer hover:bg-secondary/80">
+              <PuntoConexion estado={transitorio ? 'intermedio' : 'conectado'} />
+              BDP Conectado · Solo lectura
             </Badge>
           )}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
         <div className="px-2 py-1.5 text-sm font-medium">
-          Estado BDP: {isWrite ? 'Escritura temporal' : isAuto ? 'Modo automático' : 'Solo lectura'}
+          BDP Conectado · {etiquetaModo}
         </div>
         <p className="px-2 pb-1.5 text-xs text-muted-foreground">
           {isWrite

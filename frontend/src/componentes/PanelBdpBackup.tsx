@@ -12,8 +12,9 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/c
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
 import {Textarea} from '@/components/ui/textarea';
 import {toast} from 'sonner';
-import { confirmarConDialogo, elegirOpcionConDialogo, pedirTextoConDialogo } from './dialogoConfirmacion';
-import {useBdpSnapshots, useBdpAudit, useCreateSnapshotCompleto, useCreateSnapshotParcial, useCreateSnapshotGlory, useDeleteSnapshot, useRestoreSnapshot, useSetSyncMode, type BdpSnapshot, type BdpAuditEntry, type SyncMode} from '@/api/bdp-backup';
+import { confirmarConDialogo } from './dialogoConfirmacion';
+import { useFlujoModoBdp } from './flujoModoBdp';
+import {useBdpSnapshots, useBdpAudit, useCreateSnapshotCompleto, useCreateSnapshotParcial, useCreateSnapshotGlory, useDeleteSnapshot, useRestoreSnapshot, type BdpSnapshot, type BdpAuditEntry, type SyncMode} from '@/api/bdp-backup';
 import type {EstadoConfiguracion} from '@/hooks/useConfiguracion';
 
 /* Constantes */
@@ -100,126 +101,21 @@ interface SyncModeSelectorProps {
 }
 
 function SyncModeSelector({currentMode, bdpBaseUrl, deshabilitado = false}: SyncModeSelectorProps) {
-    const setMode = useSetSyncMode();
+    const { cambiarModo, isPending } = useFlujoModoBdp();
     const effective = currentMode || 'read_only';
     const selectedMode = SYNC_MODES.find(mode => mode.value === effective) ?? SYNC_MODES[0];
 
-    /* [267A-8] Confirmaciones con diálogo propio: los diálogos nativos
-     * (`window.confirm`/`prompt`) no funcionan en el navegador empaquetado. */
+    /* [189A-1] Flujo compartido con las tarjetas de ConfigBdp
+     * (`useFlujoModoBdp`): confirmar → destino → alcance/objetivo → mutación,
+     * con diálogos propios (los nativos no funcionan en el empaquetado). */
     async function handleChange(value: string) {
-        const destino = bdpBaseUrl.trim().replace(/\/$/, '');
-        const confirmarDestino = async (titulo: string): Promise<boolean> => {
-            const typed = await pedirTextoConDialogo({
-                titulo,
-                descripcion: 'Escribe exactamente la URL BDP de destino para confirmar.',
-                placeholder: destino,
-                validar: (valor) =>
-                    valor.trim().replace(/\/$/, '') === destino && destino
-                        ? null
-                        : 'La URL escrita no coincide exactamente.',
-            });
-            return typed !== null;
-        };
-        let alcances: string[] = [];
-        let motivo = '';
-        let maxOperaciones = 0;
-        let duracionMinutos = 0;
-        let targetEntityType: 'venta' | 'cliente' | '' = '';
-        let targetEntityId = '';
-        if (value === 'automatic') {
-            const confirmed = await confirmarConDialogo({
-                titulo: '¿Activar el modo automático?',
-                descripcion:
-                    'El modo automático envía las escrituras a BDP/TPV sin pedir confirmación por operación (siempre auditadas). ' +
-                    'Solo la activación y la vuelta a Solo lectura requieren confirmación.',
-                textoConfirmar: 'Sí, continuar',
-            });
-            if (!confirmed) return;
-            if (!(await confirmarDestino('Confirma el destino BDP'))) return;
-        } else if (value !== 'read_only') {
-            const confirmed = await confirmarConDialogo({
-                titulo: '¿Habilitar escrituras en BDP/TPV?',
-                descripcion:
-                    'Este modo habilita escrituras reales e irreversibles en BDP/TPV. ' +
-                    'Confirma únicamente si existe autorización explícita y se completó el checklist pre-write.',
-                textoConfirmar: 'Sí, continuar',
-            });
-            if (!confirmed) return;
-            if (!(await confirmarDestino('Confirma el destino BDP'))) return;
-            const operacion = await elegirOpcionConDialogo({
-                titulo: 'Elige una sola operación',
-                opciones: [
-                    { valor: 'create_order', etiqueta: 'Crear comanda' },
-                    { valor: 'create_customer', etiqueta: 'Crear cliente' },
-                    { valor: 'add_payment', etiqueta: 'Registrar pago' },
-                    { valor: 'invoice', etiqueta: 'Facturar' },
-                ],
-            });
-            if (!operacion) return;
-            alcances = [operacion];
-            const customerOnly = alcances.every(scope => scope === 'create_customer');
-            const saleOnly = alcances.every(scope => ['create_order', 'add_payment', 'invoice'].includes(scope));
-            if (!customerOnly && !saleOnly) {
-                toast.error('Alcances incompatibles', {description: 'No mezcles clientes con operaciones de venta en un mismo armado.'});
-                return;
-            }
-            targetEntityType = customerOnly ? 'cliente' : 'venta';
-            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            const entityId = await pedirTextoConDialogo({
-                titulo: `Identificador del ${targetEntityType}`,
-                descripcion: `Pega el identificador interno exacto (UUID) del ${targetEntityType} que se probará.`,
-                placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-                validar: (valor) => (uuidRegex.test(valor.trim()) ? null : 'Debe ser un UUID válido.'),
-            });
-            if (entityId === null) return;
-            targetEntityId = entityId.trim();
-            const motivoEscrito = await pedirTextoConDialogo({
-                titulo: 'Motivo del armado',
-                descripcion: 'Describe brevemente quién autorizó la prueba y para qué se realizará.',
-                placeholder: 'Autorizado por … para …',
-                validar: (valor) => (valor.trim().length >= 5 ? null : 'Mínimo 5 caracteres.'),
-            });
-            if (motivoEscrito === null) return;
-            motivo = motivoEscrito.trim();
-            maxOperaciones = 1;
-            const duracion = await pedirTextoConDialogo({
-                titulo: 'Duración del armado',
-                descripcion: 'Duración del armado en minutos (1-15).',
-                placeholder: '5',
-                validar: (valor) => {
-                    const n = Number(valor.trim());
-                    return Number.isInteger(n) && n >= 1 && n <= 15 ? null : 'Introduce un entero entre 1 y 15.';
-                },
-            });
-            if (duracion === null) return;
-            duracionMinutos = Number(duracion.trim());
-            if (!alcances.length || !uuidRegex.test(targetEntityId) || motivo.length < 5 || !Number.isInteger(maxOperaciones) || !Number.isInteger(duracionMinutos)) {
-                toast.error('Armado incompleto', {description: 'Revisa alcance, UUID objetivo, motivo, duración y máximo de operaciones.'});
-                return;
-            }
-        }
-        setMode.mutate({
-            modo: value as SyncMode,
-            confirmarDestino: value === 'read_only' ? '' : bdpBaseUrl.trim().replace(/\/$/, ''),
-            alcances,
-            duracionMinutos,
-            maxOperaciones,
-            motivo,
-            targetEntityType,
-            targetEntityId,
-        }, {
-            onSuccess: () => toast.success('Modo BDP actualizado', {description: `Modo: ${value}`}),
-            onError: (err: unknown) => {
-                const msg = (err as {response?: {data?: {message?: string}}})?.response?.data?.message ?? 'Error al cambiar modo';
-                toast.error('Error', {description: msg});
-            }
-        });
+        await cambiarModo(value as SyncMode, bdpBaseUrl);
     }
 
     return (
         <div className="flex flex-col gap-2">
             <div className="flex items-center gap-3">
-            <Select value={effective} onValueChange={handleChange} disabled={deshabilitado || setMode.isPending}>
+            <Select value={effective} onValueChange={handleChange} disabled={deshabilitado || isPending}>
                 <SelectTrigger className="w-full sm:w-[320px]">
                     <SelectValue />
                 </SelectTrigger>
@@ -231,7 +127,7 @@ function SyncModeSelector({currentMode, bdpBaseUrl, deshabilitado = false}: Sync
                     ))}
                 </SelectContent>
             </Select>
-            {setMode.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             </div>
             <p className="max-w-xl text-xs text-muted-foreground">{selectedMode.desc}</p>
         </div>

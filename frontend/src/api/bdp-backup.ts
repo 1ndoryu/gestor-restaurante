@@ -4,6 +4,10 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { customInstance } from '@/api/axios-instance';
+import {
+  getObtenerConfiguracionQueryKey,
+  getObtenerModoOperacionQueryKey,
+} from '@/api/generated/configuracion/configuracion';
 
 /* Tipos */
 
@@ -220,7 +224,16 @@ export function useSetSyncMode() {
   return useMutation({
     mutationFn: (input: SetSyncModeInput) => setSyncMode(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['configuracion'] });
+      /* [189A-1] Las claves reales son las generadas (`/api/configuracion`);
+       * invalidar `configuracion` no coincidía y las tarjetas/badge quedaban
+       * con el modo anterior tras un cambio exitoso. El modo efectivo también
+       * puede cambiar: invalidarlo. */
+      queryClient.invalidateQueries({
+        queryKey: getObtenerConfiguracionQueryKey(),
+      });
+      queryClient.invalidateQueries({
+        queryKey: getObtenerModoOperacionQueryKey(),
+      });
     },
   });
 }

@@ -21,8 +21,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner';
 import type { EstadoConfiguracion } from '../hooks/useConfiguracion';
 import type { BdpDiagnosticoResponse } from '../api/generated/gestionRestauranteAPI.schemas';
-import { useSetSyncMode } from '../api/bdp-backup';
-import { confirmarConDialogo, pedirTextoConDialogo } from './dialogoConfirmacion';
+import { useFlujoModoBdp } from './flujoModoBdp';
 import ConfigBdpMapeos from '@/components/config-bdp-mapeos';
 
 interface BdpSyncDryRunCheck {
@@ -58,88 +57,59 @@ interface ConfigBdpProps {
   mensaje?: string;
 }
 
-/* El backend devuelve el motivo en response.data.message (axios); err.message
- * solo trae "Request failed with status code 422". Extraer el real.
- * Los rechazos del extractor axum llegan como texto plano: usarlos tal cual. */
-function mensajeErrorBackend(err: unknown): string {
-  const datos = (err as { response?: { data?: unknown } })?.response?.data;
-  if (typeof datos === 'string' && datos.length > 0) return datos.slice(0, 300);
-  const mensaje = (datos as { message?: string } | null)?.message;
-  if (typeof mensaje === 'string' && mensaje.length > 0) return mensaje;
-  return String((err as { message?: string })?.message ?? 'Error desconocido');
+/* [189A-1] Controles de cambio de modo dentro de cada tarjeta: la tarjeta del
+ * modo activo muestra el badge (y, si es escritura, la vuelta a Solo lectura);
+ * las demás ofrecen cambiar a su modo con el flujo compartido. */
+function ControlesTarjetaModo({
+  config,
+  modo,
+  etiquetaActivar,
+}: {
+  config: EstadoConfiguracion;
+  modo: 'read_only' | 'unidirectional';
+  etiquetaActivar: string;
+}) {
+  const { activarManual, volverSoloLectura, isPending } = useFlujoModoBdp();
+  const baseUrl = String(config.bdp_base_url ?? '');
+  if (config.bdp_sync_mode === modo) {
+    if (modo === 'read_only') {
+      return (
+        <div className="mt-2">
+          <Badge variant="default" className="bg-emerald-600">Activo</Badge>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2 mt-2">
+        <Badge variant="default" className="bg-emerald-600">Activo</Badge>
+        <Button variant="outline" size="sm" disabled={isPending} onClick={volverSoloLectura}>
+          {isPending ? 'Cambiando…' : 'Volver a Solo lectura'}
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="mt-2"
+      disabled={isPending}
+      onClick={modo === 'read_only' ? volverSoloLectura : () => activarManual(baseUrl)}
+    >
+      {isPending ? 'Cambiando…' : etiquetaActivar}
+    </Button>
+  );
 }
 
 /* [267A-7] Tercera tarjeta del modo de operaciones: activar/desactivar el modo
  * automático con confirmación explícita (irreversibilidad de escrituras).
  * [267A-8] Confirmación con diálogo propio: los diálogos nativos
- * (`window.confirm`/`prompt`) no funcionan en el navegador empaquetado. */
+ * (`window.confirm`/`prompt`) no funcionan en el navegador empaquetado.
+ * [189A-1] Flujo delegado al hook compartido `useFlujoModoBdp`. */
 function BotonModoAutomatico({ config }: { config: EstadoConfiguracion }) {
-  const setMode = useSetSyncMode();
+  const { activarAutomatico, volverSoloLectura, isPending } = useFlujoModoBdp();
   const activo = config.bdp_sync_mode === 'automatic';
-  const baseUrl = String(config.bdp_base_url ?? '').trim().replace(/\/$/, '');
-
-  async function activar() {
-    const confirmed = await confirmarConDialogo({
-      titulo: '¿Activar el modo automático?',
-      descripcion:
-        'El modo automático envía las escrituras a BDP/TPV sin pedir confirmación por operación (siempre auditadas). ' +
-        'Confirma solo si hay autorización explícita.',
-      textoConfirmar: 'Sí, continuar',
-    });
-    if (!confirmed) return;
-    const typed = await pedirTextoConDialogo({
-      titulo: 'Confirma el destino BDP',
-      descripcion: 'Escribe exactamente la URL BDP de destino para confirmar.',
-      placeholder: baseUrl,
-      textoConfirmar: 'Activar modo automático',
-      validar: (valor) =>
-        valor.trim().replace(/\/$/, '') === baseUrl && baseUrl
-          ? null
-          : 'La URL escrita no coincide exactamente.',
-    });
-    if (typed === null) return;
-    setMode.mutate(
-      {
-        modo: 'automatic',
-        confirmarDestino: baseUrl,
-        alcances: [],
-        duracionMinutos: 0,
-        maxOperaciones: 0,
-        motivo: '',
-        targetEntityType: '',
-        targetEntityId: '',
-      },
-      {
-        onSuccess: () => toast.success('Modo automático activado'),
-        onError: (err: unknown) => {
-          const msg = mensajeErrorBackend(err);
-          toast.error('No se pudo activar el modo automático', { description: msg });
-        },
-      }
-    );
-  }
-
-  function desactivar() {
-    setMode.mutate(
-      {
-        modo: 'read_only',
-        confirmarDestino: '',
-        alcances: [],
-        duracionMinutos: 0,
-        maxOperaciones: 0,
-        motivo: '',
-        targetEntityType: '',
-        targetEntityId: '',
-      },
-      {
-        onSuccess: () => toast.success('BDP vuelve a modo solo lectura'),
-        onError: (err: unknown) =>
-          toast.error('No se pudo cambiar el modo BDP', {
-            description: mensajeErrorBackend(err),
-          }),
-      }
-    );
-  }
+  const baseUrl = String(config.bdp_base_url ?? '');
 
   return (
     <div className={`rounded-md border p-3 transition-colors ${activo ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20' : ''}`}>
@@ -156,10 +126,10 @@ function BotonModoAutomatico({ config }: { config: EstadoConfiguracion }) {
         variant={activo ? 'outline' : 'default'}
         size="sm"
         className="mt-2"
-        disabled={setMode.isPending}
-        onClick={activo ? desactivar : activar}
+        disabled={isPending}
+        onClick={activo ? volverSoloLectura : () => activarAutomatico(baseUrl)}
       >
-        {setMode.isPending ? 'Cambiando…' : activo ? 'Volver a Solo lectura' : 'Activar modo automático'}
+        {isPending ? 'Cambiando…' : activo ? 'Volver a Solo lectura' : 'Activar modo automático'}
       </Button>
     </div>
   );
@@ -492,6 +462,7 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
             <p className="text-xs text-muted-foreground">
               Permite consultas e importaciones. No se puede crear ni modificar nada en BDP. Es el modo seguro por defecto.
             </p>
+            <ControlesTarjetaModo config={config} modo="read_only" etiquetaActivar="Volver a Solo lectura" />
           </div>
           <div className={`rounded-md border p-3 transition-colors ${config.bdp_sync_mode === 'unidirectional' ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20' : ''}`}>
             <div className="flex items-center gap-2 mb-1">
@@ -503,12 +474,13 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
             <p className="text-xs text-muted-foreground">
               Para cada operación de escritura se requiere confirmación textual y un arming temporal. Después vuelve automáticamente a Solo lectura.
             </p>
+            <ControlesTarjetaModo config={config} modo="unidirectional" etiquetaActivar="Activar autorización manual" />
           </div>
           <BotonModoAutomatico config={config} />
         </div>
         <div className="rounded-md border border-dashed p-3">
           <p className="text-sm text-muted-foreground">
-            Para cambiar el modo de autorización, usa el selector <strong>"Permiso de operación"</strong> en el panel de <strong>Seguridad, respaldos e historial BDP</strong> más abajo en esta misma pestaña. Ese flujo incluye la confirmación de destino, alcance, motivo y duración requeridos para cada escritura. El modo <strong>Automático</strong> se activa con su propio botón en la tarjeta de arriba.
+            Cada tarjeta permite cambiar directamente a su modo: el flujo incluye la confirmación de destino, alcance, motivo y duración requeridos para cada escritura. El selector <strong>"Permiso de operación"</strong> del panel de <strong>Seguridad, respaldos e historial BDP</strong> (más abajo) ofrece el mismo cambio con idénticas garantías.
           </p>
         </div>
       </CardContent>
