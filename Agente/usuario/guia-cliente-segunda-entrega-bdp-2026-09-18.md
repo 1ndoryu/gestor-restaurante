@@ -7,9 +7,10 @@
 > de prueba en septiembre (importes mínimos, fuera de horas de servicio,
 > anuladas después).
 
-## 1. Lo que funciona sin el BDP (casi todo)
+## 1. Lo que funciona igual con o sin el BDP
 
-El día a día del restaurante no necesita la conexión:
+El día a día del restaurante no depende de la conexión: todo esto funciona
+siempre, haya o no conexión con el BDP:
 
 - **Ventas:** vender y cobrar en uno o varios pagos, propinas, anular ventas
   pidiendo el motivo, factura local con su numeración, historial completo y
@@ -31,8 +32,8 @@ El día a día del restaurante no necesita la conexión:
   reportar errores.
 - **Acceso** con usuario y contraseña.
 
-Todo lo de los puntos 2 y 3 requiere conexión; sin ella, esos botones aparecen
-ocultos o desactivados y nada finge haberse hecho.
+Todo lo de los puntos 2 y 3 sí requiere conexión; sin ella, esos botones
+aparecen ocultos o desactivados y nada finge haberse hecho.
 
 ## 2. Lo que la aplicación puede recibir del BDP (lectura)
 
