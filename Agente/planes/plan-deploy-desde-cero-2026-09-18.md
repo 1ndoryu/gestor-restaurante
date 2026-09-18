@@ -16,7 +16,31 @@
 - `.env` local verificado 2026-09-18 (solo presencia/longitud): `BDP_LOGIN`/`BDP_PASSWORD`/`BDP_INTEGRATOR_CODE` presentes, `BDP_BASE_URL` 25 chars, POS/employee/profile/article presentes. **OJO: `BDP_WRITE/CHECK_ORDER_ALLOWED_ORIGINS` SÍ están definidos en local (25 chars = el BDP)** — a producción van **vacíos** en F2; jamás copiar el `.env` tal cual. `CORS_ORIGINS`/`APP_URL` ausentes en local — definir en prod. `BDP_BOOTSTRAP_USER_EMAIL` local apunta al demo — en prod será el email del nuevo admin.
 - Admin decidido: email `restaurante@nakomi.studio` (el usuario escribió `nakomi..studio` con doble punto — asumido typo, **confirmar antes de F5**), nombre `restaurante`, contraseña fuerte de 24 chars (mínimo del validador: 8, `src/models/user.rs:40`) generada en F5 y entregada una sola vez.
 
-## Guardarraíles anti-accidentes (otros proyectos) — lectura obligatoria antes de F0
+## Guardarraíles VPS (otros proyectos en producción) — lectura obligatoria antes de F0
+
+> Riesgo real: el VPS alberga los servicios de varios proyectos bajo el mismo Coolify.
+> Todo lo que sigue es para que ni un comando pueda salpicar a otro servicio.
+
+### F0.0 — Inventario de solo-lectura (primer paso de la ejecución, cero escrituras)
+1. Listar servicios del VPS (`list`/equivalente) y mostrar la tabla completa: nombre, dominio, estado.
+2. Confirmar que `glory-rest` = `restaurante.wandori.us` = `serviceId 14` = contenedores `app-b8s0cks444o0sogo8kg8wcgw` + `postgres-b8s0cks444o0sogo8kg8wcgw`.
+3. Ese inventario se te enseña y solo se sigue con tu visto bueno. Sin inventario verificado, no hay F1.
+
+### Alcance acotado por nombre y por UUID
+- Los recursos de restaurante llevan prefijo propio en todo: contenedores `*-b8s0cks444o0sogo8kg8wcgw`, volúmenes `b8s0cks444o0sogo8kg8wcgw_*` (`pg-data`, `app-data`, `uploads-data`), red `b8s0cks444o0sogo8kg8wcgw`. Cualquier comando que no mencione ese UUID o `--name glory-rest` no se ejecuta.
+- El borrado de BD entra SOLO al contenedor `postgres-b8s0cks444o0sogo8kg8wcgw` (BD `rust_db`). Las BD ajenas viven en otros contenedores/volúmenes y no se listan ni se tocan.
+
+### Prohibiciones explícitas en el VPS
+- `restart --all` y cualquier variante `--all`: PROHIBIDO (además deja workloads Rust en `exited`).
+- `prune` de cualquier tipo (contenedores, volúmenes, redes, imágenes, sistema): PROHIBIDO. Limpieza solo por nombre exacto de recurso propio.
+- `exec`/shell en contenedores que no sean los dos de `glory-rest`: PROHIBIDO.
+- Cambios de red Traefik globales: no se tocan; solo las labels del compose propio.
+- SSH/Docker/curl directos al VPS: PROHIBIDO (solo `coolify-manager-rs`, que audita por servicio).
+
+### Carga durante el build
+- El build Docker corre en el VPS: compilar Rust+frontend puede picar CPU/RAM/disco. Mitigación: ejecutar en horario valle del restaurante, vigilar `health` de los vecinos antes y después, y abortar si algún servicio ajeno cambia de estado. Si el disco del VPS está justo, avisar antes de construir.
+
+## Guardarraíles anti-accidentes (local y alcance) — siguen vigentes
 
 > Contexto: lo que se cae "siempre" es por alcance implícito. Aquí todo alcance es explícito.
 >
