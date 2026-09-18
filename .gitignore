@@ -76,3 +76,6 @@ sentinel.lock.json.bak
 
 # Borrador del plan de deploy (no versionar hasta aprobado)
 /Agente/planes/plan-deploy-produccion-intuitividad-2026-08-07.md
+
+# Guia con credenciales del BDP: solo local, nunca a GitHub
+/Agente/usuario/guia-cliente-segunda-entrega-bdp-2026-09-18.md
