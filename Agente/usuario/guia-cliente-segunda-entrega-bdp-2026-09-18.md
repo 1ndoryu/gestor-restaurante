@@ -3,25 +3,29 @@
 > **Fecha:** 18 de septiembre de 2026
 > **Continúa a:** Guía del cliente — Revisión de la integración con BDP (19/07/2026)
 > **Objetivo:** resumir en lenguaje sencillo lo añadido y comprobado desde la
-> primera guía. Todo lo que aparece como funcionando está verificado, incluso
-> con operaciones reales de prueba en septiembre (importes mínimos, fuera de
-> horas de servicio, anuladas después).
+> primera guía. Lo marcado como verificado se comprobó con operaciones reales
+> de prueba en septiembre (importes mínimos, fuera de horas de servicio,
+> anuladas después).
 
 ## 1. Lo que la aplicación puede recibir del BDP (lectura)
 
-Importaciones comprobadas una por una en la web del restaurante (18/09):
-
-- **Catálogo:** 559 artículos con precio, impuesto y familia.
+- **Catálogo:** 559 artículos con precio, impuesto y familia (verificado 18/09).
 - **Clientes,** con revisión previa: lo nuevo se copia, lo existente se vincula,
-  nada se reemplaza sin avisar.
-- **Plano de sala:** 7 salones y 87 mesas traídos del BDP al plano local.
+  nada se reemplaza sin avisar (verificado 18/09).
+- **Plano de sala:** 7 salones y 87 mesas traídos al plano local (verificado 18/09).
 - **Datos de referencia** (departamentos, formas de pago, puestos, empleados),
   que la aplicación usa para cuadrar ventas y pagos.
+- **Albaranes de compra** (pendiente: indicar el código del perfil de
+  exportación del terminal).
+- **Detalle de una comanda** (totales y pagos; pendiente: suscripción de pago).
+- **Existencias de stock** por artículo (pendiente: crear el almacén en el TPV).
 - Cada importación muestra primero una vista previa y pide confirmación
   explícita antes de aplicar. Al aplicar solo se crea lo que falta; nunca se
   borra nada.
 
 ## 2. Lo que la aplicación puede enviar al BDP (escritura)
+
+Verificado con operaciones reales:
 
 - Crear un cliente con código nuevo, sin tocar los existentes.
 - Crear una comanda, también ya cobrada al crearla.
@@ -31,18 +35,24 @@ Importaciones comprobadas una por una en la web del restaurante (18/09):
 - Dar de alta y modificar artículos y departamentos (en pausa por decisión del
   restaurante: lo creado no se puede borrar).
 
-## 3. Lo que aún no puede escribir
+Pendiente de un paso en el terminal o en la suscripción, sin cambios en la
+aplicación:
 
-- Cobrar una comanda ya existente.
-- Facturar una comanda en el BDP.
-- Mover stock o inventario en el BDP.
-- Mostrar el aviso de camarero en el terminal.
+- Cobrar una comanda ya existente (pendiente: suscripción de pago).
+- Facturar una comanda (pendiente: probarla en real; una factura no se puede deshacer).
+- Mover stock o inventario (pendiente: crear el almacén en el TPV).
+- Mostrar el aviso de camarero en el terminal (pendiente: poner la IP del
+  servidor de mensajes en la configuración del terminal).
 
-## 4. Lo que aún no puede leer
+## 3. Lo que no puede escribir (limitación del BDP, sin arreglo posible)
 
-- Las existencias de stock por artículo.
-- Los albaranes de compra.
-- El detalle de una comanda (totales y pagos).
+- **Borrar** artículos o departamentos: solo se pueden desactivar.
+- **Modificar** una comanda ya enviada: hay que anularla y crear otra.
+
+## 4. Lo que no puede leer (limitación del BDP, sin arreglo posible)
+
+- **Avisos automáticos:** el BDP no avisa cuando algo cambia; la aplicación
+  tiene que preguntar.
 
 ## 5. Cómo se trabaja
 
@@ -60,7 +70,9 @@ Importaciones comprobadas una por una en la web del restaurante (18/09):
 
 ## 6. Pendiente del restaurante (nada urgente, nada bloqueante)
 
-1. Indicar el código del perfil de exportación del terminal para activar la
-   lectura de albaranes.
-2. Anular en el terminal la comanda de prueba 6258 y el departamento de
+1. Código del perfil de exportación (albaranes).
+2. Suscripción de pago (cobrar comandas existentes, detalle y factura).
+3. Crear el almacén en el TPV (stock e inventario).
+4. IP del servidor de mensajes en el terminal (aviso de camarero).
+5. Anular en el terminal la comanda de prueba 6258 y el departamento de
    prueba 901 cuando se indique.
