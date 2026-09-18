@@ -65,17 +65,28 @@ aplicación:
 - Mostrar el aviso de camarero en el terminal (pendiente: poner la IP del
   servidor de mensajes en la configuración del terminal).
 
-## 4. Lo que no puede escribir (limitación del BDP, sin arreglo posible)
+## 4. Estado de la conexión de un vistazo
+
+| Operación | Estado |
+|---|---|
+| Recibir catálogo, clientes y plano | Funciona (verificado) |
+| Recibir albaranes | Funciona cuando se indique el perfil |
+| Recibir detalle de comandas y existencias | Funciona cuando se active lo pendiente (§7) |
+| Crear cliente, comanda (cobrada o no), propina, puntos, anular, altas | Funciona (verificado) |
+| Cobrar comanda existente, facturar, stock, camarero | Funciona cuando se active lo pendiente (§7) |
+| Borrar artículos, modificar comanda enviada, avisos automáticos | No lo permite el BDP |
+
+## 5. Lo que no puede escribir (limitación del BDP, sin arreglo posible)
 
 - **Borrar** artículos o departamentos: solo se pueden desactivar.
 - **Modificar** una comanda ya enviada: hay que anularla y crear otra.
 
-## 5. Lo que no puede leer (limitación del BDP, sin arreglo posible)
+## 6. Lo que no puede leer (limitación del BDP, sin arreglo posible)
 
 - **Avisos automáticos:** el BDP no avisa cuando algo cambia; la aplicación
   tiene que preguntar.
 
-## 6. Cómo se trabaja
+## 7. Cómo se trabaja
 
 - Estado normal en solo lectura; cada envío requiere autorización puntual y el
   sistema vuelve solo a lectura después de operar.
@@ -87,11 +98,12 @@ aplicación:
 - Los respaldos protegen los datos de la aplicación; no pueden deshacer nada
   dentro del BDP.
 
-## 7. Pendiente del restaurante (nada urgente, nada bloqueante)
+## 8. Pendiente del restaurante (nada urgente, nada bloqueante)
 
-1. Código del perfil de exportación (albaranes).
-2. Suscripción de pago (cobrar comandas existentes, detalle y factura).
-3. Crear el almacén en el TPV (stock e inventario).
-4. IP del servidor de mensajes en el terminal (aviso de camarero).
-5. Anular en el terminal la comanda de prueba 6258 y el departamento de
-   prueba 901 cuando se indique.
+| Pendiente | Lo hace | Activa |
+|---|---|---|
+| Código del perfil de exportación | Restaurante (en el terminal) | Recibir albaranes |
+| Suscripción de pago | Restaurante (con el proveedor) | Cobrar comandas existentes, detalle y factura |
+| Crear el almacén en el TPV | Restaurante (en el terminal) | Stock e inventario |
+| IP del servidor de mensajes en el terminal | Restaurante (en el terminal) | Aviso de camarero |
+| Anular comanda 6258 y departamento 901 | Restaurante (cuando se indique) | Limpieza de pruebas |
