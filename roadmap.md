@@ -140,18 +140,6 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Tareas pendientes
 
-### Bloque 267A-7 — Tercer modo BDP: automático (plan activo 2026-09-18)
-
-Plan: `Agente/planes/plan-modo-automatico-bdp-2026-09-18.md`. Añadir modo
-`automatic` a `bdp_sync_mode` (escrituras sin confirmación por operación,
-siempre auditadas): backend (validación, rama en `cambiar_bdp_sync_mode`, rama
-en `authorize` del write-guard, 5 gates de push) + frontend (tercera tarjeta en
-`ConfigBdp`, badge con 3 estados, opción en `PanelBdpBackup`) + verificación en
-navegador con captura. Sin auto-deploy (toca escrituras reales).
-Verificado 18/09: diálogos propios (`dialogoConfirmacion.tsx`, sin nativos) +
-fix `target_entity_id: ""` → `null` (el extractor axum daba 422 en texto plano)
-+ toast con mensaje real del backend; modo sigue `read_only`.
-
 ### Bloque 169A-4 — Staging en VPS + informe de rendimiento sin BDP real (plan activo 2026-09-16)
 
 Plan: `Agente/planes/plan-perf-vps-2026-09-16.md`. **Decisión 2026-09-16:** alcance C
