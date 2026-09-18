@@ -25,16 +25,10 @@ El día a día del restaurante no necesita la conexión:
   configuración, copias de seguridad y reporte de errores.
 - **Acceso** con usuario y contraseña.
 
-## 2. Lo que necesita conexión al BDP (solo esto)
+Todo lo de los puntos 2 y 3 requiere conexión; sin ella, esos botones aparecen
+ocultos o desactivados.
 
-- Traer datos del BDP (botones "Importar del BDP").
-- Enviar datos al BDP (comandas, pagos, facturas, puntos, cancelaciones, avisos).
-- La pantalla de Sincronización y el diagnóstico de la conexión.
-
-Sin conexión, todo lo del punto 1 sigue funcionando y los botones que
-requieren conexión aparecen ocultos o desactivados.
-
-## 3. Lo que la aplicación puede recibir del BDP (lectura)
+## 2. Lo que la aplicación puede recibir del BDP (lectura)
 
 - **Catálogo:** 559 artículos con precio, impuesto y familia (verificado 18/09).
 - **Clientes,** con revisión previa: lo nuevo se copia, lo existente se vincula,
@@ -50,7 +44,7 @@ requieren conexión aparecen ocultos o desactivados.
   explícita antes de aplicar. Al aplicar solo se crea lo que falta; nunca se
   borra nada.
 
-## 4. Lo que la aplicación puede enviar al BDP (escritura)
+## 3. Lo que la aplicación puede enviar al BDP (escritura)
 
 Verificado con operaciones reales:
 
@@ -71,17 +65,17 @@ aplicación:
 - Mostrar el aviso de camarero en el terminal (pendiente: poner la IP del
   servidor de mensajes en la configuración del terminal).
 
-## 5. Lo que no puede escribir (limitación del BDP, sin arreglo posible)
+## 4. Lo que no puede escribir (limitación del BDP, sin arreglo posible)
 
 - **Borrar** artículos o departamentos: solo se pueden desactivar.
 - **Modificar** una comanda ya enviada: hay que anularla y crear otra.
 
-## 6. Lo que no puede leer (limitación del BDP, sin arreglo posible)
+## 5. Lo que no puede leer (limitación del BDP, sin arreglo posible)
 
 - **Avisos automáticos:** el BDP no avisa cuando algo cambia; la aplicación
   tiene que preguntar.
 
-## 7. Cómo se trabaja
+## 6. Cómo se trabaja
 
 - Estado normal en solo lectura; cada envío requiere autorización puntual y el
   sistema vuelve solo a lectura después de operar.
@@ -93,7 +87,7 @@ aplicación:
 - Los respaldos protegen los datos de la aplicación; no pueden deshacer nada
   dentro del BDP.
 
-## 8. Pendiente del restaurante (nada urgente, nada bloqueante)
+## 7. Pendiente del restaurante (nada urgente, nada bloqueante)
 
 1. Código del perfil de exportación (albaranes).
 2. Suscripción de pago (cobrar comandas existentes, detalle y factura).
