@@ -22,5 +22,9 @@
       "@glory/*": ["../glory-rs/frontend/*"]
     }
   },
-  "include": ["src", "../glory-rs/frontend"]
+  /* [259A-5] tsc solo cubre src (patron del template, espejo ONG AGAPE):
+   * ../glory-rs es un submodulo sin node_modules propio y 'react' no resuelve
+   * hacia arriba desde ahi (22 errores TS2307/TS2875/TS2339 fantasma); vite
+   * sigue empaquetandolo via @glory/* en el build. */
+  "include": ["src"]
 }
