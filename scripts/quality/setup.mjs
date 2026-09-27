@@ -12,6 +12,12 @@ const manifestPath = path.join(projectRoot, 'quality-tools.json');
 const realNodeDir = path.dirname(process.execPath);
 const npmCliPath = path.join(realNodeDir, 'node_modules', 'npm', 'bin', 'npm-cli.js');
 
+/* [259A-5] La suite de Sentinel 0.7.14 (700 tests, ~5 min medidos) supera el
+ * presupuesto fijo de 300 s del runner y el setup abortaba sin provisionar.
+ * Espejo de WANDORIUS [109A-9]: el presupuesto es un suelo del runner, no un
+ * techo del test; se declara explícito para ci/compile/suite en staging. */
+const STAGE_TIMEOUT_MS = 900_000;
+
 function isolatedNpmEnvironment() {
   const pathKey = process.platform === 'win32' ? 'Path' : 'PATH';
   const currentPath = process.env[pathKey] ?? process.env.PATH ?? '';
@@ -253,11 +259,11 @@ async function stageSourcePathBuild(name, config, toolRoot) {
     await run('tar', ['-xf', '-'], { cwd: stagingRoot, capture: true, input: archive });
     const env = isolatedNpmEnvironment();
     env.GLORY_QUALITY_SETUP = '1';
-    await run(process.execPath, [npmCliPath, 'ci', '--ignore-scripts'], { cwd: stagingRoot, env });
-    await run(process.execPath, [npmCliPath, 'run', config.buildScript], { cwd: stagingRoot, env });
+    await run(process.execPath, [npmCliPath, 'ci', '--ignore-scripts'], { cwd: stagingRoot, env, timeoutMs: STAGE_TIMEOUT_MS });
+    await run(process.execPath, [npmCliPath, 'run', config.buildScript], { cwd: stagingRoot, env, timeoutMs: STAGE_TIMEOUT_MS });
     if (config.testScript) {
       const testArgs = [npmCliPath, 'run', config.testScript];
-      await run(process.execPath, testArgs, { cwd: stagingRoot, env });
+      await run(process.execPath, testArgs, { cwd: stagingRoot, env, timeoutMs: STAGE_TIMEOUT_MS });
     }
 
     /* [SNT-16f] El checkout versionado no recibe node_modules ni artefactos.
