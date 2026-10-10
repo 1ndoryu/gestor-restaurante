@@ -19,7 +19,9 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const cleanScriptPath = path.join(repoRoot, 'glory-rs', 'scripts', 'clean-cargo-target.ps1');
 const minFreeMB = Number.parseInt(process.env.GLORY_CARGO_MIN_FREE_MB ?? '6144', 10);
-const maxTargetMB = Number.parseInt(process.env.GLORY_CARGO_MAX_TARGET_MB ?? '4096', 10);
+// [por que] 20 GB = techo de AGENTS §0.2. Con 4 GB, un target de ~14 GB se purgaba
+// antes de cada compilacion y el arranque en frio superaba el probe de `up`.
+const maxTargetMB = Number.parseInt(process.env.GLORY_CARGO_MAX_TARGET_MB ?? '20480', 10);
 const cargoCommandsThatCompile = new Set(['build', 'check', 'clippy', 'run', 'test']);
 
 function fileExists(filePath) {

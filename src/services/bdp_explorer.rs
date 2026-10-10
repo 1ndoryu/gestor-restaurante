@@ -9,7 +9,7 @@ use tracing::warn;
 use crate::models::ConfiguracionRestaurante;
 use crate::services::bdp_weblink::{BdpWeblinkClient, BdpWeblinkError};
 use crate::services::bdp_weblink_catalog::{
-    BdpExportArticlesRequest, BdpExportCustomersRequest, BdpExportDepartmentsRequest,
+    BdpDepartmentsExportFromProfileRequest, BdpExportArticlesRequest, BdpExportCustomersRequest,
     BdpGetEmployeesRequest, BdpGetRoomsTablesRequest,
 };
 
@@ -94,12 +94,16 @@ impl BdpExplorerService {
                 .await,
         );
 
-        /* Departamentos: ExportDepartments con rango completo */
+        /* Departamentos: ExportFromProfile (mismo origen que /api/bdp/departamentos/perfil).
+         * [por que] ExportDepartments con rango 1..999 devuelve lista vacía en este BDP
+         * y el explorador contaba 0 mientras el perfil veía 24. */
         let departamentos = Self::explorar_categoria(
             "departamentos",
-            &["Departments", "Department"],
+            &["Departamentos"],
             client
-                .export_departments(&BdpExportDepartmentsRequest::default())
+                .export_departments_from_profile(&BdpDepartmentsExportFromProfileRequest {
+                    profile_id: config.bdp_items_profile_id,
+                })
                 .await,
         );
 

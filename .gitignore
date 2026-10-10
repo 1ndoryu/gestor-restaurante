@@ -5,6 +5,7 @@
 
 # Environment (secrets)
 .env
+.env.prod
 
 # Node (raíz y frontend)
 node_modules/
