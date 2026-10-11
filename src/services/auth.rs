@@ -217,3 +217,54 @@ impl AuthService {
         hex
     }
 }
+
+/* [11AA-1] Cubre el salto jsonwebtoken 9→10 (backend rust_crypto) y el
+ * validator 0.18→0.19 de los DTOs de auth. Unitarios: no requieren Postgres. */
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::RegisterRequest;
+    use validator::Validate;
+
+    #[test]
+    fn token_round_trip_conserva_claims() {
+        let user_id = Uuid::new_v4();
+        let trabajador_id = Uuid::new_v4();
+        let token = AuthService::generate_token_with_secciones(
+            user_id,
+            Some(trabajador_id),
+            vec!["ventas".into()],
+            "secreto-de-prueba",
+        )
+        .expect("generar token");
+
+        let claims = AuthService::verify_token(&token, "secreto-de-prueba").expect("verificar token");
+
+        assert_eq!(claims.sub, user_id);
+        assert_eq!(claims.tid, Some(trabajador_id));
+        assert_eq!(claims.secs, vec!["ventas".to_string()]);
+    }
+
+    #[test]
+    fn token_con_otro_secreto_se_rechaza() {
+        let token = AuthService::generate_token_with_tid(Uuid::new_v4(), None, "uno")
+            .expect("generar token");
+
+        assert!(AuthService::verify_token(&token, "otro").is_err());
+    }
+
+    #[test]
+    fn validator_acepta_y_rechaza_registro() {
+        let valido = RegisterRequest {
+            email: "a@b.com".into(),
+            password: "12345678".into(),
+        };
+        let email_malo = RegisterRequest {
+            email: "no-es-email".into(),
+            password: "12345678".into(),
+        };
+
+        assert!(valido.validate().is_ok());
+        assert!(email_malo.validate().is_err());
+    }
+}
