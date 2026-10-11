@@ -12,7 +12,7 @@
     "directCommands": {
       "npmScripts": ["test", "test:changed", "test:full", "test:file", "test:watch", "type-check", "lint", "check", "check:back", "check:front", "fmt", "fmt:check", "build"],
       "npxTools": ["vitest", "tsc", "eslint", "prettier", "rustfmt"],
-      "cargoSubcommands": ["check", "clippy", "test", "bench", "fmt"],
+      "cargoSubcommands": ["check", "clippy", "test", "bench", "fmt", "nextest"],
       "tools": ["vitest", "tsc", "eslint", "prettier", "rustfmt"]
     }
   },
