@@ -17,8 +17,8 @@ en el reporte y la regla no se borra ni se desactiva.
 | Framework web | Axum 0.7                       |
 | OpenAPI       | utoipa 4 + utoipa-swagger-ui 7 |
 | Base de datos | SQLx 0.8 (PostgreSQL)          |
-| Validación    | validator 0.18                 |
-| Auth          | jsonwebtoken + argon2          |
+| Validación    | validator 0.19                 |
+| Auth          | jsonwebtoken 10 + argon2       |
 | Frontend      | React 18 + TypeScript + Vite   |
 | State         | React Query + Zustand          |
 | Codegen       | Orval 8                        |
@@ -29,7 +29,7 @@ en el reporte y la regla no se borra ni se desactiva.
 ## Notas de infraestructura
 
 - **Sentinel (2026-08-10)**: re-pinado a la release coordinada **0.7.0** (`a804c0d`, `main` + tag `v0.7.0`); lock regenerado, `quality:lock --check` y doctor PASS, suite 232 pass. La release integra la auditoría 108A-1 (contratos CLI, init, ADR 0001, seguridad/concurrencia) sobre 0.6.4. El stage `custom` local fue retirado (commit `f13d0e16`): 15 reglas migradas al Core, 2 observe-only P1 con destino declarado en roadmap-sentinel.
-- **Sentinel 0.7.23 (2026-10-11)**: pin `02d82d7` (v0.7.23) en la rama `chore/sentinel-0.7.23` (commit `9a21d66`); lock regenerado, `quality:lock --check` y doctor PASS, evidencia compile + suite 776 pass en staging limpio. **Pendiente de decisión de la usuaria:** integrar en `main`. La copia local de `main` tiene 2 commits sin pushear (`3747902`, `05b8a41`) y `roadmap.md`/planes sin commitear, así que no se integra sin tu OK. Recomendación: abrir PR o hacer fast-forward de `origin/main` a esta rama y luego rebasar tu `main` local encima.
+- **Sentinel 0.7.23 (2026-10-11)**: pin `02d82d7` (v0.7.23) en la rama `chore/sentinel-0.7.23` (commit `9a21d66`); lock regenerado, `quality:lock --check` y doctor PASS, evidencia compile + suite 776 pass en staging limpio. **Pendiente de decisión de la usuaria:** integrar en `main`. Corrección 2026-10-11: la nota anterior (2 commits sin pushear en `main`) era obsoleta. `main` local coincide con `origin/main` (`43c3c74`) y `3747902`/`05b8a41` no son alcanzables desde ninguna rama.
 - **restaurante.wandori.us**: Coolify service `glory-rest`, UUID `b8s0cks444o0sogo8kg8wcgw`
 - **Deploy**: Siempre via coolify-manager-rs (`deploy --name glory-rest --update`), nunca desde Coolify UI
 - **Branch**: `main`
@@ -140,6 +140,14 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 ---
 
 ## Tareas pendientes
+
+### Bloque 11AA-2 — Gate: checklist en planes activos (preexistente)
+
+Hallazgo `docs-plan-no-checklist` del gate de 11AA-1 en `Agente/planes/plan-deploy-desde-cero-2026-09-18.md` y `Agente/planes/plan-fase-d-bdp-local-2026-10-10.md`. Ya existe en `main` (43c3c74), no lo causa 11AA-1. Siguiente paso: añadir a cada plan su checklist de cierre y repetir `npm run gate:check -- <id>`.
+
+### Bloque 11AA-3 — Gate: roadmap sobre 700 líneas (preexistente)
+
+Hallazgo `docs-roadmap-max-lines`: `roadmap.md` tiene 755 líneas en `main` (43c3c74). Siguiente paso: mover las tareas completadas a `Agente/completados/` (AGENTS §7.1) hasta bajar del límite. Es reorganización de documentación heredada: tarea propia, no se mezcla con dependabot.
 
 ### Bloque 169A-4 — Staging en VPS + informe de rendimiento sin BDP real (plan activo 2026-09-16)
 
