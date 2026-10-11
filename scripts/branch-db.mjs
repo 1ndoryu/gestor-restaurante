@@ -24,7 +24,7 @@ function readPackageName() {
 
 const cargoTargetBase =
   process.env.CARGO_TARGET_DIR_BASE ||
-  (process.platform === 'win32' ? 'C:\\tmp\\glory-target' : path.join(tmpdir(), 'glory-target'));
+  (process.platform === 'win32' ? 'C:\\tmp\\glory-target\\RESTAURANTE' : path.join(tmpdir(), 'glory-target'));
 
 function parseEnvFile(content) {
   const vars = {};
