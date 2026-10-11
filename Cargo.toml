@@ -26,7 +26,7 @@ utoipa = { version = "4", features = ["axum_extras", "uuid", "chrono", "decimal"
 utoipa-swagger-ui = { version = "7", features = ["axum"] }
 
 # Validation
-validator = { version = "0.18", features = ["derive"] }
+validator = { version = "0.19", features = ["derive"] }
 
 # Environment
 dotenvy = "0.15"
@@ -39,7 +39,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 thiserror = "2"
 
 # Auth
-jsonwebtoken = "9"
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 argon2 = "0.5"
 
 # Email
