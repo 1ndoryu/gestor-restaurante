@@ -80,3 +80,6 @@ sentinel.lock.json.bak
 
 # Guia con credenciales del BDP: solo local, nunca a GitHub
 /Agente/usuario/guia-cliente-segunda-entrega-bdp-2026-09-18.md
+
+# Caché de tsc (noEmit en tsconfig): no versionar
+*.tsbuildinfo
