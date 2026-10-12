@@ -16,7 +16,10 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    /* Puerto del mando dev (scripts/dev/registro.json). 5173 lo ocupa opencode-propio;
+     * strictPort falla en vez de caer en otro puerto ajeno en silencio. */
+    port: 5182,
+    strictPort: true,
     /* Permitir servir archivos del submodulo glory-rs */
     fs: {
       allow: ['..'],
