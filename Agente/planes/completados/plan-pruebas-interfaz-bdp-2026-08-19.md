@@ -31,7 +31,7 @@ Esto complementa (no sustituye) las suites ya verdes: 153 unit + 13 bdp_push + 3
 
 ## 2. No-alcance
 
-- Cualquier llamada al BDP real (`100.83.196.35:8068`): lecturas y escrituras quedan fuera.
+- Cualquier llamada al BDP real (`IP_BDP:8068`): lecturas y escrituras quedan fuera.
 - El plan 138A-2 (24 lecturas reales) — requiere BDP online + credenciales.
 - Deploy, producción, migraciones destructivas, git.
 - Haddock.
@@ -94,7 +94,7 @@ Leyenda: ✅ pasa · ⚠️ pasa con salvedad · ❌ falla · ⏭ no aplica en s
 
 | ID | Caso | Verificación | Criterio |
 | --- | --- | --- | --- |
-| N1 | Cero tráfico a BDP | `preview_logs` (network) tras recorrer 4.2–4.3 | **Ninguna** petición a `100.83.196.35` / `:8068` |
+| N1 | Cero tráfico a BDP | `preview_logs` (network) tras recorrer 4.2–4.3 | **Ninguna** petición a `IP_BDP` / `:8068` |
 | N2 | Flush manual forzado en standalone | `POST /api/bdp/push/flush` | `sincronizados=0`, `omitidos_standalone>0` (ya cubierto por test `flush_en_standalone_no_envia_ni_consume_la_cola`) |
 
 ## 5. Fases de ejecución
@@ -138,7 +138,7 @@ login `demo@restaurante.com` OK. **`modo_operacion=auto` → `modo_efectivo=stan
 | D8 propina (local) | ✅ (código) | `venta-row-actions.tsx:317` botón Coins **siempre** visible; diálogo "Guarda localmente…" |
 | I5 anulación local | ✅ (código) | `venta-row-actions.tsx:329` botón "Anular venta" disponible (`!v.anulada && onAnular`) |
 | U8 banners desactivación | ✅ | Ventas y Clientes muestran "Integración BDP desactivada…" con CTA a Configuración |
-| N1 cero tráfico BDP | ✅ | `preview_logs` network: solo `localhost:5180`; **ninguna** petición a `100.83.196.35` |
+| N1 cero tráfico BDP | ✅ | `preview_logs` network: solo `localhost:5180`; **ninguna** petición a `IP_BDP` |
 
 **Bug real encontrado y corregido:** `BdpStatusIndicator` (`site-header.tsx`) pasaba a
 `useConfiguracionSync` un literal `{ status, data }` nuevo por render → bucle infinito
@@ -163,7 +163,7 @@ Segunda pasada ejecutada en el mismo stack aislado (`:3100`/`:5180`), todo sin B
 | Historial (auditoría) | ✅ | `/bdp/historial`: 4 registros + 2 snapshots; la anulación aparece como `anular_venta` Local "Completada" |
 | Stock local | ✅ | `/bdp/stock`: 6 artículos, "Sync catálogo" **deshabilitado**, CSV disponible |
 | I9 permisos operativos (403) | ✅ | Trabajador Sara (`role=trabajador`): `POST /api/bdp/push/flush` → **403** `{"error":"forbidden","message":"No tienes permisos para esta acción"}`; `GET /api/trabajadores` → **403**; `GET /api/configuracion` → 200 (lectura permitida) |
-| N1 cero tráfico BDP | ✅ | `preview_logs` network tras toda la pasada: solo `localhost:5180`/`localhost:3100`; **ninguna** petición a `100.83.196.35` |
+| N1 cero tráfico BDP | ✅ | `preview_logs` network tras toda la pasada: solo `localhost:5180`/`localhost:3100`; **ninguna** petición a `IP_BDP` |
 
 **Conclusión:** todas las funcionalidades locales de 128A-1 y los efectos locales de 198A-1
 funcionan en `standalone` con cero tráfico a BDP; los controles dependientes de BDP (CallWaiter,

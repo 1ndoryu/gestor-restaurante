@@ -228,7 +228,7 @@
 | Historial | ⚠️ OK modo demo | 3 auditorías + 2 snapshots. Solo lee DB local — no contacta BDP. Pendiente probar con datos reales. |
 | Compras | ⚠️ OK modo demo | 4 albaranes, filtros OK. Pendiente probar Sync albaranes contra BDP real. |
 
-> **Nota:** Las pruebas contra BDP real se hacen **desde local** (no requiere deploy). La IP `100.83.196.35` es accesible vía TailScale cuando el restaurante está conectado. Ver `resultados-pruebas-lectura-bdp-2026-07-26.md`.
+> **Nota:** Las pruebas contra BDP real se hacen **desde local** (no requiere deploy). La IP `IP_BDP` es accesible vía TailScale cuando el restaurante está conectado. Ver `resultados-pruebas-lectura-bdp-2026-07-26.md`.
 
 > **Formato:** Al ejecutar cada sección, marcar ✅ (pasó), ⚠️ (pasó con observaciones) o ❌ (falló) y documentar hallazgos.
 

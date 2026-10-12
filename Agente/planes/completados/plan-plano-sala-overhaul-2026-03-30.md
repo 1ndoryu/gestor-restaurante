@@ -71,6 +71,6 @@ El cliente reportó varios problemas (Data IV) y el usuario identificó mejoras 
 3. IVA: configuración = default global, en ventas se puede poner excepciones por venta
 4. API chatbot: "Groq" es el nombre del proveedor, pero funciona con cualquier API compatible OpenAI
 5. Datos de prueba: eliminar = vaciar todo, recargar = restaurar demo
-6. Reportar error: llega a andoryyu@gmail.com via SMTP
+6. Reportar error: llega a CORREO_AUTOR via SMTP
 
 **Archivo:** Agente/documentacion/aclaraciones-cliente-2026-03-30.md

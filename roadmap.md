@@ -516,7 +516,7 @@ corrección (decisiones del usuario en §6 del plan) — NO se ha implementado n
 
 Plan archivado (bloque 039A-1): `Agente/planes/completados/plan-prueba-lecturas-bdp-2026-08-18.md`.
 El objetivo queda encomendado a la Parte 2 del plan centralizado 039A-1 (bloque Q1). Verificar contra el **BDP
-REAL del restaurante** (`100.83.196.35:8068`, solo lecturas, cero escrituras) que las 24 funciones
+REAL del restaurante** (`IP_BDP:8068`, solo lecturas, cero escrituras) que las 24 funciones
 de lectura marcadas "en uso" en el inventario final (64 funciones) siguen respondiendo tras
 F0–F10 (128A-1). Sin simulador (descartado por decisión del usuario), sin escrituras, sin deploy.
 Pendiente de confirmar BDP online + credenciales — condición heredada por la Parte 2 del plan
@@ -528,7 +528,7 @@ Plan archivado (2026-09-03, bloque 039A-1):
 `Agente/planes/completados/plan-pruebas-interfaz-bdp-2026-08-19.md`. Verificar a nivel de
 **interfaz** (navegador + backend local + BD de rama) que la independencia (128A-1) y los
 efectos locales de la integración de escritura (198A-1) funcionan en `standalone`, y que
-**ninguna** funcionalidad ofrece ni envía nada a BDP (cero tráfico a `100.83.196.35:8068`).
+**ninguna** funcionalidad ofrece ni envía nada a BDP (cero tráfico a `IP_BDP:8068`).
 Cubre: conmutador/badge, catálogo/stock/anulación/compras/pagos-factura local/menús/permisos,
 y los controles nuevos (artículo D3, departamento/familia D7, propina D8, puntos D9, inventario
 D6=A, CallWaiter D10 oculto, "Sincronizar a BDP" oculto, CancelOrder F6). Sin BDP real, sin
@@ -705,7 +705,7 @@ Plan cerrado en
 | #   | Item                                                                                                                                                                                                                              | Bloqueo                                                                   | Esfuerzo          |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------------- |
 | 1   | **4 pruebas de escritura real** contra BDP (cliente, comanda, pago, factura) — plan activo: `Agente/planes/plan-pruebas-escritura-bdp-real-2026-08-04.md` (pruebas locales 2026-08-04, producción después). **Estado 2026-08-05: 2/4 verificadas** (cliente 900001 ✅, comanda 5330 ✅); **pago (2.3) y factura (2.4) PENDIENTES** — `Payment/Add` devuelve "Subscripción no activada"; el cliente afirma que la suscripción estaba activa → pendiente de verificación con cliente/proveedor WebLink. | Suscripción WebLink REST API de pago a verificar con el cliente | ~1h investigación + retomar pruebas |
-| 1c  | **Verificar con cliente/proveedor WebLink** por qué `Payment/Add` responde "Subscripción no activada" si la suscripción estaba activa (¿instalación 100.83.196.35:8068 sin módulo REST de pago? ¿CodigoIntegrador sin permiso? ¿suscripción en otro entorno?). Documentado en plan 048A-11. | Cliente / proveedor WebLink | ~1h |
+| 1c  | **Verificar con cliente/proveedor WebLink** por qué `Payment/Add` responde "Subscripción no activada" si la suscripción estaba activa (¿instalación IP_BDP:8068 sin módulo REST de pago? ¿CodigoIntegrador sin permiso? ¿suscripción en otro entorno?). Documentado en plan 048A-11. | Cliente / proveedor WebLink | ~1h |
 | 1d  | **Comanda 5330 en BDP real** (creada en prueba 2.2, Status=0 abierta, sin ticket): avisar al cliente para que la **anule desde el TPV** si le afecta (instrucciones en plan, sección follow-up). | Cliente (TPV) | ~5 min |
 | 1e  | **Deploy a producción + correcciones de intuitividad** (dudas de Guillermo: demo, snapshots, botones pago/factura, conciliar, cancelar, mapeo, importar/enviar) — plan activo: `Agente/planes/plan-deploy-produccion-intuitividad-2026-08-08.md` (incluye borrador de respuesta al cliente). **Estado 2026-08-09: U1–U8 implementadas y validadas** (typecheck + build Vite OK; bloque 048A-12). Pendiente: gate `task:check`, commit/push, deploy vía coolify-manager-rs y verificación en producción. La activación de escrituras BDP queda sujeta a validación del cliente (paso 5 del plan). | Ninguno (la suscripción WebLink la activa el dueño/cliente en paralelo) | ~2-4h deploy + verificación (UI hecha) |
 | 1f  | **048A-22 — Reproducibilidad de Sentinel y del gate coordinado**: plan P0–P3 para identidad única, repin/repair transaccional, gate autónomo, worktrees listos, cleanup recuperable y rendimiento. Plan: `Agente/planes/plan-correccion-auditoria-sentinel-2026-08-08.md`. | Implementación pendiente por fases; gate base conserva deuda separada que no debe ocultarse | Plan listo |

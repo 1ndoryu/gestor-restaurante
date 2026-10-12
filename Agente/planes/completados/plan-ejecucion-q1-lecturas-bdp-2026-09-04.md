@@ -11,7 +11,7 @@
    `Tip`/`Points`/`Call`/`Regularizations`/`Transfers`); Q2 queda en S3/F5 con autorización por
    operación. Si un flujo terminaría escribiendo, se corta antes (regla S2.3 del plan padre).
 2. **La única vía de red es la app** (`BdpWeblinkClient` vía los endpoints de §4). Prohibido
-   curl/psql/SSH directo a `100.83.196.35`; los guards de destino del cliente son parte de lo que
+   curl/psql/SSH directo a `IP_BDP`; los guards de destino del cliente son parte de lo que
    se verifica (Q5.2 del plan padre).
 3. **Precondición:** tomar snapshot de config local (`POST /api/bdp/backup/parcial`) y confirmar
    con el usuario antes de la primera llamada.
@@ -32,7 +32,7 @@
 
 | Parámetro | Valor | Nota |
 | --- | --- | --- |
-| `bdp_base_url` | `http://100.83.196.35:8068` | fila real `configuracion_restaurante` |
+| `bdp_base_url` | `http://IP_BDP:8068` | fila real `configuracion_restaurante` |
 | `bdp_pos_id` | `31` | |
 | `bdp_employee_id` | `1` | |
 | `bdp_items_profile_id` | `1` | |
@@ -245,7 +245,7 @@ Checklist Q1 marcado en §7 del plan padre, completados, commit local.
   actual (sin cambios desde `188f6b3`). Re-run bloqueado por entorno: `C:\tmp` 6,4 GB / disco 5,9 GB
   libres < umbral del wrapper `run-cargo.mjs`.
 - **Vía B:** parámetros §2 leídos de BD local; sandbox `:3100` vivo; cero conexiones salientes a
-  `100.83.196.35` en toda la preparación.
+  `IP_BDP` en toda la preparación.
 
 ## 7. Cierre y siguiente paso verificable
 

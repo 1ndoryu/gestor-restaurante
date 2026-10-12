@@ -385,7 +385,7 @@
 - coolify-manager-rs usa `russh` (cliente SSH nativo en Rust), NO `ssh.exe`. Por eso el guard en PowerShell no lo afecta — son caminos completamente separados.
 - El perfil vive en `$PROFILE` (CurrentUserAllHosts = `~\OneDrive\Documentos\PowerShell\profile.ps1`). Se carga automáticamente en cada sesión PowerShell.
 - Bypass de emergencia: `ssh-unsafe` y `scp-unsafe` ejecutan los comandos reales sin filtro. Útil para diagnóstico puntual.
-- IPs bloqueadas: `66.94.100.241` (VPS1) y `173.249.50.44` (VPS2). Para agregar más, editar `$Script:BlockedSSHHosts` en el perfil.
+- IPs bloqueadas: `IP_VPS` (VPS1) y `173.249.50.44` (VPS2). Para agregar más, editar `$Script:BlockedSSHHosts` en el perfil.
 - **Lección del lockout anterior (jun 2026):** nunca usar `$(date)` en nombres de backup SSH — el shell remoto puede interpretar el `$' y romper el authorized_keys. Usar nombre fijo.
 
 ## Coolify compose credential drift — pérdida de datos por regeneración (2026-07-01)

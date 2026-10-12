@@ -1,6 +1,8 @@
 # [283A-33] [044A-1 DEPRECATED] Script legacy para actualizar compose manualmente.
 # La sincronizacion y el deploy se hacen desde coolify-manager-rs directamente.
 # Este script queda solo como referencia legacy; no forma parte del flujo activo.
+# Requiere VPS_HOST (IP del VPS) como variable de entorno.
+if (-not $env:VPS_HOST) { throw "VPS_HOST debe estar definido como variable de entorno (IP del VPS)" }
 $envFile = "c:\Users\Owner\OneDrive\Documentos\WP\app\public\wp-content\themes\glorytemplate\.agent\coolify-manager-rs\.env"
 $token = ((Get-Content $envFile | Where-Object { $_ -match '^COOLIFY_VPS1_API_TOKEN=' }) -replace 'COOLIFY_VPS1_API_TOKEN=','').Trim()
 
@@ -86,7 +88,7 @@ $headers = @{
 }
 
 try {
-    $resp = Invoke-RestMethod -Uri "http://66.94.100.241:8000/api/v1/services/b8s0cks444o0sogo8kg8wcgw" -Headers $headers -Method Patch -Body $body
+    $resp = Invoke-RestMethod -Uri "http://$($env:VPS_HOST):8000/api/v1/services/b8s0cks444o0sogo8kg8wcgw" -Headers $headers -Method Patch -Body $body
     Write-Host "PATCH exitoso"
     $resp | ConvertTo-Json -Depth 2 | Write-Host
 } catch {

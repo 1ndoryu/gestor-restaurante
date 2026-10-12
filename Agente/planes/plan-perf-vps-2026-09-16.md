@@ -10,7 +10,7 @@
 ## 0. Principios (no negociables)
 
 1. **Cero tráfico al BDP real.** Todo el perf se ejecuta en `modo_operacion=standalone`
-   (`bdp_sync_enabled=false`; verificado P11.1: 0 conexiones a `100.83.196.35:8068`).
+   (`bdp_sync_enabled=false`; verificado P11.1: 0 conexiones a `IP_BDP:8068`).
    El endpoint de diagnóstico NO se invoca durante el perf.
 2. **Staging separado de producción.** Servicio Coolify nuevo (p. ej. `restaurante-perf`),
    con datos seed/demo. Nada de prod, nada del BDP real.
@@ -59,7 +59,7 @@
 - [x] A.3 `deploy --name restaurante-perf` (2026-09-16: build OK con repo público,
   migraciones aplicadas, servidor en `:3000`; el health del manager falló solo por
   DNS inexistente → rollback E11 automático, pero el contenedor corriendo es el build
-  nuevo). `setup-site-dns` ejecutado: `A perf.wandori.us → 66.94.100.241` [created]
+  nuevo). `setup-site-dns` ejecutado: `A perf.wandori.us → IP_VPS` [created]
   (previo `dnsConfig` cloudflare añadido a `settings.json`, backup en
   `settings.json.bak-20260916`). `health --all`: los otros 10 sitios + minecraft OK;
   solo `restaurante-perf` en rojo por cert pendiente (disparó 1 email de alerta a

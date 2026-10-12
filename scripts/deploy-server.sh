@@ -1,7 +1,7 @@
 #!/bin/bash
 # [263A-22] Script para deploy del backend en el servidor
 # Reconstruye imagen Docker y arranca contenedores con Traefik
-# Requiere: DB_PASSWORD y JWT_SECRET como variables de entorno
+# Requiere: DB_PASSWORD, JWT_SECRET y VPS_HOST (IP del VPS) como variables de entorno
 
 set -e
 
@@ -10,11 +10,16 @@ if [ -z "$DB_PASSWORD" ] || [ -z "$JWT_SECRET" ]; then
   exit 1
 fi
 
+if [ -z "$VPS_HOST" ]; then
+  echo "ERROR: VPS_HOST debe estar definido como variable de entorno (IP del VPS)"
+  exit 1
+fi
+
 CONTAINER_NAME="app-b8s0cks444o0sogo8kg8wcgw"
 PG_CONTAINER="postgres-b8s0cks444o0sogo8kg8wcgw"
 NETWORK="b8s0cks444o0sogo8kg8wcgw"
 IMAGE="glory-rest-app:latest"
-DOMAIN="app-b8s0cks444o0sogo8kg8wcgw.66.94.100.241.sslip.io"
+DOMAIN="app-b8s0cks444o0sogo8kg8wcgw.${VPS_HOST}.sslip.io"
 REPO_URL="https://github.com/1ndoryu/glory-rs.git"
 BRANCH="main"
 BUILD_DIR="/tmp/glory-rs-build"
@@ -54,5 +59,5 @@ docker run -d \
 docker network connect coolify "$CONTAINER_NAME" 2>/dev/null || true
 
 echo "Glory REST app deployed successfully"
-echo "Direct: http://66.94.100.241:3001/swagger-ui/"
+echo "Direct: http://${VPS_HOST}:3001/swagger-ui/"
 echo "Traefik: http://${DOMAIN}/swagger-ui/"

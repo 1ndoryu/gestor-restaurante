@@ -21,7 +21,7 @@
 - Nakomi (técnico, nuestro lado) terminó las pruebas de integración contra el **BDP real** del restaurante (desde el **entorno local** de desarrollo):
   - ✅ Cliente de prueba **900001** creado y verificado en BDP.
   - ✅ Comanda de prueba **5330** creada y verificada en BDP (5,00 € + IVA, sin pagar ni facturar).
-  - ⏸ Cobrar (pago): el BDP respondió `"Subscripción no activada"`. **Pendiente de verificación** (no fallido): el cliente afirma que la suscripción estaba activa. Hipótesis del Hallazgo 048A-11: (a) módulo de pago no activado en la instalación `100.83.196.35:8068`, (b) `CodigoIntegrador` sin permiso de pago, (c) subpath/puerto distinto para la API de pago.
+  - ⏸ Cobrar (pago): el BDP respondió `"Subscripción no activada"`. **Pendiente de verificación** (no fallido): el cliente afirma que la suscripción estaba activa. Hipótesis del Hallazgo 048A-11: (a) módulo de pago no activado en la instalación `IP_BDP:8068`, (b) `CodigoIntegrador` sin permiso de pago, (c) subpath/puerto distinto para la API de pago.
   - ⏸ Facturar: **en espera** (depende de 2.3; no se llegó a intentar).
   - 🧹 Los datos de prueba deben borrarse desde el **TPV de forma manual** (la cancelación por API también exige la suscripción).
 - Guillermo (cliente) respondió con:
@@ -106,7 +106,7 @@ Esto es lo que hay que explicarle al cliente en el borrador (sección 2) y es el
 
 ### Pre-requisitos
 
-- [ ] BDP online en Tailscale: `100.83.196.35:8068` (`restaurante-bdp`) — verificar `tailscale status` desde el VPS (estaba offline el 2026-07-21).
+- [ ] BDP online en Tailscale: `IP_BDP:8068` (`restaurante-bdp`) — verificar `tailscale status` desde el VPS (estaba offline el 2026-07-21).
 - [ ] Árbol git limpio y gate de calidad ejecutado (`npm run task:check`) antes del deploy. **Nota:** el último run full (2026-08-07) falló por problemas preexistentes de la rama (scanner Sentinel, `ListaReservas.tsx`, clippy, varsense, timeout cargo test; ver `Agente/contexto-reinicio-alcance-2026-08-07.md`) — separar regresión nueva de deuda base en el reporte.
 - [x] Exención de gate documentada para este cambio (solo documental): `task:check` exige un task-id válido y sin toma ajena; este borrador no tiene tarea asignada (el claim/ownership es capa de coordinación, no contrato del gate). Evidencia ligera ejecutada el 2026-08-08: stage docs con **0 hallazgos nuevos** sobre este plan — comando: `node scripts/quality/stage-process.mjs --stage docs --report .quality-reports/manual-docs-2026-08-08.json --task-id 048A-11 --profile docs` (reporte: 6 hallazgos de planes previos sin checklist, ajenos a este documento; sin `docs-task-missing` ni `docs-link-missing`). El `task:check` full sigue siendo pre-requisito del deploy.
 - [ ] Env del contenedor preparado (paso siguiente).
@@ -120,7 +120,7 @@ Esto es lo que hay que explicarle al cliente en el borrador (sección 2) y es el
 3. **Health + logs:** verificar health remoto y en logs el bootstrap: "Bootstrap BDP dirigido" + "aplicado correctamente"; confirmar en BD `bdp_sync_enabled=false`, `bdp_poll_enabled=false`, `bdp_auto_sync_customers=false`, `bdp_sync_mode=read_only`.
 4. **Smoke test de conectividad:** desde la app, sección BDP: configuración técnica cargada y preflight responde.
 5. **Activar la conexión (solo tras validación del cliente):**
-   - Añadir `BDP_WRITE_ALLOWED_ORIGINS` y `BDP_CHECK_ORDER_ALLOWED_ORIGINS` con la IP/puerto del BDP (`http://100.83.196.35:8068`).
+   - Añadir `BDP_WRITE_ALLOWED_ORIGINS` y `BDP_CHECK_ORDER_ALLOWED_ORIGINS` con la IP/puerto del BDP (`http://IP_BDP:8068`).
    - Habilitar `bdp_sync_enabled=true` y `bdp_poll_enabled=true` (si se quiere polling) desde la interfaz.
 6. **Verificación final con el cliente:**
    - Confirmar que el cliente 900001 y la comanda 5330 se ven desde producción (si siguen en BDP) y borrarlos desde el TPV. **Nota:** esos registros de prueba existen en el BDP real y en el entorno local; producción no los mostrará retroactivamente. La verificación real en producción será con un ciclo nuevo de prueba (crear cliente/comanda desde producción tras activar la conexión), confirmarlo en la web y limpiarlo después.

@@ -2,7 +2,7 @@
 > **Fecha del incidente:** 2026-07-21
 > **Sitio afectado:** restaurante.wandori.us (glory-rest)
 > **UUID Coolify:** `b8s0cks444o0sogo8kg8wcgw`
-> **VPS:** 66.94.100.241 (Tailscale 100.91.173.54)
+> **VPS:** IP_VPS (Tailscale IP_VPS_TAILSCALE)
 > **Gravedad:** ALTA — sitio caído, rollback destruyó contenedor
 > **Estado:** PARCIALMENTE RESUELTO — contenedor restaurado, causa raíz del 503 identificada, fix pendiente
 

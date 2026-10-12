@@ -257,7 +257,7 @@ sshguard
 
 ```powershell
 # Todas estas deben ser bloqueadas:
-ssh root@66.94.100.241 "echo test"    # → BLOQUEADO
+ssh root@IP_VPS "echo test"    # → BLOQUEADO
 scp file root@server:/tmp/            # → BLOQUEADO
 sftp root@server                      # → BLOQUEADO
 ssh.exe root@server "test"            # → BLOQUEADO

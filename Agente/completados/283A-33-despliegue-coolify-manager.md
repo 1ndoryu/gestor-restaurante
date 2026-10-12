@@ -8,14 +8,14 @@
    - Rust image: `1.83` → `1` (latest stable)
    - Git clone con `--recurse-submodules` para incluir glory-rs submodule
    - Agregado paso `npm install` en glory-rs/ para tipos React (requerido por componentes @glory)
-   - URL actualizada al dominio correcto: `app-b8s0cks444o0sogo8kg8wcgw.66.94.100.241.sslip.io`
+   - URL actualizada al dominio correcto: `app-b8s0cks444o0sogo8kg8wcgw.IP_VPS.sslip.io`
    - Agregada variable `APP_URL`
 
 3. **coolify-manager-rs config** (`config/settings.json`):
    - Health check path: `/` → `/swagger-ui/`
    - Timeout: 20s → 30s
    - Fatal patterns actualizados para servicio Rust (no WordPress)
-   - Dominio corregido a `http://app-b8s0cks444o0sogo8kg8wcgw.66.94.100.241.sslip.io`
+   - Dominio corregido a `http://app-b8s0cks444o0sogo8kg8wcgw.IP_VPS.sslip.io`
 
 4. **coolify-manager-rs site_capabilities.rs**: Actualizado hints para template Rust (`app` / `glory`) para que el health check SSH encuentre el contenedor correcto
 

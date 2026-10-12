@@ -3,7 +3,7 @@
 > **Fecha:** 2026-08-04
 > **Rama:** `glory-rs-rest` (HEAD `99b0eac6` = commit 028A-6 con mitigaciones)
 > **Alcance:** pruebas LOCALES (repo local + PC local) contra el BDP real del restaurante.
-> **Destino BDP:** `http://100.83.196.35:8068` (Tailscale, `restaurante-bdp` — ONLINE confirmado).
+> **Destino BDP:** `http://IP_BDP:8068` (Tailscale, `restaurante-bdp` — ONLINE confirmado).
 > **Base:** `Agente/usuario/auditoria-escrituras-bdp-mitigaciones-2026-08-03.md` (criterio de habilitación de 7 pasos).
 > **Norma:** seguir la guía del cliente `guia-cliente-pruebas-integracion-bdp-2026-07-18.md` — una acción por vez, confirmar en BDP antes de continuar, detenerse ante el primer resultado inesperado.
 > **Nota:** producción se actualiza en una fase posterior con autorización explicita de deploy; estas pruebas NO tocan producción.
@@ -15,21 +15,21 @@
 
 | #   | Acción                                                                                                                                          | Estado | Evidencia                                                                                                   |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------- |
-| 0.1 | Confirmar Tailscale: `restaurante-bdp` online                                                                                                   | ✅     | `tailscale status`: `100.83.196.35 active; direct`                                                          |
+| 0.1 | Confirmar Tailscale: `restaurante-bdp` online                                                                                                   | ✅     | `tailscale status`: `IP_BDP active; direct`                                                          |
 | 0.2 | PostgreSQL local corriendo                                                                                                                      | ✅     | Puerto 5432 escuchando (pid 6952)                                                                           |
 | 0.3 | Config BDP en `.env` local (`BDP_BASE_URL`, `BDP_POS_ID=31`, credenciales)                                                                      | ✅     | Claves presentes en `.env`                                                                                  |
-| 0.4 | **Añadir al `.env` local:** `BDP_WRITE_ALLOWED_ORIGINS=http://100.83.196.35:8068` y `BDP_CHECK_ORDER_ALLOWED_ORIGINS=http://100.83.196.35:8068` | ✅ | Aplicado 2026-08-04 — verificado por lectura de `.env` |
+| 0.4 | **Añadir al `.env` local:** `BDP_WRITE_ALLOWED_ORIGINS=http://IP_BDP:8068` y `BDP_CHECK_ORDER_ALLOWED_ORIGINS=http://IP_BDP:8068` | ✅ | Aplicado 2026-08-04 — verificado por lectura de `.env` |
 | 0.5 | Validación post-mitigación: `cargo fmt --check` + `cargo check` | ✅ | `fmt_exit=0`, `check_exit=0` (runner `scripts/run-cargo.mjs`) |
 | 0.6 | Suite unit BDP: `cargo test --lib bdp` | ✅ | **85 passed / 0 failed** (exit 0) — incluye mitigaciones 028A-6 y el fix 048A-8 |
 | 0.7 | (Opcional) Suite simulador E2E: 92 Python + 23 Rust                                                                                          | ⏳     | `tools/bdp-weblink-simulator/` — No bloqueante: contrato validado contra el BDP real (el simulador no cubre campos de gestión)                                                        |
 | 0.8 | Backend + frontend local levantados | ✅ | Backend `http://localhost:3000` con **binario corregido (048A-8)** y allowlists forzadas en el entorno · Frontend `http://localhost:5174/` (el `5173` estaba ocupado por otro proyecto) — arrancado en puerto alternativo |
 
-**Corrección 0.4 (imprescindible):** el código en `src/services/bdp_weblink.rs` (`ensure_target_allowed`, línea ~522) solo permite loopback (localhost) o hosts listados en `BDP_WRITE_ALLOWED_ORIGINS`/`BDP_CHECK_ORDER_ALLOWED_ORIGINS`. La IP Tailscale `100.83.196.35` NO es loopback → sin el allowlist, toda escritura falla con `Escritura BDP bloqueada`. Es la única corrección de entorno necesaria antes de probar.
+**Corrección 0.4 (imprescindible):** el código en `src/services/bdp_weblink.rs` (`ensure_target_allowed`, línea ~522) solo permite loopback (localhost) o hosts listados en `BDP_WRITE_ALLOWED_ORIGINS`/`BDP_CHECK_ORDER_ALLOWED_ORIGINS`. La IP Tailscale `IP_BDP` NO es loopback → sin el allowlist, toda escritura falla con `Escritura BDP bloqueada`. Es la única corrección de entorno necesaria antes de probar.
 
 **Corrección 0.4b (operativa):** `dotenvy` **no carga variables añadidas al `.env` con `Add-Content`** (problema de encoding). Al relanzar el backend hay que **forzar las allowlists en el entorno** antes de `npm run dev:back`:
 ```powershell
-$env:BDP_WRITE_ALLOWED_ORIGINS="http://100.83.196.35:8068"
-$env:BDP_CHECK_ORDER_ALLOWED_ORIGINS="http://100.83.196.35:8068"
+$env:BDP_WRITE_ALLOWED_ORIGINS="http://IP_BDP:8068"
+$env:BDP_CHECK_ORDER_ALLOWED_ORIGINS="http://IP_BDP:8068"
 ```
 Sin esto, toda escritura fallaría con 422 `destino no incluido en BDP_WRITE_ALLOWED_ORIGINS`.
 
@@ -43,7 +43,7 @@ Sin esto, toda escritura fallaría con 422 `destino no incluido en BDP_WRITE_ALL
 **Hallazgo 048A-11 — LIMITACIÓN DE LA API GRATUITA DE WEBLINK (bloquea 2.3 y 2.4; PENDIENTE de verificación con el cliente):**
 - `POST /API/Orders/Get` → `[301010]` en la API gratuita: solo devuelve `Status` (0 = abierta); **no devuelve** `Order`, `Total`, `Items` ni `Payments`. Glory necesita `Total`/`Payments` para reconciliar antes de pagar (diseño W12) → el pago vía Glory falla con 422 `no se pudo reconciliar la orden antes de escribir`.
 - Probe de contrato `POST /API/Orders/Payment/Add` (amount=0, no escribe nada) → HTTP 200 con **`ErrorMessage: "Subscripción no activada"`** → el endpoint de pago no procesa en esta instalación.
-- **Contradicción con el cliente:** el cliente afirma que la suscripción de pago estaba activa. Pendiente de verificar con cliente/proveedor WebLink: (a) que el módulo/licencia "WebLink REST API de pago" esté activado **en la instalación 100.83.196.35:8068** (no en otro entorno); (b) que el `CodigoIntegrador` (`VBW2MBM5`) tenga permiso de pago; (c) que no haya un subpath/puerto distinto para la API de pago.
+- **Contradicción con el cliente:** el cliente afirma que la suscripción de pago estaba activa. Pendiente de verificar con cliente/proveedor WebLink: (a) que el módulo/licencia "WebLink REST API de pago" esté activado **en la instalación IP_BDP:8068** (no en otro entorno); (b) que el `CodigoIntegrador` (`VBW2MBM5`) tenga permiso de pago; (c) que no haya un subpath/puerto distinto para la API de pago.
 - Implicación: las fases 2.3 (pago) y 2.4 (factura) **no son verificables en BDP real** hasta resolver la suscripción. Se registran como **pendientes de verificación**, no como fallidas (criterio del plan).
 - Tenders del POS 31 (vía `Tenders/GetPOSList`): `Id=1 Contado` (efectivo del POS), 2 SABADELL, 3 La Caixa, 4 BANKINTER, 6 SANTANDER, 16 AMEX, 17 TAKE WAY, 19 UMAPPI, 22 CREDITO CLIENTE, 23 IBERCAJA. (`GetList` global añade Id=7 EFECTIVO, 18 JUST EAT, 20/21 EFECT. delivery, 24 GLOVO, 25 UBER). `bdp_tender_map` vacío → el pago habría usado `tender_id=1 (Contado)`.
 
@@ -56,7 +56,7 @@ Sin esto, toda escritura fallaría con 422 `destino no incluido en BDP_WRITE_ALL
 - **No bloquea nada en Glory:** la venta en Glory conserva su badge "Esperando validación · Orden: 5330" y no se altera; la anulación es solo higiene del TPV.
 
 ### 2. Suscripción WebLink de pago — qué pedir al cliente/proveedor
-- Preguntar: ¿la licencia/módulo **"WebLink REST API de pago"** está activa en la instalación `100.83.196.35:8068` (Tailscale `restaurante-bdp`), con integrador `VBW2MBM5`?
+- Preguntar: ¿la licencia/módulo **"WebLink REST API de pago"** está activa en la instalación `IP_BDP:8068` (Tailscale `restaurante-bdp`), con integrador `VBW2MBM5`?
 - Si lo está: pedir cómo se activa el permiso de pago para ese integrador (puede requerir configuración por instalación o subpath/puerto distinto).
 - Reproducción para el proveedor: `POST /API/Orders/Payment/Add` con un payload mínimo devuelve `{"InvoiceNumber":null,"ErrorMessage":"Subscripción no activada"}`.
 

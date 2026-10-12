@@ -9,7 +9,7 @@
 > **Fecha:** 2026-08-18
 > **Rama:** `glory-rs-rest` (git pendiente de reparación por otro agente — sin operaciones git)
 > **Alcance:** comprobar contra el **BDP REAL del restaurante** que las 24 funciones de lectura marcadas "✅ En uso" en la tabla final responden correctamente. **Solo lecturas — cero escrituras, cero cambios en BDP, sin deploy.**
-> **Destino BDP:** `http://100.83.196.35:8068` (Tailscale `restaurante-bdp`)
+> **Destino BDP:** `http://IP_BDP:8068` (Tailscale `restaurante-bdp`)
 > **Fuente de la tabla:** inventario verificado contra `# WEBLINK RESTAPI.md`, `bdp_weblink.rs`, `bdp_weblink_catalog.rs` y call sites (sesión 2026-08-18).
 
 ## 1. Objetivo
@@ -54,15 +54,15 @@ Ejecutar las 24 funciones de lectura "en uso" contra el BDP real (una a la vez, 
 
 ## 4. Pre-requisitos (F0)
 
-- [ ] BDP online: `tailscale status` → `restaurante-bdp` / `100.83.196.35` activo. **BLOQUEADO — el restaurante no se ha conectado (online + credenciales sin confirmar).**
-- [ ] Credenciales y config en `.env` local: `BDP_BASE_URL=http://100.83.196.35:8068`, `BDP_POS_ID=31`, usuario/clave del integrador `VBW2MBM5`. **Pendiente de confirmar con el cliente.**
+- [ ] BDP online: `tailscale status` → `restaurante-bdp` / `IP_BDP` activo. **BLOQUEADO — el restaurante no se ha conectado (online + credenciales sin confirmar).**
+- [ ] Credenciales y config en `.env` local: `BDP_BASE_URL=http://IP_BDP:8068`, `BDP_POS_ID=31`, usuario/clave del integrador `VBW2MBM5`. **Pendiente de confirmar con el cliente.**
 - [x] `cargo check` OK (baseline de compilación) — verificado 2026-08-19 (`cargo check --lib --tests` limpio, exit 0).
 - [x] Suite unit local (opcional, baseline) — verificado 2026-08-19 (`cargo test --lib`: **153 passed**, 0 failed).
 
 ## 5. Fases
 
 ### F1 — Ejecución de lecturas reales (una a la vez)
-Para cada una de las 24 funciones, usando el cliente real (`BdpWeblinkClient`) contra `100.83.196.35:8068`:
+Para cada una de las 24 funciones, usando el cliente real (`BdpWeblinkClient`) contra `IP_BDP:8068`:
 - [ ] Llamada puntual con payload mínimo según contrato del manual.
 - [ ] Validar respuesta tipada (parseo) y contenido esperado.
 - [ ] Registrar evidencia: función, payload, HTTP status, resumen de la respuesta (sin secretos ni datos personales completos), resultado.

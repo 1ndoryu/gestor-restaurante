@@ -3,7 +3,7 @@
 > **Fecha:** 2026-06-07 (actualizado 2026-07-15, post Fase 9 completa + UI frontend)
 > **Autor:** Agente (análisis post-implementación 065A-5 + Category C tests 147A-5 + auditoría código 147A-6 + actualización secciones 3/4/5 por F2.7/F2.8/F3.1-3.3 + Fase 7.5+8 por 157A-4 + Fase 9 completa por 157A-7/157A-9/157A-10)
 > **Stack:** Glory Rust Backend (Axum 0.7 + SQLx) ↔ BDP-NET WebLink REST API
-> **Endpoint BDP:** `http://100.83.196.35:8068` (vía Tailscale)
+> **Endpoint BDP:** `http://IP_BDP:8068` (vía Tailscale)
 > **POS:** 31 — CENTRAL 2026 (Series `00031TI`, IVA incluido)
 > **Estado:** ✅ Integración verificada en producción + Fases 1-9 completas + UI frontend F9 = **111+ tests**
 > **Plan activo:** Fase 10 — Extensiones futuras (ver sección 9 backlog)
@@ -346,7 +346,7 @@ BdpOrderPollerService::poll_loop()
 | Campo                      | Ejemplo                     | Descripción                      |
 | -------------------------- | --------------------------- | -------------------------------- |
 | `bdp_sync_enabled`         | `true`                      | Activa/desactiva sync automática |
-| `bdp_url`                  | `http://100.83.196.35:8068` | URL del WebLink API              |
+| `bdp_url`                  | `http://IP_BDP:8068` | URL del WebLink API              |
 | `bdp_login`                | `admin`                     | Usuario de autenticación         |
 | `bdp_password`             | *(secreto; valor omitido)*  | Password protegido en BD         |
 | `bdp_integrator_code`      | *(secreto; valor omitido)*  | Código de integrador             |
@@ -708,7 +708,7 @@ sequenceDiagram
 
 > **Fecha ejecución:** 2026-07-14
 > **Comando:** `cargo test --test bdp_readonly -- --include-ignored`
-> **BDP endpoint:** `http://100.83.196.35:8068` (Tailscale, online)
+> **BDP endpoint:** `http://IP_BDP:8068` (Tailscale, online)
 > **Resultado global:** ✅ **6/6 pasaron, 0 fallaron**
 
 ### Tests ejecutados

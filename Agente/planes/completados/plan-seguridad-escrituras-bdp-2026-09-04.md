@@ -52,13 +52,13 @@ continúa con la siguiente autorizada o se detiene, a elección del usuario.
 - Cambios de código ajenos a la auditoría (salvo la excepción de la regla de oro: defecto real y
   pequeño de la clase H-W, con su prueba, corregido y documentado en §10b del padre).
 - Deploy / producción web, migraciones destructivas, git remoto, Haddock.
-- Ninguna llamada directa (curl/psql/SSH) a `100.83.196.35`: la única vía es la app
+- Ninguna llamada directa (curl/psql/SSH) a `IP_BDP`: la única vía es la app
   (`BdpWeblinkClient` vía sus endpoints).
 
 ## 3. Contexto operativo (verificado 2026-09-04)
 
 - **BDP online** vía Tailscale (lecturas Q1 ejecutadas); **suscripción de pago NO activa**.
-- Parámetros reales: `bdp_base_url=http://100.83.196.35:8068`, `bdp_pos_id=31`,
+- Parámetros reales: `bdp_base_url=http://IP_BDP:8068`, `bdp_pos_id=31`,
   `bdp_employee_id=1`, `bdp_items_profile_id=1`, `bdp_catalog_price_type=1`,
   `bdp_almacen_default=1`; credenciales solo en config del entorno (nunca en evidencia).
 - Estado seguro actual: `bdp_sync_enabled=false`, `bdp_sync_mode=read_only`, poll off,

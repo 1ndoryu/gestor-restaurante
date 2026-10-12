@@ -3,7 +3,7 @@
 > **Fecha:** 2026-06-03 (actualizado)
 > **Tarea:** 065A-4
 > **Estado:** Causa raíz identificada — campo vacío en Parámetros 6 + Order.Type incorrecto
-> **PC remoto:** `100.83.196.35` (RDP/Tailscale), BDP-Net corriendo en puerto `8068`
+> **PC remoto:** `IP_BDP` (RDP/Tailscale), BDP-Net corriendo en puerto `8068`
 
 ---
 
@@ -109,7 +109,7 @@ Esto ocurre incluso en modo "solo validación" — BDP valida la configuración 
 
 - **`bdp_pos_id`:** `31`
 - **`bdp_employee_id`:** el mismo 31
-- **URL WebLink:** `http://100.83.196.35:8068`
+- **URL WebLink:** `http://IP_BDP:8068`
 
 ### 3.2 Series TPV existentes para terminal 31
 

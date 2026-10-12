@@ -2,14 +2,14 @@
 
 > **Fecha:** 2026-06-08 (actualizado 2026-06-30)
 > **Contexto:** El cliente reporta que el TPV BDP-NET "se ha desconfigurado" tras las pruebas de integración WebLink
-> **PC remoto:** `100.83.196.35` (POS 31 — CENTRAL 2026)
+> **PC remoto:** `IP_BDP` (POS 31 — CENTRAL 2026)
 > **Estado actual:** ✅ Integración verificada y funcionando — cliente confirmó resolución de los 4 problemas con su técnico
 
 ---
 
 ## 0. Verificación de estado (2026-06-30)
 
-Verificación completa realizada desde local (PowerShell → `100.83.196.35:8068`), sin tocar el servidor de producción:
+Verificación completa realizada desde local (PowerShell → `IP_BDP:8068`), sin tocar el servidor de producción:
 
 | Verificación               | Resultado                                                                |
 | -------------------------- | ------------------------------------------------------------------------ |
@@ -25,7 +25,7 @@ Verificación completa realizada desde local (PowerShell → `100.83.196.35:8068
 
 - El error `404401` en POS/Get es nuevo (no existía en pruebas de junio). BDP probablemente actualizó la WebLink API. No afecta nuestro flujo porque POS/Get solo se usa en preflight/diagnóstico.
 - `MarketplaceOrderId` tiene límite de 15 caracteres (error `[301011]`). Confirmado en pruebas.
-- Conexión RDP al PC del restaurante: `mstsc /v:100.83.196.35`
+- Conexión RDP al PC del restaurante: `mstsc /v:IP_BDP`
 
 ---
 

@@ -41,7 +41,7 @@ Revisión exhaustiva de backend, frontend, deploy, seguridad y UX. Anotar todos 
 
 #### C2 — Roadmap URLs obsoletas (timeout/404)
 - **Archivo:** `roadmap.md` L3-4
-- **Problema:** URLs `http://app-b8s0cks444o0sogo8kg8wcgw.66.94.100.241.sslip.io` (404) y `http://66.94.100.241:3001` (timeout) no funcionan. Solo `http://restaurante.wandori.us` funciona
+- **Problema:** URLs `http://app-b8s0cks444o0sogo8kg8wcgw.IP_VPS.sslip.io` (404) y `http://IP_VPS:3001` (timeout) no funcionan. Solo `http://restaurante.wandori.us` funciona
 - **Fix:** Actualizar roadmap con URL correcta
 
 ### 🟠 ALTOS (afectan confiabilidad)

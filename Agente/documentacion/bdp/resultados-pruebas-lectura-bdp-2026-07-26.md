@@ -39,7 +39,7 @@ Las 4 páginas se cargan correctamente en modo demo con datos de ejemplo:
 | Sync habilitado | ✅ `bdp_sync_enabled=true` |
 | Modo operación | `read_only` |
 
-**Importante:** La IP `100.83.196.35` es accesible desde local **cuando el restaurante está conectado a TailScale**. No es necesario deployar a producción ni usar VPN. La prueba falló porque el restaurante se desconectó de la red en ese momento.
+**Importante:** La IP `IP_BDP` es accesible desde local **cuando el restaurante está conectado a TailScale**. No es necesario deployar a producción ni usar VPN. La prueba falló porque el restaurante se desconectó de la red en ese momento.
 
 **Para repetir las pruebas:** Confirmar TailScale, la tarifa/perfil de artículos y el código real de la plantilla `ExportPurchaseNotes` antes de re-ejecutar.
 

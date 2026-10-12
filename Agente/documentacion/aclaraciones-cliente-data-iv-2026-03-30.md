@@ -39,4 +39,4 @@
 
 ## 7. Reportar error — ¿a dónde llegan los reportes?
 **Duda:** Cuando el usuario envía un reporte de error, ¿a dónde llega?
-**Aclaración:** Los reportes de error se envían a **andoryyu@gmail.com** (configurado en el backend como email de destino para reportes). El usuario escribe lo que ocurrió y al enviar, llega un email con los detalles al correo del desarrollador/administrador.
+**Aclaración:** Los reportes de error se envían a **CORREO_AUTOR** (configurado en el backend como email de destino para reportes). El usuario escribe lo que ocurrió y al enviar, llega un email con los detalles al correo del desarrollador/administrador.

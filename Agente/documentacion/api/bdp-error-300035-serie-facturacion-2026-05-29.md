@@ -112,7 +112,7 @@ Antes de cambiar cualquier configuracion en BDP-Net, **documentar el estado actu
 ## 5. Plan de accion
 
 ### Fase 1: Investigacion (en el PC del restaurante, fuera de horario)
-1. Conectarse por RDP a `100.83.196.35`
+1. Conectarse por RDP a `IP_BDP`
 2. Abrir BDP-Net como administrador
 3. Ir a `Utilidades → Configuracion Servicios Web` → pestaña Weblink
 4. **Hacer captura de la configuracion actual** (todas las filas, expandidas con `+`)

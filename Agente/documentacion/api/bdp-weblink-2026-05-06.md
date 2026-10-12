@@ -2,7 +2,7 @@
 
 ## Estado 2026-05-21
 
-La base de integracion ya valida el PC real del restaurante por Tailscale sin guardar credenciales en el repositorio. La URL operativa actual es `http://100.83.196.35:8068`; `Health`, `Login` y `GetVersion` quedaron probados contra WebLink real. La documentacion completa pegada desde PDF vive en `# WEBLINK RESTAPI.md` y la configuracion operativa queda por restaurante en `configuracion_restaurante`.
+La base de integracion ya valida el PC real del restaurante por Tailscale sin guardar credenciales en el repositorio. La URL operativa actual es `http://IP_BDP:8068`; `Health`, `Login` y `GetVersion` quedaron probados contra WebLink real. La documentacion completa pegada desde PDF vive en `# WEBLINK RESTAPI.md` y la configuracion operativa queda por restaurante en `configuracion_restaurante`.
 
 El backend incorpora una prueba de sincronizacion segura: lecturas reales de WebLink y una comanda de prueba enviada a `/API/Orders/Create` con `OrderOperationType = 1` (`OnlyCheck`). Ese modo pide a BDP validar el payload de comanda sin crear comanda, pago ni factura. En produccion, el PC del restaurante ya valida todas las lecturas, pero BDP rechaza el `CreateOrder OnlyCheck` con `[300035]-NO SE HA DEFINIDO UNA SERIE DE FACTURACION VALIDA`; esto requiere configurar en BDP la serie/destino valida para comandas WebLink antes de activar escrituras reales.
 

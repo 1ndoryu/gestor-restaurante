@@ -2,7 +2,7 @@
 
 > **Fecha:** 2026-07-20 (actualizado 2026-07-21)
 > **Estado:** Listo para deploy — BDP offline no es bloqueante (ver auditoría seguridad)
-> **Destino:** `https://restaurante.wandori.us` — VPS 66.94.100.241, stack `b8s0cks444o0sogo8kg8wcgw`
+> **Destino:** `https://restaurante.wandori.us` — VPS IP_VPS, stack `b8s0cks444o0sogo8kg8wcgw`
 
 ---
 
@@ -18,13 +18,13 @@ Se verificó primero desde el contenedor Docker (timeout) y luego desde el host 
 
 ```
 tailscale status:
-100.91.173.54  coolify-vps1     andoryyu@  linux    -
-100.83.196.35  restaurante-bdp  andoryyu@  windows  active; relay "mad"; offline, last seen 1d ago
+IP_VPS_TAILSCALE  coolify-vps1     andoryyu@  linux    -
+IP_BDP  restaurante-bdp  andoryyu@  windows  active; relay "mad"; offline, last seen 1d ago
 ```
 
-- El VPS host (`100.91.173.54`) está conectado a Tailscale ✅
-- El nodo `restaurante-bdp` (`100.83.196.35`) está **offline desde hace ~1 día** ❌
-- `curl http://100.83.196.35:8068/api/ServiceHealth` → timeout (exit 28) tanto desde contenedor como desde host
+- El VPS host (`IP_VPS_TAILSCALE`) está conectado a Tailscale ✅
+- El nodo `restaurante-bdp` (`IP_BDP`) está **offline desde hace ~1 día** ❌
+- `curl http://IP_BDP:8068/api/ServiceHealth` → timeout (exit 28) tanto desde contenedor como desde host
 - **No es un problema de Docker networking** — es la máquina BDP la que no está conectada a Tailscale
 
 **Causa:** La máquina Windows donde corre BDP (`restaurante-bdp`) está apagada, sin Tailscale ejecutándose, o sin conexión a internet.

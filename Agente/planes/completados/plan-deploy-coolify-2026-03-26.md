@@ -4,7 +4,7 @@
 ## Estado: Fase 1 completada (Dockerfile + static serving)
 
 ## Requisitos previos
-1. VPS con Coolify instalado (ya existe: 66.94.100.241:8000)
+1. VPS con Coolify instalado (ya existe: IP_VPS:8000)
 2. Repositorio GitHub: 1ndoryu/glory-rs
 3. PostgreSQL database
 

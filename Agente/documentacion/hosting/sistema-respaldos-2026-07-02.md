@@ -324,7 +324,7 @@ coolify-manager restore --name studio --backup-id abc123
 coolify-manager backups --name studio
 
 # Instalar cron de backups en VPS
-coolify-manager install-backups --server-ip 66.94.100.241
+coolify-manager install-backups --server-ip IP_VPS
 
 # Programar backups en Windows
 coolify-manager schedule-backup --name studio --tier daily --time 03:00

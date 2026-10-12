@@ -67,7 +67,7 @@ Fuente: `coolify-manager-rs` (`settings.json`: 11 sitios, `backupPolicy` enabled
 1. Purgar `C:\tmp` (targets viejos) y compilar `coolify-manager-rs` a `C:\tmp`.
 2. `health --name glory-rest` + estado del servicio (lectura).
 3. **Backup completo de la BD de producción** vía `coolify-manager-rs` (obligatorio antes de borrar nada).
-4. BDP online en Tailscale (`100.83.196.35:8068`).
+4. BDP online en Tailscale (`IP_BDP:8068`).
 5. Recoger secretos del usuario (ver tabla): nunca van a git ni a logs.
 
 ### F1 — Subir código
@@ -78,7 +78,7 @@ Fuente: `coolify-manager-rs` (`settings.json`: 11 sitios, `backupPolicy` enabled
 | --- | --- |
 | `DATABASE_URL` | la gestiona Coolify (postgres `rust_db`, usuario `rust_app`) — no tocar |
 | `JWT_SECRET` | **nuevo, aleatorio 64 chars** (nunca reutilizar el de local) |
-| `BDP_BASE_URL` | `http://100.83.196.35:8068` (confirmar) |
+| `BDP_BASE_URL` | `http://IP_BDP:8068` (confirmar) |
 | `BDP_LOGIN` / `BDP_PASSWORD` / `BDP_INTEGRATOR_CODE` | aportar (secretos del restaurante) |
 | `BDP_POS_ID=31`, `BDP_EMPLOYEE_ID=1`, `BDP_ITEMS_PROFILE_ID=1` | confirmar |
 | `BDP_DEFAULT_ARTICLE_CODE=1001`, `BDP_DEFAULT_ARTICLE_NAME=CAFE BOMBON` | confirmar |

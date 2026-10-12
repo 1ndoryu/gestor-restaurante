@@ -558,7 +558,7 @@ Tests que conectan al servidor BDP real pero SOLO hacen llamadas de lectura. `#[
 
 | Variable                   | Valor                            | Nota                                    |
 | -------------------------- | -------------------------------- | --------------------------------------- |
-| `BDP_BASE_URL`             | `http://100.83.196.35:8068`      | IP Tailscale — BDP debe estar encendido |
+| `BDP_BASE_URL`             | `http://IP_BDP:8068`      | IP Tailscale — BDP debe estar encendido |
 | `BDP_LOGIN`                | `admin`                          |                                         |
 | `BDP_PASSWORD`             | *(secreto; solo entorno seguro)* | Nunca documentar ni versionar           |
 | `BDP_INTEGRATOR_CODE`      | *(secreto; solo entorno seguro)* | Nunca documentar ni versionar           |
@@ -579,7 +579,7 @@ Tests que conectan al servidor BDP real pero SOLO hacen llamadas de lectura. `#[
 ### Plan cuando el BDP esté disponible (actualizado 2026-07-14)
 
 ```
-1. ✅ Verificar Tailscale conectado: ping 100.83.196.35 — OK
+1. ✅ Verificar Tailscale conectado: ping IP_BDP — OK
 2. ✅ Ejecutar tests Category C — 6/6 pasan contra BDP real
 3. Pendiente: PATCH /api/configuracion con los campos BDP en producción
 4. Pendiente: Ejecutar preflight completo: POST /api/configuracion/bdp/sync-dry-run
