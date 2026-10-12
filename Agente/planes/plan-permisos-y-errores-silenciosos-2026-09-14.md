@@ -133,7 +133,7 @@ Pieza nueva y única: `frontend/src/components/ui/estado-error.tsx` (`EstadoErro
 
 `type-check` del frontend: **0 errores en `src/` propio** (los 22 del submódulo `glory-rs` siguen
 aparte). Verificado **en vivo** con las dos cuentas en la pestaña Preview (trabajador
-`sara.lopez@demo.com` / dueño `demo@restaurante.com`).
+`sara.lopez@demo.com` / dueño `CORREO_DEMO`).
 
 ## 7. Estado
 
@@ -173,7 +173,7 @@ aparte). Verificado **en vivo** con las dos cuentas en la pestaña Preview (trab
       `require_role(Admin)` en `sync_tables` (escribe ZonaSala+Mesa, sin AccionPermiso de plano;
       patrón Tanda A como `bdp_push`). Tests nuevos `tests/permisos_catalogo_edicion.rs` 3/3
       (default fail-closed, delegación `admin_trabajador`, patrón sync-tables). Sondas vivas :3100
-      con las dos cuentas (sara.lopez@demo.com / demo@restaurante.com): trabajador **403** en los 4
+      con las dos cuentas (sara.lopez@demo.com / CORREO_DEMO): trabajador **403** en los 4
       endpoints; dueño `422` en sync-tables sin confirmación (pasa guards, cero escrituras) y `200`
       en lectura. Cero daño (los 403 abortan antes de modo/BDP). `bdp_push.rs` ya era Admin-only:
       su revisión queda supeditada a F1 (si el trabajador debe ver la cola).

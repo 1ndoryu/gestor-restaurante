@@ -19,11 +19,12 @@ const ESCENARIOS = {
 };
 
 const CUENTAS = [
-  { email: "demo@restaurante.com", password: "demo1234", login: "/api/auth/login" },
-  { email: "sara.lopez@demo.com", password: "trabajador123", login: "/api/auth/login-trabajador" },
-  { email: "marta.gil@demo.com", password: "trabajador123", login: "/api/auth/login-trabajador" },
-  { email: "tomas.ruiz@demo.com", password: "trabajador123", login: "/api/auth/login-trabajador" },
+  { email: process.env.SEED_DEMO_EMAIL, password: process.env.SEED_DEMO_PASSWORD, login: "/api/auth/login" },
+  { email: "sara.lopez@demo.com", password: process.env.SEED_TRABAJADOR_PASSWORD, login: "/api/auth/login-trabajador" },
+  { email: "marta.gil@demo.com", password: process.env.SEED_TRABAJADOR_PASSWORD, login: "/api/auth/login-trabajador" },
+  { email: "tomas.ruiz@demo.com", password: process.env.SEED_TRABAJADOR_PASSWORD, login: "/api/auth/login-trabajador" },
 ];
+if (!CUENTAS[0].email || !CUENTAS[0].password || !process.env.SEED_TRABAJADOR_PASSWORD) throw new Error("Define SEED_DEMO_EMAIL, SEED_DEMO_PASSWORD y SEED_TRABAJADOR_PASSWORD (ver .env.example)");
 
 /* Operaciones "mínimas reales" con peso (B1-B6 del plan). */
 const OPS = [

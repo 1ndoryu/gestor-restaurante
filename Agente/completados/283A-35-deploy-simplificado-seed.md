@@ -3,7 +3,7 @@
 ## Tarea 26: Datos de prueba en servidor
 - Dockerfile y compose inline actualizados para compilar e incluir binario `seed`
 - Script `deploy.ps1 -Seed` ejecuta el seed remotamente después de deploy exitoso
-- Seed crea usuario demo (demo@restaurante.com / demo1234) con datos completos
+- Seed crea usuario demo (CORREO_DEMO / CONTRASENA_DEMO) con datos completos
 
 ## Tarea 27: Despliegue simplificado
 - Creado `scripts/deploy.ps1`: script único de deploy

@@ -46,7 +46,7 @@ un stack propio en puertos libres:
 | Backend (BD de rama) | `PORT=3100 node scripts/run-with-db.mjs run --bin glory-backend` | `127.0.0.1:3100` |
 | Frontend Vite | `npm --prefix frontend run dev -- --port 5180` con proxy `/api → localhost:3100` | `127.0.0.1:5180` |
 | PostgreSQL | ya corriendo (5432); BD `glory_backend_glory_rs_rest` | — |
-| Seed demo | `node scripts/run-with-db.mjs run --bin seed` (usuario `demo@restaurante.com` / `demo1234`) | — |
+| Seed demo | `node scripts/run-with-db.mjs run --bin seed` (usuario `CORREO_DEMO` / `CONTRASENA_DEMO`) | — |
 
 - El proxy de Vite se hace configurable (`VITE_API_TARGET`, default `http://localhost:3000`)
   para poder apuntar al backend aislado sin tocar el target fijo.
@@ -126,7 +126,7 @@ Leyenda: ✅ pasa · ⚠️ pasa con salvedad · ❌ falla · ⏭ no aplica en s
 
 Stack aislado levantado y verificado: backend `:3100` (BD de rama `glory_backend_glory_rs_rest`,
 `JWT_SECRET` de desarrollo local) + Vite `:5180` (proxy `/api → :3100`), seed demo aplicado,
-login `demo@restaurante.com` OK. **`modo_operacion=auto` → `modo_efectivo=standalone`** (sin credenciales BDP).
+login `CORREO_DEMO` OK. **`modo_operacion=auto` → `modo_efectivo=standalone`** (sin credenciales BDP).
 
 | Caso | Resultado | Evidencia |
 | --- | --- | --- |

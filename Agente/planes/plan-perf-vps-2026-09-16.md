@@ -48,7 +48,7 @@
   en docs de tests, URLs `user:...@` ficticias). Rama remota `glory-rs-rest` también
   limpia. Refs `synara/checkpoints/*` solo locales, no están en `origin` (`main` +
   `glory-rs-rest`). Residuos no bloqueantes al hacerlo público: IP Tailscale BDP +
-  `pos_id` en docs, credenciales demo del seed (`demo1234`/`trabajador123`, solo test),
+  `pos_id` en docs, credenciales demo del seed (`SEED_DEMO_PASSWORD`/`SEED_TRABAJADOR_PASSWORD`, solo test),
   UUIDs Coolify en `temp-compose-glory-rest.yml`. `gh` sin auth → el flip lo hace el
   usuario en GitHub UI. Tras el build, volver a privado (los redeploys futuros
   necesitarían token o repo público).

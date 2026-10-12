@@ -93,7 +93,7 @@ En este caso, el compose pasó de tener credenciales personalizadas (`glory_app/
 ## 5. Acciones tomadas
 
 ### Inmediatas (2026-07-02)
-1. **Seed ejecutado** en glory-rest → restauró datos demo (`demo@restaurante.com` / `demo1234`)
+1. **Seed ejecutado** en glory-rest → restauró datos demo (`CORREO_DEMO` / `CONTRASENA_DEMO`)
 2. **Verificación de otros servicios:**
    - studio: `rust_db` ✅ (consistente con template)
    - kamples: `kamples` ✅ (custom, no afectado)

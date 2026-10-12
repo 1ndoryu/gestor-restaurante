@@ -13,7 +13,8 @@
  */
 import { writeFileSync } from "node:fs";
 
-const CUENTA = { email: "demo@restaurante.com", password: "demo1234", login: "/api/auth/login" };
+const CUENTA = { email: process.env.SEED_DEMO_EMAIL, password: process.env.SEED_DEMO_PASSWORD, login: "/api/auth/login" };
+if (!CUENTA.email || !CUENTA.password) throw new Error("Define SEED_DEMO_EMAIL y SEED_DEMO_PASSWORD (ver .env.example)");
 
 /* 95 lecturas ponderadas: compartido (borde) + privado/listados (origen).
  * --cacheable-peso N (def. 60): peso conjunto maps+stock. Con 90 se emula el

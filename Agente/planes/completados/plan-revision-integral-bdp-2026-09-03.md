@@ -83,7 +83,7 @@ Mismo patrón que 198A-2 (stack aislado, sin chocar con otros proyectos):
 | Backend (BD de rama) | `PORT=3100 node scripts/run-with-db.mjs run --bin glory-backend` | `127.0.0.1:3100` |
 | Frontend Vite | `npm --prefix frontend run dev -- --port 5180` (proxy `/api → :3100` vía `VITE_API_TARGET`) | `127.0.0.1:5180` |
 | PostgreSQL | ya corriendo (5432); BD `glory_backend_glory_rs_rest` | — |
-| Seed demo | `node scripts/run-with-db.mjs run --bin seed` (usuario `demo@restaurante.com` / `demo1234`) | — |
+| Seed demo | `node scripts/run-with-db.mjs run --bin seed` (usuario `CORREO_DEMO` / `CONTRASENA_DEMO`) | — |
 
 - **Parte 1:** sin credenciales BDP en el entorno local → `modo_operacion=standalone`/
   `modo_efectivo=standalone` por defecto.
@@ -336,7 +336,7 @@ dependencia externa (cuál)` — siempre con la vía y evidencia.
 
 ### S1. Día de operación 100 % independiente (sin BDP) — todas las funcionalidades
 - [x] S1.1 Login como admin y como trabajador; permisos y navegación general — trabajadora Sara
-      (`demo1234`… `trabajador123`) opera: venta registrada desde UI con IVA correcto (DB),
+      (`CONTRASENA_DEMO`… `CONTRASENA_TRABAJADOR`) opera: venta registrada desde UI con IVA correcto (DB),
       lecturas OK; acción admin-only (anular por API) → **403 honesto** (permisos config fail-closed
       `admin` en `permisos.rs`); cierre de sesión y re-login admin OK
 - [x] S1.2 Escenas del día: (a) apertura y plano de sala / mesas; (b) venta en mesa y para llevar

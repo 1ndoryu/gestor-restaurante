@@ -35,7 +35,7 @@
 2. Health check: `GET /api/health`
 3. Verificar Swagger UI: `GET /swagger-ui`
 4. Verificar frontend SPA carga correctamente
-5. Probar login con demo@restaurante.com / demo1234
+5. Probar login con CORREO_DEMO / CONTRASENA_DEMO
 
 ## Notas
 - coolify-manager-rs necesita soporte para apps genéricas (no solo WordPress)
