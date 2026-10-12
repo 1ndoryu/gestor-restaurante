@@ -4,6 +4,22 @@
 
 **Relacionado:** `plan-fase-d-avisos-bdp-2026-09-19.md` (diseño F0–F4), `plan-alcance-local-bdp-2026-10-01.md` (P0–P4 con TPV local), `Agente/usuario/alcance-fase-d-2026-10-02.md` (alcance rev. 10/10).
 
+## Checklist de ejecución
+
+Estado según §8 (2026-10-10): L3 bloqueada por caja cerrada en TpvNet.
+
+- [x] L0 — Preparación (L0.1–L0.4)
+- [x] L1 — Conmutar la app a BDP local
+- [ ] L2 — Lectura contra BDP local (L2.1 y L2.3 hechos; L2.2 pendiente con la usuaria)
+- [ ] L3 — Escritura controlada `PRUEBA-*` (bloqueada: caja cerrada)
+- [ ] L4 — F0 empírica de avisos en TPV local (L4.1 parcial)
+- [ ] L5 — Fase D F1–F4 (código) y base T2
+- [ ] L6 — Pagos, propina, puntos y factura (D11a–D20)
+- [ ] L7 — Stock (D26–D27)
+- [ ] L8 — Maestros y documentos (D24–D25, D28)
+- [ ] L9 — Avisos duplicados, caídas y reinicios (D04, D08, D10, D21–D23, D29, D31)
+- [ ] L10 — Excepciones, accesos y piloto (D01, D02, D30, D32)
+
 ## 1. Objetivo
 
 Dejar la aplicación apuntando al BDP local (TPV 36.2 licenciado en el portátil) en lugar del BDP real, y con ese TPV: (1) cerrar la F0 empírica de la fase D (Avisos de Acciones), que bloquea F2 y F4; (2) ejecutar en local las pruebas de aceptación D01–D32 que promete el PDF de alcance (`alcance-fase-d-2026-10-10.pdf`, anexo B8), cada una en su fase (§10). Lo que el PDF promete y este plan no puede probar en local queda marcado como diferido, con su motivo.

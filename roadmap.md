@@ -115,7 +115,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
 | **Compras** (albaranes/facturas de proveedores) | **Fases 1-3 implementadas.** Lectura, borradores y conciliación. Protegidas por feature flags `ff_bdp_purchase_notes_*`. Configurables desde UI. | ✅ Implementado      |
 | **Pagos parciales**                             | Implementado bajo feature flag `ff_bdp_partial_payments`. Ledger local `bdp_pagos` con idempotency_key. Configurable desde UI.                   | ✅ Implementado      |
-| **Sincronización bidireccional automática**     | Riesgo de bucles y conflictos; no soportada por BDP                                                                                              | ❌ Rechazado         |
+| **Sincronización bidireccional automática** (escritura ciega simultánea) | Riesgo de bucles y conflictos; bloqueada por diseño | ❌ Rechazado (matiz 2026-09-19: el mecanismo de vuelta **Avisos de Acciones** sí existe en BDP —ver nota `Agente/documentacion/bdp/guia-bidireccional-avisos-2026-09-19.md`—; pendiente verificar en TPV v36 y decidir fase D en bloque 199A-1) |
 | **CancelOrder**                                 | Cancelación de comanda 6338 contra BDP real 2026-09-18 con auditoría `exito` (un solo caso); efecto en cocina sin verificar. La anulación local encola `venta/cancelar` y el push la envía | 🟡 Pendiente de prueba local |
 | **Modificación de stock**                       | Alcance solo lectura en integración actual                                                                                                       | ❌ Fuera de alcance  |
 
@@ -144,10 +144,6 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 ### Bloque 11AA-2 — Gate: checklist en planes activos (preexistente)
 
 Hallazgo `docs-plan-no-checklist` del gate de 11AA-1 en `Agente/planes/plan-deploy-desde-cero-2026-09-18.md` y `Agente/planes/plan-fase-d-bdp-local-2026-10-10.md`. Ya existe en `main` (43c3c74), no lo causa 11AA-1. Siguiente paso: añadir a cada plan su checklist de cierre y repetir `npm run gate:check -- <id>`.
-
-### Bloque 11AA-3 — Gate: roadmap sobre 700 líneas (preexistente)
-
-Hallazgo `docs-roadmap-max-lines`: `roadmap.md` tiene 755 líneas en `main` (43c3c74). Siguiente paso: mover las tareas completadas a `Agente/completados/` (AGENTS §7.1) hasta bajar del límite. Es reorganización de documentación heredada: tarea propia, no se mezcla con dependabot.
 
 ### Bloque 169A-4 — Staging en VPS + informe de rendimiento sin BDP real (plan activo 2026-09-16)
 
@@ -439,22 +435,6 @@ para pagos (la factura vía `Invoice=true` también entra en la prueba).
 `PUT sync-mode` (hoy 422: el validador objetivo/alcance no lo clasifica como `venta`
 aunque el push lo usa); decidir con el cliente si se retira el flag `ff_bdp_cancel_order`.
 
-### Bloque 039A-1 — Revisión integral BDP: independencia funcional + integración completa (3 rondas) (CERRADO POR REINICIO 2026-09-14)
-
-Plan archivado: `Agente/planes/completados/plan-revision-integral-bdp-2026-09-03.md`. Cerrado con
-**104 ítems hechos / 38 pendientes**; su evidencia (Parte 1 P0–P13, S1 de la Parte 3, lecturas Q1
-reales) quedó obsoleta por los refactors y cambios de CSS y se rehace en 149A-1. Deuda que
-sobrevive: el residuo `90000003` en el BDP real (pendiente 1g) y el `ModifyArticleAndUpdateProfile`
-que revienta en el BDP real con payload mínimo.
-
-### Bloque 049A-1 — Seguridad de escrituras BDP: auditoría anti-desastre + simulación antes de escribir (CERRADO POR REINICIO 2026-09-14)
-
-Plan archivado: `Agente/planes/completados/plan-seguridad-escrituras-bdp-2026-09-04.md`. Cerrado con
-Fases 1–2 ejecutadas (S1–S8 PASS) y **una escritura real ejecutada** (W-Q2.1 → incidente `200109`,
-residuo `90000003` en el BDP real). Se repite desde cero, con confirmación visual, en 149A-2.
-
-
-
 ### Seguimiento 318A-3 — Evaluar reactivación de reglas de consistencia de formularios (2026-09-01)
 
 Informe del cierre de PROYECTO TASKS (plan `PROYECTO TASKS/Agente/planes/` 318A-3): este proyecto
@@ -468,169 +448,10 @@ explícita para modificar `sentinel.config.json` de RESTAURANTE.
 hallazgos `html-nativo` que se reactiven al habilitar la regla serán reales (con seam de migración
 si el sistema declarativo aplica). Solo doc, sin gate.
 
-### Bloque 208A-2 — Corrección de la independencia BDP (H1–H8) (completado 2026-08-27)
-
-Plan archivado: `Agente/planes/completados/plan-correccion-independencia-bdp-2026-08-27.md`.
-Hereda la **auditoría 208A-1** y las decisiones D1–D6. **C1**: CRUD de artículos movido a la
-página "Catálogo" (pestañas Artículos / Departamentos y familias); Configuración → BDP queda
-solo con conexión/mapeos/permisos + enlace "Ir a Catálogo". **C2**: botón "Nuevo artículo" en
-Stock (NuevoArticuloDialog) + empty state accionable + "Sync catálogo/precios" deshabilitados
-fuera de modo bdp (H7). **C3**: conteo de inventario persistido (migración
-`20260827000000_bdp_conteos_inventario` con idempotencia), endpoints `GET/POST
-/bdp/inventario/conteos` + `GET /:id`; el guardado aplica la diferencia al stock local con
-motivo "conteo" (D4) y encola solo líneas con código BDP; UI con "Guardar conteo", historial y
-"Retomar" y mensaje honesto en standalone. **C4**: sección "Sincronización" en el menú con
-`GET /bdp/push/pendientes` y `POST /bdp/push/:id/reintentar` (reintento manual D2); acciones
-solo en modo bdp. **C5**: normalización standalone+sync → sync=false al guardar (H5). **C6**: empty
-state de Compras con "Nuevo albarán" (H8). **Verificado**: `cargo check` exit 0; tests nuevos
-12/12 (conteos 4, cola 5, normalización 3) + regresión bdp_inventario 3/3 y bdp_push 13/13,
-ejecutados test por test (regla nueva `no-heavy-suites` en el AGENTS.md raíz); `tsc` limpio;
-UI end-to-end (alta TEST-1, stock 5 tras conteo, cola visible sin envío, Configuración sin CRUD,
-cero tráfico a BDP). Trabajo sin commitear.
-
-### Bloque 208A-1 — Auditoría integral independencia BDP, revisión 1×1 (auditado 2026-08-27)
-
-Plan archivado (2026-09-03, bloque 039A-1):
-`Agente/planes/completados/plan-auditoria-independencia-bdp-2026-08-27.md`. El usuario detectó
-que la UX no refleja la independencia (Stock no crea artículos, Inventario no persiste conteos,
-el CRUD de artículos está escondido en Configuración, Compras bajo sospecha). **Regla: NO se
-implementa nada durante la auditoría** — se verifica 1×1 cada dominio (modo operativo, catálogo,
-stock, inventario, anulación, compras, pagos/factura local, menús, historial, permisos,
-escrituras 198A-1, UX, integridad de datos), se anota hallazgo con evidencia y severidad, y al
-final se decide el plan de corrección.
-**Resultado 2026-08-27:** baseline verde (`cargo check` exit 0, 153 tests, `tsc` limpio). El
-núcleo de independencia está implementado y testeado; la deuda es de UX/ubicación: **H1** (CRUD
-de artículos solo en Configuración → BDP → "Catálogo de artículos BDP"; la página "Catálogo"
-solo tiene departamentos/familias — **Alto**), **H2** (Stock sin "Nuevo artículo"; empty state
-solo sugiere BDP/demo — **Alto**), **H3** (Inventario: conteo solo `useState`, no persiste;
-en standalone "Enviar" es no-op con toast engañoso — **Alto**), **H4** (diferencia contada no se
-aplica al stock local — **Medio**), **H5** (sin normalización al guardar standalone+sync —
-**Bajo**), **H6** (sin visibilidad de la cola de push en UI; solo flush global — **Medio**),
-**H7** ("Sync catálogo" habilitado en standalone — **Medio**), **H8** (empty state de Compras no
-ofrece "Nuevo albarán" — **Bajo**). Verificado como correcto (no es bug): encolado local en
-standalone (filas pendientes que se envían al conectar BDP), test de invariante de flush,
-migraciones aditivas, serie L-, rango reservado. **Siguiente paso:** decidir el plan de
-corrección (decisiones del usuario en §6 del plan) — NO se ha implementado nada todavía.
-
-### Bloque 138A-2 — Verificación LECTURA REAL de las 24 lecturas BDP "en uso" (absorbido por 039A-1, 2026-09-03)
-
-Plan archivado (bloque 039A-1): `Agente/planes/completados/plan-prueba-lecturas-bdp-2026-08-18.md`.
-El objetivo queda encomendado a la Parte 2 del plan centralizado 039A-1 (bloque Q1). Verificar contra el **BDP
-REAL del restaurante** (`IP_BDP:8068`, solo lecturas, cero escrituras) que las 24 funciones
-de lectura marcadas "en uso" en el inventario final (64 funciones) siguen respondiendo tras
-F0–F10 (128A-1). Sin simulador (descartado por decisión del usuario), sin escrituras, sin deploy.
-Pendiente de confirmar BDP online + credenciales — condición heredada por la Parte 2 del plan
-centralizado 039A-1.
-
-### Bloque 198A-2 — Pruebas de interfaz: independencia + escritura (sin BDP real) (completado 2026-08-19)
-
-Plan archivado (2026-09-03, bloque 039A-1):
-`Agente/planes/completados/plan-pruebas-interfaz-bdp-2026-08-19.md`. Verificar a nivel de
-**interfaz** (navegador + backend local + BD de rama) que la independencia (128A-1) y los
-efectos locales de la integración de escritura (198A-1) funcionan en `standalone`, y que
-**ninguna** funcionalidad ofrece ni envía nada a BDP (cero tráfico a `IP_BDP:8068`).
-Cubre: conmutador/badge, catálogo/stock/anulación/compras/pagos-factura local/menús/permisos,
-y los controles nuevos (artículo D3, departamento/familia D7, propina D8, puntos D9, inventario
-D6=A, CallWaiter D10 oculto, "Sincronizar a BDP" oculto, CancelOrder F6). Sin BDP real, sin
-deploy.
-**Progreso 2026-08-19 (primera pasada):** stack aislado (:3100 backend / :5180 vite, BD de
-rama, seed demo), login OK, `modo_efectivo=standalone` verificado; badge off ✅, Sincronizar
-oculto ✅, CallWaiter oculto ✅, departamento creado local con código secuencial ✅, inventario
-renderiza ✅, propina/anulación locales visibles ✅, banners de desactivación ✅, **cero tráfico
-a BDP** ✅. **Bug corregido:** bucle infinito `Maximum update depth exceeded` en
-`BdpStatusIndicator` (`site-header.tsx`) — memoizado `serverData` con `useMemo`.
-**Progreso 2026-08-19 (segunda pasada, completa):** propina end-to-end (diálogo → `5.50 €`
-persistido en `ventas.propina`) ✅, anulación local end-to-end (motivo + confirmación →
-`anulada=true` + `anulacion_motivo`) ✅, Compras (4 albaranes, sync deshabilitado, nuevo albarán) ✅,
-Explorador (menús/packs locales + 4 definiciones BDP) ✅, Historial (4 auditoría + 2 snapshots;
-registra `anular_venta` Local) ✅, Stock (6 artículos, sync deshabilitado) ✅, **403 de permisos**
-(trabajador → `POST /api/bdp/push/flush` y `GET /api/trabajadores` 403 claro; lectura de
-configuración 200) ✅, **cero tráfico a BDP** (solo localhost) ✅.
-
-### Bloque 198A-1 — Escrituras BDP completas (completado 2026-08-19)
-
-Plan (archivado): `Agente/planes/completados/plan-escrituras-bdp-completas-2026-08-19.md`.
-**Objetivo:** que todo lo que
-BDP pueda aceptar como escritura se escriba (**15 nuevas** —catálogo, stock, departamentos, propina,
-`CallWaiter` en el plano, puntos— + `CancelOrder` pendiente de suscripción), construido sobre los datos
-locales de 128A-1 (catálogo, stock, departamentos, anulación, propina, puntos) con cola de push
-unidireccional (`local_dirty` → BDP), guards/arming/backup/auditoría, y
-**independencia intacta** (en `standalone` nada se envía). Incluye 5 lecturas de soporte
-(`GetApplicationVersion`, perfiles para crear/modificar, `GetPoints`) y ampliación del simulador.
-Fuera de alcance (BDP no lo expone): menús/fastfoods/packs y compras — permanecen locales.
-**Revisiones profundas 2 y 3 (2026-08-19):** 16 conflictos nuevos (M11–M26: códigos no devueltos por
-`CreateArticlesAndUpdateProfiles`, dependencia departamento→artículo, mapeo IVA `bdp_tav_map`, códigos
-de familia, `AllProfiles`, identificadores BDP para propina/cancelación, simulación de suscripción por
-módulo, migraciones aditivas, concurrencia con UNIQUE parcial + `FOR UPDATE`, colisión de rango
-reservado, límites de recurso, `GetApplicationVersion` por módulo, `ErrorList` parcial de stock/inventario,
-requisitos `WebArticle`/`Inventariable`, `OrderIdentifier { OrderId }`). D1 resuelta: `push_modalidad`
-configurable (default `automatico`). D2 resuelta: bloqueo por suscripción → reintento **solo manual**
-(el auto-reintento queda para errores transitorios). D3 resuelta: código de rango reservado automático
-editable (default `90xxxxxxx`), `AutomaticCode` descartado (M11). D4 resuelta: perfiles = todos los POS
-activos (`AllProfiles=true` en departamentos). D5 resuelta: almacenes y motivos configurables en
-Configuración (defaults Store=1, CodReg=1). D6 resuelta: UI completa de inventario (conteo físico,
-diferencias, envío por lotes). D7 resuelta: códigos de departamento/familia/subfamilia por asignación
-secuencial automática. D8 resuelta: propina configurable por venta (sumar/sustituir, default sumar).
-D9 resuelta: fidelización con gating por módulo (puntos en ficha de cliente, `pendiente_suscripcion`
-si no hay módulo). D10 resuelta: incluir `CallWaiter` (botón "llamar camarero" en el plano).
-**Progreso final (cerrado):** catálogo con 20 endpoints + cliente con 20 métodos + structs PascalCase;
-migraciones `bdp_push_escrituras`, `bdp_push_estado_ancho`, `bdp_catalogo_propina_puntos` y
-`bdp_write_arming_ampliar` (corrige las CHECK de scopes/dominios que bloqueaban el arming del push);
-`BdpPushService` + `BdpPushFlushService` (worker con guards, no-op en standalone); wiring en handlers
-locales (artículo D3, departamento/familia D7, propina D8, puntos D9, inventario D6=A) + UI completa
-(CallWaiter D10, propina, puntos, catálogo, inventario) + botón "Sincronizar a BDP" (flush manual D1/D2);
-`CancelOrder` como push (F6): `payload_cancelar` + encolado `venta/cancelar` desde la anulación local
-con `bdp_order_id`. Tests (153 unit + 13 bdp_push + 3 bdp_inventario + 24 bdp_f8_permisos + 8
-bdp_service_integration). **Pendiente diferido por diseño:** verificación real contra BDP
-(suscripción/datos del cliente; BDP offline).
-
-### Bloque 128A-1 — Independencia total del BDP (completado 2026-08-13)
-
-F0–F10 implementados en `glory-rs-rest` (commits `821954c0`…`e12b3968`, gate `task:check 128A-1
---full` PASS en F7/F8/F9): conmutador `standalone`/`bdp` con badge, catálogo local, stock local,
-anulación local, compras locales, historial/pagos parciales/factura local, menús/packs locales y
-permisos operativos por acción con enforcement backend (403). Sin escrituras ni deploy: pendiente
-de autorización del usuario para llevar a producción. **Deuda declarada (F10-1) — CERRADA:** M1 (invariantes del conmutador), M2 (histéresis) y M3
-(cache/invalidación) estaban parcialmente abiertas al cierre. Se cerraron: M1 — se eliminaron los
-checks redundantes de `bdp_sync_enabled`/`bdp_configurado` que contradecían el modo forzado `bdp`
-en `bdp_sync.rs` (sync_venta/add_order_payment/invoice_order), `venta.rs` (retry_bdp_sync),
-`ventas.rs` (obtener_bdp_status) y `bdp_write_guard.rs` (try_auto_arm/armar_push), y el poller dejó de
-filtrar por `bdp_sync_enabled` (el modo efectivo es la única puerta); M2 — ya implementada en
-`ServicioModoOperacion` (umbral 3 fallos, registrar_fallo/exito) y cableada al poller y a las
-escrituras directas (`bdp_payment`/`bdp_invoice` bloquean en degradación y alimentan la histéresis);
-M3 — `invalidar` se llama al guardar configuración y `modo_efectivo` (con TTL) tiene consumidores.
-Plan cerrado en
-`Agente/planes/completados/plan-independencia-bdp-2026-08-12.md`; evidencia por fase en
-`Agente/completados/128A-1-F4-anulacion-local-ventas.md`, `128A-1-F5-compras-locales.md`,
-`128A-1-F6-auditoria-local-pagos-factura.md`, `128A-1-F7-menus-packs-locales.md`,
-`128A-1-F8-permisos-operativos.md` y `128A-1-F9-pruebas-bdp.md`; resumen en
-`Agente/completados/tareas-2026-08-13.md`.
-
-- Automatizar la detección de credenciales literales en documentación según `Agente/prevencion/prevencion-secretos-documentacion-bdp-2026-07-28.md`.
-- Automatizar la inmutabilidad de migraciones aplicadas según `Agente/prevencion/prevencion-inmutabilidad-migraciones-2026-07-28.md`.
-- **287A-8 — Corregir health/rollback Rust en coolify-manager-rs:** el gestor sustituye el healthcheck seguro por `hostname -i`; al conectar `coolify`, la primera dirección es IPv6 y la URL sin corchetes hace que `curl` falle, Docker marque `unhealthy` y Traefik responda `503`. Además, el rollback puede perder la red externa y evaluar salud después de restaurar el compose anterior. Debe conservar `localhost`, persistir la red y validar la versión activa antes de decidir rollback. Ver `Agente/documentacion/hosting/incidente-red-traefik-glory-rest-2026-07-28.md`.
-
-### Bloque 247A-7 — Mitigaciones críticas BDP (implementadas)
-
-| ID      | Riesgo                                                       | Estado          | Qué se hizo                                                                                                  | Archivos clave                                                  |
-| ------- | ------------------------------------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
-| R1      | Reconciliación periódica de comandas/pagos/facturas ambiguas | ✅ Implementado | Worker `reconcile_ambiguous_orders` en `bdp_order_poller`; consulta `GetOrder` y cierra auditorías `ambiguo` | `src/services/bdp_order_poller.rs`                              |
-| R5      | Timeout global en fase HTTP de `sync_venta`                  | ✅ Implementado | Fase HTTP envuelta en `tokio::time::timeout(Duration::from_secs(45))`                                        | `src/services/bdp_sync.rs`                                      |
-| R14     | Limpieza manual de `SYNC_LOCKS`                              | ✅ Implementado | Guard RAII `SyncLockGuard` que llama `cleanup_lock` en `Drop`                                                | `src/services/bdp_sync.rs`                                      |
-| R2-nota | Lock distribuido perdido tras early commit (cross-instance)  | Documentado     | Evaluar `pg_advisory_lock` de sesión o columna `bdp_sync_status` si se despliega multi-instance              | `Agente/documentacion/bdp/riesgos-produccion-bdp-2026-07-24.md` |
-
 ### Bloque 247A-9 — Decisiones pendientes del cliente
 
 | ID | Item | Pregunta al cliente | Esfuerzo estimado |
 | --- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- || D2 | **Compras** (albaranes) | ✅ Fases 1-3 implementadas y testeadas sin llamar a BDP: lectura, borradores locales y conciliación con gastos. Protegidas por feature flags `ff_bdp_purchase_notes_*`. | ~12h || D5 | **CancelOrder** | 🟡 Verificado contra el BDP real 2026-09-18 (comanda 6338 cancelada vía API); pendiente de prueba local (l.118). Pendiente decidir con el cliente: retirar el flag `ff_bdp_cancel_order` y permitir armado manual `cancel_order` | ~2h limpieza/contrato |
-
-### Bloque 247A-11 — Modo Demo y Refuerzos Compras BDP (completado)
-
-| ID  | Item                                                   | Estado   | Notas                                                                                                                                         |
-| --- | ------------------------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| DM1 | Frontend: Modo demo en las 4 páginas BDP               | ✅ Hecho | Stock, Explorador, Historial y Compras usan datos simulados, bloquean hooks reales y deshabilitan sync.                                       |
-| C1  | Backend: Refuerzos BDP Compras Fase 1                  | ✅ Hecho | Simplificación `validar_rango_fechas`, filtrado de claves naturales vacías y mapeo seguro de errores BDP sin filtrar URLs.                    |
-| T6  | Pruebas: Simulación segura y tests unitarios BDP --lib | ✅ Hecho | Verificado con simulación sin llamar a API real. Tests unitarios en validación de fechas y clave natural. `cargo test bdp --lib` 57 tests OK. |
 
 ### Bloque 247A-9 — Pruebas y validación antes de producción
 
@@ -651,52 +472,6 @@ Plan cerrado en
 5. Verificar que el estado se refleja en Glory (polling o consulta manual).
 6. Probar el modo de autorización temporal y auto-arming.
 7. Revisar auditoría en "Historial BDP".
-
----
-
-### Bloque 267A-4 — Feature flags UI + backlog técnico + tests (implementados)
-
-| ID     | Item                                           | Estado          | Qué se hizo                                                                                                     | Archivos clave                                                                                                                  |
-| ------ | ---------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| FF-UI  | Feature flags BDP configurables desde frontend | ✅ Implementado | 6 toggles con descripciones en Configuración BDP. Tipos, sync y save actualizados.                              | `ConfigBdp.tsx`, `configuracion-types.ts`, `useConfiguracion.ts`, `useConfiguracionSync.ts`, `gestionRestauranteAPI.schemas.ts` |
-| S16-H3 | Tests unitarios para canonical_target          | ✅ Implementado | 8 tests: acepta HTTP/HTTPS limpio, rechaza path/query/fragment/credenciales, strip trailing slash, fingerprint. | `src/services/bdp_backup.rs`                                                                                                    |
-| S16-H4 | Tests adicionales para allowlist               | ✅ Implementado | 4 tests: rechaza query string, fragment, URL vacía, acepta localhost con puerto.                                | `src/services/bdp_weblink.rs`                                                                                                   |
-| R4     | Test delay_ms timeout handling                 | ✅ Implementado | Test integración: inyecta 25s delay, verifica que cliente HTTP (20s timeout) mapea a error.                     | `tests/bdp_simulator_integration.rs`                                                                                            |
-| Docs   | Roadmap actualizado                            | ✅ Hecho        | Secciones de bloque 267A-4 y pendientes actualizadas.                                                           | `roadmap.md`                                                                                                                    |
-
-### Bloque 267A-1 — Mitigaciones y mejoras BDP (implementadas)
-
-| ID        | Riesgo/Mejora                                        | Estado          | Qué se hizo                                                                                                   | Archivos clave                                                   |
-| --------- | ---------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| S7-H1     | Dos ventas mapeadas al mismo bdp_order_id            | ✅ Implementado | UNIQUE partial index `idx_ventas_bdp_order_id_unique` en `ventas(user_id, bdp_order_id)`                      | `migrations/20260726200000_bdp_unique_constraints.up.sql`        |
-| S7-H3     | Misma orden facturada dos veces                      | ✅ Cubierto     | El índice único general por `(user_id, bdp_order_id)` ya impide el duplicado; el índice parcial redundante se elimina en una migración posterior e inmutable | `migrations/20260728080000_bdp_remove_redundant_invoice_index.up.sql` |
-| S16-H2    | Sin límite de tamaño de body en peticiones HTTP      | ✅ Implementado | `RequestBodyLimitLayer::new(2MB)` en el router Axum + feature `limit` en tower-http                           | `src/handlers/mod.rs`, `Cargo.toml`                              |
-| R12       | IVA hardcodeado 10.0 en fallbacks de resolve_article | ✅ Implementado | Fallbacks usan `config.iva_por_defecto` en vez de `10.0` literal                                              | `src/services/bdp_sync.rs`, `src/services/bdp_sync_preflight.rs` |
-| R16       | Conversión Decimal→f64 sin precisión documentada     | ✅ Documentado  | Enfoque vía string mantenido (más preciso); redondeo en call-sites cuando se necesite                         | `src/services/bdp_sync.rs`, `src/services/haddock.rs`            |
-| Tests-R12 | Test para IVA por defecto cuando BDP no lo devuelve  | ✅ Implementado | `first_article_uses_default_iva_when_missing` + tests actualizados con parámetro `default_iva_pct`            | `src/services/bdp_sync_preflight.rs`                             |
-
-### Bloque 267A-5 — Tests de servicios de negocio BDP (implementados)
-
-| ID    | Item                                                       | Estado          | Qué se hizo                                                                    | Archivos clave                     |
-| ----- | ---------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------ | ---------------------------------- |
-| SVC-1 | 8 guard tests (rechazos sin simulador)                     | ✅ Implementado | read_only, disabled, missing order_id, zero amount, invoice guards             | `tests/bdp_service_integration.rs` |
-| SVC-2 | sync_venta E2E contra simulador + PostgreSQL               | ✅ Implementado | Crea orden en BDP, verifica bdp_synced=true y bdp_order_id en BD               | `tests/bdp_service_integration.rs` |
-| SVC-3 | add_order_payment E2E contra simulador + PostgreSQL        | ✅ Implementado | Registra pago, verifica ledger local (bdp_pagos) y audit log                   | `tests/bdp_service_integration.rs` |
-| SVC-4 | invoice_order E2E contra simulador + PostgreSQL            | ✅ Implementado | Factura orden pagada, verifica bdp_invoiced=true y bdp_order_status='invoiced' | `tests/bdp_service_integration.rs` |
-| SVC-5 | Helper seed_arming con snapshot FK + authorize IS NOT NULL | ✅ Implementado | Crea snapshot dummy + armado vigente para que authorize() no bloquee           | `tests/bdp_service_integration.rs` |
-| SVC-6 | marketplace_order_id hecho público                         | ✅ Implementado | Cambiado de pub(crate) a pub para poder testear desde integration tests        | `src/services/bdp_sync.rs`         |
-
-### Pendientes que ya NO son pendientes (implementados previamente)
-
-| Item                 | Estado             | Evidencia                                                                       |
-| -------------------- | ------------------ | ------------------------------------------------------------------------------- |
-| R4: Feedback UI      | ✅ Ya implementado | `venta-row-actions.tsx`: toasts descriptivos, historial pagos, estados ambiguos |
-| Stock pantalla       | ✅ Ya implementado | `BdpStock.tsx`: filtros, sorting, paginación, CSV, demo mode, ruta `/bdp/stock` |
-| S6-H1: Redirect      | ✅ Ya cerrado      | `redirect(Policy::none())` en `bdp_weblink.rs:44`                               |
-| S7-H2: Tx post-HTTP  | ✅ Ya cerrado      | `pool.begin()` + `tx.commit()` en add_order_payment/invoice                     |
-| S14-H1: restaurar tx | ✅ Ya cerrado      | `pool.begin()` + `tx.commit()` en `bdp_backup.rs:574`                           |
-| R1: Reconciliación   | ✅ Ya implementado | `reconcile_ambiguous` en `bdp_order_poller.rs`                                  |
-| R3: Throttling       | ✅ Ya mitigado     | `Throttled→AmbiguousTransport` en `bdp_sync.rs:506`                             |
 
 ---
 
@@ -739,16 +514,19 @@ Plan cerrado en
 | 189A-4 | **`call_waiter` escribe al TPV sin pasar por ningún gate** — `src/handlers/plano_sala.rs:515-529` solo distingue standalone/bdp: ni `modo_permite_escritura`, ni backup flag, ni guard; funciona incluso en `read_only` (contradice su promesa). Decidir: gatearlo por modo o declararlo excepción documentada + aviso en UI. | Decisión de diseño | ~1-2h |
 | 189A-5 | **PATCH `invalida_armado_bdp` no incluye `bdp_auto_backup_before_write`** — `src/handlers/configuracion.rs:197-209`: desactivar el backup pre-write en `automatic` no fuerza `read_only` (mitigado hoy porque los 5 gates lo comprueban por escritura, pero el modo visible miente y `authorize_automatic` no lo re-chequea). Añadir el flag a la lista + test. | Ninguno (código) | ~1h |
 | 189A-6 | **Cierre de auditoría silencioso (`let _ = actualizar_resultado`)** — 5 sitios (`bdp_sync_pago.rs:344,468`, `bdp_sync_factura.rs:303`, `bdp_customer_sync.rs:660`, `bdp_sync_venta.rs:381`), todos en paths de error/ambiguo: si el UPDATE falla, la entrada queda `pendiente` y bloquea futuras ops sin rastro. Propagar o al menos loguear + reconciliar pendientes. | Ninguno (código) | ~2h |
+| 199A-1 | **Fase D — Receptor Avisos de Acciones BDP→web** (nuevo 2026-09-19, plan activo `Agente/planes/plan-fase-d-avisos-bdp-2026-09-19.md`, nota `Agente/documentacion/bdp/guia-bidireccional-avisos-2026-09-19.md`). La guía bidireccional + ZIP de Avisos (04/09/2026, sin abrir hasta hoy) aportan la pieza de vuelta que faltaba: 7 eventos (crear/modificar/estado/borrar/finalizar/traspasar/línea) → receptor idempotente + worker `GetOrder` + reconciliación. F0 decisiones (sin preguntas al distribuidor, decisión 2026-09-20); F1 receptor+inbox; F2 worker 7 eventos; F3 reconciliación+XML distribuidor; F4 TPV v36 real + piloto 7 días. No urgente (el restaurante ya opera sin ella). Estimación ~2.200–3.400 líneas, 7–12 laborables. | Decisión cliente + prueba en TPV local (10AA-3) para F2/F4 | F0 ya; resto tras decisión |
+| 01AA-1 | **Alcance real con TPV local licenciado** (nuevo 2026-10-01, plan activo `Agente/planes/plan-alcance-local-bdp-2026-10-01.md`). TPV 36.2 local licenciado (`122417` + `751080-84`) tras fix de registro (`MAC ADDRESS PUENTEADA` = `NetworkAddress` huérfano; borrado con backup `C:\tmp\backup-NetworkAddress-0000.reg`; detalle en `Agente/documentacion/bdp/error-mac-puenteada-2026-10-01.md` §19). Fija el alcance de la fase D con pruebas locales reversibles: P0 configurar BDP (serie pruebas, almacén, perfiles, avisos), P1 API (modificar/detalle/abiertas/camarero), P2 pantalla+receptor local (payloads de avisos, reintentos, exportación/stock), P3 mínimo pagos/facturas (cierra pendiente #1: 2.3/2.4), P4 tabla del borrador + F0 de 199A-1 + mini-guía de manejo. | Distribuidor (serie pruebas, almacén, perfiles, avisos) | P0 completo; siguiente P1 (API reversible, `Agente/planes/plan-alcance-local-bdp-2026-10-01.md:144`) |
+| 09AA-1 | **4ª tanda Guillermo (cerrada 2026-10-09, `Agente/completados/tareas-2026-10-09.md`)** — B8 separado con 6 campos por ficha; equivalencias A05→D23-m, A14→D21a+D22a, A19→D32, A07→D23a, A08→D23b, A17→D29, A01→D03+D03a; D18c con guarda `Status=3`. PDF 6p 318676 bytes (`C:\Users\Owner\Downloads\alcance-fase-d-2026-10-09.pdf`, SHA256 `AF91F92535BD0A0D4B689744D7044A9E3831B37C23B1182D6FE57C5C5FAAED5C`). | Ninguno | — |
+| 09AA-2 | **Base T2 autorizada por Guillermo (nuevo 2026-10-09, pendiente)** — buzón, outbox, id-map, cursores, libro stock, receptor, monitorización, conciliación. Sin marcar pruebas superadas hasta B8 completo + equivalencias corregidas (ya entregado en 09AA-1). | Cierre 09AA-1 (hecho) | ~1d |
+| 10AA-2 | **Enviar la 5ª tanda a Guillermo (pendiente de permiso de la usuaria)** — alcance `Agente/usuario/alcance-fase-d-2026-10-02.md` y anexo B8 `Agente/planes/anexo-b8-aceptacion-2026-10-08.md` ya corregidos (rev. 10/10; registro en `Agente/completados/tareas-2026-10-10.md`). Antes de enviar, regenerar el PDF: `Downloads/alcance-fase-d-2026-10-09.pdf` es de la 4ª tanda. CancelOrder decidido: pendiente de prueba local (roadmap l.118). | Permiso de la usuaria | ~0,5h |
+| 12AA-1 | **Frontend a Vite 8 + TypeScript 6** (plan `area-trabajo/Agente/planes/plan-mejora-flujo-herramientas-2026-10-10.md`, F6). Hecho: `frontend/package.json` (plugin-react 6.1.2, TS 6.0.3, Vite 8.3.4, override `@rolldown/plugin-babel` ^0.1.7 por conflicto de peers con shadcn 4.14.1) y `frontend/tsconfig.json` (sin `baseUrl`, deprecado en TS 6). Pendiente: `vite build` y comprobación visual. El gate local solo hace type-check (PASS); el contrato declara `build: -`; `--ci` exige script `test:full`, que el frontend no tiene. | Decidir cómo cubrir el build en el contrato (`Arranque comandos`) | ~0,5h |
+| 12AA-3 | **Sentinel warnings preexistentes en archivos tocados por 12AA-2** (refactor aparte, fuera del alcance del commit). `src/handlers/configuracion.rs`: `cambiar_bdp_sync_mode` 156 líneas (funcion-larga, máx. 100), 606 efectivas (god-object y limite-lineas controlador 500). `src/services/bdp_sync_preflight.rs`: 723 efectivas (limite-lineas servicio 700, god-object). `src/bin/seed.rs`: 731 efectivas (god-object) y `sqlite-carga-N-consultas`. En los dos primeros solo se tocó el formato (rustfmt). Dividir por dominio. | Ninguno (código) | ~1-2d |
+| 12AA-4 | **7× `sqlx::query()` sin macro en `src/bin/seed/operativa.rs`** (`sqlx-query-sin-macro`; código movido desde `seed.rs` sin cambios, el hallazgo ya existía). Pasar a `sqlx::query!` exige regenerar `.sqlx/` contra una BD migrada. | BD de la rama `glory_backend` desfasada (tablas y ~73 migraciones pendientes). Recrearla o migrarla es decisión reservada | ~1h tras BD |
+| 12AA-5 | **Fallos preexistentes del gate de alcance completo.** El incremental no los ve. `--full`: Sentinel marca ~45 errores fuera del cambio (`ventas.rs`, `bdp_backup.rs`, `bdp_sync_venta.rs`, `secreto-en-log` en `src/bin/remote_access_bootstrap.rs:322`, ~40× `ruta-post-sin-rate-limit` en handlers); clippy y tests fallan por la BD desfasada. | Clippy y tests necesitan BD migrada (12AA-4). Sentinel no | ~1-2d |
+| 12AA-6 | **Contraseña demo en el historial de Git.** Commits anteriores a `22fa84b` contienen la contraseña demo en claro y un doc antiguo con otra contraseña de rotación. Retirarla del árbol no la borra del historial. Decidir: rotar la cuenta demo y/o reescribir historia (force-push, reservado). | Decisión reservada de la usuaria (rotar y/o reescribir historia) | ~0,5h |
+| 10AA-3 | **Fase D sobre BDP local (nuevo 2026-10-10, plan activo `Agente/planes/plan-fase-d-bdp-local-2026-10-10.md`)** — conmutar la app de BDP real a local (configuración en BD, no `.env`; con volcado previo), luego lectura L2, escritura controlada por lote L3 (`PRUEBA-*`), F0 empírica de los 7 avisos en TPV local (L4) y después F1–F4 de 199A-1. Sin preguntas al distribuidor (decisión 2026-09-20). Confirmar que `bdp_pos_id=1` es su terminal (aplicado, reversible; plan §9.5). L2.2: conteos con el TPV. Gap de stock: `article-stock` lee caché de 2026-09-15 (plan §9.7). Decidir las 4 filas `error` (recomendado: no tocarlas; plan §9.8) | L0, L1 y L2 hechos (2026-10-10). L2.3 OK: explorador y perfil dan 24 departamentos (corregido el explorador). Config BD: `modo_operacion=auto`, `push_modalidad=manual`, `bdp_sync_enabled=true`, `read_only`. Cambios de código sin push: `bdp_explorer.rs`, `scripts/run-cargo.mjs` (cap 20 GB), `.gitignore`. Reintento L3.a 22:38: mismo `301400`, caja sigue cerrada (TpvNet abierto en MENÚ GENERAL; abrir en Caja y Cierres → Caja). L4.1 verificado sintético (receptor parado). Siguiente: usuaria abre caja, después L3 con permiso por lote y L2.2 |
 
 ---
-
-### Bloque 267A-6 — Badge interactivo + Plan pruebas lectura (implementados)
-
-| ID     | Item                                        | Estado          | Qué se hizo                                                                                                                                               | Archivos clave                                                           |
-| ------ | ------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| BADGE-1| Badge BDP:off interactivo                   | ✅ Implementado | Dropdown con "Activar BDP" (si credenciales) o "Configurar credenciales BDP". PATCH + invalidación React Query cache.                                   | `frontend/src/components/site-header.tsx`                                |
-| BADGE-2| Cache invalidation post-PATCH               | ✅ Implementado | `useQueryClient().invalidateQueries(['configuracion'])` tras activar BDP para refrescar badge inmediatamente.                                              | `frontend/src/components/site-header.tsx`                                |
-| PLAN-1 | Plan pruebas reales lectura BDP             | ✅ Implementado | Procedimientos detallados para Stock, Explorador, Historial y Compras contra BDP real. Checklist previo, campos, filtros, errores, rendimiento, responsive. | `Agente/documentacion/bdp/plan-pruebas-lectura-bdp-2026-07-26.md`        |
 
 ## Referencias rápidas
 

@@ -5,6 +5,18 @@
 > **Servicio:** `glory-rest` (`restaurante.wandori.us`, Coolify `my-first-project/production`)
 > **Fuente base:** plan 2026-08-08 (`plan-deploy-produccion-intuitividad-2026-08-08.md` §5) + hallazgos 169A-2/149A-2
 
+## Checklist de ejecución
+
+Estado según el registro de 2026-09-18 (desviaciones en su sección).
+
+- [x] F0 — Preflight
+- [x] F1 — Subir código
+- [ ] F2 — Variables de producción (sync-env bloqueado por guards del manager; pendiente)
+- [x] F3 — Reiniciar BD y desplegar (con recuperación documentada)
+- [x] F4 — Verificar base
+- [ ] F5 — Usuario seguro (admin creado por SQL; bootstrap y cuenta demo pendientes)
+- [ ] F6 — Conexión BDP en modo seguro
+
 ## Punto de partida verificado hoy
 
 - Rama `main`, 3 commits por subir (`f4f76a9`, `6aaf77e`, `d9f9b99`).
