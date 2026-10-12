@@ -492,15 +492,12 @@ impl BdpSyncPreflightService {
         let (request, nombre) = match con_pago_tender {
             None => (build_only_check_order(config, &article), ONLY_CHECK),
             Some(tender_id) => {
-                if tender_id <= 0
-                    || !tender_ids_presentes(tenders).contains(&i64::from(tender_id))
+                if tender_id <= 0 || !tender_ids_presentes(tenders).contains(&i64::from(tender_id))
                 {
                     response.checks.push(BdpSyncDryRunCheck::error(
                         ONLY_CHECK_CON_PAGO,
                         "/API/Orders/Create",
-                        format!(
-                            "tender_id={tender_id} no existe en el POS; no se llamo a BDP"
-                        ),
+                        format!("tender_id={tender_id} no existe en el POS; no se llamo a BDP"),
                     ));
                     return;
                 }
@@ -1102,8 +1099,14 @@ mod tests {
         let check = response.checks.last().expect("check OnlyCheck");
         assert!(check.ok, "OnlyCheck clásico aceptado: {}", check.mensaje);
         assert_eq!(check.nombre, "CreateOrder OnlyCheck");
-        let preview = response.payload_preview.as_ref().expect("preview del payload");
-        assert!(preview.get("Order").and_then(|o| o.get("Payments")).is_none());
+        let preview = response
+            .payload_preview
+            .as_ref()
+            .expect("preview del payload");
+        assert!(preview
+            .get("Order")
+            .and_then(|o| o.get("Payments"))
+            .is_none());
     }
 
     #[tokio::test]
@@ -1129,7 +1132,10 @@ mod tests {
         let check = response.checks.last().expect("check OnlyCheck con pago");
         assert!(check.ok, "OnlyCheck con pago aceptado: {}", check.mensaje);
         assert_eq!(check.nombre, "CreateOrder OnlyCheck con pago");
-        let preview = response.payload_preview.as_ref().expect("preview del payload");
+        let preview = response
+            .payload_preview
+            .as_ref()
+            .expect("preview del payload");
         assert_eq!(
             preview.get("OrderOperationType").and_then(Value::as_i64),
             Some(1),
@@ -1174,7 +1180,11 @@ mod tests {
         assert!(!check.ok);
         assert_eq!(check.nombre, "CreateOrder OnlyCheck con pago");
         assert!(
-            server.received_requests().await.unwrap_or_default().is_empty(),
+            server
+                .received_requests()
+                .await
+                .unwrap_or_default()
+                .is_empty(),
             "tender inválido: ninguna llamada de red"
         );
     }

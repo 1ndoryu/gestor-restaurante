@@ -393,13 +393,12 @@ async fn modo_automatico_autoriza_sin_armado_ni_cierre(pool: PgPool) {
     .await
     .expect("el modo automático autoriza sin armado");
 
-    let (resultado, motivo): (String, Option<String>) = sqlx::query_as(
-        "SELECT resultado, authorization_reason FROM bdp_audit_log WHERE id = $1",
-    )
-    .bind(audit_id)
-    .fetch_one(&pool)
-    .await
-    .expect("leer auditoría");
+    let (resultado, motivo): (String, Option<String>) =
+        sqlx::query_as("SELECT resultado, authorization_reason FROM bdp_audit_log WHERE id = $1")
+            .bind(audit_id)
+            .fetch_one(&pool)
+            .await
+            .expect("leer auditoría");
     assert_eq!(resultado, "pendiente");
     assert_eq!(motivo.as_deref(), Some("modo_automatico"));
 

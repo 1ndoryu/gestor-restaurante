@@ -238,7 +238,8 @@ mod tests {
         )
         .expect("generar token");
 
-        let claims = AuthService::verify_token(&token, "secreto-de-prueba").expect("verificar token");
+        let claims =
+            AuthService::verify_token(&token, "secreto-de-prueba").expect("verificar token");
 
         assert_eq!(claims.sub, user_id);
         assert_eq!(claims.tid, Some(trabajador_id));

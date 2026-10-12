@@ -339,7 +339,10 @@ pub async fn cambiar_bdp_sync_mode(
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
-    if !matches!(req.modo.as_str(), "read_only" | "unidirectional" | "automatic") {
+    if !matches!(
+        req.modo.as_str(),
+        "read_only" | "unidirectional" | "automatic"
+    ) {
         return Err(AppError::Validation(
             "Modo BDP inválido; use read_only, unidirectional o automatic. bidirectional está bloqueado hasta que exista un contrato implementado y auditado.".into(),
         ));
