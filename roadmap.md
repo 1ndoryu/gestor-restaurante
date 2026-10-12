@@ -116,7 +116,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 | **Compras** (albaranes/facturas de proveedores) | **Fases 1-3 implementadas.** Lectura, borradores y conciliación. Protegidas por feature flags `ff_bdp_purchase_notes_*`. Configurables desde UI. | ✅ Implementado      |
 | **Pagos parciales**                             | Implementado bajo feature flag `ff_bdp_partial_payments`. Ledger local `bdp_pagos` con idempotency_key. Configurable desde UI.                   | ✅ Implementado      |
 | **Sincronización bidireccional automática**     | Riesgo de bucles y conflictos; no soportada por BDP                                                                                              | ❌ Rechazado         |
-| **CancelOrder**                                 | ✅ Verificado funcionando contra BDP real 2026-09-18 (comanda 6338 cancelada vía API, auditoría `exito`); la anulación local encola `venta/cancelar` y el push la envía | ✅ Funcional |
+| **CancelOrder**                                 | Cancelación de comanda 6338 contra BDP real 2026-09-18 con auditoría `exito` (un solo caso); efecto en cocina sin verificar. La anulación local encola `venta/cancelar` y el push la envía | 🟡 Pendiente de prueba local |
 | **Modificación de stock**                       | Alcance solo lectura en integración actual                                                                                                       | ❌ Fuera de alcance  |
 
 ### 🔒 Autorización temporal para escrituras
@@ -291,7 +291,7 @@ operación**; pago-a-existente/factura-a-existente `⏸` hasta activar la suscri
 **matiz 2026-09-16:** ver bloque 169A-2, el pago dentro del `CreateOrder` inicial puede funcionar en gratuita y se
 prueba de noche; el `⏸` sigue valiendo para `Payment/Add` a comanda existente.
 **Matiz 2026-09-18:** `CancelOrder` verificado funcionando contra el BDP real
-—comanda 6338 cancelada vía API, auditoría `exito`—; el `⏸` de cancelación queda levantado).
+—comanda 6338 cancelada vía API, auditoría `exito`—; el `⏸` de cancelación queda levantado; prueba local pendiente desde 10/10, l.118).
 **Historia que no se borra:** bajo 049A-1 sí se ejecutó **W-Q2.1 real** (alta de `90000003` →
 INCIDENTE `200109`) y su fix local `sync_catalog`; el residuo `90000003` sigue en el BDP real
 (pendiente 1g) y `ModifyArticleAndUpdateProfile` sigue sin funcionar contra el BDP real con payload
@@ -622,7 +622,7 @@ Plan cerrado en
 ### Bloque 247A-9 — Decisiones pendientes del cliente
 
 | ID | Item | Pregunta al cliente | Esfuerzo estimado |
-| --- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- || D2 | **Compras** (albaranes) | ✅ Fases 1-3 implementadas y testeadas sin llamar a BDP: lectura, borradores locales y conciliación con gastos. Protegidas por feature flags `ff_bdp_purchase_notes_*`. | ~12h || D5 | **CancelOrder** | ✅ Verificado funcionando 2026-09-18 (comanda 6338 cancelada vía API). Pendiente decidir con el cliente: retirar el flag `ff_bdp_cancel_order` y permitir armado manual `cancel_order` | ~2h limpieza/contrato |
+| --- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- || D2 | **Compras** (albaranes) | ✅ Fases 1-3 implementadas y testeadas sin llamar a BDP: lectura, borradores locales y conciliación con gastos. Protegidas por feature flags `ff_bdp_purchase_notes_*`. | ~12h || D5 | **CancelOrder** | 🟡 Verificado contra el BDP real 2026-09-18 (comanda 6338 cancelada vía API); pendiente de prueba local (l.118). Pendiente decidir con el cliente: retirar el flag `ff_bdp_cancel_order` y permitir armado manual `cancel_order` | ~2h limpieza/contrato |
 
 ### Bloque 247A-11 — Modo Demo y Refuerzos Compras BDP (completado)
 
@@ -721,7 +721,7 @@ Plan cerrado en
 | 1b  | **Lecturas reales BDP, sin escrituras** — conexión, acceso y formas de pago verificados. Catálogo y Compras ya muestran configuración guiada y persistente cuando BDP devuelve cero artículos o rechaza la plantilla. El Explorador queda fuera del criterio de entrega. No se efectuó ningún cambio en BDP. | Cliente: elegir la tarifa que devuelva artículos y aportar un código de plantilla de Compras existente | ~30 min |
 | 1b  | **Tests E2E servicio contra simulador con DB** (sync_venta, add_payment, invoice)                                                                                                                                                 | ✅ Hecho (267A-5) — 11 tests: 8 guard + 3 E2E contra simulador+PostgreSQL | ✅ Hecho          |
 | 2   | **Activar 6 feature flags** en producción                                                                                                                                                                                         | ✅ UI implementada — se puede activar desde Configuración BDP             | ~1h verificación  |
-| 3   | **CancelOrder** — ✅ verificado funcionando 2026-09-18 (comanda 6338 cancelada vía API). Solo queda limpieza/contrato: retirar flag `ff_bdp_cancel_order`, permitir armado manual | BDP verificado | ~2h |
+| 3   | **CancelOrder** — 🟡 verificado contra el BDP real 2026-09-18 (comanda 6338 cancelada vía API); pendiente de prueba local (l.118). Queda limpieza/contrato: retirar flag `ff_bdp_cancel_order`, permitir armado manual | BDP verificado | ~2h |
 | 4   | **S16-H3/H4**: Tests para allowlist y canonical_target                                                                                                                                                                            | ✅ Hecho (267A-4)                                                         | ✅ Hecho          |
 | 5   | **Tests simulador** (pagos parciales + compras)                                                                                                                                                                                   | ✅ Hecho — 92 Python + 23 Rust pasando                                    | ✅ Hecho (267A-2) |
 | 6   | **Runbook operativo BDP**                                                                                                                                                                                                         | ✅ Hecho                                                                  | ✅ Hecho          |

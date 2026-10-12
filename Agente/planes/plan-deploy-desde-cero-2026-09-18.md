@@ -14,7 +14,7 @@
 - `C:\tmp` al 61% del techo (4,28/7 GB): hay que purgar antes de compilar.
 - Registro público **siempre abierto** (`POST /api/auth/register`, sin flag para cerrarlo): el primer usuario sin trabajador es `Admin`.
 - `.env` local verificado 2026-09-18 (solo presencia/longitud): `BDP_LOGIN`/`BDP_PASSWORD`/`BDP_INTEGRATOR_CODE` presentes, `BDP_BASE_URL` 25 chars, POS/employee/profile/article presentes. **OJO: `BDP_WRITE/CHECK_ORDER_ALLOWED_ORIGINS` SÍ están definidos en local (25 chars = el BDP)** — a producción van **vacíos** en F2; jamás copiar el `.env` tal cual. `CORS_ORIGINS`/`APP_URL` ausentes en local — definir en prod. `BDP_BOOTSTRAP_USER_EMAIL` local apunta al demo — en prod será el email del nuevo admin.
-- Admin decidido: email `restaurante@nakomi.studio` (el usuario escribió `nakomi..studio` con doble punto — asumido typo, **confirmar antes de F5**), nombre `restaurante`, contraseña fuerte de 24 chars (mínimo del validador: 8, `src/models/user.rs:40`) generada en F5 y entregada una sola vez.
+- Admin decidido: email `CORREO_ADMIN` (el usuario escribió `nakomi..studio` con doble punto — asumido typo, **confirmar antes de F5**), nombre `restaurante`, contraseña fuerte de 24 chars (mínimo del validador: 8, `src/models/user.rs:40`) generada en F5 y entregada una sola vez.
 
 ## Guardarraíles VPS (otros proyectos en producción) — lectura obligatoria antes de F0
 
@@ -70,8 +70,9 @@ Fuente: `coolify-manager-rs` (`settings.json`: 11 sitios, `backupPolicy` enabled
 4. BDP online en Tailscale (`IP_BDP:8068`).
 5. Recoger secretos del usuario (ver tabla): nunca van a git ni a logs.
 
-### F1 — Subir código
-- `git pull --rebase` + push de los 3 commits a `main` (requiere autorización: push).
+### F1 — Subir código ✅ EJECUTADA 18/09
+- `git pull --rebase` (ya al día) + `git push origin main` → `5ed1137..02ecb38` (6 commits), `main` sincronizada.
+- Nota: GitHub reporta 46 vulnerabilidades dependabot (2 critical) — FYI, fuera de alcance.
 
 ### F2 — Variables de producción (vía `sync-env`, sin allowlists de escritura)
 | Variable | Valor |
@@ -116,4 +117,45 @@ Fuente: `coolify-manager-rs` (`settings.json`: 11 sitios, `backupPolicy` enabled
 | Build actual apunta a `glory-rs`, no a este repo | Confirmar origen del build en F0; si apunta mal, corregir compose primero |
 | Registro abierto entre F4 y F5 | Ventana mínima: F5 corre en el mismo bloque que F4 |
 | `C:\tmp` lleno al compilar | Purgar en F0 (techo 7 GB) |
+| Env nuevo no efectivo hasta redeploy | Verificación de hashes + bootstrap obligatoria en F4 |
+
+## Registro de ejecución 2026-09-18
+- F0 ✅: `C:\tmp` medido 4,28/7 GB (sin purga, actividad reciente); manager compilado `8m46s`;
+  inventario 11 sitios + minecraft; `glory-rest`=`restaurante.wandori.us` (`b8s0cks...`);
+  health `http_ok/app_ok`; backup VPS 03:00 vigente + manual `20260918_071346-pre-deploy-desde-cero`
+  (incluye uploads); BDP responde desde VPS (HTTP 404 en 0,8s = online).
+- F1 ✅: push `5ed1137..02ecb38`, `main` sincronizada.
+- F2 ✅ (push aplicado en Coolify; efectivo al redeploy): 9 claves ya idénticas (BDP verificadas
+  por sha256), 5 cambios (`BDP_BOOTSTRAP_USER_EMAIL`→`CORREO_ADMIN`, JWT rotado en
+  `JWT_SECRET` + `SERVICE_PASSWORD_64_JWTSECRET`, `CORS_ORIGINS` + `APP_URL` añadidos).
+  Allowlist de escritura ausentes en prod → escrituras BDP bloqueadas.
+- Hallazgo aparte: `kamples` sin copia de BD desde 27/08 (`pg_dump failed` a diario, app viva).
+  Pendiente como tarea separada, no tocado.
+- F3 – cronología real:
+  1. `diagnose` confirmó que prod construía desde `glory-rs.git#glory-rs-rest` → se actualizó
+     `settings.json` del manager (solo entrada `glory-rest`): `repoUrl=gestor-restaurante.git`,
+     `gloryBranch=main` (SIN commitear en ese repo — pendiente).
+  2. Compatibilidad Docker verificada antes: `APP_BIN=glory-backend` ✅, `frontend/` ✅,
+     `.sqlx/` ✅, `glory-rs/` es submódulo (vacío tras clone → el `git clone` del Dockerfile funciona),
+     `npx vite build` no hace typecheck (los errores TS preexistentes no rompen el build).
+  3. Reset BD: `DROP SCHEMA public CASCADE` (41 objetos).
+  4. Primer `deploy-service` FALLÓ + rollback automático falló: el binario nuevo no arranca si
+     `BDP_BOOTSTRAP_USER_EMAIL` no coincide con un usuario existente, y la BD estaba vacía.
+     Culpa del orden de F2 (email fijado antes de existir el admin).
+  5. F2 NO se había aplicado en realidad: `sync-env push` la bloquean dos guards del manager
+     (`sync_env_helpers.rs:194-200` bloquea `JWT_SECRET`/`SERVICE_*`; `sync_env.rs:121-131` exige
+     las 3 Stripe keys no vacías en local). Env efectivo en prod = el antiguo (JWT viejo, bootstrap
+     demo, sin CORS/APP_URL, BDP creds correctas). Rotar JWT vía push es contraproducente por diseño
+     (fuerza regeneración y mismatch `DATABASE_URL`); con la BD vacía el JWT viejo es inofensivo.
+  6. Recuperación: admin `CORREO_ADMIN` insertado por SQL con hash argon2id generado
+     con `hash-wasm` (solo el hash viajó; la password solo existe en este plan_para_entrega y el chat),
+     + cuenta técnica `CORREO_DEMO` (password aleatoria registrada abajo) porque el env
+     vigente exige ese bootstrap. Segundo `deploy-service --skip-backup` (backup pre-deploy imposible
+     con el contenedor en crash-loop; había 2 backups vigentes + el estado intermedio era reproducible)
+     → **Deploy exitoso**, health 200, 10/10 vecinos OK.
+- F4 ✅: `/api/health` 200, 74 migraciones aplicadas (=148 ficheros up/down), login
+  `CORREO_ADMIN` 200 con `role=admin`, frontend 200.
+- PENDIENTE (tarea aparte): desbloquear F2 real (conseguir Stripe keys o relajar required del manager),
+  rotar JWT por la vía Coolify, cambiar bootstrap a `CORREO_ADMIN`, eliminar cuenta demo.
+- Passwords generadas 18/09: entregadas por canal seguro y **redactadas de este documento** (no se versionan). Pendiente: que el restaurante las cambie. Cuentas: admin `CORREO_ADMIN`, técnica `CORREO_DEMO`.
 | BDP caído durante el deploy | No bloquea: el deploy deja todo en lectura; la conexión se valida en F6 |
