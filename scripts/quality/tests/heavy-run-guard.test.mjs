@@ -200,6 +200,19 @@ test('el cooldown de full no se comparte entre proyectos con el mismo targetBase
   }
 });
 
+test('sin cooldownMinutes el defecto global es 0: full no se difiere', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'glory-heavy-default-'));
+  const targetBase = path.join(root, 'target');
+  try {
+    const decision = await inspectHeavyRun({ projectRoot: root, targetBase, mode: 'full' });
+    assert.equal(decision.cooldownMs, 0);
+    assert.equal(decision.allowed, true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(path.join(root, '..', 'glory-quality-guard'), { recursive: true, force: true });
+  }
+});
+
 test('un comando ligero no adquiere lease ni escribe cooldown', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'glory-heavy-light-'));
   const targetBase = path.join(root, 'target');

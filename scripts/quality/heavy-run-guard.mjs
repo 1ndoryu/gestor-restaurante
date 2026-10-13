@@ -5,7 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { redact } from './redaction.mjs';
 
-const DEFAULT_COOLDOWN_MS = 3 * 60 * 60 * 1000;
+/* Defecto global 0 (decisión de la usuaria, 2026-10-12), espejo de glory-sentinel
+ * scheduler.ts. Un proyecto lo activa con heavyRun.cooldownMinutes > 0. */
+const DEFAULT_COOLDOWN_MS = 0;
 const DEFAULT_TARGET_BASE = process.platform === 'win32'
   ? 'C:\\tmp\\glory-target'
   : path.join(os.tmpdir(), 'glory-target');
