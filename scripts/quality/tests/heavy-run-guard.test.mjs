@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { acquireHeavyRun, inspectHeavyRun, isHeavyCargoCommand, logHeavyOverride } from '../heavy-run-guard.mjs';
+import { acquireHeavyRun, inspectHeavyRun, isFilteredTestRun, isHeavyCargoCommand, logHeavyOverride } from '../heavy-run-guard.mjs';
 
 test('el guard limita full a una ejecución cada tres horas y la excepción manual con motivo concede (auditada)', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'glory-heavy-guard-'));
@@ -88,6 +88,24 @@ test('solo test, clippy y bench son comandos Cargo pesados', () => {
   assert.equal(isHeavyCargoCommand(['--locked', 'clippy']), true);
   assert.equal(isHeavyCargoCommand(['check']), false);
   assert.equal(isHeavyCargoCommand(['fmt', '--check']), false);
+});
+
+test('las opciones con valor no ocultan el subcomando (cargo -p x test no se salta el guard)', () => {
+  assert.equal(isHeavyCargoCommand(['--features', 'x', 'test']), true);
+  assert.equal(isHeavyCargoCommand(['-p', 'mi-crate', 'test']), true);
+  assert.equal(isHeavyCargoCommand(['+nightly', 'test']), true);
+  assert.equal(isHeavyCargoCommand(['-p', 'mi-crate', 'check']), false);
+});
+
+test('un test filtrado no es pesado; la suite completa sí', () => {
+  assert.equal(isFilteredTestRun(['test', 'mi_filtro']), true);
+  assert.equal(isFilteredTestRun(['test', '--test', 'bdp_sync']), true);
+  assert.equal(isFilteredTestRun(['test']), false);
+  assert.equal(isFilteredTestRun(['test', '-p', 'mi-crate']), false);
+  assert.equal(isFilteredTestRun(['test', '--lib']), false);
+  assert.equal(isHeavyCargoCommand(['test', 'mi_filtro']), false);
+  assert.equal(isHeavyCargoCommand(['test', '--test', 'bdp_sync']), false);
+  assert.equal(isHeavyCargoCommand(['test', '--', 'mi_filtro']), true);
 });
 
 test('un override sin motivo se rechaza y no concede la excepción (028A-16)', async () => {
