@@ -286,3 +286,12 @@ Disable-SSHGuard
 ---
 
 > **Lección clave:** SSH directo en contexto de agente es como darle root a un script sin supervisión. La prohibición técnica (funciones wrapper + server-side guard) es la única forma de garantizar que los agentes usen los canales seguros (Coolify Manager) en lugar de ejecutar comandos arbitrarios en producción.
+
+---
+
+## VII. Excepción acotada: alias `dev89` (2026-10-14)
+
+- **Decidido por la usuaria** («Excepción acotada a 89»): SSH directo permitido solo al alias `dev89` de `~/.ssh/config`, con usuario `dev` (sin sudo ni docker; sin claves de la 66, de GitHub ni de Coolify).
+- **Implementación:** la función `ssh` del perfil de PowerShell 7 (`Documentos/PowerShell/Microsoft.PowerShell_profile.ps1`) deja pasar `dev89` y `dev@dev89` si no hay `-l`, `root@` ni `User=root`, y registra `DEV89_EXCEPCION` en el log. Cualquier otro destino sigue el flujo de antes.
+- **Sin cambios:** `scp` y `sftp` siguen bloqueados en contexto de agente; la 66 y producción solo por `coolify-manager-rs` (AGENTS §9.1).
+- **Referencia:** `Agente/planes/plan-taller-remoto-vps89-2026-10-14.md`, F0.
