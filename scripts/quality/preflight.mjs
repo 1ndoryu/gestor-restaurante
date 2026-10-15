@@ -106,7 +106,10 @@ export function validateQualityConfig(qualityConfig) {
       throw new Error('quality.config.json: indexRetention.throttleHours debe estar entre 1 y 720');
     }
   }
-  if (!qualityConfig.heavyRun || !Number.isFinite(qualityConfig.heavyRun.cooldownMinutes) || qualityConfig.heavyRun.cooldownMinutes < 0 || qualityConfig.heavyRun.cooldownMinutes > 24 * 60) {
+  /* cooldownMinutes es opcional: ausente = 0 (heavy-run-guard.mjs). d9a703f lo quitó
+   * y esta validación lo seguía exigiendo, así que todo gate fallaba en SETUP. */
+  const cooldownMinutes = qualityConfig.heavyRun?.cooldownMinutes;
+  if (!qualityConfig.heavyRun || (cooldownMinutes !== undefined && (!Number.isFinite(cooldownMinutes) || cooldownMinutes < 0 || cooldownMinutes > 24 * 60))) {
     throw new Error('quality.config.json: heavyRun.cooldownMinutes debe estar entre 0 y 1440');
   }
   if (!Number.isFinite(qualityConfig.heavyRun.maxTargetGb) || qualityConfig.heavyRun.maxTargetGb < 1 || qualityConfig.heavyRun.maxTargetGb > 100) {
