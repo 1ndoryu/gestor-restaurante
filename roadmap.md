@@ -141,13 +141,17 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Tareas pendientes
 
-### Bloque 14AA-1 — F5 del taller VPS 89: un solo limpiador de C:\tmp (en curso)
+### Bloque 14AA-3 — Deuda previa del gate de RESTAURANTE (Rust, Sentinel y secretos)
 
-Quitar `target-maintenance` del gate (commit 905a48c, `scripts/quality/task-check.mjs`). `\GloryTmpSweep` es el único limpiador; `npm run quality:cleanup` sigue para un pase manual. Plan en el área de trabajo: plan del taller remoto VPS 89 (14-oct-2026), fase F5. Gate `npm run gate:check -- 14AA-1` (2026-10-14): FAIL por deuda previa ajena a este cambio (ver 14AA-3). El cambio en `scripts/quality/preflight.mjs` (cooldownMinutes opcional) desbloquea el SETUP. Siguiente paso: cerrar la entrada en `Agente/completados/` cuando el gate pase.
+Origen: gate completo `14AA-1` (2026-10-14, FAIL; `.quality-reports/check/14AA-1/latest.md`). Alcance acordado por la usuaria (2026-10-14): los cinco grupos siguientes.
 
-### Bloque 14AA-3 — Deuda previa del gate de RESTAURANTE (Rust y Sentinel)
+- **god-object** (error > 800 líneas): `src/handlers/ventas.rs` (828), `src/services/bdp_backup.rs` (858), `src/services/bdp_sync_venta.rs` (1154), `src/services/bdp_weblink_catalog.rs` (977). Partir por dominio.
+- **clippy** (error que bloquea la lib): `src/services/modo_operacion.rs:169`. Nace en `331392d`; último toque `12c1e85`.
+- **secreto-en-log**: `src/bin/remote_access_bootstrap.rs:322` imprime la contraseña de RustDesk con `println!`. Redactar o no emitirla.
+- **quality-timeout**: los tests unitarios de `src/bin/remote_access_bootstrap.rs` superan el timeout del gate (649 s en la etapa Rust).
+- **ruta-post-sin-rate-limit**: **42** rutas POST en 19 ficheros de `src/handlers/` sin límite de tasa visible (el recuento anterior, 7, era parcial). Decidir por ruta: límite (`tower_governor`) o waiver con `sentinel-disable-file`, con su motivo.
 
-Fallos del gate completo que no vienen de 14AA-1: god-object en `src/handlers/ventas.rs`, `src/services/bdp_backup.rs` y `src/services/bdp_sync_venta.rs`; error de clippy en `src/services/modo_operacion.rs` (desde 331392d); `ruta-post-sin-rate-limit` en Sentinel (7 rutas POST). Siguiente paso: partir los archivos god-object y añadir límite de tasa o waiver por ruta.
+Siguiente paso: partir los cuatro god-object; corregir clippy; redactar la contraseña en log; fijar la política de límite de tasa para las 42 rutas. Verificar con `npm run gate:check -- 14AA-3`.
 
 ### Bloque 11AA-2 — Gate: checklist en planes activos (preexistente)
 
