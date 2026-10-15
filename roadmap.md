@@ -141,6 +141,14 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Tareas pendientes
 
+### Bloque 14AA-1 — F5 del taller VPS 89: un solo limpiador de C:\tmp (en curso)
+
+Quitar `target-maintenance` del gate (commit 905a48c, `scripts/quality/task-check.mjs`). `\GloryTmpSweep` es el único limpiador; `npm run quality:cleanup` sigue para un pase manual. Plan en el área de trabajo: plan del taller remoto VPS 89 (14-oct-2026), fase F5. Gate `npm run gate:check -- 14AA-1` (2026-10-14): FAIL por deuda previa ajena a este cambio (ver 14AA-3). El cambio en `scripts/quality/preflight.mjs` (cooldownMinutes opcional) desbloquea el SETUP. Siguiente paso: cerrar la entrada en `Agente/completados/` cuando el gate pase.
+
+### Bloque 14AA-3 — Deuda previa del gate de RESTAURANTE (Rust y Sentinel)
+
+Fallos del gate completo que no vienen de 14AA-1: god-object en `src/handlers/ventas.rs`, `src/services/bdp_backup.rs` y `src/services/bdp_sync_venta.rs`; error de clippy en `src/services/modo_operacion.rs` (desde 331392d); `ruta-post-sin-rate-limit` en Sentinel (7 rutas POST). Siguiente paso: partir los archivos god-object y añadir límite de tasa o waiver por ruta.
+
 ### Bloque 11AA-2 — Gate: checklist en planes activos (preexistente)
 
 Hallazgo `docs-plan-no-checklist` del gate de 11AA-1 en `Agente/planes/plan-deploy-desde-cero-2026-09-18.md` y `Agente/planes/plan-fase-d-bdp-local-2026-10-10.md`. Ya existe en `main` (43c3c74), no lo causa 11AA-1. Siguiente paso: añadir a cada plan su checklist de cierre y repetir `npm run gate:check -- <id>`.
