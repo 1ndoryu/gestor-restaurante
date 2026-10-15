@@ -7,6 +7,10 @@ import path from 'path';
  * sin tocar el puerto fijo. Default http://localhost:3000 (comportamiento histórico). */
 const apiTarget = process.env.VITE_API_TARGET || 'http://localhost:3000';
 
+/* Dev público por Cloudflare Tunnel: solo si botonRemoto define RESTAURANTE_DEV_PUBLIC_HOST
+ * (scripts/dev/registro.json). Sin la variable, la configuración es la de siempre (localhost). */
+const publicHost = process.env.RESTAURANTE_DEV_PUBLIC_HOST;
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -20,6 +24,12 @@ export default defineConfig({
      * strictPort falla en vez de caer en otro puerto ajeno en silencio. */
     port: 5182,
     strictPort: true,
+    /* Vite rechaza el Host ajeno (anti DNS rebinding): el hostname público debe estar aquí.
+     * HMR por wss en 443: el navegador habla con el borde de Cloudflare, no con 5182. */
+    ...(publicHost && {
+      allowedHosts: [publicHost],
+      hmr: { protocol: 'wss', host: publicHost, clientPort: 443 },
+    }),
     /* Permitir servir archivos del submodulo glory-rs */
     fs: {
       allow: ['..'],
