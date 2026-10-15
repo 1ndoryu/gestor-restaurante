@@ -12,7 +12,6 @@ import { stageDefinitions } from './stage-definitions.mjs';
 import { isFullExecution } from './profile-contract.mjs';
 import { runBoundedStages } from './stage-runner.mjs';
 import { runReportRetentionBestEffort } from './report-retention-stage.mjs';
-import { runTargetMaintenanceBestEffort } from './target-maintenance-stage.mjs';
 import { runIndexMaintenanceBestEffort } from './index-maintenance.mjs';
 import { CORRUPT_TAKEOVER, defaultAgent, foreignTakeoverDecision, listActiveForeignTakeovers, readTakeover, takeoverReminders, touchTakeover } from './task-takeover.mjs';
 
@@ -105,18 +104,10 @@ async function main() {
       }
     }
     const context = await preflight(args);
-    /* [028A-6] Limpieza preventiva: debe ocurrir antes de calcular el scope y
-     * antes de ejecutar cualquier etapa Rust. Si se deja para el final, Cargo
-     * puede llenar C:\\tmp durante la validación y el siguiente agente hereda
-     * el exceso. La pasada posterior conserva la limpieza de históricos. */
-    context.targetMaintenance = await runTargetMaintenanceBestEffort({
-      projectRoot: context.projectRoot,
-    });
-    if (context.targetMaintenance.status === 'error') {
-      process.stderr.write(`[quality] TARGET MAINTENANCE ERROR — ${context.targetMaintenance.message ?? 'cuota no satisfecha'}\n`);
-      process.exitCode = 75;
-      return;
-    }
+    /* [F5] C:\\tmp lo limpia solo GloryTmpSweep (horaria, 12 h / 20 GB). El gate
+     * ya no poda targets: dos limpiadores con políticas distintas se pisaban.
+     * `npm run quality:cleanup` sigue disponible para un pase manual. */
+    context.targetMaintenance = { status: 'pass', skipped: 'unificado-en-GloryTmpSweep' };
     /* [028A-17 Fase 2] Coordinación de tomas de tarea. Tres cosas:
      *
      * 1. BANNER GLOBAL: cualquier gate muestra las tomas activas de OTROS
@@ -252,24 +243,6 @@ async function main() {
           currentTaskId: args.taskId,
           config: context.qualityConfig.reportRetention,
         });
-        /* [028A-6] Supervisión automática de targets de cargo: la cuota se
-         * comprueba en cada gate, con lock entre agentes y presupuesto de
-         * tiempo. Elimina targets viejos/sobre cuota sin tocar procesos vivos
-         * (marcadores, ejecutables cargados o escritura reciente). */
-        /* [028A-6] targetRoot por defecto: C:\tmp\glory-target (o
-         * CARGO_TARGET_DIR_BASE). La política de cuota/edad viene de
-         * quality.config.json heavyRun; no hay clave targetRoot en la config. */
-        /* [028A-6] Segunda pasada: poda históricos elegibles tras terminar
-         * Cargo; procesos persistentes siguen protegidos por WMI. */
-        const postTargetMaintenance = await runTargetMaintenanceBestEffort({
-          projectRoot: context.projectRoot,
-        });
-        /* Conserva el diagnóstico de la pasada preventiva si la segunda
-         * inspección falla por concurrencia, pero refleja una cuota que quedó
-         * excedida al terminar el gate. */
-        context.targetMaintenance = postTargetMaintenance.status === 'error'
-          ? { ...context.targetMaintenance, postRun: postTargetMaintenance }
-          : postTargetMaintenance;
         /* [028A-8 Fase 4] Supervisión de índices de analizadores (varsense):
          * TTL y cuota separados de los targets de cargo, con throttle por
          * ventana y presupuesto de tiempo; nunca borra una rama con lock
