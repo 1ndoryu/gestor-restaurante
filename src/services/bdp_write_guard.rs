@@ -143,6 +143,26 @@ impl BdpWriteGuard {
         if !VALID_BDP_WRITE_SCOPES.contains(&scope) {
             return Err(format!("Scope de escritura BDP no válido: {scope}"));
         }
+        /* [10AA-3-A] Si ya hay un armado vigente que cubre esta operación
+         * exacta, se reutiliza. `auto_arm_inner` se niega a pisar un armado
+         * activo y devolvía error, así que el armado manual (el que la usuaria
+         * concede por lote con `PUT /configuracion/bdp/sync-mode`, nombrando
+         * destino y entidad) bloqueaba justo la operación que autorizaba: la
+         * fila quedaba en la cola y el push nunca salía. Reutilizar no rebaja
+         * el fail-closed —el armado previo ya nombra este destino y esta
+         * entidad— y `authorize` sigue siendo la puerta final. */
+        if Self::armado_vigente_para(
+            pool,
+            user_id,
+            config,
+            scope,
+            target_entity_type,
+            target_entity_id,
+        )
+        .await?
+        {
+            return Ok(());
+        }
         Self::auto_arm_inner(
             pool,
             user_id,
@@ -152,6 +172,51 @@ impl BdpWriteGuard {
             target_entity_id,
         )
         .await
+    }
+
+    /// [10AA-3-A] ¿Existe un armado vigente que cubre esta operación exacta?
+    /// Las condiciones son las mismas que aplica el `UPDATE` de `authorize`
+    /// para consumirlo (alcance, entidad, huella de conexión, snapshot y
+    /// `bdp_sync_mode`): si devuelve `true`, `authorize` podrá consumirlo.
+    async fn armado_vigente_para(
+        pool: &PgPool,
+        user_id: Uuid,
+        config: &ConfiguracionRestaurante,
+        scope: &str,
+        target_entity_type: &str,
+        target_entity_id: Uuid,
+    ) -> Result<bool, String> {
+        let base = BdpBackupService::canonical_target(config)?;
+        let fingerprint = BdpBackupService::connection_fingerprint(config)?;
+        sqlx::query_scalar(
+            r"SELECT EXISTS (
+                 SELECT 1 FROM bdp_write_arming
+                 WHERE user_id = $1
+                   AND base_url = $2
+                   AND $3 = ANY(scopes)
+                   AND target_entity_type = $4
+                   AND target_entity_id = $5
+                   AND connection_fingerprint = $6
+                   AND snapshot_id IS NOT NULL
+                   AND expires_at > NOW()
+                   AND remaining_operations > 0
+                   AND EXISTS (
+                     SELECT 1 FROM configuracion_restaurante c
+                     WHERE c.user_id = $1
+                       AND TRIM(TRAILING '/' FROM TRIM(c.bdp_base_url)) = $2
+                       AND c.bdp_sync_mode = 'unidirectional'
+                   )
+               )",
+        )
+        .bind(user_id)
+        .bind(&base)
+        .bind(scope)
+        .bind(target_entity_type)
+        .bind(target_entity_id)
+        .bind(&fingerprint)
+        .fetch_one(pool)
+        .await
+        .map_err(|error| format!("No se pudo verificar el armado BDP vigente: {error}"))
     }
 
     #[allow(clippy::too_many_lines)]

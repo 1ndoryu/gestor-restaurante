@@ -419,3 +419,97 @@ async fn modo_automatico_autoriza_sin_armado_ni_cierre(pool: PgPool) {
             .expect("contar arming");
     assert_eq!(arming_count, 0, "el automático no crea ni consume arming");
 }
+
+/// [10AA-3-A] El armado manual vigente (el que se concede por lote con
+/// `PUT /configuracion/bdp/sync-mode`, nombrando destino y entidad) autoriza el
+/// push en lugar de bloquearlo. Antes, `armar_push` caía siempre en
+/// `auto_arm_inner`, que se niega a pisar un armado activo: la fila de la cola
+/// no salía nunca y la operación autorizada quedaba muerta.
+#[sqlx::test(migrations = "./migrations")]
+async fn armar_push_reutiliza_el_armado_manual_vigente(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let mut config = ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración");
+    config.bdp_base_url = "http://127.0.0.1:18765".into();
+    config.bdp_sync_mode = "unidirectional".into();
+    config.bdp_sync_enabled = true;
+    config.bdp_login = "prueba".into();
+    config.bdp_password = "prueba".into();
+    config.bdp_integrator_code = "PRUEBA".into();
+    sqlx::query(
+        r"UPDATE configuracion_restaurante
+             SET bdp_base_url = $2, bdp_sync_mode = 'unidirectional',
+                 bdp_sync_enabled = TRUE, bdp_login = 'prueba', bdp_password = 'prueba',
+                 bdp_integrator_code = 'PRUEBA'
+           WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .bind(&config.bdp_base_url)
+    .execute(&pool)
+    .await
+    .expect("configurar BDP local");
+
+    let fingerprint = BdpBackupService::connection_fingerprint(&config).expect("fingerprint");
+    let snapshot_id: Uuid = sqlx::query_scalar(
+        r"INSERT INTO bdp_snapshots
+           (user_id, tipo, direccion, trigger_tipo, datos, target_base_url, connection_fingerprint)
+           VALUES ($1, 'completo', 'bdp', 'manual', $2, $3, $4)
+           RETURNING id",
+    )
+    .bind(user_id)
+    .bind(serde_json::json!({
+        "articulos": [], "clientes": [], "departamentos": [], "salones": [], "empleados": []
+    }))
+    .bind(&config.bdp_base_url)
+    .bind(&fingerprint)
+    .fetch_one(&pool)
+    .await
+    .expect("crear snapshot exacto");
+
+    let venta_id = Uuid::new_v4();
+    sqlx::query(
+        r"INSERT INTO bdp_write_arming
+           (user_id, base_url, scopes, target_entity_type, target_entity_id,
+            reason, expires_at, remaining_operations, snapshot_id, connection_fingerprint)
+           VALUES ($1, $2, ARRAY['cancel_order'], 'venta', $3,
+                   'prueba local', NOW() + INTERVAL '10 minutes', 1, $4, $5)",
+    )
+    .bind(user_id)
+    .bind(&config.bdp_base_url)
+    .bind(venta_id)
+    .bind(snapshot_id)
+    .bind(&fingerprint)
+    .execute(&pool)
+    .await
+    .expect("crear armado manual");
+
+    BdpWriteGuard::armar_push(&pool, user_id, &config, "cancel_order", "venta", venta_id, true)
+        .await
+        .expect("el armado manual vigente autoriza el push");
+
+    let (motivo, operaciones): (String, i32) = sqlx::query_as(
+        "SELECT reason, remaining_operations FROM bdp_write_arming WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .expect("leer armado");
+    assert_eq!(motivo, "prueba local", "el armado manual se conserva intacto");
+    assert_eq!(operaciones, 1, "armar el push no consume el armado");
+
+    /* Otra entidad no lo reutiliza: cae al auto-armado, que se niega a pisar un
+     * armado activo. El fail-closed se mantiene. */
+    let error = BdpWriteGuard::armar_push(
+        &pool,
+        user_id,
+        &config,
+        "cancel_order",
+        "venta",
+        Uuid::new_v4(),
+        true,
+    )
+    .await
+    .expect_err("un armado de otra entidad no autoriza esta operación");
+    assert!(error.contains("armado BDP activo"), "{error}");
+}
