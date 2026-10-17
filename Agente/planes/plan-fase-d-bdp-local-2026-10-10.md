@@ -1,6 +1,7 @@
 # Plan — Fase D sobre BDP local (2026-10-10)
 
 **ID:** 10AA-3 · **Estado:** planificado y revisado (2026-10-10, ampliado para cubrir el PDF de alcance entregado: §10); ejecución en curso: L0, L1, L2.1 y L2.3 hechos; **L3 bloqueada** (caja del POS 1 cerrada, código 301400) · **Próximo paso:** abrir la caja en TpvNet (usuaria) y reintentar L3.a; después L2.2 con la usuaria.
+**Rev. 2026-10-17 (solo documento, sin tocar el TPV):** corregidas las referencias al anexo B8 y al alcance (los PDF de `~/Downloads` ya no existen: la fuente viva es el HTML del repo), el recuento de fichas (63 → 65), el estado de alta en el taller y el `git status` de §3, L0.4 cerrado por la recomendación de §9.2 y la atribución de commits de §7 al día.
 
 **Relacionado:** `plan-fase-d-avisos-bdp-2026-09-19.md` (diseño F0–F4), `plan-alcance-local-bdp-2026-10-01.md` (P0–P4 con TPV local), `Agente/usuario/alcance-fase-d-2026-10-02.md` (alcance rev. 10/10).
 
@@ -22,7 +23,7 @@ Estado según §8 (2026-10-10): L3 bloqueada por caja cerrada en TpvNet.
 
 ## 1. Objetivo
 
-Dejar la aplicación apuntando al BDP local (TPV 36.2 licenciado en el portátil) en lugar del BDP real, y con ese TPV: (1) cerrar la F0 empírica de la fase D (Avisos de Acciones), que bloquea F2 y F4; (2) ejecutar en local las pruebas de aceptación D01–D32 que promete el PDF de alcance (`alcance-fase-d-2026-10-10.pdf`, anexo B8), cada una en su fase (§10). Lo que el PDF promete y este plan no puede probar en local queda marcado como diferido, con su motivo.
+Dejar la aplicación apuntando al BDP local (TPV 36.2 licenciado en el portátil) en lugar del BDP real, y con ese TPV: (1) cerrar la F0 empírica de la fase D (Avisos de Acciones), que bloquea F2 y F4; (2) ejecutar en local las pruebas de aceptación D01–D32 que promete el alcance (`Agente/documentacion/bdp/alcance-fase-d-pdf-2026-10-10.html` y `Agente/usuario/alcance-fase-d-2026-10-02.md`; fichas en `Agente/planes/anexo-b8-aceptacion-2026-10-08.md`, rev. 10/10), cada una en su fase (§10). Lo que el PDF promete y este plan no puede probar en local queda marcado como diferido, con su motivo.
 
 ## 2. Alcance y no alcance
 
@@ -53,7 +54,7 @@ Dejar la aplicación apuntando al BDP local (TPV 36.2 licenciado en el portátil
 - Modo efectivo: `modo_efectivo_desde_config` (`src/services/modo_operacion.rs`). En `auto` depende de `bdp_sync_enabled`.
 - Cola de envíos: existen las tablas `bdp_push_pendientes`, `bdp_write_arming` y `bdp_poll_schedule` (migraciones). Si hay filas pendientes, al cambiar la URL podrían salir hacia el TPV local. Por eso L0.3 va antes de L1.
 - Puerto del BDP real: `IP_BDP:8068` (`Agente/documentacion/api/bdp-300035-resumen-completo-2026-06-01.md:6`). Puerto por defecto en código: `localhost:8068` (`src/services/bdp_sync.rs:115`). Eso no prueba la instancia local.
-- `RESTAURANTE` no figura en `workspace-manager/scripts/dev/registro.json`. Sin entrada no hay mando `Arranque` (AGENTS §9.2).
+- `RESTAURANTE` ya figura en `workspace-manager/scripts/dev/registro.json` (L0.0, hecho el 2026-10-10). Sin entrada no hay mando `Arranque` (AGENTS §9.2). **Actualizado 2026-10-17:** el proyecto está dado de alta y bajo mando (`Arranque status "RESTAURANTE"` → `bajo-mando`, `dev89`, tmux 1/1, sonda verde).
 - Frontend: `frontend/vite.config.ts:19` declara `5173`. El `:5182` de las verificaciones del 09-16 es un arranque manual, no configuración.
 - Scripts existentes: `scripts/run-cargo.mjs`, `scripts/run-with-db.mjs`, `scripts/branch-db.mjs`. Gate canónico: `npm run gate:check` (`package.json:37`, `scripts/quality/gate-check.mjs`).
 - Base T2 inexistente (2026-10-10, búsqueda en `migrations/` y `src/`): ningún resultado para `bdp_sync_cursor`, `bdp_id_map`, `bdp_stock_ledger`, `bdp_avisos_inbox` ni outbox; testigo en el mismo barrido: `bdp_push_pendientes` y `bdp_write_arming` sí aparecen (66 coincidencias en 17 archivos). Cobertura: `migrations/` y `src/` del repo. El PDF exige las 6 tablas antes de las pruebas de aceptación (roadmap 09AA-2).
@@ -61,7 +62,7 @@ Dejar la aplicación apuntando al BDP local (TPV 36.2 licenciado en el portátil
 - Gaps de código vistos en L2/L3: modificar una venta no tiene ruta BDP; `/bdp/article-stock` lee caché (no `GetStock` en vivo); comentarios desfasados («C3=b: nunca se llama CancelOrder») en `src/services/venta.rs:291` y `src/handlers/ventas.rs:225`, cuando `anular` ya encola `venta/cancelar` (`src/services/venta.rs:349-367`); `clippy -D warnings` falla por avisos preexistentes en `bdp_push.rs`, `bdp_weblink.rs` y `modo_operacion.rs`.
 - Contradicción: `roadmap.md` 01AA-1 dice "P0 siguiente", pero `plan-alcance-local-bdp-2026-10-01.md:144` dice "P0 COMPLETO".
 - Contradicción: `roadmap.md` 199A-1 menciona "12 preguntas a BDP", frente a la decisión de 2026-09-20 "sin preguntas a BDP".
-- Git: `main` sin ramas locales. `git status` muestra 32 entradas ajenas (modificados: `roadmap.md`, `Agente/planes/plan-deploy-desde-cero-2026-09-18.md`, `frontend/tsconfig.tsbuildinfo`; sin trackear: tareas 10-01 a 10-10 y documentación BDP).
+- Git (2026-10-10): `main` sin ramas locales; `git status` mostraba 32 entradas ajenas. **Actualizado 2026-10-17:** árbol limpio salvo `quality-tools.json` modificado (subida de pin de Sentinel a 0.7.26 y de VarSense, sin commitear; no se toca aquí).
 
 **No verificado (condiciona o bloquea)**
 
@@ -93,7 +94,7 @@ Dejar la aplicación apuntando al BDP local (TPV 36.2 licenciado en el portátil
 | L0.1 | Host y puerto del WebLink local, sin tocar la app: proceso que escucha en el portátil (`netstat -ano`) y `/Auth/Login` de solo lectura contra ese candidato | Principal | URL base anotada sin IP real. Si hay varios candidatos, decisión 4. **Estado 2026-10-10 (10:18):** TPV reabierta por la usuaria como administrador (TpvNet PID 22312, SvrWCF PID 21252; token elevado comprobado). `Config_WebLink` 0 filas (sqlcmd); sin listener de WebLink (SvrWCF escucha en 9011 y 9021; no confirmado como WebLink). Computer-use no controla ventanas elevadas (UIPI); pc-control (cua-driver) tampoco: su SKILL.md declara UAC/High-IL fuera de alcance. La activación de Servicios Web la hace la usuaria en la TPV. Puerto candidato libre según netstat: 8070. Licencia (DEMO) por verificar. Bloqueado hasta que la usuaria active WebLink y diga el puerto |
 | L0.2 | Login contra esa URL, sin escrituras | Principal | Token o error documentado |
 | L0.3 | Estado actual en BD (SQL de solo lectura): `bdp_base_url`, `bdp_sync_enabled`, `bdp_sync_mode`, filas de `bdp_push_pendientes` y `bdp_write_arming` | Principal | Cola vacía, o pendientes resueltos con la usuaria antes de L1. **Resultado 2026-10-10:** `bdp_base_url` sigue en el BDP real (`IP_BDP:8068`); `bdp_sync_enabled=false`, `bdp_sync_mode=read_only`, `modo_operacion=standalone`, `push_modalidad=automatico`; `bdp_write_arming` y `bdp_poll_schedule` vacías. Cola: 0 `pendiente`, 9 `sincronizado`, 4 `error` (37b18564, 5d92004c, 67b8d9ae, dc84a08a: «ALMACÉN 1 NO EXISTE» ×3 y «CÓDIGO DE IVA 0 NO EXISTE» ×1). `error` es estado activo: el flush las reintenta. Decisión pendiente (ver L2.3) |
-| L0.4 | Decidir `CancelOrder` | Usuaria (decisión 2) | Alcance y roadmap alineados |
+| L0.4 | Decidir `CancelOrder` | Usuaria (decisión 2) | **Cerrado 2026-10-17** con la recomendación de §9.2: se mantiene «pendiente de prueba local» y el roadmap (`roadmap.md:118`) ya está alineado. La prueba real exige la caja abierta (L3.c) |
 | L0.5 | Corregir contradicciones de documentación: roadmap 01AA-1 ("P0 completo; siguiente P1", según `plan-alcance-local-bdp-2026-10-01.md:144`) y 199A-1 (quitar "12 preguntas a BDP") | Principal (decisión reversible del agente) | Roadmap coherente con el plan de alcance y con la decisión 2026-09-20 |
 | L0.6 | Rama: no se crea todavía. Se crea desde `main` con el primer commit autorizado | Principal | Ninguna rama suelta en ningún momento (CLAUDE.md "Ramas") |
 
@@ -238,7 +239,7 @@ La configuración (L1.2), las decisiones y la lectura de resultados de escritura
 - **Calidad (AGENTS §6):** `npm run gate:check` en RESTAURANTE y re-análisis `POST http://localhost:8787/api/gate/analizar` con `{"clave":"RESTAURANTE","forzar":true}`. Sin hallazgos nuevos atribuibles al cambio.
 - **Documentación:** roadmap (10AA-3 cerrada; 01AA-1 y 199A-1 alineadas), `Agente/completados/tareas-<fecha>.md`, matriz de avisos. El plan se mueve a `Agente/planes/completados/` con sus enlaces actualizados (AGENTS §7.2).
 - **Limpieza:** receptor parado (PID verificado), `C:\tmp\fase-d-local\` borrado, procesos propios parados.
-- **Commit e integración (CLAUDE.md "Ramas"):** commits por bloque si la política del repositorio lo exige (AGENTS §5), stage explícito, cada commit con la línea `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`. Rama `fase-d-bdp-local` integrada en `main` con fast-forward o merge, sin force-push. El push a `main` es publicación a remoto compartido: se pide confirmación antes (AGENTS §0.3). Antes de borrar ramas local y remota: `git bundle create` y `git bundle verify`. Si la integración necesita una decisión de la usuaria (conflicto, rama no fast-forward), anotar en el roadmap con su motivo y preguntar.
+- **Commit e integración (CLAUDE.md "Ramas"):** commits por bloque si la política del repositorio lo exige (AGENTS §5), stage explícito, cada commit con la línea `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Rama `fase-d-bdp-local` integrada en `main` con fast-forward o merge, sin force-push. El push a `main` es publicación a remoto compartido: se pide confirmación antes (AGENTS §0.3). Antes de borrar ramas local y remota: `git bundle create` y `git bundle verify`. Si la integración necesita una decisión de la usuaria (conflicto, rama no fast-forward), anotar en el roadmap con su motivo y preguntar.
 
 ## 8. Estado y próximo paso
 
@@ -252,14 +253,14 @@ La configuración (L1.2), las decisiones y la lectura de resultados de escritura
 - **Reintento L3.a (2026-10-10 22:36–22:38, tras orden de completar el plan):** TpvNet abierto en MENÚ GENERAL (Windows ya desbloqueado, Terminal 1, v36.2, CONEXION LOCAL), pero la caja sigue cerrada: rearmado OK (snapshot `18488515-9756-4571-8d7d-ff31efeb0041`, armado `98137357-ca37-4629-96ba-7de043676329`) y `bdp-sync` devuelve el mismo `301400` (`bdp_synced=false`, sin comanda en BDP, venta local intacta). Modo vuelto a `read_only`, URL local confirmada. El armado se consumió: el próximo reintento exige rearmar de nuevo.
 - **L4.1 parcial (2026-10-10 22:38):** receptor mínimo `C:\tmp\fase-d-local\l41-receptor.mjs` (solo `127.0.0.1:8099`, log `avisos-l4.log`) verificado con 2 avisos sintéticos (`crear` estado 0, `finalizar` estado 3, ambos HTTP 200 y en log) y parado tras verificar (PID 28240, línea `node.exe C:\tmp\fase-d-local\l41-receptor.mjs`). Falta la parte del TPV: configurar la URL de avisos en TpvNet (Utilidades → Configuración Servicios Web → Configuración Avisos de Acciones) y los 7 eventos reales (L4.2, usuaria en TPV).
 - **Gaps de código vistos en L2/L3 (tareas aparte, no se mezclan):** modificar una venta no tiene ruta BDP; `/bdp/article-stock` lee caché sin consulta en vivo; comentarios «C3=b: nunca se llama CancelOrder» desfasados en `src/services/venta.rs:291` y `src/handlers/ventas.rs:225` (anular ya encola `venta/cancelar`); `clippy -D warnings` con avisos preexistentes.
-- **Alcance ampliado (2026-10-10):** el plan se completó frente al PDF `alcance-fase-d-2026-10-02/10-10` con L5.0 (T2) y L6–L10. Reparto de las 63 fichas en §10.
+- **Alcance ampliado (2026-10-10):** el plan se completó frente al alcance `Agente/usuario/alcance-fase-d-2026-10-02.md` y su PDF (`Agente/documentacion/bdp/alcance-fase-d-pdf-2026-10-10.html`) con L5.0 (T2) y L6–L10. Reparto de las **65** fichas en §10.
 - **Control PC TPV (2026-10-10, tras autorización de la usuaria "inténtalo, yo le doy aceptar"):** TpvNet corre en integridad High (UIPI): `background` (PostMessage) imposible; `invoke_menu` sin UIA falla (`menu_path_unavailable`); `hotkey Ctrl+A` foreground se envía pero sin efecto. Vía OK: `invoke_menu ["Tpv-Táctil"]` por el pipe elevado `claude-pc-elev` (cuelga 45-120 s, fire-and-forget documentado) → abrió **APERTURA Y SELECCIÓN DE TURNOS** (window 44893530): Terminal 1, Fecha 01/10/2026, Turno 2, botones Salir/Ayuda/Abrir Turno/Aceptar. OJO: el resaltado naranja de «Caja y Cierres» en el MENÚ GENERAL es previo (no lo abrí yo); la vía correcta es Tpv-Táctil, no Caja y Cierres. Lección en `control-escritorio-2026-10-01.md` §§132-160.
 - **Próximo paso:** la usuaria pulsa **Aceptar** en el diálogo APERTURA Y SELECCIÓN DE TURNOS ya abierto (verificar fecha 01/10/2026 y Turno 2 antes); entonces reintento L3.a (rearmar, `bdp-sync`, `bdp-status`, anular y comprobar `venta/cancelar`). Después L2.2 con la usuaria (conteos) y decidir las 4 filas `error` (recomendado: no tocarlas; nunca flush sin `?dominios=venta`) y el gap de stock (punto 7). L3 solo con permiso por lote. L5.0 (base T2) no se adelanta: el plan exige L4 antes de L5.
 
 ## 9. Decisiones pendientes (por recomendación)
 
 1. **Permiso para L1**: hecho (2026-10-10).
-2. **`CancelOrder`**: mantener "pendiente de prueba local" y corregir `roadmap.md` l.118. Bloquea L3.c. La ruta existe en código (`anular` encola `venta/cancelar`); falta probarla con una comanda real, que exige la caja abierta (punto 10).
+2. **`CancelOrder`**: mantener "pendiente de prueba local" y corregir `roadmap.md` l.118. **Resuelto 2026-10-17:** se mantiene «pendiente de prueba local» y el roadmap ya está alineado (`roadmap.md:118` dice exactamente eso), así que no requiere corrección. Bloquea L3.c. La ruta existe en código (`anular` encola `venta/cancelar`); falta probarla con una comanda real, que exige la caja abierta (punto 10).
 3. **Permiso por lote** antes de cada escritura en el TPV local, y antes de enviar nada a Guillermo.
 4. **Push a `main` al cierre** (publicación a remoto compartido, AGENTS §0.3). Recomendado: sí, con fast-forward y sin force-push, una vez validado el cierre.
 5. **`bdp_pos_id` → aplicado: 1** (decisión del agente, reversible; la usuaria debe confirmar que es su terminal). El 31 no existe en el BDP local; el 1 es el único terminal de `Kdi-Net_Tpv-Net_36.Terminales` (Codigo 1, "TERMINAL 1") y `Tenders/GetPOSList` responde con 3 medios de pago. Alternativa descartada: crear un terminal 31 en el TPV (escribe en el TPV; requiere permiso por lote).
@@ -277,7 +278,7 @@ La configuración (L1.2), las decisiones y la lectura de resultados de escritura
 
 ## 10. Cobertura del PDF (anexo B8, fichas D01–D32)
 
-Cada ficha tiene fase. Estado a 2026-10-10: **ninguna superada**; «parcial» = ensayada en lectura. Fuente: `Agente/documentacion/bdp/alcance-fase-d-pdf-2026-10-10.html` y `anexo-b8-aceptacion-2026-10-10.md`.
+Cada ficha tiene fase. Estado a 2026-10-10: **ninguna superada**; «parcial» = ensayada en lectura. Fuente: `Agente/documentacion/bdp/alcance-fase-d-pdf-2026-10-10.html` y `Agente/planes/anexo-b8-aceptacion-2026-10-08.md` (rev. 10/10; 65 fichas, todas con fase asignada — comprobado el 2026-10-17).
 
 | Fichas | Qué comprueba | Fase | Estado / dependencia |
 |---|---|---|---|
