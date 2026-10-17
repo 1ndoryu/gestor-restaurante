@@ -16,7 +16,6 @@
 
 use rust_decimal::Decimal;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -29,7 +28,8 @@ use crate::services::bdp_weblink_catalog::{
     BdpOrderIdentifier, BdpRegularizationRequest, BdpStockInfoEntry, BdpTransferRequest,
 };
 use crate::services::{
-    BdpBackupService, BdpWriteGuard, ConfiguracionService, ModoEfectivo, ServicioModoOperacion,
+    entidad_uuid, BdpBackupService, BdpWriteGuard, ConfiguracionService, ModoEfectivo,
+    ServicioModoOperacion,
 };
 
 pub const DOMINIO_ARTICULO: &str = "articulo";
@@ -902,20 +902,8 @@ fn scope_para(dominio: &str, operacion: &str) -> Option<&'static str> {
     }
 }
 
-/// Identificador UUID estable derivado de (`dominio`, `entidad_id`) para arming y
-/// auditoría (que exigen `Uuid`). No colisiona entre entidades ni usuarios
-/// porque el namespace es determinista por (`dominio`, `entidad_id`).
-fn entidad_uuid(dominio: &str, entidad_id: &str) -> Uuid {
-    /* UUID determinista derivado de (dominio, entidad_id) para arming y
-     * auditoría (que exigen `Uuid`). No se usa `Uuid::new_v5` porque el crate
-     * solo tiene habilitadas las features `serde` y `v4`. */
-    let mut hasher = Sha256::new();
-    hasher.update(format!("bdp-push:{dominio}:{entidad_id}").as_bytes());
-    let digest = hasher.finalize();
-    let mut bytes = [0u8; 16];
-    bytes.copy_from_slice(&digest[..16]);
-    Uuid::from_bytes(bytes)
-}
+/* `entidad_uuid` se movió a `bdp_write_guard.rs` [10AA-3-B]: el armado manual
+ * tiene que derivar el mismo valor que el worker, y una sola copia lo garantiza. */
 
 fn es_transitorio(error: &BdpWeblinkError) -> bool {
     matches!(

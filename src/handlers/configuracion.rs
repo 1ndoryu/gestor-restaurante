@@ -20,7 +20,8 @@ use crate::models::{
 use crate::repositories::{BdpWriteArmingRepository, NuevoArmado};
 use crate::services::bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
 use crate::services::{
-    BdpBackupService, BdpSyncDryRunResponse, BdpSyncPreflightService, ConfiguracionService,
+    alcance_usa_uuid_propio, entidad_uuid, tipo_destino_de_alcance, BdpBackupService,
+    BdpSyncDryRunResponse, BdpSyncPreflightService, ConfiguracionService,
     IntegracionMarketingService,
 };
 use crate::AppState;
@@ -280,8 +281,14 @@ pub struct CambiarBdpSyncModeRequest {
     pub max_operaciones: i32,
     #[serde(default)]
     pub motivo: String,
+    /// Tipo de destino del armado: el dominio literal (`venta`, `cliente`,
+    /// `articulo`, `stock`, `cliente_puntos`…), el mismo que usa el worker.
     pub target_entity_type: Option<String>,
-    pub target_entity_id: Option<Uuid>,
+    /// Destino exacto. UUID de la entidad cuando el alcance opera sobre `venta`
+    /// o `cliente`; en el resto, el código local que identifica la entidad
+    /// (código de artículo, de cliente de puntos…), del que se deriva el UUID
+    /// de arming y auditoría. [10AA-3-B]
+    pub target_entity_id: Option<String>,
 }
 
 const VALID_BDP_WRITE_SCOPES: &[&str] = &[
@@ -303,56 +310,128 @@ const VALID_BDP_WRITE_SCOPES: &[&str] = &[
     "add_points",
 ];
 
-/* [10AA-3-A] Alcances que operan sobre una venta (no sobre un cliente). */
-const BDP_WRITE_SCOPES_DE_VENTA: &[&str] = &["create_order", "add_payment", "invoice", "cancel_order"];
-
-/// [10AA-3-A] Regla del armado de pruebas: el objetivo debe ser del mismo tipo
+/// [10AA-3-B] Regla del armado de pruebas: el objetivo debe ser del mismo tipo
 /// que el alcance. `cancel_order` faltaba aquí y el armado de una anulación
 /// devolvía 422 aunque el alcance fuese válido, así que la anulación local
-/// nunca llegaba al BDP.
+/// nunca llegaba al BDP. Después faltaban los otros nueve alcances, que el
+/// worker identifica por el dominio literal: el tipo esperado de cada uno lo
+/// declara `tipo_destino_de_alcance`.
 fn alcance_casa_con_objetivo(alcances: &[String], target_type: &str) -> bool {
-    let customer_only = alcances.iter().all(|scope| scope == "create_customer");
-    let sale_only = alcances
-        .iter()
-        .all(|scope| BDP_WRITE_SCOPES_DE_VENTA.contains(&scope.as_str()));
-    customer_only && target_type == "cliente" || sale_only && target_type == "venta"
+    !alcances.is_empty()
+        && alcances
+            .iter()
+            .all(|scope| tipo_destino_de_alcance(scope) == Some(target_type))
+}
+
+/// [10AA-3-B] UUID que exigen el armado y la auditoría para el destino indicado.
+///
+/// Los alcances sobre `venta` o `cliente` llevan el UUID propio de la entidad;
+/// el resto llevan el código local, y el UUID se deriva con la misma función
+/// que usa el worker, para que el armado manual se reutilice de verdad.
+fn destino_a_uuid(alcance: &str, target_type: &str, target_id: &str) -> Result<Uuid, AppError> {
+    if alcance_usa_uuid_propio(alcance) {
+        return Uuid::parse_str(target_id.trim()).map_err(|_| {
+            AppError::Validation(
+                "El destino de este alcance es una venta o un cliente: target_entity_id debe ser su UUID."
+                    .into(),
+            )
+        });
+    }
+    let codigo = target_id.trim();
+    if codigo.is_empty() {
+        return Err(AppError::Validation(
+            "El destino de este alcance es una entidad identificada por código: target_entity_id no puede estar vacío."
+                .into(),
+        ));
+    }
+    Ok(entidad_uuid(target_type, codigo))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::alcance_casa_con_objetivo;
+    use super::{alcance_casa_con_objetivo, destino_a_uuid};
+    use crate::services::entidad_uuid;
+    use uuid::Uuid;
 
     fn alcances(valores: &[&str]) -> Vec<String> {
         valores.iter().map(|valor| (*valor).to_string()).collect()
     }
 
-    #[test]
-    fn cancel_order_arma_sobre_venta() {
-        assert!(alcance_casa_con_objetivo(&alcances(&["cancel_order"]), "venta"));
-    }
+    /// Tipos de destino que declara el worker de push.
+    const TIPOS: [&str; 8] = [
+        "venta",
+        "cliente",
+        "articulo",
+        "departamento",
+        "familia",
+        "stock",
+        "propina",
+        "cliente_puntos",
+    ];
 
+    /// [10AA-3-B] Los 15 alcances válidos deben poder armarse, y solo sobre el
+    /// tipo de destino que usa el worker. Antes, 10 de ellos devolvían 422
+    /// siempre y su escritura no salía nunca.
     #[test]
-    fn cancel_order_no_arma_sobre_cliente() {
-        assert!(!alcance_casa_con_objetivo(&alcances(&["cancel_order"]), "cliente"));
-    }
-
-    #[test]
-    fn create_customer_solo_arma_sobre_cliente() {
-        assert!(alcance_casa_con_objetivo(&alcances(&["create_customer"]), "cliente"));
-        assert!(!alcance_casa_con_objetivo(&alcances(&["create_customer"]), "venta"));
-    }
-
-    #[test]
-    fn alcances_de_venta_arman_sobre_venta() {
-        for alcance in ["create_order", "add_payment", "invoice"] {
-            assert!(alcance_casa_con_objetivo(&alcances(&[alcance]), "venta"), "{alcance}");
+    fn cada_alcance_arma_solo_sobre_su_tipo_de_destino() {
+        let casos = [
+            ("create_order", "venta"),
+            ("add_payment", "venta"),
+            ("invoice", "venta"),
+            ("cancel_order", "venta"),
+            ("create_customer", "cliente"),
+            ("create_article", "articulo"),
+            ("modify_article", "articulo"),
+            ("modify_prices", "articulo"),
+            ("create_department", "departamento"),
+            ("create_family", "familia"),
+            ("regularize_stock", "stock"),
+            ("transfer_stock", "stock"),
+            ("inventory", "stock"),
+            ("add_tip", "propina"),
+            ("add_points", "cliente_puntos"),
+        ];
+        assert_eq!(casos.len(), 15, "los 15 alcances válidos, ni uno menos");
+        for (alcance, tipo) in casos {
+            for otro in TIPOS {
+                assert_eq!(
+                    alcance_casa_con_objetivo(&alcances(&[alcance]), otro),
+                    otro == tipo,
+                    "{alcance} con destino {otro}"
+                );
+            }
         }
     }
 
     #[test]
-    fn alcances_de_otro_tipo_no_arman_sobre_venta() {
-        /* `create_article` es válido como alcance, pero su objetivo no es una venta. */
-        assert!(!alcance_casa_con_objetivo(&alcances(&["create_article"]), "venta"));
+    fn alcance_desconocido_o_lista_vacia_no_arma() {
+        assert!(!alcance_casa_con_objetivo(&alcances(&["alcance_inventado"]), "venta"));
+        assert!(!alcance_casa_con_objetivo(&[], "venta"));
+    }
+
+    /// [10AA-3-B] El armado manual y el worker deben derivar el mismo UUID: si
+    /// divergen, el armado no se reutiliza y la operación muere en silencio.
+    #[test]
+    fn el_destino_por_codigo_deriva_el_mismo_uuid_que_el_worker() {
+        let derivado =
+            destino_a_uuid("add_points", "cliente_puntos", "CLI-77").expect("derivar el UUID");
+        assert_eq!(derivado, entidad_uuid("cliente_puntos", "CLI-77"));
+        /* El código se recorta: un espacio de más no debe invalidar el armado. */
+        assert_eq!(
+            destino_a_uuid("add_points", "cliente_puntos", "  CLI-77 ").expect("derivar"),
+            derivado
+        );
+    }
+
+    #[test]
+    fn venta_y_cliente_exigen_uuid_propio_y_no_derivan() {
+        let venta = Uuid::new_v4();
+        assert_eq!(
+            destino_a_uuid("cancel_order", "venta", &venta.to_string()).expect("UUID de venta"),
+            venta
+        );
+        assert!(destino_a_uuid("cancel_order", "venta", "PRUEBA-1").is_err());
+        assert!(destino_a_uuid("add_points", "cliente_puntos", "   ").is_err());
     }
 }
 
@@ -435,17 +514,19 @@ pub async fn cambiar_bdp_sync_mode(
             ));
         }
         let target_type = req.target_entity_type.as_deref().unwrap_or("");
-        let target_id = req.target_entity_id.ok_or_else(|| {
+        let target_crudo = req.target_entity_id.as_deref().ok_or_else(|| {
             AppError::Validation(
-                "El armado requiere el UUID exacto de la venta o cliente objetivo.".into(),
+                "El armado requiere el destino exacto: el UUID de la venta o del cliente, o el código local de la entidad."
+                    .into(),
             )
         })?;
         if !alcance_casa_con_objetivo(&req.alcances, target_type) {
             return Err(AppError::Validation(
-                "El objetivo no coincide con los alcances: create_customer requiere cliente; order/payment/invoice/cancel_order requieren venta; no mezcle ambos tipos."
+                "El objetivo no coincide con el alcance: cada uno exige el tipo de destino que declara tipo_destino_de_alcance (venta, cliente, articulo, departamento, familia, stock, propina, cliente_puntos)."
                     .into(),
             ));
         }
+        let target_id = destino_a_uuid(&req.alcances[0], target_type, target_crudo)?;
         if !actual.bdp_auto_backup_before_write {
             return Err(AppError::Validation(
                 "No se puede habilitar escritura: bdp_auto_backup_before_write está desactivado."

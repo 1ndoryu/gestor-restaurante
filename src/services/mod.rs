@@ -68,7 +68,9 @@ pub use bdp_weblink_catalog::{
     BdpExportCustomersRequest, BdpGetPricesArticlesResponse, BdpGetRoomTablesResponse,
     BdpGetRoomsTablesResponse, BdpRoomData,
 };
-pub use bdp_write_guard::BdpWriteGuard;
+pub use bdp_write_guard::{
+    alcance_usa_uuid_propio, entidad_uuid, tipo_destino_de_alcance, BdpWriteGuard,
+};
 pub use campana::CampanaService;
 pub use canal_reserva::CanalReservaService;
 pub use chatbot::ChatbotService;
