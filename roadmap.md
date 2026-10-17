@@ -116,7 +116,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 | **Compras** (albaranes/facturas de proveedores) | **Fases 1-3 implementadas.** Lectura, borradores y conciliación. Protegidas por feature flags `ff_bdp_purchase_notes_*`. Configurables desde UI. | ✅ Implementado      |
 | **Pagos parciales**                             | Implementado bajo feature flag `ff_bdp_partial_payments`. Ledger local `bdp_pagos` con idempotency_key. Configurable desde UI.                   | ✅ Implementado      |
 | **Sincronización bidireccional automática** (escritura ciega simultánea) | Riesgo de bucles y conflictos; bloqueada por diseño | ❌ Rechazado (matiz 2026-09-19: el mecanismo de vuelta **Avisos de Acciones** sí existe en BDP —ver nota `Agente/documentacion/bdp/guia-bidireccional-avisos-2026-09-19.md`—; pendiente verificar en TPV v36 y decidir fase D en bloque 199A-1) |
-| **CancelOrder**                                 | Cancelación de comanda 6338 contra BDP real 2026-09-18 con auditoría `exito` (un solo caso); efecto en cocina sin verificar. La anulación local encola `venta/cancelar` y el push la envía | 🟡 Pendiente de prueba local |
+| **CancelOrder**                                 | Cancelación de comanda 6338 contra BDP real 2026-09-18 con auditoría `exito` (un solo caso); efecto en cocina sin verificar. La anulación local encola `venta/cancelar`, pero **el push NO llega a enviarse**: `cancel_order` no se puede armar por API (ver bloque 10AA-3-A) | 🟡 Pendiente de prueba local |
 | **Modificación de stock**                       | Alcance solo lectura en integración actual                                                                                                       | ❌ Fuera de alcance  |
 
 ### 🔒 Autorización temporal para escrituras
@@ -140,6 +140,12 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 ---
 
 ## Tareas pendientes
+
+### Bloque 10AA-3-A — `cancel_order` no se puede armar (hallado en la fase D sobre BDP local)
+
+Origen: plan `Agente/planes/plan-fase-d-bdp-local-2026-10-10.md` (§9.15, §8). En el lote L3.c del 2026-10-17, `PUT /api/configuracion/bdp/sync-mode` con `alcances:["cancel_order"]` devuelve **422** («El objetivo no coincide con los alcances»): `VALID_BDP_WRITE_SCOPES` sí incluye `cancel_order` (`src/services/bdp_write_guard.rs:13-31`, `src/handlers/configuracion.rs:287-305`), pero el emparejamiento alcance↔objetivo de `src/handlers/configuracion.rs:390-398` solo admite `create_order | add_payment | invoice` para objetivo `venta`. Consecuencia: `POST /ventas/:id/anular` funciona y encola `venta/cancelar`, pero el push se queda `pendiente` (el guard es fail-closed y exige `push_modalidad = "automatico"`, `src/services/bdp_push.rs:632-640`). Bloquea D09/D09a y deja comandas sin cancelar desde la app.
+
+Siguiente paso: añadir `cancel_order` a la lista `sale_only` del emparejamiento, con test que cubra el armado y el rechazo de un objetivo que no sea venta; después reintentar L3.c contra el BDP local (una operación, permiso por lote).
 
 ### Bloque 14AA-3 — Deuda previa del gate de RESTAURANTE (Rust, Sentinel y secretos)
 
