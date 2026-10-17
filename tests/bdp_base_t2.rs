@@ -109,8 +109,7 @@ async fn el_bloqueo_de_stock_es_por_articulo_y_almacen(pool: PgPool) {
         .execute(&pool)
     };
 
-    let primero = insertar("1001", 1, "op-1").await.expect("primera operación");
-    drop(primero);
+    insertar("1001", 1, "op-1").await.expect("primera operación");
 
     let mismo_par = insertar("1001", 1, "op-2").await;
     assert!(mismo_par.is_err(), "el par artículo-almacén está bloqueado mientras hay una pendiente");

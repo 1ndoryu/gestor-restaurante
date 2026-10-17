@@ -62,6 +62,8 @@ base64 = "0.22"
 tokio-stream = { version = "0.1", features = ["sync"] }
 
 [dev-dependencies]
+# `util` trae `ServiceExt::oneshot`, que usan los tests que montan el router.
+tower = { version = "0.4", features = ["util"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio-test = "0.4"
 wiremock = "0.6"
