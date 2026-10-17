@@ -33,6 +33,12 @@ pub enum AppError {
 
     #[error("Error de validación: {0}")]
     Validation(String),
+
+    #[error("Demasiadas peticiones: {0}")]
+    TooManyRequests(String),
+
+    #[error("Servicio no disponible: {0}")]
+    ServicioNoDisponible(String),
 }
 
 /// Estructura de respuesta de error expuesta en la API
@@ -78,6 +84,19 @@ impl IntoResponse for AppError {
                 "validation_error",
                 msg.clone(),
             ),
+            Self::TooManyRequests(msg) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "too_many_requests",
+                msg.clone(),
+            ),
+            Self::ServicioNoDisponible(msg) => {
+                tracing::error!("Servicio no disponible: {msg}");
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "service_unavailable",
+                    msg.clone(),
+                )
+            }
             Self::AjusteStock(crate::repositories::AjusteStockError::Db(err)) => {
                 tracing::error!("Error de base de datos: {err}");
                 (

@@ -4,6 +4,7 @@ mod admin;
 mod api_keys;
 mod auth;
 mod bdp_article_map;
+mod bdp_avisos;
 mod bdp_backup;
 mod bdp_catalogo;
 mod bdp_customer_sync;
@@ -40,6 +41,11 @@ pub use bdp_backup::{
 };
 pub use bdp_guard::exigir_modo_bdp;
 /* [208A-2/C4] Cola de sincronización (D5) — exposición para tests. */
+pub use bdp_avisos::{
+    listar as listar_avisos_bdp, recibir_aviso_con_secreto, reintentar as reintentar_aviso_bdp,
+    routes as rutas_avisos_bdp, public_routes as rutas_publicas_avisos, RespuestaAviso,
+    ListarQuery as ListarAvisosQuery,
+};
 pub use bdp_push::{flush_manual, listar_pendientes as listar_pendientes_push, reintentar_fila};
 /* [208A-2/C5] Normalización standalone+sync (H5) — exposición para tests. */
 pub use configuracion::actualizar_configuracion;
@@ -575,6 +581,8 @@ fn api_routes() -> Router<AppState> {
         .merge(configuracion::routes())
         .merge(modo_operacion::routes())
         .merge(bdp_article_map::routes())
+        .merge(bdp_avisos::routes())
+        .merge(bdp_avisos::public_routes())
         .merge(bdp_backup::routes())
         .merge(bdp_catalogo::routes())
         .merge(bdp_customer_sync::routes())
