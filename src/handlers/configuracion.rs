@@ -303,6 +303,59 @@ const VALID_BDP_WRITE_SCOPES: &[&str] = &[
     "add_points",
 ];
 
+/* [10AA-3-A] Alcances que operan sobre una venta (no sobre un cliente). */
+const BDP_WRITE_SCOPES_DE_VENTA: &[&str] = &["create_order", "add_payment", "invoice", "cancel_order"];
+
+/// [10AA-3-A] Regla del armado de pruebas: el objetivo debe ser del mismo tipo
+/// que el alcance. `cancel_order` faltaba aquí y el armado de una anulación
+/// devolvía 422 aunque el alcance fuese válido, así que la anulación local
+/// nunca llegaba al BDP.
+fn alcance_casa_con_objetivo(alcances: &[String], target_type: &str) -> bool {
+    let customer_only = alcances.iter().all(|scope| scope == "create_customer");
+    let sale_only = alcances
+        .iter()
+        .all(|scope| BDP_WRITE_SCOPES_DE_VENTA.contains(&scope.as_str()));
+    customer_only && target_type == "cliente" || sale_only && target_type == "venta"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::alcance_casa_con_objetivo;
+
+    fn alcances(valores: &[&str]) -> Vec<String> {
+        valores.iter().map(|valor| (*valor).to_string()).collect()
+    }
+
+    #[test]
+    fn cancel_order_arma_sobre_venta() {
+        assert!(alcance_casa_con_objetivo(&alcances(&["cancel_order"]), "venta"));
+    }
+
+    #[test]
+    fn cancel_order_no_arma_sobre_cliente() {
+        assert!(!alcance_casa_con_objetivo(&alcances(&["cancel_order"]), "cliente"));
+    }
+
+    #[test]
+    fn create_customer_solo_arma_sobre_cliente() {
+        assert!(alcance_casa_con_objetivo(&alcances(&["create_customer"]), "cliente"));
+        assert!(!alcance_casa_con_objetivo(&alcances(&["create_customer"]), "venta"));
+    }
+
+    #[test]
+    fn alcances_de_venta_arman_sobre_venta() {
+        for alcance in ["create_order", "add_payment", "invoice"] {
+            assert!(alcance_casa_con_objetivo(&alcances(&[alcance]), "venta"), "{alcance}");
+        }
+    }
+
+    #[test]
+    fn alcances_de_otro_tipo_no_arman_sobre_venta() {
+        /* `create_article` es válido como alcance, pero su objetivo no es una venta. */
+        assert!(!alcance_casa_con_objetivo(&alcances(&["create_article"]), "venta"));
+    }
+}
+
 /// Cambiar el modo de sincronización BDP (`read_only` / `unidirectional` / `automatic`)
 ///
 /// En modo `read_only` ningún dato se envía a BDP (solo lectura).
@@ -387,14 +440,9 @@ pub async fn cambiar_bdp_sync_mode(
                 "El armado requiere el UUID exacto de la venta o cliente objetivo.".into(),
             )
         })?;
-        let customer_only = req.alcances.iter().all(|scope| scope == "create_customer");
-        let sale_only = req
-            .alcances
-            .iter()
-            .all(|scope| matches!(scope.as_str(), "create_order" | "add_payment" | "invoice"));
-        if !(customer_only && target_type == "cliente" || sale_only && target_type == "venta") {
+        if !alcance_casa_con_objetivo(&req.alcances, target_type) {
             return Err(AppError::Validation(
-                "El objetivo no coincide con los alcances: create_customer requiere cliente; order/payment/invoice requieren venta; no mezcle ambos tipos."
+                "El objetivo no coincide con los alcances: create_customer requiere cliente; order/payment/invoice/cancel_order requieren venta; no mezcle ambos tipos."
                     .into(),
             ));
         }
