@@ -141,11 +141,13 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Tareas pendientes
 
-### Bloque 10AA-3-B — Diez alcances de escritura BDP no se pueden armar (misma clase que 10AA-3-A)
+### Bloque 10AA-3-B — Diez alcances de escritura BDP no se pueden armar (resuelto el 2026-10-17)
 
-Origen: `10AA-3-A` (resuelto el 2026-10-17) destapó que el emparejamiento alcance↔objetivo de `src/handlers/configuracion.rs` solo admite dos familias: `create_customer` → objetivo `cliente`, y `create_order | add_payment | invoice | cancel_order` → objetivo `venta`. De los **15** alcances de `VALID_BDP_WRITE_SCOPES` (`src/services/bdp_write_guard.rs:11-29`) solo **5** se pueden armar por lote; los otros **10** —`create_article`, `modify_article`, `modify_prices`, `create_department`, `create_family`, `regularize_stock`, `transfer_stock`, `inventory`, `add_tip`, `add_points`— responden **422** siempre, aunque varios son operaciones de push reales (`create_article` y `add_points` en `src/services/bdp_push.rs:890,900`) y sus fichas D11–D27 dependen de poder autorizarlas.
+Origen: `10AA-3-A` (resuelto el 2026-10-17) destapó que el emparejamiento alcance↔objetivo de `src/handlers/configuracion.rs` solo admite dos familias: `create_customer` → objetivo `cliente`, y `create_order | add_payment | invoice | cancel_order` → objetivo `venta`. De los **15** alcances de `VALID_BDP_WRITE_SCOPES` (`src/services/bdp_write_guard.rs`) solo **5** se podían armar por lote; los otros **10** —`create_article`, `modify_article`, `modify_prices`, `create_department`, `create_family`, `regularize_stock`, `transfer_stock`, `inventory`, `add_tip`, `add_points`— respondían **422** siempre.
 
-Siguiente paso: decidir el modelo de objetivo para los diez (¿un tipo de objetivo por familia —`articulo`, `departamento`, `familia`, `almacen`, `cliente`—, o un objetivo de ámbito amplio?) y ampliar el emparejamiento con test por familia; hasta entonces esas escrituras solo son posibles en `push_modalidad = automatico`, que no es lo que se ensaya en la fase D. No toca la ruta de escritura ni el fail-closed, solo el armado. Verificar antes si alguna ya está cubierta por otra vía.
+**Resuelto:** el emparejamiento ya no usa el vocabulario humano («cliente»/«venta») sino el **dominio literal** que pasa el worker (`articulo`, `departamento`, `familia`, `stock`, `propina`, `cliente_puntos`), declarado en `tipo_destino_de_alcance`. Y el segundo obstáculo —el armado exigía `target_entity_id = entidad_uuid(dominio, entidad_id)`, un SHA-256 que la API no podía calcular— se resuelve aceptando el **código local** y derivando el UUID con la misma función que el worker: `entidad_uuid` se movió de `bdp_push.rs` a `bdp_write_guard.rs` para que no haya dos copias que diverjan. `target_entity_id` pasa de `Uuid` a texto en el contrato (compatible: un UUID sigue siendo una cadena válida). Cobertura: test de tabla sobre los 15 alcances × 8 tipos de destino, más dos de derivación.
+
+Alcance deliberadamente **no** tocado: la ruta de escritura y el fail-closed (el armado sigue exigiendo entidad exacta, snapshot vigente y cupo).
 
 ### Bloque 14AA-3 — Deuda previa del gate de RESTAURANTE (Rust, Sentinel y secretos)
 
