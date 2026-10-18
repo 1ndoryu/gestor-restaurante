@@ -6,131 +6,26 @@
  * verdad editable). Botón "Ajustar" por fila → modal delta/motivo. */
 
 import { useMemo, useState } from 'react';
-import {
-  Search,
-  Package,
-  ChevronDown,
-  ChevronUp,
-  SlidersHorizontal,
-  Plus,
-  RefreshCw,
-} from 'lucide-react';
+import { Package, ChevronDown, ChevronUp, SlidersHorizontal, Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useListarArticleMaps } from '@/api/generated/bdp-mapeos/bdp-mapeos';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useBdpStockFilters } from '@/hooks/useBdpStockFilters';
 import { useBdpDemoMode } from '@/hooks/useBdpDemoMode';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useBdpArticleStock, useAjustarBdpArticleStock } from '@/api/bdp';
-import { formatPrice, formatStock, formatDate, exportToCsv, PAGE_SIZES, type SortKey } from './bdp-stock-utils';
+import { formatPrice, formatStock, formatDate, exportToCsv, type SortKey } from './bdp-stock-utils';
 import { mockArticleMaps } from './bdp-mocks';
 import { BdpStockActions } from './BdpStockActions';
 import NuevoArticuloDialog from './NuevoArticuloDialog';
 import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
 import type { BdpArticleMap } from '@/api/generated/gestionRestauranteAPI.schemas';
-
-/* Skeletons estáticos: filas sin identidad propia; claves de un array estable
- * (no el índice del map) para reconciliación consistente. */
-const SKELETON_IDS = [0, 1, 2, 3, 4];
-
-function TableSkeleton() {
-  return (
-    <div className="space-y-2">
-      {SKELETON_IDS.map((id) => (
-        <Skeleton key={id} className="h-10 w-full" />
-      ))}
-    </div>
-  );
-}
-
-/* [128A-1/F3] Modal de ajuste manual de stock local. */
-function AjustarStockDialog({
-  articulo,
-  open,
-  onOpenChange,
-  onGuardar,
-  pending,
-}: {
-  articulo: BdpArticleMap | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onGuardar: (delta: string, motivo: string) => void;
-  pending: boolean;
-}) {
-  const [delta, setDelta] = useState('');
-  const [motivo, setMotivo] = useState('');
-  const [ultimoArticuloKey, setUltimoArticuloKey] = useState<string | null>(null);
-
-  const deltaNum = Number(delta);
-  const deltaValido = delta.trim() !== '' && Number.isFinite(deltaNum) && deltaNum !== 0;
-
-  /* [128A-1/F3] Reset del formulario cuando cambia el artículo del modal. */
-  const articuloKey = articulo?.id ?? 'none';
-  if (ultimoArticuloKey !== articuloKey) {
-    setDelta('');
-    setMotivo('');
-    setUltimoArticuloKey(articuloKey);
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Ajustar stock de {articulo?.articulo_glory_codigo ?? ''}</DialogTitle>
-          <DialogDescription>
-            Entrada (delta positivo) o salida (delta negativo) de stock local.
-            El stock BDP (snapshot) no se modifica.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-2">
-          <div className="grid gap-2">
-            <Label htmlFor="ajuste-delta">Cantidad (delta)</Label>
-            <Input
-              id="ajuste-delta"
-              type="number"
-              step="any"
-              placeholder="Ej: 5 o -3"
-              value={delta}
-              onChange={(e) => setDelta(e.target.value)}
-            />
-            {!deltaValido && delta.trim() !== '' && (
-              <p className="text-xs text-destructive">El delta debe ser un número distinto de cero.</p>
-            )}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="ajuste-motivo">Motivo</Label>
-            <Textarea
-              id="ajuste-motivo"
-              placeholder="Ej: entrada de mercancía, merma, conteo..."
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              maxLength={255}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline">Cancelar</Button>
-          </DialogClose>
-          <Button
-            onClick={() => onGuardar(delta, motivo)}
-            disabled={pending || !deltaValido || motivo.trim() === ''}
-          >
-            Guardar
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+import { AjustarStockDialog } from './bdp-stock/AjustarStockDialog';
+import { FiltrosStock } from './bdp-stock/FiltrosStock';
+import { PaginacionStock } from './bdp-stock/PaginacionStock';
+import { TableSkeleton } from './bdp-stock/TableSkeleton';
 
 function BdpStock() {
   const queryClient = useQueryClient();
@@ -293,52 +188,15 @@ function BdpStock() {
       />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              placeholder="Código o nombre..."
-              value={filtro}
-              onChange={(e) => {
-                setFiltro(e.target.value);
-                setPage(1);
-              }}
-              className="pl-9 max-w-xs"
-            />
-          </div>
-          <Select
-            value={stockFilter}
-            onValueChange={(v) => {
-              setStockFilter(v as typeof stockFilter);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-44">
-              <SelectValue placeholder="Stock" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Cualquier stock</SelectItem>
-              <SelectItem value="with">Con stock</SelectItem>
-              <SelectItem value="without">Sin stock</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={activeFilter}
-            onValueChange={(v) => {
-              setActiveFilter(v as typeof activeFilter);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-44">
-              <SelectValue placeholder="Estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Cualquier estado</SelectItem>
-              <SelectItem value="active">Activos</SelectItem>
-              <SelectItem value="inactive">Inactivos</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <FiltrosStock
+          filtro={filtro}
+          setFiltro={setFiltro}
+          stockFilter={stockFilter}
+          setStockFilter={setStockFilter}
+          activeFilter={activeFilter}
+          setActiveFilter={setActiveFilter}
+          setPage={setPage}
+        />
       </div>
 
       {hasError ? (
@@ -442,45 +300,15 @@ function BdpStock() {
             </Table>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
-            <span className="text-muted-foreground">
-              Mostrando {paginated.length} de {filteredCount} artículos
-            </span>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-                Anterior
-              </Button>
-              <span className="text-muted-foreground">
-                Página {page} de {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-              >
-                Siguiente
-              </Button>
-            </div>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(v) => {
-                setPageSize(Number(v) as 10 | 25 | 50);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-20">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PAGE_SIZES.map((s) => (
-                  <SelectItem key={s} value={String(s)}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <PaginacionStock
+            mostrados={paginated.length}
+            total={filteredCount}
+            page={page}
+            totalPages={totalPages}
+            setPage={setPage}
+            pageSize={pageSize}
+            setPageSize={setPageSize}
+          />
         </>
       )}
     </div>

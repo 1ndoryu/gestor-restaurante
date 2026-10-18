@@ -8,7 +8,7 @@ import useListaClientes from '../hooks/useListaClientes';
 import { Button } from '@/components/ui/button';
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Trash2, Pencil, Merge, Download, Upload, MoreHorizontal, Link2 } from 'lucide-react';
@@ -16,10 +16,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import FormularioCliente from './FormularioCliente';
 import DialogoExportarClientesBdp from './DialogoExportarClientesBdp';
 import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
 import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
 import { useIntegracionBdp } from '../hooks/useIntegracionBdp';
 import { useExportarClientesBdp } from '../hooks/useExportarClientesBdp';
+import { DialogoFusionarClientes } from './lista-clientes/DialogoFusionarClientes';
+import { DialogoVincularBdp } from './lista-clientes/DialogoVincularBdp';
+import { DialogoImportarClientesBdp } from './lista-clientes/DialogoImportarClientesBdp';
 
 function ListaClientes() {
   const {
@@ -251,78 +253,27 @@ function ListaClientes() {
         <p className="text-sm text-muted-foreground">No hay clientes registrados</p>
       )}
 
-      {/* [263A-26] Diálogo de merge: el usuario elige cuál de los 2 sobrevive */}
-      <Dialog open={modalMerge} onOpenChange={(open) => { if (!open) { setModalMerge(false); } }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Fusionar clientes</DialogTitle>
-            <DialogDescription>
-              Selecciona cuál de los dos clientes debe sobrevivir. El otro será absorbido: sus reservas, etiquetas y campañas se migrarán, y sus campos vacíos se completarán.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-3">
-            {clientesSeleccionados.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setDestinoId(c.id)}
-                className={`flex items-center gap-3 rounded-md border p-3 text-left transition-colors ${
-                  destinoId === c.id ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/50'
-                }`}
-              >
-                <div className="flex-1">
-                  <p className="font-medium">{c.nombre} {c.apellidos}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {[c.telefono, c.email, c.empresa].filter(Boolean).join(' · ') || 'Sin datos adicionales'}
-                  </p>
-                </div>
-                {destinoId === c.id && (
-                  <span className="text-xs font-semibold text-primary">SOBREVIVE</span>
-                )}
-                {destinoId && destinoId !== c.id && (
-                  <span className="text-xs text-destructive">SE ELIMINA</span>
-                )}
-              </button>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setModalMerge(false)}>Cancelar</Button>
-            <Button
-              disabled={!destinoId || mergeMut.isPending}
-              onClick={ejecutarMerge}
-            >
-              {mergeMut.isPending ? 'Fusionando...' : 'Confirmar fusión'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* [263A-26] Diálogo de fusión: el usuario elige cuál de los 2 sobrevive */}
+      <DialogoFusionarClientes
+        abierto={modalMerge}
+        onCerrar={() => setModalMerge(false)}
+        seleccionados={clientesSeleccionados}
+        destinoId={destinoId}
+        fusionando={mergeMut.isPending}
+        onElegirDestino={setDestinoId}
+        onConfirmar={ejecutarMerge}
+      />
 
-      <Dialog open={!!clienteBdp} onOpenChange={(open) => { if (!open) setClienteBdp(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Vincular cliente con BDP</DialogTitle>
-            <DialogDescription>
-              Indica un código BDP reservado. El servidor verificará primero que no pertenezca a otra identidad y siempre enviará Overwrite=false.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="codigo-bdp-cliente">Código BDP explícito</Label>
-              <Input id="codigo-bdp-cliente" type="number" min={1} value={codigoBdp} onChange={(e) => setCodigoBdp(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="confirmar-bdp-cliente">Escribe CREAR CLIENTE {clienteBdp?.nombre} {clienteBdp?.apellidos} {codigoBdp || '<código>'}</Label>
-              <Input id="confirmar-bdp-cliente" value={confirmacionBdp} onChange={(e) => setConfirmacionBdp(e.target.value)} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setClienteBdp(null)}>Cancelar</Button>
-            <Button disabled={!codigoBdp || confirmacionBdp !== `CREAR CLIENTE ${clienteBdp?.nombre} ${clienteBdp?.apellidos} ${codigoBdp}` || sincronizandoBdp} onClick={sincronizarClienteBdp}>
-              {sincronizandoBdp ? 'Verificando…' : 'Verificar y vincular'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DialogoVincularBdp
+        cliente={clienteBdp}
+        onCerrar={() => setClienteBdp(null)}
+        codigo={codigoBdp}
+        onCodigoChange={setCodigoBdp}
+        confirmacion={confirmacionBdp}
+        onConfirmacionChange={setConfirmacionBdp}
+        sincronizando={sincronizandoBdp}
+        onVincular={sincronizarClienteBdp}
+      />
 
       <DialogoExportarClientesBdp
         abierto={exportar.exportarAbierto}
@@ -341,25 +292,16 @@ function ListaClientes() {
         onEjecutar={() => { void exportar.ejecutarExportar(); }}
       />
 
-      <Dialog open={importarBdpAbierto} onOpenChange={setImportarBdpAbierto}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Importar clientes desde BDP</DialogTitle><DialogDescription>Primero previsualiza. Esta operación solo lee BDP y, al aplicar, modifica la Aplicación Web; nunca escribe clientes en BDP.</DialogDescription></DialogHeader>
-          {previewImportar && (
-            <div className="grid grid-cols-2 gap-2 rounded-md border p-3 text-sm">
-              <span>Nuevos: {previewImportar.imported}</span><span>Vínculos: {previewImportar.updated}</span>
-              <span>Sin cambios: {previewImportar.unchanged}</span><span>Conflictos: {previewImportar.conflicts}</span>
-              <span>Inválidos: {previewImportar.errors}</span><span>Total: {previewImportar.total}</span>
-            </div>
-          )}
-          {previewImportar && (previewImportar.conflicts > 0 || previewImportar.errors > 0) && <p className="text-sm text-destructive">Hay registros no aplicables. Se omitirán; no se sobrescribirá ningún vínculo existente.</p>}
-          {previewImportar && <div><Label htmlFor="confirmar-importar-bdp">Escribe IMPORTAR CLIENTES BDP</Label><Input id="confirmar-importar-bdp" value={confirmacionImportar} onChange={(e) => setConfirmacionImportar(e.target.value)} /></div>}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setImportarBdpAbierto(false)}>Cancelar</Button>
-            <Button variant="secondary" disabled={importandoBdp} onClick={() => importarClientesBdp(false)}>{importandoBdp ? 'Consultando…' : 'Previsualizar sin cambios'}</Button>
-            {previewImportar && <Button disabled={importandoBdp || confirmacionImportar !== 'IMPORTAR CLIENTES BDP'} onClick={() => importarClientesBdp(true)}>Aplicar en la Aplicación Web</Button>}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DialogoImportarClientesBdp
+        abierto={importarBdpAbierto}
+        onAbiertoChange={setImportarBdpAbierto}
+        preview={previewImportar}
+        confirmacion={confirmacionImportar}
+        onConfirmacionChange={setConfirmacionImportar}
+        importando={importandoBdp}
+        onPrevisualizar={() => importarClientesBdp(false)}
+        onAplicar={() => importarClientesBdp(true)}
+      />
     </div>
   );
 }

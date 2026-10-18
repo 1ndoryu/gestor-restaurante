@@ -8,7 +8,7 @@
  * [159A-1] Alta y edición en modales (NuevoArticuloDialog +
  * ArticuloMapEditarDialog), como "Nueva Venta": nada inline. */
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Plus, Trash2, Package, Pencil } from 'lucide-react';
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import { EstadoError } from '@/components/ui/estado-error';
@@ -26,8 +26,11 @@ import {
 } from '../api/generated/bdp-mapeos/bdp-mapeos';
 import type { ActualizarBdpArticleMapRequest } from '../api/generated/gestionRestauranteAPI.schemas';
 import { BdpArticleCatalogActions } from './BdpArticleCatalogActions';
+import { BdpArticleMapPaginacion } from './bdp-article-map-paginacion';
 import NuevoArticuloDialog from '@/componentes/bdp/NuevoArticuloDialog';
 import ArticuloMapEditarDialog, { type ArticuloMapEdicion } from './articulo-map-editar-dialog';
+import { useBdpArticleMapDialogos } from '@/hooks/useBdpArticleMapDialogos';
+import { useBdpArticleMapFiltros } from '@/hooks/useBdpArticleMapFiltros';
 
 function formatPrecio(precio: string | undefined): string {
   const n = Number(precio);
@@ -35,6 +38,8 @@ function formatPrecio(precio: string | undefined): string {
 }
 
 function BdpArticleMapTable() {
+  // Antes de las mutaciones: su onSuccess cierra el modal de edición.
+  const { nuevoOpen, setNuevoOpen, editando, setEditando } = useBdpArticleMapDialogos();
   const queryClient = useQueryClient();
   const { data, isLoading, isError, error, refetch } = useListarArticleMaps();
   const eliminarMutation = useEliminarArticleMap({
@@ -67,32 +72,13 @@ function BdpArticleMapTable() {
     },
   });
 
-  const [nuevoOpen, setNuevoOpen] = useState(false);
-  const [editando, setEditando] = useState<ArticuloMapEdicion | null>(null);
   /* [P2.4] Búsqueda y orden efectivos (todo en cliente, sin tocar BDP) */
-  const [busqueda, setBusqueda] = useState('');
-  const [sortKey, setSortKey] = useState<'codigo' | 'descripcion' | 'precio' | null>(null);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const { busqueda, cambiarBusqueda, orden, alternarOrden, pagina, setPagina } = useBdpArticleMapFiltros();
+  const { campo: sortKey, dir: sortOrder } = orden;
   /* Paginación en cliente: con cientos de artículos, renderizar todo en cada
    * tecla frena el navegador; solo se pintan PAGE_SIZE filas. */
   const PAGE_SIZE = 50;
-  const [pagina, setPagina] = useState(0);
   const mapeos = data?.status === 200 ? data.data : [];
-
-  function alternarOrden(key: 'codigo' | 'descripcion' | 'precio') {
-    if (sortKey !== key) {
-      setSortKey(key);
-      setSortOrder('asc');
-    } else {
-      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
-    }
-    setPagina(0);
-  }
-
-  function cambiarBusqueda(v: string) {
-    setBusqueda(v);
-    setPagina(0);
-  }
 
   const mapeosVisibles = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -301,32 +287,12 @@ function BdpArticleMapTable() {
         </div>
       )}
       {mapeosVisibles.length > 0 && (
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-xs text-muted-foreground">
-            {mapeosVisibles.length} artículo{mapeosVisibles.length === 1 ? '' : 's'}
-            {totalPaginas > 1 && ` · página ${paginaActual + 1} de ${totalPaginas}`}
-          </span>
-          {totalPaginas > 1 && (
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={paginaActual === 0}
-                onClick={() => setPagina((p) => Math.max(0, p - 1))}
-              >
-                Anterior
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={paginaActual >= totalPaginas - 1}
-                onClick={() => setPagina((p) => Math.min(totalPaginas - 1, p + 1))}
-              >
-                Siguiente
-              </Button>
-            </div>
-          )}
-        </div>
+        <BdpArticleMapPaginacion
+          total={mapeosVisibles.length}
+          paginaActual={paginaActual}
+          totalPaginas={totalPaginas}
+          setPagina={setPagina}
+        />
       )}
       {mapeosVisibles.length === 0 && (busqueda.trim() ? (
         <p className="text-xs text-muted-foreground">Sin artículos que coincidan con la búsqueda.</p>

@@ -1,9 +1,10 @@
 /* [263A-16] Header del sitio — SidebarTrigger + título dinámico por ruta
  * [283A-20] Añadida campana de notificaciones en tiempo real.
- * [237A-3] Indicador rápido de estado BDP en la barra superior. */
+ * [237A-3] Indicador rápido de estado BDP en la barra superior.
+ * Los menús del indicador BDP viven en bdp-menu-sin-conexion y bdp-menu-conectado. */
 
 import { useMemo, useState } from "react"
-import { useLocation, useNavigate } from "react-router-dom"
+import { useLocation } from "react-router-dom"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { NotificationBell } from "@/componentes/NotificationBell"
 import { useNotificaciones } from "@/hooks/useNotificaciones"
@@ -13,14 +14,6 @@ import {
   useObtenerConfiguracion,
   useObtenerModoOperacion,
 } from "@/api/generated/configuracion/configuracion"
-import { Badge } from "@/components/ui/badge"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { useFlujoModoBdp } from "@/componentes/flujoModoBdp"
 import { useFlushBdpPush } from "@/api/bdp"
 import { toast } from "sonner"
@@ -28,7 +21,8 @@ import axios from "@/api/axios-instance"
 import { useQueryClient } from "@tanstack/react-query"
 import { useConfiguracionSync } from "@/hooks/useConfiguracionSync"
 import { useAuthStore } from "@/stores/authStore"
-import { AVISO_SOLO_PROPIETARIO } from "@/components/nav-main"
+import { BdpMenuDegradado, BdpMenuDesconectado } from "./bdp-menu-sin-conexion"
+import { BdpMenuConectado } from "./bdp-menu-conectado"
 
 const titulos: Record<string, string> = {
   "/": "Dashboard",
@@ -55,18 +49,6 @@ const titulos: Record<string, string> = {
   "/bdp/sincronizacion": "Sincronización",
 }
 
-/* Punto semáforo de conexión BDP: verde = conectado, ámbar pulsante =
- * intermedio (cambiando de modo o sin respuesta), rojo = desconectado. */
-function PuntoConexion({ estado }: { estado: 'conectado' | 'intermedio' | 'desconectado' }) {
-  const color =
-    estado === 'conectado'
-      ? 'bg-emerald-500'
-      : estado === 'intermedio'
-        ? 'bg-amber-500 animate-pulse'
-        : 'bg-red-500'
-  return <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${color}`} />
-}
-
 function BdpStatusIndicator() {
   const { data: config } = useObtenerConfiguracion()
   /* [149A-3/F3] El trabajador no puede cambiar el modo BDP (PATCH exige Admin):
@@ -91,7 +73,6 @@ function BdpStatusIndicator() {
    * [159A-2/F2] Vocabulario Exportar: envía la cola local→BDP. */
   const { mutate: flushPush, isPending: isFlushing } = useFlushBdpPush()
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
   /* [149A-1/P1.2b] En "BDP: lectura" no había forma de volver atrás desde aquí: el menú
    * solo ofrecía activar escritura temporal, sincronizar y entrar a Configuración. "Desactivar
    * BDP" es el simétrico de "Activar BDP" (que existe en el menú de la integración apagada).
@@ -132,113 +113,10 @@ function BdpStatusIndicator() {
   const degradado =
     modoEfectivoBdp && modoServidor?.status === 200 && modoServidor.data.modo_efectivo === 'standalone'
 
-  if (degradado) {
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button type="button" className="focus:outline-none">
-            <Badge
-              variant="outline"
-              className="h-auto gap-1.5 border-amber-600 px-2.5 py-1 text-xs text-amber-600 cursor-pointer hover:bg-muted">
-              <PuntoConexion estado="intermedio" />
-              BDP Sin respuesta
-            </Badge>
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-72">
-          <div className="px-2 py-1.5 text-sm font-medium">BDP sin respuesta — se sigue en local</div>
-          <p className="px-2 pb-1.5 text-xs text-muted-foreground">
-            Tras varios intentos fallidos, la aplicación dejó de llamar al BDP y siguió trabajando con
-            datos locales. No se pierde nada: los cambios pendientes quedan en la cola de
-            sincronización. El BDP se retoma solo cuando vuelva a responder.
-          </p>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => navigate('/bdp/sincronizacion')}>
-            Ver cola de sincronización
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => navigate('/bdp/historial')}>
-            Ver historial BDP
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => navigate('/configuracion', { state: { bdpSection: 'bdp' } })}>
-            Configuración BDP
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    )
-  }
+  if (degradado) return <BdpMenuDegradado />
 
   if (modoIndependiente || !modoEfectivoBdp) {
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button type="button" className="focus:outline-none">
-            <Badge
-              variant="outline"
-              className="h-auto gap-1.5 px-2.5 py-1 text-xs cursor-pointer hover:bg-muted">
-              <PuntoConexion estado="desconectado" />
-              {modoIndependiente ? 'BDP Desconectado · Solo local' : 'BDP Desconectado'}
-            </Badge>
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-64">
-          <div className="px-2 py-1.5 text-sm font-medium">
-            {modoIndependiente
-              ? 'BDP Desconectado · Solo local'
-              : 'BDP Desconectado'}
-          </div>
-          <p className="px-2 pb-1.5 text-xs text-muted-foreground">
-            {modoIndependiente
-              ? 'Todas las operaciones del restaurante funcionan con datos locales; el BDP no se usa.'
-              : 'Los datos y columnas de BDP no se muestran en la Aplicación Web hasta que se active la integración.'}
-          </p>
-          <DropdownMenuSeparator />
-          {modoIndependiente ? (
-            <DropdownMenuItem onClick={async () => {
-              try {
-                await axios.patch('/api/configuracion/modo', { modo: 'auto' })
-                await queryClient.invalidateQueries({
-                  queryKey: getObtenerConfiguracionQueryKey(),
-                })
-                await queryClient.invalidateQueries({ queryKey: getObtenerModoOperacionQueryKey() })
-                toast.success('Modo automático activado', {
-                  description: 'El sistema usará BDP si está configurado y disponible.',
-                })
-              } catch {
-                toast.error('No se pudo cambiar el modo')
-              }
-            }}>
-              Volver a modo automático
-            </DropdownMenuItem>
-          ) : credencialesOk ? (
-            <DropdownMenuItem onClick={async () => {
-              try {
-                await axios.patch('/api/configuracion', { bdp_sync_enabled: true })
-                await queryClient.invalidateQueries({
-                  queryKey: getObtenerConfiguracionQueryKey(),
-                })
-                await queryClient.invalidateQueries({ queryKey: getObtenerModoOperacionQueryKey() })
-                toast.success('BDP activado', { description: 'La integración BDP está ahora en modo lectura.' })
-              } catch {
-                toast.error('No se pudo activar BDP')
-              }
-            }}>
-              Activar BDP
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem disabled>
-              Sin credenciales — configura BDP primero
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={() => navigate('/configuracion', { state: { bdpSection: 'bdp' } })}>
-            {modoIndependiente
-              ? 'Configuración'
-              : credencialesOk
-                ? 'Configuración BDP'
-                : 'Configurar credenciales BDP'}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    )
+    return <BdpMenuDesconectado modoIndependiente={modoIndependiente} credencialesOk={credencialesOk} />
   }
 
   const isWrite = syncMode === 'unidirectional'
@@ -246,7 +124,6 @@ function BdpStatusIndicator() {
   /* Mientras hay un cambio de modo en vuelo el punto pasa a ámbar pulsante:
    * estado intermedio honesto en vez de afirmar un modo que aún no aplicó. */
   const transitorio = isChangingMode || desactivandoBdp
-  const etiquetaModo = isWrite ? 'Escritura' : isAuto ? 'Automático' : 'Solo lectura'
 
   async function desactivarIntegracion() {
     if (desactivandoBdp) return
@@ -277,122 +154,18 @@ function BdpStatusIndicator() {
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button type="button" className="focus:outline-none" disabled={isChangingMode}>
-          {isWrite ? (
-            <Badge
-              variant="default"
-              className="h-auto gap-1.5 px-2.5 py-1 text-xs bg-amber-600 cursor-pointer hover:bg-amber-700">
-              <PuntoConexion estado={transitorio ? 'intermedio' : 'conectado'} />
-              BDP Conectado · Escritura
-            </Badge>
-          ) : isAuto ? (
-            <Badge
-              variant="default"
-              className="h-auto gap-1.5 px-2.5 py-1 text-xs bg-emerald-600 cursor-pointer hover:bg-emerald-700">
-              <PuntoConexion estado={transitorio ? 'intermedio' : 'conectado'} />
-              BDP Conectado · Automático
-            </Badge>
-          ) : (
-            <Badge
-              variant="secondary"
-              className="h-auto gap-1.5 px-2.5 py-1 text-xs cursor-pointer hover:bg-secondary/80">
-              <PuntoConexion estado={transitorio ? 'intermedio' : 'conectado'} />
-              BDP Conectado · Solo lectura
-            </Badge>
-          )}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        <div className="px-2 py-1.5 text-sm font-medium">
-          BDP Conectado · {etiquetaModo}
-        </div>
-        <p className="px-2 pb-1.5 text-xs text-muted-foreground">
-          {isWrite
-            ? 'Permiso temporal de escritura Aplicación Web → BDP. Tras operar, se vuelve solo a lectura sin pasos manuales.'
-            : isAuto
-              ? 'Las escrituras se envían sin confirmación por operación. Vuelve a Solo lectura cuando quieras.'
-              : 'Modo seguro: consultas e importaciones de BDP activas, sin escrituras.'}
-        </p>
-        <DropdownMenuSeparator />
-        {isWrite || isAuto ? (
-          <DropdownMenuItem onClick={desactivarEscritura} disabled={isChangingMode}>
-            {isChangingMode ? 'Cambiando...' : isAuto ? 'Desactivar modo automático' : 'Desactivar escritura'}
-          </DropdownMenuItem>
-        ) : (
-          <>
-            {/* [149A-3/F3] Cierra TODO [C2-3]: el rol ya lo expone el auth store.
-             * Trabajador ve la opción deshabilitada con aviso (backend 403). */}
-            <DropdownMenuItem
-              onClick={() => navigate('/configuracion', { state: { bdpArming: true } })}
-              disabled={esTrabajador}
-              title={esTrabajador ? AVISO_SOLO_PROPIETARIO : undefined}
-            >
-              {esTrabajador ? 'Activar escritura temporal (solo propietario)' : 'Activar escritura temporal'}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => navigate('/configuracion', { state: { bdpSection: 'bdp' } })}
-              disabled={esTrabajador}
-              title={esTrabajador ? AVISO_SOLO_PROPIETARIO : undefined}
-            >
-              {esTrabajador ? 'Activar modo automático (solo propietario)' : 'Activar modo automático'}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={desactivarIntegracion}
-              disabled={desactivandoBdp || esTrabajador}
-              title={esTrabajador ? AVISO_SOLO_PROPIETARIO : undefined}
-            >
-              {desactivandoBdp ? 'Desactivando...' : esTrabajador ? 'Desactivar BDP (solo propietario)' : 'Desactivar BDP (quedar solo en local)'}
-            </DropdownMenuItem>
-          </>
-        )}
-        <DropdownMenuItem
-          disabled={isFlushing}
-          onClick={() =>
-            flushPush(undefined, {
-              onSuccess: (r) => {
-                if (r.sincronizados > 0) {
-                  toast.success('Exportado al BDP', {
-                    description: `${r.sincronizados} operación(es) enviada(s).`,
-                  })
-                } else if (r.pendientes_suscripcion > 0) {
-                  toast.warning('Pendiente de suscripción BDP', {
-                    description: `${r.pendientes_suscripcion} operación(es) no se enviaron: suscripción no activada.`,
-                  })
-                } else if (r.rechazados > 0) {
-                  toast.error('Operación(es) rechazadas por BDP', {
-                    description: `${r.rechazados} operación(es) con payload inválido o conflicto: corregir el dato local y reintentar manualmente.`,
-                  })
-                } else if (r.errores > 0) {
-                  toast.error('Errores al sincronizar', {
-                    description: `${r.errores} operación(es) fallaron.`,
-                  })
-                } else {
-                  toast.info('Sin operaciones pendientes', {
-                    description: 'No hay cambios locales pendientes de enviar a BDP.',
-                  })
-                }
-              },
-              onError: (err: unknown) =>
-                toast.error('No se pudo exportar a BDP', {
-                  description: String((err as { message?: string })?.message ?? 'Error desconocido'),
-                }),
-            })
-          }
-        >
-          {isFlushing ? 'Exportando...' : 'Exportar a BDP'}
-        </DropdownMenuItem>
-        {/* [149A-1/P1.2] Apuntaba a '/configuracion/bdp-backup', ruta inexistente → el click no
-            hacía nada. El historial real (auditoría + snapshots) vive en '/bdp/historial'. */}
-        <DropdownMenuItem onClick={() => navigate('/bdp/historial')}>
-          Ver historial BDP
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate('/configuracion', { state: { bdpSection: 'bdp' } })}>
-          Configuración BDP
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <BdpMenuConectado
+      isWrite={isWrite}
+      isAuto={isAuto}
+      transitorio={transitorio}
+      isChangingMode={isChangingMode}
+      desactivandoBdp={desactivandoBdp}
+      esTrabajador={esTrabajador}
+      isFlushing={isFlushing}
+      flushPush={flushPush}
+      desactivarEscritura={desactivarEscritura}
+      desactivarIntegracion={desactivarIntegracion}
+    />
   )
 }
 

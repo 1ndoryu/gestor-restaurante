@@ -8,15 +8,12 @@
  * en curso) y "Conteos" (historial para retomar/recontar). El guardado pide
  * confirmación en un modal con el resumen antes de ajustar el stock. */
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Warehouse, Save, History, RotateCcw, Loader2 } from 'lucide-react';
+import { Warehouse, Save, History, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListarArticleMaps } from '@/api/generated/bdp-mapeos/bdp-mapeos';
@@ -24,18 +21,10 @@ import { useBdpArticleStock, useCrearConteoInventario, useListarConteosInventari
 import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
 import type { BdpArticleMap } from '@/api/generated/gestionRestauranteAPI.schemas';
 import { useConteoInventario } from '@/hooks/useConteoInventario';
-
-function toNumber(value?: string | null): number {
-  const n = Number(value ?? 0);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function formatFecha(value: string | null | undefined): string {
-  if (!value) return '—';
-  const d = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString('es-ES');
-}
+import { useVistaInventario } from './bdp-inventario/useVistaInventario';
+import { DialogoConfirmarConteo } from './bdp-inventario/DialogoConfirmarConteo';
+import { PestanaConteos } from './bdp-inventario/PestanaConteos';
+import { toNumber } from './bdp-inventario/formato';
 
 function BdpInventario() {
   const queryClient = useQueryClient();
@@ -89,14 +78,11 @@ function BdpInventario() {
 
   const contados = filas.filter((f) => f.diferencia !== null);
   const conDiferencia = contados.filter((f) => f.diferencia !== 0).length;
-  const [confirmar, setConfirmar] = useState(false);
-  const [tab, setTab] = useState('inventario');
+  const { confirmar, setConfirmar, tab, setTab, pagina, setPagina, busqueda, setBusqueda, paginaConteos, setPaginaConteos } = useVistaInventario();
 
   /* Paginación fija 50/página: el catálogo completo (557 filas) no cabe en
    * una sola vista. Las contadas viven en el hook (por código), así que
    * cambiar de página no pierde lo ya contado. */
-  const [pagina, setPagina] = useState(1);
-  const [busqueda, setBusqueda] = useState('');
   const PAGE_SIZE = 50;
   const busquedaNormalizada = busqueda.trim().toLowerCase();
   const filasFiltradas = busquedaNormalizada === ''
@@ -110,7 +96,6 @@ function BdpInventario() {
   const filasPagina = filasFiltradas.slice((paginaSegura - 1) * PAGE_SIZE, paginaSegura * PAGE_SIZE);
 
   /* Historial de conteos: paginación 10/página. */
-  const [paginaConteos, setPaginaConteos] = useState(1);
   const CONTEOS_PAGE_SIZE = 10;
   const totalPaginasConteos = Math.max(1, Math.ceil((conteos?.length ?? 0) / CONTEOS_PAGE_SIZE));
   const paginaConteosSegura = Math.min(paginaConteos, totalPaginasConteos);
@@ -291,119 +276,31 @@ function BdpInventario() {
         </TabsContent>
 
         <TabsContent value="conteos" className="flex flex-col gap-2">
-          {!conteos || conteos.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Todavía no hay conteos guardados.</p>
-          ) : (
-            <>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Observaciones</TableHead>
-                    <TableHead className="text-right">Líneas</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="w-32 text-center">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {conteosPagina.map((c) => (
-                    <TableRow key={c.id}>
-                      <TableCell className="text-xs tabular-nums">{formatFecha(c.fecha)}</TableCell>
-                      <TableCell className="max-w-64 truncate text-xs" title={c.observaciones || undefined}>
-                        {c.observaciones || '—'}
-                      </TableCell>
-                      <TableCell className="text-right text-xs tabular-nums">{c.total_lineas}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="gap-1">
-                          <Save className="size-3" />
-                          {c.estado === 'aplicado' ? 'aplicado' : c.estado}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => retomar(c.id)}
-                          disabled={retomando === c.id}
-                        >
-                          <RotateCcw className="size-3.5 mr-1" />
-                          Retomar
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            {(conteos?.length ?? 0) > CONTEOS_PAGE_SIZE && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
-                <span className="text-muted-foreground">
-                  Mostrando {conteosPagina.length} de {conteos?.length} conteos
-                </span>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setPaginaConteos((p) => Math.max(1, p - 1))} disabled={paginaConteosSegura <= 1}>
-                    Anterior
-                  </Button>
-                  <span className="text-muted-foreground">
-                    Página {paginaConteosSegura} de {totalPaginasConteos}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPaginaConteos((p) => Math.min(totalPaginasConteos, p + 1))}
-                    disabled={paginaConteosSegura >= totalPaginasConteos}
-                  >
-                    Siguiente
-                  </Button>
-                </div>
-              </div>
-            )}
-            </>
-          )}
+          <PestanaConteos
+            conteos={conteos}
+            conteosPagina={conteosPagina}
+            pagina={paginaConteosSegura}
+            totalPaginas={totalPaginasConteos}
+            tamanoPagina={CONTEOS_PAGE_SIZE}
+            retomando={retomando}
+            onRetomar={retomar}
+            onAnterior={() => setPaginaConteos((p) => Math.max(1, p - 1))}
+            onSiguiente={() => setPaginaConteos((p) => Math.min(totalPaginasConteos, p + 1))}
+          />
         </TabsContent>
       </Tabs>
 
-      <Dialog open={confirmar} onOpenChange={setConfirmar}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Guardar conteo</DialogTitle>
-            <DialogDescription>
-              Se ajustará el stock local con las diferencias contadas. Esta acción queda registrada con motivo «conteo».
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-3 text-sm">
-            <p>
-              <span className="font-medium">{contados.length}</span> artículo(s) contados ·{' '}
-              <span className="font-medium">{conDiferencia}</span> con diferencia
-            </p>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="inventario-observaciones" className="text-xs">Observaciones (opcional)</Label>
-              <Input
-                id="inventario-observaciones"
-                value={observaciones}
-                onChange={(e) => setObservaciones(e.target.value)}
-                placeholder="Ej: recuento semanal de almacén"
-                maxLength={500}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {modoEfectivoBdp
-                ? 'El conteo se guarda, ajusta el stock local y encola el envío al terminal para los artículos con código BDP.'
-                : 'Modo independiente: el conteo se guarda y ajusta el stock local; no se envía a BDP.'}
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmar(false)} disabled={guardarMutation.isPending}>
-              Cancelar
-            </Button>
-            <Button onClick={guardar} disabled={guardarMutation.isPending || contados.length === 0}>
-              {guardarMutation.isPending ? <Loader2 className="size-4 animate-spin mr-1" /> : <Save className="size-4 mr-1" />}
-              Confirmar y guardar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DialogoConfirmarConteo
+        abierto={confirmar}
+        onAbiertoChange={setConfirmar}
+        numContados={contados.length}
+        conDiferencia={conDiferencia}
+        observaciones={observaciones}
+        onObservacionesChange={setObservaciones}
+        modoEfectivoBdp={modoEfectivoBdp}
+        guardando={guardarMutation.isPending}
+        onConfirmar={guardar}
+      />
     </div>
   );
 }

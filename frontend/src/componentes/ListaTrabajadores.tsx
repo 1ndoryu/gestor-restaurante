@@ -1,47 +1,10 @@
 /* [134A-2] Página de gestión de trabajadores con permisos por sección.
  * CRUD + panel de permisos con checkboxes por sección.
- * El propietario asigna/quita acceso a cada sección del sistema.
- * [169A-3] Etiquetas legibles de las 24 secciones (grano por entrada de
- * menú). Las marcadas "(dueño)" además exigen rol propietario en backend:
- * concederlas a un trabajador no les da acceso (defensa en profundidad). */
-export const ETIQUETAS_SECCION: Record<string, string> = {
-  dashboard: "Panel principal",
-  ventas: "Ventas",
-  gastos: "Gastos",
-  compras: "Compras (BDP)",
-  stock: "Stock (BDP)",
-  inventario: "Inventario (BDP)",
-  catalogo: "Catálogo (BDP)",
-  menus_packs: "Menús y Packs",
-  reservas: "Reservas",
-  calendario: "Calendario",
-  clientes: "Clientes",
-  canales: "Canales de reserva",
-  no_shows: "No-Shows",
-  plano_sala: "Plano de Sala",
-  campanas: "Campañas WhatsApp",
-  plantillas_wa: "Plantillas WhatsApp",
-  recordatorios: "Recordatorios automáticos",
-  historial: "Historial (BDP)",
-  sincronizacion: "Sincronización (dueño)",
-  trabajadores: "Trabajadores (dueño)",
-  resenas: "Reseñas",
-  inactividad: "Reactivación clientes",
-  configuracion: "Configuración (dueño)",
-  notificaciones: "Notificaciones",
-}
+ * El propietario asigna/quita acceso a cada sección del sistema. */
 
-export function etiquetaSeccion(seccion: string): string {
-  return ETIQUETAS_SECCION[seccion] ?? seccion.replace(/_/g, " ")
-}
-
-import { useState, type FormEvent } from 'react';
 import { useTrabajadores } from '../hooks/useTrabajadores';
 import { Button } from '@/components/ui/button';
 import { TooltipButton } from '@/components/ui/tooltip-button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -59,140 +22,11 @@ import {
 } from '@/components/ui/table';
 import { Trash2, Pencil, Shield } from 'lucide-react';
 import { EstadoError } from '@/components/ui/estado-error';
-import type { TrabajadorResponse } from '../api/generated/gestionRestauranteAPI.schemas';
+import { FormularioTrabajador, type CamposForm } from './lista-trabajadores/FormularioTrabajador';
+import { etiquetaSeccion } from './lista-trabajadores/etiquetas';
 
-interface CamposForm {
-  nombre: string;
-  email: string;
-  password: string;
-  cargo: string;
-  permisos: string[];
-}
-
-const camposVacios: CamposForm = {
-  nombre: '',
-  email: '',
-  password: '',
-  cargo: '',
-  permisos: [],
-};
-
-function FormularioTrabajador({
-  secciones,
-  seccionesError,
-  trabajador,
-  onSubmit,
-  cargando,
-}: {
-  secciones: string[];
-  seccionesError?: boolean;
-  trabajador?: TrabajadorResponse | null;
-  onSubmit: (campos: CamposForm) => void;
-  cargando: boolean;
-}) {
-  const [campos, setCampos] = useState<CamposForm>(
-    trabajador
-      ? {
-          nombre: trabajador.nombre,
-          email: trabajador.email,
-          password: '',
-          cargo: trabajador.cargo,
-          permisos: trabajador.permisos.filter((p) => p.permitido).map((p) => p.seccion),
-        }
-      : camposVacios
-  );
-
-  const togglePermiso = (seccion: string) => {
-    setCampos((prev) => ({
-      ...prev,
-      permisos: prev.permisos.includes(seccion)
-        ? prev.permisos.filter((s) => s !== seccion)
-        : [...prev.permisos, seccion],
-    }));
-  };
-
-  const enviar = (e: FormEvent) => {
-    e.preventDefault();
-    onSubmit(campos);
-  };
-
-  return (
-    <form onSubmit={enviar} className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Label>Nombre</Label>
-          <Input
-            value={campos.nombre}
-            onChange={(e) => setCampos((p) => ({ ...p, nombre: e.target.value }))}
-            required
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label>Email</Label>
-          <Input
-            type="email"
-            value={campos.email}
-            onChange={(e) => setCampos((p) => ({ ...p, email: e.target.value }))}
-            required
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label>{trabajador ? 'Nueva contraseña (dejar vacío para no cambiar)' : 'Contraseña'}</Label>
-          <Input
-            type="password"
-            value={campos.password}
-            onChange={(e) => setCampos((p) => ({ ...p, password: e.target.value }))}
-            required={!trabajador}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label>Cargo</Label>
-          <Input
-            value={campos.cargo}
-            onChange={(e) => setCampos((p) => ({ ...p, cargo: e.target.value }))}
-            placeholder="Ej: Camarero, Cocinero, Gerente..."
-          />
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label className="flex items-center gap-2">
-          <Shield className="size-4" /> Permisos por sección
-        </Label>
-        <div className="grid grid-cols-2 gap-2 rounded-md border p-3">
-          {secciones.map((seccion) => (
-            <div key={seccion} className="flex items-center gap-2">
-              <Switch
-                checked={campos.permisos.includes(seccion)}
-                onCheckedChange={() => togglePermiso(seccion)}
-              />
-              <span className="text-sm capitalize">{etiquetaSeccion(seccion)}</span>
-            </div>
-          ))}
-          {secciones.length === 0 && (
-            <p className="text-sm text-muted-foreground col-span-2">
-              {seccionesError
-                ? 'No se pudieron cargar las secciones: faltan permisos para listarlas.'
-                : 'Cargando secciones...'}
-            </p>
-          )}
-        </div>
-        {/* [169A-3] Semántica visible: sin marcar nada = defecto de operativa
-         * diaria; los cambios se aplican cuando el trabajador vuelve a entrar
-         * (su token guarda los permisos). */}
-        <p className="text-xs text-muted-foreground">
-          Sin marcar nada se concede la operativa diaria (Panel, Ventas, Gastos,
-          Reservas, Calendario, Clientes, Canales, No-Shows, Plano de Sala).
-          Los cambios se aplican cuando el trabajador vuelve a entrar.
-        </p>
-      </div>
-
-      <Button type="submit" disabled={cargando} className="self-end">
-        {cargando ? 'Guardando...' : trabajador ? 'Guardar cambios' : 'Crear trabajador'}
-      </Button>
-    </form>
-  );
-}
+// Se mantienen las exportaciones públicas del módulo original
+export { ETIQUETAS_SECCION, etiquetaSeccion } from './lista-trabajadores/etiquetas';
 
 export default function ListaTrabajadores() {
   const {

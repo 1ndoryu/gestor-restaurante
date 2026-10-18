@@ -1,24 +1,14 @@
-﻿/* [263A-16] PlanoSala — Constructor visual de plano de sala con drag-and-drop.
+/* [263A-16] PlanoSala — Constructor visual de plano de sala con drag-and-drop.
  * [263A-28] Diálogos nativos reemplazados por shadcn Dialog + toast.
  * [303A-11] Canvas con altura fija del store, overflow:auto.
  * [303A-12] Pan (shift+drag), minimap, indicadores off-screen.
  * [303A-13] Resize handle arrastrable en borde inferior.
  * Lógica en usePlanoSala, mesa arrastrable en MesaDraggable, config en PanelConfigMesa. */
 
-import { useRef, useMemo, useState } from 'react';
+import { useRef, useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import { TooltipButton } from '@/components/ui/tooltip-button';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Pencil, Trash2, Download, Upload, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { useSyncTables } from '../api/generated/bdp-mapeos/bdp-mapeos';
-import { useObtenerConfiguracion } from '../api/generated/configuracion/configuracion';
-import { useLlamarCamarero } from '../api/bdp';
-import MesaDraggable from './plano-sala/MesaDraggable';
 import PanelConfigMesa from './plano-sala/PanelConfigMesa';
 import PanelConfigPared from './plano-sala/PanelConfigPared';
 import ParedDraggable from './plano-sala/ParedDraggable';
@@ -27,6 +17,12 @@ import CombinacionesList from './plano-sala/CombinacionesList';
 import PlanoOverlays from './plano-sala/PlanoOverlays';
 import PlanoDialogs from './plano-sala/PlanoDialogs';
 import { usePlanoSala } from './plano-sala/usePlanoSala';
+import { useSincronizarMesasBdp } from './plano-sala/useSincronizarMesasBdp';
+import { useModoBdpPlano } from './plano-sala/useModoBdpPlano';
+import { DialogoSincronizarMesasBdp } from './plano-sala/DialogoSincronizarMesasBdp';
+import { ZonasTabsPlano } from './plano-sala/ZonasTabsPlano';
+import { MesasCanvas } from './plano-sala/MesasCanvas';
+import { calcularContentBounds } from './plano-sala/limitesContenidoPlano';
 import { useCanvasResize } from '../hooks/useCanvasResize';
 import { useCanvasPan } from '../hooks/useCanvasPan';
 import { useCanvasViewport } from '../hooks/useCanvasViewport';
@@ -37,50 +33,11 @@ import '../estilos/PlanoSala.css';
 function PlanoSala() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const setCanvasHeight = useZoomStore(s => s.setCanvasHeight);
-  const queryClient = useQueryClient();
-  const [sincronizandoMesas, setSincronizandoMesas] = useState(false);
-  const [dialogoSyncBdp, setDialogoSyncBdp] = useState(false);
-  const [confirmacionSyncBdp, setConfirmacionSyncBdp] = useState('');
-  const [previewSyncBdp, setPreviewSyncBdp] = useState<{ salones_bdp: number; zonas_creadas: number; mesas_creadas: number; applied: boolean } | null>(null);
-
-  /* [198A-1/D10] CallWaiter: push directo a BDP. El botón solo se muestra en
-   * modo BDP efectivo (mismo criterio que BdpCatalogo y resto de secciones:
-   * auto + sync + base_url; las credenciales no se exigen aquí porque el
-   * backend nunca las expone en GET /api/configuracion por diseño). */
-  const { data: configData } = useObtenerConfiguracion();
-  const llamarCamareroMutation = useLlamarCamarero();
-  const cfg = configData?.status === 200 ? (configData.data as unknown as Record<string, unknown>) : null;
-  const modoOperacion = String(cfg?.modo_operacion ?? 'auto');
-  const bdpSyncEnabled = Boolean(cfg?.bdp_sync_enabled ?? false);
-  const modoEfectivoBdp = modoOperacion === 'bdp' || (modoOperacion === 'auto' && bdpSyncEnabled && String(cfg?.bdp_base_url ?? '').trim() !== '');
-
-  const handleLlamarCamarero = (mesaId: string) => {
-    llamarCamareroMutation.mutate(mesaId, {
-      onSuccess: () => toast.success('Aviso enviado al TPV'),
-      onError: (err) => {
-        const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message;
-        toast.error('No se pudo llamar al camarero', { description: message ?? 'Revisa la conexión BDP.' });
-      },
-    });
-  };
-
-  const syncTablesMutation = useSyncTables({
-    mutation: {
-      onSuccess: (resp) => {
-        const d = (resp as unknown as { data: { salones_bdp: number; zonas_creadas: number; mesas_creadas: number; applied: boolean } }).data;
-        setPreviewSyncBdp(d);
-        if (d.applied) {
-          toast.success(`Importación local aplicada: ${d.mesas_creadas} mesas en ${d.zonas_creadas} zonas`);
-          queryClient.invalidateQueries({ queryKey: ['/api/plano-sala'] });
-          setDialogoSyncBdp(false);
-        } else {
-          toast.success('Previsualización completada sin cambios');
-        }
-      },
-      onError: () => toast.error('Error al sincronizar mesas desde BDP'),
-      onSettled: () => setSincronizandoMesas(false),
-    },
-  });
+  const { modoEfectivoBdp, handleLlamarCamarero, llamarCamareroPending } = useModoBdpPlano();
+  const {
+    sincronizandoMesas, dialogoSyncBdp, setDialogoSyncBdp, confirmacionSyncBdp, setConfirmacionSyncBdp,
+    previewSyncBdp, setPreviewSyncBdp, previsualizar, aplicar,
+  } = useSincronizarMesasBdp();
 
   const {
     plano, zonaActiva, zonaData, mesasZona, paredesZona, mesaSeleccionada,
@@ -115,34 +72,10 @@ function PlanoSala() {
    * [313A-2] contentBounds NO incluye canvasHeight — ese es el viewport, no el contenido.
    * Incluirlo inflaba las proporciones del minimap y hacía que el viewport rect
    * cubriera 100% del alto, volviéndose invisible. */
-  const contentBounds = useMemo(() => {
-    let maxX = (zonaData?.ancho ?? 0) * zoom;
-    let maxY = (zonaData?.alto ?? 0) * zoom;
-    for (const m of mesasZona) {
-      const p = posicionesLocales[m.id];
-      const d = dimensionesLocales[m.id];
-      const x = ((p?.x ?? m.pos_x) + (d?.ancho ?? m.ancho)) * zoom;
-      const y = ((p?.y ?? m.pos_y) + (d?.alto ?? m.alto)) * zoom;
-      if (x > maxX) maxX = x;
-      if (y > maxY) maxY = y;
-    }
-    /* [134A-12] Incluir paredes en contentBounds para que el minimap y el canvas
-     * las consideren. Usamos la bounding box del rect rotado. */
-    for (const p of paredesZona) {
-      const rad = (p.rotacion * Math.PI) / 180;
-      const w = p.ancho * zoom;
-      const h = p.alto * zoom;
-      const bbW = w * Math.abs(Math.cos(rad)) + h * Math.abs(Math.sin(rad));
-      const bbH = w * Math.abs(Math.sin(rad)) + h * Math.abs(Math.cos(rad));
-      const cx = p.pos_x * zoom + w / 2;
-      const cy = p.pos_y * zoom + h / 2;
-      const ex = cx + bbW / 2;
-      const ey = cy + bbH / 2;
-      if (ex > maxX) maxX = ex;
-      if (ey > maxY) maxY = ey;
-    }
-    return { w: maxX, h: maxY };
-  }, [dimensionesLocales, mesasZona, paredesZona, posicionesLocales, zonaData, zoom]);
+  const contentBounds = useMemo(
+    () => calcularContentBounds({ zonaData, mesasZona, paredesZona, posicionesLocales, dimensionesLocales, zoom }),
+    [dimensionesLocales, mesasZona, paredesZona, posicionesLocales, zonaData, zoom],
+  );
 
   const maxPanOffset = useMemo(() => ({
     x: Math.max(0, contentBounds.w - viewportSize.w),
@@ -200,25 +133,7 @@ function PlanoSala() {
       </div>
 
       {/* Zonas (tabs) */}
-      <div className="flex gap-1 flex-wrap items-center border-b border-border">
-        {plano?.zonas.map(z => (
-          <button
-            key={z.id}
-            type="button"
-            className={`relative inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors rounded-t-md ${z.id === zonaActiva ? 'text-foreground after:absolute after:inset-x-0 after:bottom-[-1px] after:h-0.5 after:bg-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => cambiarZona(z.id)}
-          >
-            {z.nombre} ({z.mesas.length})
-          </button>
-        ))}
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-t-md"
-          onClick={handleCrearZona}
-        >
-          + Zona
-        </button>
-      </div>
+      <ZonasTabsPlano zonas={plano?.zonas} zonaActiva={zonaActiva} onCambiarZona={cambiarZona} onCrearZona={handleCrearZona} />
 
       {/* [283A-17] Canvas 100% ancho + Panel lateral derecho */}
       {/* [303A-20] Canvas con overflow:hidden + transform para pan.
@@ -291,44 +206,21 @@ function PlanoSala() {
                       } as CSSProperties}
                     />
                   )}
-                  {mesasZona.map(mesa => {
-                    const pos = posicionesLocales[mesa.id];
-                    const dims = dimensionesLocales[mesa.id];
-                    const base = {
-                      ...mesa,
-                      pos_x: pos?.x ?? mesa.pos_x,
-                      pos_y: pos?.y ?? mesa.pos_y,
-                      ancho: dims?.ancho ?? mesa.ancho,
-                      alto: dims?.alto ?? mesa.alto,
-                    };
-                    const mesaZoom = zoom === 1 ? base : {
-                      ...base,
-                      pos_x: base.pos_x * zoom,
-                      pos_y: base.pos_y * zoom,
-                      ancho: base.ancho * zoom,
-                      alto: base.alto * zoom,
-                    };
-                    return (
-                      <MesaDraggable
-                        key={mesa.id}
-                        mesa={mesaZoom}
-                        seleccionada={mesaSeleccionada?.id === mesa.id}
-                        zoom={zoom}
-                        zonaAncho={zonaData.ancho}
-                        zonaAlto={zonaData.alto}
-                        onResize={handleResizeMesa}
-                        onMoveEnd={handleMoverMesa}
-                        onClick={() => {
-                          if (activeTool === 'delete') {
-                            handleEliminarMesaDirecta(mesa.id);
-                          } else {
-                            setMesaSeleccionada(base);
-                            setParedSeleccionada(null);
-                          }
-                        }}
-                      />
-                    );
-                  })}
+                  <MesasCanvas
+                    mesasZona={mesasZona}
+                    posicionesLocales={posicionesLocales}
+                    dimensionesLocales={dimensionesLocales}
+                    zoom={zoom}
+                    zonaAncho={zonaData.ancho}
+                    zonaAlto={zonaData.alto}
+                    mesaSeleccionada={mesaSeleccionada}
+                    activeTool={activeTool}
+                    onResize={handleResizeMesa}
+                    onMoveEnd={handleMoverMesa}
+                    onEliminarDirecta={handleEliminarMesaDirecta}
+                    setMesaSeleccionada={setMesaSeleccionada}
+                    setParedSeleccionada={setParedSeleccionada}
+                  />
                 </div>
               </div>
               {/* [134A-15] Toolbar flotante tipo Illustrator */}
@@ -376,7 +268,7 @@ function PlanoSala() {
               onDuplicar={handleDuplicarMesa}
               onCerrar={() => setMesaSeleccionada(null)}
               onLlamarCamarero={modoEfectivoBdp ? () => handleLlamarCamarero(mesaSeleccionada.id) : undefined}
-              llamarCamareroPending={llamarCamareroMutation.isPending}
+              llamarCamareroPending={llamarCamareroPending}
             />
           </div>
         )}
@@ -407,18 +299,16 @@ function PlanoSala() {
         dialogoCombinacion={dialogoCombinacion} setDialogoCombinacion={setDialogoCombinacion}
         mesasZona={mesasZona}
       />
-      <Dialog open={dialogoSyncBdp} onOpenChange={setDialogoSyncBdp}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Importar salones y mesas desde BDP</DialogTitle><DialogDescription>Primero consulta el impacto. BDP solo se lee; al aplicar se crean únicamente zonas/mesas faltantes en la Aplicación Web y no se elimina nada.</DialogDescription></DialogHeader>
-          {previewSyncBdp && <div className="rounded-md border p-3 text-sm">Se crearían {previewSyncBdp.zonas_creadas} zonas y {previewSyncBdp.mesas_creadas} mesas a partir de {previewSyncBdp.salones_bdp} salones BDP.</div>}
-          {previewSyncBdp && <div><Label htmlFor="confirmar-sync-mesas">Escribe IMPORTAR MESAS BDP</Label><Input id="confirmar-sync-mesas" value={confirmacionSyncBdp} onChange={(e) => setConfirmacionSyncBdp(e.target.value)} /></div>}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogoSyncBdp(false)}>Cancelar</Button>
-            <Button variant="secondary" disabled={sincronizandoMesas} onClick={() => { setSincronizandoMesas(true); syncTablesMutation.mutate({ data: { aplicar: false } }); }}>Previsualizar sin cambios</Button>
-            {previewSyncBdp && <Button disabled={sincronizandoMesas || confirmacionSyncBdp !== 'IMPORTAR MESAS BDP'} onClick={() => { setSincronizandoMesas(true); syncTablesMutation.mutate({ data: { aplicar: true, confirmacion: confirmacionSyncBdp } }); }}>Aplicar en la Aplicación Web</Button>}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DialogoSincronizarMesasBdp
+        abierto={dialogoSyncBdp}
+        onAbiertoChange={setDialogoSyncBdp}
+        preview={previewSyncBdp}
+        confirmacion={confirmacionSyncBdp}
+        onConfirmacionChange={setConfirmacionSyncBdp}
+        sincronizando={sincronizandoMesas}
+        onPrevisualizar={previsualizar}
+        onAplicar={aplicar}
+      />
     </div>
   );
 }

@@ -3,15 +3,12 @@
  * Modo demo incluido para visualizar datos de prueba. */
 
 import { useMemo, useState } from 'react';
-import { Search, Plus, CheckCircle, RefreshCw } from 'lucide-react';
+import { Search, Plus, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { confirmarConDialogo } from '../dialogoConfirmacion';
 import { useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
 import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
 import { useBdpDemoMode } from '@/hooks/useBdpDemoMode';
 import {
@@ -32,25 +29,9 @@ import { mockPurchaseNotes } from './bdp-mocks';
 import { useFiltrosAlbaranes } from '@/hooks/useFiltrosAlbaranes';
 import { BdpComprasReconcileModal } from './BdpComprasReconcileModal';
 import { BdpComprasLocalModal } from './BdpComprasLocalModal';
-import { BdpPurchaseNoteRowActions } from './BdpPurchaseNoteRowActions';
 import { BdpPurchaseSyncControls } from './BdpPurchaseSyncControls';
 import { BdpPurchaseFeatureNotice } from './BdpPurchaseFeatureNotice';
-
-function formatDate(value: string | null) {
-  if (!value) return '—';
-  try {
-    return format(new Date(`${value}T00:00:00`), 'dd/MM/yyyy');
-  } catch {
-    return value;
-  }
-}
-
-function formatCurrency(value: string | null) {
-  if (!value) return '—';
-  const n = Number(value);
-  if (Number.isNaN(n)) return '—';
-  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
-}
+import { BdpComprasTabla } from './bdp-compras/BdpComprasTabla';
 
 /* Skeletons estáticos: filas sin identidad propia; claves de un array estable
  * (no el índice del map) para reconciliación consistente. */
@@ -325,58 +306,14 @@ function BdpCompras() {
           </div>
         </div>
       ) : (
-        <div className="rounded-md border overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Serie</TableHead>
-                <TableHead>Número</TableHead>
-                <TableHead>Proveedor</TableHead>
-                <TableHead>Origen</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-center">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {notes.map((note) => (
-                <TableRow key={note.id}>
-                  <TableCell className="text-xs">{formatDate(note.fecha)}</TableCell>
-                  <TableCell className="font-mono text-xs">{note.serie || '—'}</TableCell>
-                  <TableCell className="font-mono text-xs">{note.numero || '—'}</TableCell>
-                  <TableCell className="text-xs">
-                    {note.nombre_proveedor || note.codigo_proveedor || '—'}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    <Badge variant={note.origen === 'local' ? 'secondary' : 'outline'}>
-                      {note.origen === 'local' ? 'local' : 'BDP'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right text-xs tabular-nums">
-                    {formatCurrency(note.total)}
-                  </TableCell>
-                  <TableCell className="text-xs">{formatEstado(note.estado)}</TableCell>
-                  <TableCell className="text-right">
-                    <BdpPurchaseNoteRowActions
-                      note={note}
-                      isUpdating={
-                        actualizarMutation.isPending ||
-                        eliminarMutation.isPending ||
-                        draftMutation.isPending ||
-                        reconcileMutation.isPending
-                      }
-                      onEditar={openEditarAlbaran}
-                      onEliminar={handleEliminarLocal}
-                      onBorrador={handleDraft}
-                      onConciliar={handleReconcile}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <BdpComprasTabla
+          notas={notes}
+          actualizando={actualizarMutation.isPending || eliminarMutation.isPending || draftMutation.isPending || reconcileMutation.isPending}
+          onEditar={openEditarAlbaran}
+          onEliminar={handleEliminarLocal}
+          onBorrador={handleDraft}
+          onConciliar={handleReconcile}
+        />
       )}
 
       <BdpComprasReconcileModal
@@ -395,24 +332,6 @@ function BdpCompras() {
       />
     </div>
   );
-}
-
-function formatEstado(estado: BdpPurchaseNote['estado']) {
-  switch (estado) {
-    case 'pendiente':
-      return <span className="text-xs text-muted-foreground">Pendiente</span>;
-    case 'borrador':
-      return <span className="text-xs text-blue-600">Borrador</span>;
-    case 'conciliado':
-      return (
-        <Button variant="outline" size="sm" disabled className="h-7 text-xs pointer-events-none">
-          <CheckCircle className="mr-1 size-3" />
-          Conciliado
-        </Button>
-      );
-    default:
-      return <span className="text-xs text-muted-foreground">—</span>;
-  }
 }
 
 export default BdpCompras;

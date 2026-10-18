@@ -4,17 +4,9 @@
  * Modo demo muestra una tabla con datos de ejemplo. */
 
 import { useMemo, useState } from 'react';
-import { Search, Loader2, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { confirmarConDialogo } from '../dialogoConfirmacion';
 import { useQueryClient } from '@tanstack/react-query';
-import { ErrorResponse } from '@/api/generated/gestionRestauranteAPI.schemas';
 import {
   useGetMenuDefinition,
   useGetFastfoodDefinition,
@@ -41,76 +33,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-
-type ExploreType = 'all' | 'menu' | 'fastfood' | 'pack';
-
-const TIPOS: { value: ExploreType; label: string }[] = [
-  { value: 'all', label: 'Todos' },
-  { value: 'menu', label: 'Menú' },
-  { value: 'fastfood', label: 'Fastfood' },
-  { value: 'pack', label: 'Pack' },
-];
-
-function tipoLabel(tipo: string) {
-  return TIPOS.find((t) => t.value === tipo)?.label ?? tipo;
-}
-
-interface BdpDefLine {
-  article_code?: string | number;
-  article_name?: string;
-  quantity?: number;
-}
-
-interface BdpDefinition {
-  code?: string | number;
-  name?: string;
-  description?: string;
-  lines?: BdpDefLine[];
-}
-
-function DefinitionDetail({ data }: { data: BdpExplorerItem }) {
-  return (
-    <div className="space-y-3 text-sm">
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <p className="text-xs text-muted-foreground">Código</p>
-          <p className="font-medium">{data.code}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Tipo</p>
-          <Badge variant="outline">{tipoLabel(data.type)}</Badge>
-        </div>
-      </div>
-      <div>
-        <p className="text-xs text-muted-foreground">Descripción</p>
-        <p>{data.description}</p>
-      </div>
-      <div>
-        <p className="text-xs text-muted-foreground">Artículos</p>
-        <div className="rounded-md border overflow-hidden mt-1">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs">Artículo</TableHead>
-                <TableHead className="text-xs">Código</TableHead>
-                <TableHead className="text-xs text-right">Cantidad</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.lines.map((line) => (
-                <TableRow key={String(line.articleCode)}>
-                  <TableCell className="text-xs">{line.articleName}</TableCell>
-                  <TableCell className="font-mono text-xs">{line.articleCode}</TableCell>
-                  <TableCell className="text-xs text-right">{line.quantity}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-    </div>
-  );
-}
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DefinitionDetail } from './bdp-explorador/DefinitionDetail';
+import { MenusLocales } from './bdp-explorador/MenusLocales';
+import { BarraConsulta } from './bdp-explorador/BarraConsulta';
+import { ResultadoConsulta } from './bdp-explorador/ResultadoConsulta';
+import { TablaDefinicionesDemo } from './bdp-explorador/TablaDefinicionesDemo';
+import { extraerMensajeError, type BdpDefinition, type ExploreType } from './bdp-explorador/constantes';
 
 function BdpExplorador() {
   const queryClient = useQueryClient();
@@ -145,14 +74,6 @@ function BdpExplorador() {
 
   const isLoading = menuQuery.isLoading || fastfoodQuery.isLoading || packQuery.isLoading;
   const error = menuQuery.error || fastfoodQuery.error || packQuery.error;
-
-  function extraerMensajeError(err: unknown): string {
-    if (typeof err === 'string') return err;
-    if (err instanceof Error) return err.message;
-    const er = err as ErrorResponse | undefined;
-    if (er?.message) return er.message;
-    return 'Error al consultar. Verifica que el código existe en BDP y que la integración está activa.';
-  }
 
   const items = useMemo(() => {
     if (!demoMode) return [];
@@ -190,12 +111,6 @@ function BdpExplorador() {
       return;
     }
     setBuscado(true);
-  }
-
-  function formatPrecio(value: string) {
-    const n = Number(value);
-    if (Number.isNaN(n)) return value;
-    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
   }
 
   function abrirNuevo() {
@@ -258,93 +173,13 @@ function BdpExplorador() {
         </TabsList>
 
         <TabsContent value="menus" className="flex flex-col gap-4">
-      {/* [128A-1/F7] Sección de menús/packs locales — funciona sin BDP. */}
-      <div className="rounded-md border overflow-x-auto">
-        <div className="flex items-center justify-between px-4 py-3 border-b">
-          <div>
-            <h3 className="text-sm font-medium">Menús y packs locales</h3>
-            <p className="text-xs text-muted-foreground">
-              Agrupaciones del catálogo local. Funcionan sin conexión a BDP.
-            </p>
-          </div>
-          <Button size="sm" onClick={abrirNuevo}>
-            <Plus className="mr-1 size-3.5" />
-            Nuevo menú/pack
-          </Button>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead className="text-right">Precio</TableHead>
-              <TableHead className="text-right">Artículos</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead>Origen</TableHead>
-              <TableHead className="w-24 text-center">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoadingMenus ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-[13px] text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin inline mr-1" />
-                  Cargando menús locales...
-                </TableCell>
-              </TableRow>
-            ) : (menusLocales ?? []).length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-[13px] text-muted-foreground">
-                  No hay menús/packs locales. Crea el primero con «Nuevo menú/pack».
-                </TableCell>
-              </TableRow>
-            ) : (
-              (menusLocales ?? []).map((menu) => (
-                <TableRow key={menu.id}>
-                  <TableCell className="text-[13px] font-medium">{menu.nombre}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{menu.tipo === 'menu' ? 'Menú' : 'Pack'}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right text-[13px]">{formatPrecio(menu.precio)}</TableCell>
-                  <TableCell className="text-right text-[13px]">{menu.lineas.length}</TableCell>
-                  <TableCell>
-                    {menu.activo ? (
-                      <Badge variant="secondary">Activo</Badge>
-                    ) : (
-                      <Badge variant="outline">Inactivo</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge>Local</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-center gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="bg-muted/40 hover:bg-muted"
-                        onClick={() => abrirEdicion(menu)}
-                        aria-label={`Editar ${menu.nombre}`}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="bg-muted/40 hover:bg-muted"
-                        onClick={() => handleEliminar(menu)}
-                        aria-label={`Eliminar ${menu.nombre}`}
-                      >
-                        <Trash2 className="size-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+          <MenusLocales
+            menusLocales={menusLocales}
+            cargando={isLoadingMenus}
+            onNuevo={abrirNuevo}
+            onEditar={abrirEdicion}
+            onEliminar={handleEliminar}
+          />
         </TabsContent>
 
         <TabsContent value="consultar" className="flex flex-col gap-4">
@@ -354,76 +189,18 @@ function BdpExplorador() {
         </p>
       </div>
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        {demoMode ? (
-          <>
-            <div className="flex flex-wrap gap-3 items-center">
-              <Input
-                type="search"
-                placeholder="Buscar nombre, código o descripción..."
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                className="max-w-xs"
-              />
-              <Select
-                value={tipo}
-                onValueChange={(v) => setTipo(v as ExploreType)}
-              >
-                <SelectTrigger className="w-full sm:w-44">
-                  <SelectValue placeholder="Tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIPOS.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </>
-        ) : (
-          <div className="flex flex-wrap gap-3 items-end">
-            <Select
-              value={tipo}
-              onValueChange={(v) => {
-                setTipo(v as ExploreType);
-                setBuscado(false);
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                {TIPOS.filter((t) => t.value !== 'all').map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              type="number"
-              min={1}
-              className="w-36"
-              placeholder="Código numérico..."
-              value={identificador}
-              onChange={(e) => {
-                setIdentificador(e.target.value);
-                setBuscado(false);
-              }}
-            />
-            <Button onClick={buscar} disabled={isLoading}>
-              {isLoading ? (
-                <Loader2 className="size-3.5 animate-spin mr-1" />
-              ) : (
-                <Search className="size-3.5 mr-1" />
-              )}
-              Consultar
-            </Button>
-          </div>
-        )}
-      </div>
+      <BarraConsulta
+        demoMode={demoMode}
+        busqueda={busqueda}
+        setBusqueda={setBusqueda}
+        tipo={tipo}
+        setTipo={setTipo}
+        identificador={identificador}
+        setIdentificador={setIdentificador}
+        setBuscado={setBuscado}
+        isLoading={isLoading}
+        buscar={buscar}
+      />
 
       {!demoMode && !buscado && (
         <p className="text-sm text-muted-foreground">
@@ -440,92 +217,11 @@ function BdpExplorador() {
       )}
 
       {!demoMode && resultadoReal && (
-        <div className="rounded-md border p-3 text-sm space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">{resultadoReal.name ?? 'Sin nombre'}</span>
-            <Badge variant="outline">{tipoLabel(tipo)}</Badge>
-          </div>
-          {resultadoReal.description && (
-            <p className="text-xs text-muted-foreground">{resultadoReal.description}</p>
-          )}
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <span>
-              Código: <Badge variant="outline">{resultadoReal.code ?? '—'}</Badge>
-            </span>
-            <span>
-              Artículos: <Badge variant="secondary">{resultadoReal.lines?.length ?? 0}</Badge>
-            </span>
-          </div>
-          {resultadoReal.lines && resultadoReal.lines.length > 0 && (
-            <div className="rounded-md border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">Artículo</TableHead>
-                    <TableHead className="text-xs">Código</TableHead>
-                    <TableHead className="text-xs text-right">Cantidad</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {resultadoReal.lines.map((line) => (
-                    <TableRow key={String(line.article_code ?? line.article_name ?? 'linea')}>
-                      <TableCell className="text-xs">{line.article_name ?? '—'}</TableCell>
-                      <TableCell className="font-mono text-xs">{line.article_code ?? '—'}</TableCell>
-                      <TableCell className="text-xs text-right">{line.quantity ?? '—'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </div>
+        <ResultadoConsulta resultado={resultadoReal} tipo={tipo} />
       )}
 
       {demoMode && (
-        <>
-          <div className="rounded-md border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Descripción</TableHead>
-                  <TableHead className="w-10 text-center">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-[13px] text-muted-foreground">
-                      No hay definiciones que coincidan.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-mono text-xs">{item.code}</TableCell>
-                      <TableCell className="text-[13px] font-medium">{item.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{tipoLabel(item.type)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
-                        {item.description}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-center">
-                          <Button variant="outline" size="icon" className="bg-muted/40 hover:bg-muted" onClick={() => setSeleccionado(item)}>
-                            <Eye className="size-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </>
+        <TablaDefinicionesDemo items={items} onVer={(item) => setSeleccionado(item)} />
       )}
         </TabsContent>
       </Tabs>
