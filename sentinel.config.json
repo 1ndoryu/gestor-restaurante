@@ -74,7 +74,8 @@
             "/frontend/src/componentes/ErrorBoundary.tsx",
             "/frontend/src/hooks/use-mobile.ts",
             "/frontend/src/components/app-sidebar.tsx",
-            "/frontend/src/components/ui/sidebar.tsx"
+            "/frontend/src/components/ui/sidebar.tsx",
+            "/frontend/src/components/ui/sidebar-contexto.tsx"
           ],
           "services": [
             "/frontend/src/services/",
