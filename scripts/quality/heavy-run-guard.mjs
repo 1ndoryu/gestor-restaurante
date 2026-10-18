@@ -1,209 +1,22 @@
-import { appendFile, lstat, mkdir, readFile, realpath, rename, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
-import os from 'node:os';
 import path from 'node:path';
-import { redact } from './redaction.mjs';
+import { isFilteredTestRun, isHeavyCargoCommand } from './heavy-run-guard-cargo.mjs';
+import {
+  activePath, findQualityRoot, normalizeRoot, processAlive, projectKey, readCooldownMs, readJson,
+  readProjectConfig, resolveGuardRoot, resolveTargetBase, statePath, writeJsonAtomic,
+} from './heavy-run-guard-recursos.mjs';
+import {
+  HEAVY_MANUAL_OVERRIDE_ENABLED, isHeavyOverride, logHeavyOverride, manualOverrideSource, overrideReason,
+} from './heavy-run-guard-excepcion.mjs';
 
-/* Defecto global 0 (decisión de la usuaria, 2026-10-12), espejo de glory-sentinel
- * scheduler.ts. Un proyecto lo activa con heavyRun.cooldownMinutes > 0. */
-const DEFAULT_COOLDOWN_MS = 0;
-const DEFAULT_TARGET_BASE = process.platform === 'win32'
-  ? 'C:\\tmp\\glory-target'
-  : path.join(os.tmpdir(), 'glory-target');
-
-function normalizeRoot(value) {
-  return path.resolve(value).replace(/\\/g, '/').toLowerCase();
-}
-
-function projectKey(projectRoot) {
-  return crypto.createHash('sha256').update(normalizeRoot(projectRoot)).digest('hex').slice(0, 16);
-}
-
-export function resolveTargetBase() {
-  return path.resolve(process.env.CARGO_TARGET_DIR_BASE || DEFAULT_TARGET_BASE);
-}
-
-export function resolveGuardRoot(targetBase = resolveTargetBase()) {
-  return path.join(path.dirname(path.resolve(targetBase)), 'glory-quality-guard');
-}
-
-function statePath(targetBase) {
-  return path.join(resolveGuardRoot(targetBase), 'state.json');
-}
-
-function activePath(targetBase) {
-  return path.join(resolveGuardRoot(targetBase), 'active.json');
-}
-
-async function readJson(filePath, fallback) {
-  try { return JSON.parse(await readFile(filePath, 'utf8')); }
-  catch { return fallback; }
-}
-
-async function writeJsonAtomic(filePath, value) {
-  const temporary = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  try { await rename(temporary, filePath); }
-  catch (error) {
-    await unlink(temporary).catch(() => {});
-    throw error;
-  }
-}
-
-function processAlive(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
-  try { process.kill(pid, 0); return true; }
-  catch { return false; }
-}
-
-function readCooldownMs(config = {}) {
-  const minutes = Number(config.heavyRun?.cooldownMinutes);
-  if (!Number.isFinite(minutes) || minutes < 0) return DEFAULT_COOLDOWN_MS;
-  return minutes * 60 * 1000;
-}
-
-async function readProjectConfig(projectRoot) {
-  return readJson(path.join(projectRoot, 'quality.config.json'), {});
-}
-
-export async function findQualityRoot(startPath = process.cwd()) {
-  let candidate = path.resolve(startPath);
-  try {
-    candidate = await realpath(candidate);
-  } catch (error) {
-    if (error?.code === 'ENOENT') return path.resolve(startPath);
-    throw error;
-  }
-  while (candidate) {
-    const config = path.join(candidate, 'quality.config.json');
-    const guard = path.join(candidate, 'scripts', 'quality', 'heavy-run-guard.mjs');
-    try {
-      const configMetadata = await lstat(config);
-      const guardMetadata = await lstat(guard);
-      if (!configMetadata.isFile() || !guardMetadata.isFile()) throw new Error('quality markers are not regular files');
-      return candidate;
-    } catch { /* Symlink/junction o marcador ausente: sube al padre. */ }
-    const parent = path.dirname(candidate);
-    if (parent === candidate) break;
-    candidate = parent;
-  }
-  return path.resolve(startPath);
-}
-
-/* Espejo de glory-sentinel/src/core/scheduler.ts (07acc77). Mantener en sincronía. */
-const CARGO_VALUE_OPTIONS = new Set([
-  '-C', '--color', '--config', '-Z', '--manifest-path', '--target-dir',
-  '-p', '--package', '--exclude', '--test', '--bin', '--example', '--bench',
-  '-F', '--features', '--target', '--profile', '-j', '--jobs', '--message-format',
-]);
-
-function cargoSubcommand(args) {
-  for (let index = 0; index < args.length; index++) {
-    const arg = String(args[index]);
-    if (arg.startsWith('+')) continue;
-    if (arg.startsWith('-')) {
-      if (CARGO_VALUE_OPTIONS.has(arg)) index++;
-      continue;
-    }
-    return { command: arg.toLowerCase(), index };
-  }
-  return { index: args.length };
-}
-
-/* Un test filtrado (nombre posicional o `--test <archivo>`) ejecuta pocos casos
- * y no espera al cooldown. `cargo test` sin filtro, con solo `-p` o con `--lib`
- * sigue siendo la suite completa. Ante la duda, pesado. */
-export function isFilteredTestRun(args) {
-  const { command, index } = cargoSubcommand(args);
-  if (command !== 'test') return false;
-  for (let i = index + 1; i < args.length; i++) {
-    const arg = String(args[i]);
-    if (arg === '--') break;
-    if (arg === '--test') {
-      const next = args[i + 1];
-      return next !== undefined && !String(next).startsWith('-');
-    }
-    if (arg.startsWith('-')) {
-      if (CARGO_VALUE_OPTIONS.has(arg)) i++;
-      continue;
-    }
-    return true;
-  }
-  return false;
-}
-
-export function isHeavyCargoCommand(args) {
-  const { command } = cargoSubcommand(args);
-  if (command === 'clippy' || command === 'bench') return true;
-  return command === 'test' && !isFilteredTestRun(args);
-}
-
-/* [SNT-11] RE-ACTIVADO (2026-08-05, decisión explícita del usuario): la
- * excepción manual del guard vuelve a conceder saltos del cooldown de 180 min
- * usando `--allow-heavy --heavy-reason "<motivo>"` (o GLORY_HEAVY_RUN_TOKEN).
- * El cooldown NO se elimina: sigue bloqueando las ejecuciones pesadas normales
- * (sin excepción) y toda activación manual queda auditada en heavy-overrides.log
- * con granted:true/false, motivo, comando y PID. El motivo es requisito (un
- * intento sin motivo se rechaza). Únicamente CI (modo sancionado, no corre en
- * el equipo) sigue autorizado a full sin cooldown. */
-export const HEAVY_MANUAL_OVERRIDE_ENABLED = true;
-
-export function isHeavyOverride(options = {}) {
-  if (options.ci) return true;
-  if (!HEAVY_MANUAL_OVERRIDE_ENABLED) return false;
-  return Boolean(
-    options.allowHeavy
-    || process.env.GLORY_QUALITY_ALLOW_HEAVY === '1'
-    || process.env.GLORY_HEAVY_RUN_TOKEN,
-  );
-}
-
-/* [028A-16] Fuente manual de la excepción del guard: flag, env o token. CI
- * es un modo sancionado (no una excepción manual) y no entra aquí. */
-export function manualOverrideSource(options = {}) {
-  if (options.allowHeavy) return 'flag';
-  if (process.env.GLORY_QUALITY_ALLOW_HEAVY === '1') return 'env';
-  if (process.env.GLORY_HEAVY_RUN_TOKEN) return 'token';
-  return null;
-}
-
-/* [028A-16] El motivo de la excepción llega por flag o por env; si falta, la
- * excepción se rechaza y el intento queda registrado en el log de auditoría. */
-export function overrideReason(options = {}) {
-  const flag = typeof options.heavyReason === 'string' ? options.heavyReason.trim() : '';
-  const env = typeof process.env.GLORY_HEAVY_RUN_REASON === 'string' ? process.env.GLORY_HEAVY_RUN_REASON.trim() : '';
-  return flag || env;
-}
-
-/* [028A-16] Auditoría persistente de excepciones del guard: cada activación
- * de --allow-heavy / GLORY_QUALITY_ALLOW_HEAVY / GLORY_HEAVY_RUN_TOKEN queda
- * en .quality-reports/heavy-overrides.log con timestamp, source, comando,
- * cwd, PID y motivo. Nunca bloquea la decisión: un fallo de escritura solo se
- * reporta a stderr. */
-export async function logHeavyOverride({ projectRoot, source, command, cwd, pid, reason, granted, taskId }) {
-  try {
-    const logDir = path.join(projectRoot, '.quality-reports');
-    await mkdir(logDir, { recursive: true });
-    /* [028A-16] El comando y el motivo se redactan igual que el resto del
-     * pipeline: un comando con un secreto incrustado (p. ej. una URL con
-     * credencial) no debe quedar en claro en el log de auditoría. */
-    const entry = {
-      version: 1,
-      timestamp: new Date().toISOString(),
-      source,
-      command: redact(String(command ?? '')),
-      cwd: cwd ?? process.cwd(),
-      pid: pid ?? process.pid,
-      reason: reason ? redact(String(reason)) : null,
-      granted: Boolean(granted),
-      taskId: taskId ?? null,
-    };
-    await appendFile(path.join(logDir, 'heavy-overrides.log'), `${JSON.stringify(entry)}\n`, 'utf8');
-  } catch (error) {
-    process.stderr.write(`[glory-quality] No se pudo escribir heavy-overrides.log: ${error.message}\n`);
-  }
-}
+/* Reexporta la API pública: task-check, target-maintenance y los tests importan
+ * de este archivo, así que el reparto en módulos hermanos no debe cambiar esa vía. */
+export {
+  HEAVY_MANUAL_OVERRIDE_ENABLED, isFilteredTestRun, isHeavyCargoCommand, isHeavyOverride,
+  findQualityRoot, logHeavyOverride, manualOverrideSource, overrideReason, resolveGuardRoot, resolveTargetBase,
+};
 
 export async function inspectHeavyRun({ projectRoot, targetBase = resolveTargetBase(), mode = 'full', allowHeavy = false, heavyReason, now = Date.now() }) {
   const config = await readProjectConfig(projectRoot);
