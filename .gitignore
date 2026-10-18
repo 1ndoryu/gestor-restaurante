@@ -39,6 +39,7 @@ glory-rust-template.code-workspace
 extracted/
 /uploads
 /scripts/*
+!/scripts/quality/
 !/scripts/check-roadmap.mjs
 !/scripts/run-cargo.mjs
 !/scripts/dev.mjs
