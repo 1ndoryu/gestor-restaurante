@@ -7,12 +7,12 @@ import { useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { crearContenedorEnCuerpo } from '@/utils/dom';
 
 type Cerrar = () => void;
 
 function montar(contenido: (cerrar: Cerrar) => ReactNode): void {
-    const contenedor = document.createElement('div');
-    document.body.appendChild(contenedor);
+    const contenedor = crearContenedorEnCuerpo();
     const root = createRoot(contenedor);
     const cerrar: Cerrar = () => {
         root.unmount();
