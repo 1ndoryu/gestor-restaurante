@@ -32,11 +32,11 @@ mod worker;
 
 pub use buzon::{BdpAvisosService, FilaAviso, ResultadoInbox};
 pub use campos::{
-    AvisoPreparado, CamposAviso, RechazoAviso, censurar, clave_idempotencia, hash_payload,
-    preparar, secreto_esperado, secreto_valido,
+    censurar, clave_idempotencia, hash_payload, preparar, secreto_esperado, secreto_valido,
+    AvisoPreparado, CamposAviso, RechazoAviso,
 };
 pub use worker::{
-    Consulta, ConsultaPedido, LIMITE_LOTE_MAX, MAX_INTENTOS, ResumenLote, procesar_lote,
+    procesar_lote, Consulta, ConsultaPedido, ResumenLote, LIMITE_LOTE_MAX, MAX_INTENTOS,
 };
 
 /* --------------------------------------------------------------------------
@@ -81,10 +81,11 @@ impl AccionAviso {
             "modificar" | "modificarcomanda" | "comandamodificada" | "actualizar" => {
                 Some(Self::Modificar)
             }
-            "cambiarestado" | "cambiarestadocomanda" | "estadocambiado" | "comandaestadocambiado"
-            | "comandaestadocambiada" => {
-                Some(Self::CambiarEstado)
-            }
+            "cambiarestado"
+            | "cambiarestadocomanda"
+            | "estadocambiado"
+            | "comandaestadocambiado"
+            | "comandaestadocambiada" => Some(Self::CambiarEstado),
             "borrar" | "borrarcomanda" | "comandaborrada" | "eliminar" => Some(Self::Borrar),
             "finalizar" | "finalizarcomanda" | "comandafinalizada" => Some(Self::Finalizar),
             "traspasar" | "traspasarcomanda" | "comandatraspasada" => Some(Self::Traspasar),
@@ -119,8 +120,8 @@ pub(super) fn normalizar_clave(texto: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeMap;
     use serde_json::json;
+    use std::collections::BTreeMap;
 
     fn campos(pares: &[(&str, &str)]) -> CamposAviso {
         let mut mapa = BTreeMap::new();

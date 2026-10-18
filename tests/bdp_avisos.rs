@@ -12,8 +12,8 @@
 
 use axum::body::{to_bytes, Body};
 use axum::extract::{Path, Query, State};
-use axum::Json;
 use axum::http::{HeaderMap, Request, StatusCode};
+use axum::Json;
 use glory_backend::config::AppConfig;
 use glory_backend::handlers::{
     listar_avisos_bdp, recibir_aviso_con_secreto, reintentar_aviso_bdp, rutas_avisos_bdp,
@@ -97,10 +97,7 @@ async fn aviso(
         .collect();
     let mut cabeceras = HeaderMap::new();
     if con_secreto {
-        cabeceras.insert(
-            "x-bdp-secreto",
-            SECRETO.parse().expect("cabecera válida"),
-        );
+        cabeceras.insert("x-bdp-secreto", SECRETO.parse().expect("cabecera válida"));
     }
 
     match recibir_aviso_con_secreto(
@@ -147,18 +144,28 @@ async fn un_aviso_valido_entra_en_el_buzon_y_se_puede_listar(pool: PgPool) {
     assert_eq!(respuesta.estado, "recibido");
     assert_eq!(respuesta.accion, "crear");
 
-    let avisos = listar_avisos_bdp(State(estado), admin(user_id), Query(ListarAvisosQuery::default()))
-        .await
-        .expect("listar el buzón")
-        .0;
+    let avisos = listar_avisos_bdp(
+        State(estado),
+        admin(user_id),
+        Query(ListarAvisosQuery::default()),
+    )
+    .await
+    .expect("listar el buzón")
+    .0;
     assert_eq!(avisos.len(), 1);
     assert_eq!(avisos[0].accion, "crear");
     assert_eq!(avisos[0].estado, "recibido");
-    assert_eq!(avisos[0].clave_idempotencia, "crear|15|2026-10-17T14:00:00.000000Z");
+    assert_eq!(
+        avisos[0].clave_idempotencia,
+        "crear|15|2026-10-17T14:00:00.000000Z"
+    );
 
     /* El secreto nunca queda escrito en el payload guardado. */
     let texto = serde_json::to_string(&avisos[0].payload).expect("serializar payload");
-    assert!(!texto.contains(SECRETO), "el secreto no puede guardarse: {texto}");
+    assert!(
+        !texto.contains(SECRETO),
+        "el secreto no puede guardarse: {texto}"
+    );
     assert!(texto.contains("***"));
 }
 
@@ -194,12 +201,11 @@ async fn el_mismo_aviso_dos_veces_no_duplica(pool: PgPool) {
     assert_eq!(estado_http, StatusCode::OK);
     assert_eq!(respuesta.estado, "duplicado");
 
-    let total: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM bdp_avisos_inbox WHERE user_id = $1")
-            .bind(user_id)
-            .fetch_one(&pool)
-            .await
-            .expect("contar");
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bdp_avisos_inbox WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .expect("contar");
     assert_eq!(total, 1, "un reenvío no puede mover nada dos veces");
 }
 
@@ -314,12 +320,11 @@ async fn sin_comanda_se_rechaza_y_lo_raro_se_guarda_para_revision(pool: PgPool) 
     .expect_err("sin comanda no hay aviso");
     assert_eq!(error, StatusCode::UNPROCESSABLE_ENTITY);
 
-    let vacio: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM bdp_avisos_inbox WHERE user_id = $1")
-            .bind(user_id)
-            .fetch_one(&pool)
-            .await
-            .expect("contar");
+    let vacio: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bdp_avisos_inbox WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .expect("contar");
     assert_eq!(vacio, 0, "un aviso rechazado no deja fila");
 
     /* Estado fuera del rango documentado: entra, marcado, y no se actúa. */
@@ -338,7 +343,10 @@ async fn sin_comanda_se_rechaza_y_lo_raro_se_guarda_para_revision(pool: PgPool) 
     .expect("se admite para revisión");
     assert_eq!(estado_http, StatusCode::ACCEPTED);
     assert_eq!(respuesta.estado, "requiere_revision");
-    assert!(respuesta.nota.expect("con nota").contains("Estado fuera de 0-3"));
+    assert!(respuesta
+        .nota
+        .expect("con nota")
+        .contains("Estado fuera de 0-3"));
 
     /* Y se puede reabrir a mano para que el worker lo vuelva a intentar. */
     let id = respuesta.id.expect("id del aviso");
@@ -417,12 +425,11 @@ async fn sin_secreto_valido_no_entra_ningun_aviso(pool: PgPool) {
         .expect("con el secreto en el parámetro sí pasa");
     assert_eq!(estado_http, StatusCode::ACCEPTED);
 
-    let total: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM bdp_avisos_inbox WHERE user_id = $1")
-            .bind(user_id)
-            .fetch_one(&pool)
-            .await
-            .expect("contar");
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bdp_avisos_inbox WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .expect("contar");
     assert_eq!(total, 1, "solo ha entrado el aviso con secreto válido");
 }
 
@@ -508,18 +515,23 @@ async fn las_siete_acciones_entran_por_get_y_por_post(pool: PgPool) {
         assert_eq!(respuesta.accion, esperados[indice]);
     }
 
-    let total: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM bdp_avisos_inbox WHERE user_id = $1")
-            .bind(user_id)
-            .fetch_one(&pool)
-            .await
-            .expect("contar");
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bdp_avisos_inbox WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .expect("contar");
     assert_eq!(total, 14, "siete acciones por dos vías");
 
     /* La acción desconocida se contesta sin guardar. */
-    let error = aviso(&estado, "pagar", &[], json!({"IdentificadorComanda": "15"}), true)
-        .await
-        .expect_err("acción desconocida");
+    let error = aviso(
+        &estado,
+        "pagar",
+        &[],
+        json!({"IdentificadorComanda": "15"}),
+        true,
+    )
+    .await
+    .expect_err("acción desconocida");
     assert_eq!(error, StatusCode::NOT_FOUND);
 }
 
@@ -541,20 +553,31 @@ async fn el_buzon_es_del_restaurante_y_solo_lo_ve_admin(pool: PgPool) {
 
     /* Otro restaurante no ve nada. */
     let otro = restaurante(&pool).await;
-    let ajenos = listar_avisos_bdp(State(estado.clone()), admin(otro), Query(ListarAvisosQuery::default()))
-        .await
-        .expect("listar")
-        .0;
+    let ajenos = listar_avisos_bdp(
+        State(estado.clone()),
+        admin(otro),
+        Query(ListarAvisosQuery::default()),
+    )
+    .await
+    .expect("listar")
+    .0;
     assert!(ajenos.is_empty(), "cada cuenta ve solo su buzón");
 
     /* Un trabajador no entra. */
     let mut trabajador = admin(user_id);
     trabajador.role = UserRole::Trabajador;
     trabajador.effective_role = UserRole::Trabajador;
-    let error = listar_avisos_bdp(State(estado.clone()), trabajador, Query(ListarAvisosQuery::default()))
-        .await
-        .expect_err("solo Admin");
-    assert_eq!(codigo(axum::response::IntoResponse::into_response(error)), StatusCode::FORBIDDEN);
+    let error = listar_avisos_bdp(
+        State(estado.clone()),
+        trabajador,
+        Query(ListarAvisosQuery::default()),
+    )
+    .await
+    .expect_err("solo Admin");
+    assert_eq!(
+        codigo(axum::response::IntoResponse::into_response(error)),
+        StatusCode::FORBIDDEN
+    );
 
     /* El filtro por estado y el límite se respetan. */
     let avisos = listar_avisos_bdp(
@@ -580,7 +603,10 @@ async fn el_buzon_es_del_restaurante_y_solo_lo_ve_admin(pool: PgPool) {
     )
     .await
     .expect_err("estado desconocido");
-    assert_eq!(codigo(axum::response::IntoResponse::into_response(error)), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        codigo(axum::response::IntoResponse::into_response(error)),
+        StatusCode::BAD_REQUEST
+    );
 }
 
 /// El receptor no sabe a quién apuntar si hay cero o varias configuraciones:

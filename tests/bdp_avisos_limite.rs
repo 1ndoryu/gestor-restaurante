@@ -62,9 +62,7 @@ async fn llamar(estado: &AppState) -> Result<StatusCode, StatusCode> {
     )
     .await
     .map(|(codigo, _)| codigo)
-    .map_err(|error| {
-        axum::response::IntoResponse::into_response(error).status()
-    })
+    .map_err(|error| axum::response::IntoResponse::into_response(error).status())
 }
 
 /// Una ráfaga corta pasa; a partir del tope, el receptor corta con 429 sin
@@ -98,11 +96,10 @@ async fn una_rafaga_larga_se_corta_con_429(pool: PgPool) {
     assert_eq!(codigo, StatusCode::TOO_MANY_REQUESTS);
 
     /* Y el buzón no se ha llenado: sigue habiendo un solo aviso. */
-    let filas: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM bdp_avisos_inbox WHERE user_id = $1")
-            .bind(user_id)
-            .fetch_one(&pool)
-            .await
-            .expect("contar");
+    let filas: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bdp_avisos_inbox WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .expect("contar");
     assert_eq!(filas, 1);
 }

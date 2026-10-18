@@ -8,7 +8,7 @@ use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
-use super::{AccionAviso, normalizar_clave};
+use super::{normalizar_clave, AccionAviso};
 
 /* --------------------------------------------------------------------------
  * Campos del aviso
@@ -311,9 +311,7 @@ fn timestamp_canonico(crudo: &str) -> String {
     }
     for formato in ["%Y-%m-%dT%H:%M:%S%.f", "%Y-%m-%d %H:%M:%S%.f"] {
         if let Ok(fecha) = NaiveDateTime::parse_from_str(texto, formato) {
-            return fecha
-                .and_utc()
-                .to_rfc3339_opts(SecondsFormat::Micros, true);
+            return fecha.and_utc().to_rfc3339_opts(SecondsFormat::Micros, true);
         }
     }
     texto.to_string()

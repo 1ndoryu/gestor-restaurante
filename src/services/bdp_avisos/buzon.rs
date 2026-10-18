@@ -48,11 +48,12 @@ impl BdpAvisosService {
     /// tuviera varias configuraciones, esto para en vez de repartir avisos al
     /// azar (fail-closed).
     pub async fn resolver_usuario(pool: &PgPool) -> Result<Uuid, String> {
-        let cuentas: Vec<Uuid> =
-            sqlx::query_scalar("SELECT user_id FROM configuracion_restaurante ORDER BY user_id LIMIT 2")
-                .fetch_all(pool)
-                .await
-                .map_err(|error| format!("No se pudo leer la configuración del restaurante: {error}"))?;
+        let cuentas: Vec<Uuid> = sqlx::query_scalar(
+            "SELECT user_id FROM configuracion_restaurante ORDER BY user_id LIMIT 2",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|error| format!("No se pudo leer la configuración del restaurante: {error}"))?;
 
         match cuentas.as_slice() {
             [unica] => Ok(*unica),
