@@ -6,7 +6,6 @@
  *      node scripts/run-with-db.mjs run --bin migrate */
 
 import { spawn } from 'node:child_process';
-import path from 'node:path';
 import { getBranchDbUrl } from './branch-db.mjs';
 
 const cargoArgs = process.argv.slice(2);
