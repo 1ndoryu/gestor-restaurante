@@ -90,7 +90,7 @@ pub async fn crear_reserva(
     /* [283A-20] Notificación en tiempo real al panel del usuario */
     let _ = NotificacionService::emitir(
         &state.pool,
-        &state.notif_tx,
+        &state.notif_hub,
         auth.user_id,
         "reserva_nueva",
         "Nueva reserva via chatbot",
@@ -196,7 +196,7 @@ pub async fn cancelar_reserva(
 
     let _ = NotificacionService::emitir(
         &state.pool,
-        &state.notif_tx,
+        &state.notif_hub,
         auth.user_id,
         "reserva_cancelada",
         "Reserva cancelada via chatbot",

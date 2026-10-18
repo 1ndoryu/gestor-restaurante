@@ -16,12 +16,11 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::broadcast;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::config::AppConfig;
-use crate::models::{NotificacionEvent, ResumenEconomico};
+use crate::models::ResumenEconomico;
 use crate::services::ServicioModoOperacion;
 
 /// Clave (restaurante, año, mes) → (instante de cálculo, resumen).
@@ -50,8 +49,8 @@ pub struct AppState {
     pub pool: PgPool,
     pub jwt_secret: String,
     pub config: AppConfig,
-    /// Canal broadcast para notificaciones SSE en tiempo real
-    pub notif_tx: broadcast::Sender<NotificacionEvent>,
+    /// Registro de conexiones SSE para notificaciones en tiempo real
+    pub notif_hub: Arc<crate::services::NotifHub>,
     /// [128A-1/F1] Conmutador de modo operativo BDP (cache TTL por proceso).
     pub modo_operacion: ServicioModoOperacion,
     /* [169A-5/D2.2] Caché en memoria del resumen económico por

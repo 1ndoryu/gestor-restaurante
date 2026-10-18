@@ -12,7 +12,7 @@ use axum::extract::{Path, State};
 use axum::response::sse::{Event, Sse};
 use axum::routing::{get, patch};
 use axum::{Json, Router};
-use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 use uuid::Uuid;
 
@@ -134,17 +134,12 @@ pub async fn stream_notificaciones(
     let claims = crate::services::AuthService::verify_token(&params.token, &state.jwt_secret)?;
     let user_id = claims.sub;
 
-    let rx = state.notif_tx.subscribe();
+    /* Cada conexión recibe solo los avisos de su usuario */
+    let rx = state.notif_hub.suscribir(user_id);
 
-    let stream = BroadcastStream::new(rx).filter_map(move |result| {
-        match result {
-            Ok(event) if event.user_id == user_id => {
-                let json = serde_json::to_string(&event.notificacion).ok()?;
-                Some(Ok(Event::default().event("notificacion").data(json)))
-            }
-            /* Filtrar eventos de otros usuarios o errores de lag */
-            _ => None,
-        }
+    let stream = ReceiverStream::new(rx).filter_map(|notif| {
+        let json = serde_json::to_string(&notif).ok()?;
+        Some(Ok(Event::default().event("notificacion").data(json)))
     });
 
     Ok(Sse::new(stream).keep_alive(

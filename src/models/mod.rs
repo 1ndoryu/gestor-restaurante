@@ -84,7 +84,7 @@ pub use api_key::{
     FranjaDisponibilidad, RestauranteInfoResponse, ZonaResumen,
 };
 pub use digitalizacion::{DatosDocumentoExtraidos, DigitalizarDocumentoRequest};
-pub use notificacion::{Notificacion, NotificacionEvent};
+pub use notificacion::Notificacion;
 pub use recordatorio::{
     ActualizarReglaRequest, CrearReglaRequest, HistorialRecordatorios, RecordatorioEnviado,
     RecordatorioEnviadoDetalle, ReglaRecordatorio, ReglasPaginadas, ReglasQuery,

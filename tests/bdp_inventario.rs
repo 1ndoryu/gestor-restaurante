@@ -8,6 +8,8 @@
  *   - rechaza el lote vacío con error de validación.
  * No hay envío HTTP real: el worker no envía nada en standalone (independencia). */
 
+use glory_backend::services::NotifHub;
+use std::sync::Arc;
 use axum::extract::State;
 use axum::Json;
 use glory_backend::config::AppConfig;
@@ -15,7 +17,7 @@ use glory_backend::errors::AppError;
 use glory_backend::handlers::registrar_inventario;
 use glory_backend::middleware::AuthUser;
 use glory_backend::models::{
-    InventarioLineaRequest, NotificacionEvent, RegistrarInventarioRequest, UserRole,
+    InventarioLineaRequest, RegistrarInventarioRequest, UserRole,
 };
 use glory_backend::repositories::ConfiguracionRepository;
 use glory_backend::services::ServicioModoOperacion;
@@ -23,11 +25,10 @@ use glory_backend::AppState;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
 use std::str::FromStr;
-use tokio::sync::broadcast;
 use uuid::Uuid;
 
 fn make_app_state(pool: PgPool) -> AppState {
-    let (notif_tx, _): (broadcast::Sender<NotificacionEvent>, _) = broadcast::channel(16);
+    let notif_hub = Arc::new(NotifHub::new());
     AppState {
         pool,
         jwt_secret: "test-secret".to_string(),
@@ -40,7 +41,7 @@ fn make_app_state(pool: PgPool) -> AppState {
             app_url: "http://localhost".to_string(),
             error_report_email: None,
         },
-        notif_tx,
+        notif_hub,
         modo_operacion: ServicioModoOperacion::default(),
         resumen_cache: Default::default(),
         listados_cache: Default::default(),

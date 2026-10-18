@@ -10,6 +10,8 @@
  * El secreto se pasa a `recibir_aviso_con_secreto` en vez de tocar el entorno:
  * los tests corren en paralelo y una variable de proceso los haría pelearse. */
 
+use glory_backend::services::NotifHub;
+use std::sync::Arc;
 use axum::body::{to_bytes, Body};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, Request, StatusCode};
@@ -20,21 +22,20 @@ use glory_backend::handlers::{
     rutas_publicas_avisos, ListarAvisosQuery, RespuestaAviso,
 };
 use glory_backend::middleware::AuthUser;
-use glory_backend::models::{NotificacionEvent, UserRole};
+use glory_backend::models::UserRole;
 use glory_backend::repositories::ConfiguracionRepository;
 use glory_backend::services::ServicioModoOperacion;
 use glory_backend::AppState;
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use std::collections::BTreeMap;
-use tokio::sync::broadcast;
 use tower::ServiceExt;
 use uuid::Uuid;
 
 const SECRETO: &str = "secreto-de-prueba";
 
 fn estado(pool: PgPool) -> AppState {
-    let (notif_tx, _): (broadcast::Sender<NotificacionEvent>, _) = broadcast::channel(16);
+    let notif_hub = Arc::new(NotifHub::new());
     AppState {
         pool,
         jwt_secret: "test-secret".to_string(),
@@ -47,7 +48,7 @@ fn estado(pool: PgPool) -> AppState {
             app_url: "http://localhost".to_string(),
             error_report_email: None,
         },
-        notif_tx,
+        notif_hub,
         modo_operacion: ServicioModoOperacion::default(),
         resumen_cache: Default::default(),
         listados_cache: Default::default(),

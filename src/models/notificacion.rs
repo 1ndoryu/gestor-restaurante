@@ -17,9 +17,3 @@ pub struct Notificacion {
     pub created_at: DateTime<Utc>,
 }
 
-/// Evento que viaja por el canal broadcast para SSE
-#[derive(Debug, Clone, Serialize)]
-pub struct NotificacionEvent {
-    pub user_id: Uuid,
-    pub notificacion: Notificacion,
-}

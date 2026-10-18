@@ -92,7 +92,7 @@ pub use meta_whatsapp::MetaWhatsappService;
 pub use modo_operacion::{
     ModoEfectivo, ServicioModoOperacion, MODO_AUTO, MODO_BDP, MODO_STANDALONE,
 };
-pub use notificacion::NotificacionService;
+pub use notificacion::{NotifHub, NotificacionService};
 pub use permisos::{
     permiso_habilitado, verificar_permiso, verificar_seccion, AccionPermiso, NivelPermiso,
 };

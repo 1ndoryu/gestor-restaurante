@@ -6,24 +6,24 @@
  * prueba lo agota a propósito. En el mismo binario que el resto de pruebas del
  * receptor, cualquiera que corriera después se llevaría un 429. */
 
+use glory_backend::services::NotifHub;
+use std::sync::Arc;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use glory_backend::config::AppConfig;
 use glory_backend::handlers::recibir_aviso_con_secreto;
-use glory_backend::models::NotificacionEvent;
 use glory_backend::repositories::ConfiguracionRepository;
 use glory_backend::services::ServicioModoOperacion;
 use glory_backend::AppState;
 use serde_json::json;
 use sqlx::PgPool;
 use std::collections::BTreeMap;
-use tokio::sync::broadcast;
 use uuid::Uuid;
 
 const SECRETO: &str = "secreto-de-prueba";
 
 fn estado(pool: PgPool) -> AppState {
-    let (notif_tx, _): (broadcast::Sender<NotificacionEvent>, _) = broadcast::channel(16);
+    let notif_hub = Arc::new(NotifHub::new());
     AppState {
         pool,
         jwt_secret: "test-secret".to_string(),
@@ -36,7 +36,7 @@ fn estado(pool: PgPool) -> AppState {
             app_url: "http://localhost".to_string(),
             error_report_email: None,
         },
-        notif_tx,
+        notif_hub,
         modo_operacion: ServicioModoOperacion::default(),
         resumen_cache: Default::default(),
         listados_cache: Default::default(),

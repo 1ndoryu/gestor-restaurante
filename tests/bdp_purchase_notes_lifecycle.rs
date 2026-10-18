@@ -4,6 +4,8 @@
  * No contactan con BDP real; validan el flujo local: pendiente → borrador → conciliado.
  * Usan #[sqlx::test] para crear una BD temporal por test con migraciones aplicadas. */
 
+use glory_backend::services::NotifHub;
+use std::sync::Arc;
 use axum::extract::{Path, Query, State};
 use axum::Json;
 use chrono::NaiveDate;
@@ -17,7 +19,7 @@ use glory_backend::middleware::AuthUser;
 use glory_backend::models::{
     ActualizarBdpPurchaseNoteRequest, BdpPurchaseNoteDraftRequest, BdpPurchaseNoteEstado,
     BdpPurchaseNoteLineaLocal, BdpPurchaseNoteListParams, BdpPurchaseNoteReconcileRequest,
-    CrearBdpPurchaseNoteRequest, NotificacionEvent, UserRole,
+    CrearBdpPurchaseNoteRequest, UserRole,
 };
 use glory_backend::repositories::gasto::NuevoGasto;
 use glory_backend::repositories::{
@@ -28,7 +30,6 @@ use glory_backend::AppState;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
 use std::str::FromStr;
-use tokio::sync::broadcast;
 use uuid::Uuid;
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
@@ -361,7 +362,7 @@ async fn conciliacion_dentro_de_transaccion_es_atomica(pool: PgPool) {
 /* ── Helpers de handlers ─────────────────────────────────────────────── */
 
 fn make_app_state(pool: PgPool) -> AppState {
-    let (notif_tx, _): (broadcast::Sender<NotificacionEvent>, _) = broadcast::channel(16);
+    let notif_hub = Arc::new(NotifHub::new());
     AppState {
         pool,
         jwt_secret: "test-secret".to_string(),
@@ -374,7 +375,7 @@ fn make_app_state(pool: PgPool) -> AppState {
             app_url: "http://localhost".to_string(),
             error_report_email: None,
         },
-        notif_tx,
+        notif_hub,
         modo_operacion: glory_backend::services::ServicioModoOperacion::default(),
         resumen_cache: Default::default(),
         listados_cache: Default::default(),

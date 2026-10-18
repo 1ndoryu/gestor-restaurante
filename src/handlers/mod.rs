@@ -513,14 +513,14 @@ pub fn create_router(
     config: crate::config::AppConfig,
     modo_operacion: crate::services::ServicioModoOperacion,
 ) -> Router {
-    /* [283A-20] Canal broadcast para notificaciones SSE — 256 mensajes en buffer */
-    let (notif_tx, _) = tokio::sync::broadcast::channel(256);
+    /* [283A-20] Registro de conexiones SSE para notificaciones */
+    let notif_hub = std::sync::Arc::new(crate::services::NotifHub::new());
 
     let state = AppState {
         pool,
         jwt_secret: config.jwt_secret.clone(),
         config,
-        notif_tx,
+        notif_hub,
         modo_operacion,
         resumen_cache: std::sync::Arc::new(tokio::sync::RwLock::new(
             std::collections::HashMap::new(),
