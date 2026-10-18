@@ -91,7 +91,6 @@ fn customer_code(value: &serde_json::Value) -> Option<i32> {
     ),
     security(("bearer_auth" = []))
 )]
-#[allow(clippy::too_many_lines)]
 pub async fn importar_clientes_bdp(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -141,170 +140,239 @@ pub async fn importar_clientes_bdp(
         )));
     }
 
-    let mut importados: u32 = 0;
-    let mut actualizados: u32 = 0;
-    let mut sin_cambios: u32 = 0;
-    let mut errores: u32 = 0;
-    let mut conflictos: u32 = 0;
+    let mut rec = RecuentoImportacion::default();
     let mut codigos_vistos = std::collections::HashSet::new();
-    let mut muestra_conflictos = Vec::new();
-    let mut consecutive_errors: u32 = 0;
-
     for cust in customers {
-        #[allow(clippy::cast_possible_truncation)]
-        let bdp_code = customer_code(cust).unwrap_or(0);
-        let fiscal_name = cust
-            .get("FiscalName")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let commercial_name = cust
-            .get("CommercialName")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let mobile_phone = cust
-            .get("MobilePhone")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let email = cust.get("EMail").and_then(|v| v.as_str()).unwrap_or("");
-        let address = cust.get("Address").and_then(|v| v.as_str()).unwrap_or("");
-
-        if bdp_code == 0
-            || fiscal_name.trim().is_empty()
-            || (mobile_phone.trim().is_empty() && email.trim().is_empty())
-            || !codigos_vistos.insert(bdp_code)
-        {
-            errores += 1;
-            consecutive_errors += 1;
-            if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
-                break;
-            }
-            continue;
-        }
-        consecutive_errors = 0;
-
-        /* Buscar cliente existente por teléfono o email */
-        let existing = match ClienteRepository::find_by_telefono_o_email(
-            &state.pool,
+        let cortar = procesar_cliente_bdp(
+            &state,
             auth.user_id,
-            mobile_phone,
-            email,
+            cust,
+            req.aplicar,
+            &mut codigos_vistos,
+            &mut rec,
         )
-        .await
-        {
-            Ok(r) => r,
-            Err(e) => {
-                warn!("[AUDIT-N5] Error DB buscando cliente: {e}");
-                errores += 1;
-                consecutive_errors += 1;
-                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
-                    break;
-                }
-                continue;
-            }
-        };
-
-        if let Some(cliente) = existing {
-            /* Nunca reemplazar un vínculo BDP diferente basándonos solo en una
-             * coincidencia heurística de teléfono/email. */
-            if cliente.bdp_customer_code.is_none() {
-                if req.aplicar {
-                    match ClienteRepository::update_bdp_sync(
-                        &state.pool,
-                        cliente.id,
-                        Some(bdp_code),
-                        true,
-                        None,
-                    )
-                    .await
-                    {
-                        Ok(()) => {
-                            actualizados += 1;
-                            consecutive_errors = 0;
-                        }
-                        Err(e) => {
-                            warn!("[AUDIT-N5] Error actualizando sync BDP: {e}");
-                            errores += 1;
-                            consecutive_errors += 1;
-                            if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
-                                break;
-                            }
-                        }
-                    }
-                } else {
-                    actualizados += 1;
-                }
-            } else if cliente.bdp_customer_code == Some(bdp_code) {
-                sin_cambios += 1;
-            } else {
-                conflictos += 1;
-                if muestra_conflictos.len() < 20 {
-                    muestra_conflictos.push(serde_json::json!({
-                        "cliente_id": cliente.id,
-                        "codigo_local": cliente.bdp_customer_code,
-                        "codigo_bdp": bdp_code,
-                        "motivo": "identidad coincide pero ya está vinculada a otro código"
-                    }));
-                }
-            }
-        } else {
-            /* Cliente no existe en Glory → crearlo */
-            /* Dividir fiscal_name en nombre + apellidos (heurística: primera palabra = nombre) */
-            let (nombre, apellidos) = split_name(fiscal_name);
-
-            let nuevo = CrearClienteRequest {
-                nombre: nombre.to_string(),
-                apellidos: Some(apellidos.to_string()),
-                telefono: Some(mobile_phone.to_string()),
-                prefijo_telefono: None,
-                email: Some(email.to_string()),
-                empresa: Some(commercial_name.to_string()),
-                notas: Some(format!("Importado de BDP (código {bdp_code}). {address}")),
-                foto_url: None,
-                consentimiento_comercial_email: None,
-                consentimiento_comercial_sms: None,
-                enviar_encuestas: None,
-                alergias: None,
-                preferencias_bebida: None,
-                preferencias_ubicacion: None,
-            };
-
-            if req.aplicar {
-                /* Crear localmente y vincular. El índice único por usuario y
-                 * código BDP evita que una carrera duplique la identidad remota. */
-                match ClienteService::create_bdp_import(&state.pool, auth.user_id, nuevo, bdp_code)
-                    .await
-                {
-                    Ok(_) => {
-                        importados += 1;
-                        consecutive_errors = 0;
-                    }
-                    Err(e) => {
-                        warn!("[AUDIT-N5] Error creando cliente importado: {e}");
-                        errores += 1;
-                        consecutive_errors += 1;
-                        if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
-                            break;
-                        }
-                    }
-                }
-            } else {
-                importados += 1;
-            }
+        .await;
+        if cortar {
+            break;
         }
     }
 
     Ok(Json(serde_json::json!({
-        "imported": importados,
-        "updated": actualizados,
-        "unchanged": sin_cambios,
-        "errors": errores,
-        "conflicts": conflictos,
-        "conflict_sample": muestra_conflictos,
+        "imported": rec.importados,
+        "updated": rec.actualizados,
+        "unchanged": rec.sin_cambios,
+        "errors": rec.errores,
+        "conflicts": rec.conflictos,
+        "conflict_sample": rec.muestra_conflictos,
         "total": customers.len(),
         "applied": req.aplicar,
         "writes_to_bdp": false,
     })))
-} /* [Fase 7.2] Push controlado de un cliente Glory a BDP (CreateCustomer).
+}
+
+/// Contadores de la importación y racha de errores seguidos.
+#[derive(Default)]
+struct RecuentoImportacion {
+    importados: u32,
+    actualizados: u32,
+    sin_cambios: u32,
+    errores: u32,
+    conflictos: u32,
+    errores_seguidos: u32,
+    muestra_conflictos: Vec<serde_json::Value>,
+}
+
+impl RecuentoImportacion {
+    /// Una fila válida reinicia la racha de errores.
+    fn ok(&mut self) {
+        self.errores_seguidos = 0;
+    }
+
+    /// Cuenta un error. Devuelve `true` si hay que cortar: demasiados seguidos.
+    fn error(&mut self) -> bool {
+        self.errores += 1;
+        self.errores_seguidos += 1;
+        self.errores_seguidos >= MAX_CONSECUTIVE_ERRORS
+    }
+
+    /// Guarda una muestra acotada de conflictos para la respuesta.
+    fn conflicto(&mut self, cliente: &Cliente, codigo_bdp: i32) {
+        self.conflictos += 1;
+        if self.muestra_conflictos.len() < 20 {
+            self.muestra_conflictos.push(serde_json::json!({
+                "cliente_id": cliente.id,
+                "codigo_local": cliente.bdp_customer_code,
+                "codigo_bdp": codigo_bdp,
+                "motivo": "identidad coincide pero ya está vinculada a otro código"
+            }));
+        }
+    }
+}
+
+/// Campos de un cliente BDP leídos del JSON, sin validar.
+struct FilaBdp<'a> {
+    codigo: i32,
+    nombre_fiscal: &'a str,
+    nombre_comercial: &'a str,
+    telefono: &'a str,
+    email: &'a str,
+    direccion: &'a str,
+}
+
+impl<'a> FilaBdp<'a> {
+    fn desde(cust: &'a serde_json::Value) -> Self {
+        Self {
+            codigo: customer_code(cust).unwrap_or(0),
+            nombre_fiscal: texto_bdp(cust, "FiscalName"),
+            nombre_comercial: texto_bdp(cust, "CommercialName"),
+            telefono: texto_bdp(cust, "MobilePhone"),
+            email: texto_bdp(cust, "EMail"),
+            direccion: texto_bdp(cust, "Address"),
+        }
+    }
+
+    /// Requisitos mínimos para importar: código, nombre fiscal y algún contacto.
+    fn valida(&self) -> bool {
+        self.codigo != 0
+            && !self.nombre_fiscal.trim().is_empty()
+            && !(self.telefono.trim().is_empty() && self.email.trim().is_empty())
+    }
+}
+
+/// Lee un campo de texto del cliente BDP; vacío si falta.
+fn texto_bdp<'a>(cust: &'a serde_json::Value, clave: &str) -> &'a str {
+    cust.get(clave).and_then(|v| v.as_str()).unwrap_or("")
+}
+
+/// Procesa una fila de BDP. Devuelve `true` si hay que cortar la importación.
+async fn procesar_cliente_bdp(
+    state: &AppState,
+    user_id: Uuid,
+    cust: &serde_json::Value,
+    aplicar: bool,
+    codigos_vistos: &mut std::collections::HashSet<i32>,
+    rec: &mut RecuentoImportacion,
+) -> bool {
+    let fila = FilaBdp::desde(cust);
+    /* Un código repetido en la misma exportación no se procesa dos veces */
+    if !fila.valida() || !codigos_vistos.insert(fila.codigo) {
+        return rec.error();
+    }
+    rec.ok();
+
+    /* Buscar cliente existente por teléfono o email */
+    match ClienteRepository::find_by_telefono_o_email(
+        &state.pool,
+        user_id,
+        fila.telefono,
+        fila.email,
+    )
+    .await
+    {
+        Ok(Some(cliente)) => {
+            sincronizar_existente(state, &cliente, fila.codigo, aplicar, rec).await
+        }
+        Ok(None) => crear_importado(state, user_id, &fila, aplicar, rec).await,
+        Err(e) => {
+            warn!("[AUDIT-N5] Error DB buscando cliente: {e}");
+            rec.error()
+        }
+    }
+}
+
+/// Cliente ya existente en Glory: vincula su código BDP si no tiene ninguno.
+async fn sincronizar_existente(
+    state: &AppState,
+    cliente: &Cliente,
+    codigo_bdp: i32,
+    aplicar: bool,
+    rec: &mut RecuentoImportacion,
+) -> bool {
+    /* Nunca reemplazar un vínculo BDP diferente basándonos solo en una
+     * coincidencia heurística de teléfono/email. */
+    match cliente.bdp_customer_code {
+        None if aplicar => {
+            match ClienteRepository::update_bdp_sync(
+                &state.pool,
+                cliente.id,
+                Some(codigo_bdp),
+                true,
+                None,
+            )
+            .await
+            {
+                Ok(()) => {
+                    rec.actualizados += 1;
+                    false
+                }
+                Err(e) => {
+                    warn!("[AUDIT-N5] Error actualizando sync BDP: {e}");
+                    rec.error()
+                }
+            }
+        }
+        None => {
+            rec.actualizados += 1;
+            false
+        }
+        Some(vinculado) if vinculado == codigo_bdp => {
+            rec.sin_cambios += 1;
+            false
+        }
+        Some(_) => {
+            rec.conflicto(cliente, codigo_bdp);
+            false
+        }
+    }
+}
+
+/// Cliente inexistente en Glory: lo crea y lo vincula al aplicar.
+async fn crear_importado(
+    state: &AppState,
+    user_id: Uuid,
+    fila: &FilaBdp<'_>,
+    aplicar: bool,
+    rec: &mut RecuentoImportacion,
+) -> bool {
+    if !aplicar {
+        rec.importados += 1;
+        return false;
+    }
+    /* Dividir fiscal_name en nombre + apellidos (heurística: primera palabra = nombre) */
+    let (nombre, apellidos) = split_name(fila.nombre_fiscal);
+    let nuevo = CrearClienteRequest {
+        nombre: nombre.to_string(),
+        apellidos: Some(apellidos.to_string()),
+        telefono: Some(fila.telefono.to_string()),
+        prefijo_telefono: None,
+        email: Some(fila.email.to_string()),
+        empresa: Some(fila.nombre_comercial.to_string()),
+        notas: Some(format!(
+            "Importado de BDP (código {}). {}",
+            fila.codigo, fila.direccion
+        )),
+        foto_url: None,
+        consentimiento_comercial_email: None,
+        consentimiento_comercial_sms: None,
+        enviar_encuestas: None,
+        alergias: None,
+        preferencias_bebida: None,
+        preferencias_ubicacion: None,
+    };
+    /* Crear localmente y vincular. El índice único por usuario y
+     * código BDP evita que una carrera duplique la identidad remota. */
+    match ClienteService::create_bdp_import(&state.pool, user_id, nuevo, fila.codigo).await {
+        Ok(_) => {
+            rec.importados += 1;
+            false
+        }
+        Err(e) => {
+            warn!("[AUDIT-N5] Error creando cliente importado: {e}");
+            rec.error()
+        }
+    }
+}
+/* [Fase 7.2] Push controlado de un cliente Glory a BDP (CreateCustomer).
    * Exige código explícito, verifica colisión y siempre usa Overwrite=false.
    *
    * [AUDIT-1.3] Reconciliación: si BDP crea el cliente pero Glory no recibe
