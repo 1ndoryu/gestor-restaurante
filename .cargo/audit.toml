@@ -1,0 +1,23 @@
+# Excepciones de cargo-audit. Cada una lleva motivo, decisión y fecha de vencimiento.
+# cargo-audit no tiene caducidad: el vencimiento vive aquí y en roadmap.md (aviso de revisión).
+
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071 (rsa 0.9.10, Marvin Attack, sin parche).
+    # Motivo: `rsa` ya no compila en RESTAURANTE. `jsonwebtoken` pasó de `rust_crypto` a
+    # `aws_lc_rs` (solo HS256, ver `services/auth.rs`), así que `cargo tree -i rsa --target all`
+    # dice "nothing to print". Sigue en Cargo.lock solo como entrada de `sqlx-mysql`, opcional y
+    # apagada (`cargo tree -i sqlx-mysql` no devuelve nada): cargo la vuelve a añadir al re-resolver,
+    # así que no se puede podar a mano. El backend no hace operaciones RSA.
+    # Decidido: excepción de 1 mes (2026-10-18). VENCE 2026-11-18.
+    # Al vencer: quitar la entrada si sqlx-mysql sale del lock; si no, renovar con fecha nueva.
+    "RUSTSEC-2023-0071",
+    # RUSTSEC-2026-0367/0368/0369 (zip 1.1.4, parche en 9.0.0). Motivo: `zip` 1.x entra solo como
+    # build-dependency de utoipa-swagger-ui 7.1.0 (`cargo tree -i zip@1.1.4 -e build`): solo lo usa su
+    # build.rs para descomprimir Swagger UI en build, una entrada fija y no del usuario. El código del
+    # backend no usa zip. Decidido: excepción de 1 mes (2026-10-18). VENCE 2026-11-18.
+    # Al vencer: subir utoipa-swagger-ui a 10.x (zip 8.6+) y quitar la entrada.
+    "RUSTSEC-2026-0367",
+    "RUSTSEC-2026-0368",
+    "RUSTSEC-2026-0369",
+]
