@@ -141,6 +141,16 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Tareas pendientes
 
+### Bloque 301A-1 — Sentinel RESTAURANTE: corregir todos los hallazgos (2026-10-18)
+
+Objetivo: que `workspace-manager` no liste hallazgos de Sentinel en RESTAURANTE (broadcast, sqlite-carga-N, funcion-larga, parametros-excesivos, limite-lineas, god-object, usestate, objeto-mutable). Un commit por bloque, con `Arranque gate "RESTAURANTE" --inicio/--cierre` a 0 nuevos.
+
+- [x] NotifHub: broadcast → mpsc por suscripción (`src/services/notificacion.rs`).
+- [ ] sqlite-carga-N: `handlers/ventas.rs`, `bin/seed.rs`, `bdp_article_map/conteos.rs`.
+- [ ] funcion-larga: `importar_clientes_bdp`, `conciliar_purchase_note`, `cambiar_bdp_sync_mode`.
+- [ ] parametros-excesivos: structs de parámetros (8 funciones).
+- [ ] limite-lineas, god-object, frontend usestate-excesivo y objeto-mutable.
+
 ### Bloque 10AA-3-B — Diez alcances de escritura BDP no se pueden armar (resuelto el 2026-10-17)
 
 Origen: `10AA-3-A` (resuelto el 2026-10-17) destapó que el emparejamiento alcance↔objetivo de `src/handlers/configuracion.rs` solo admite dos familias: `create_customer` → objetivo `cliente`, y `create_order | add_payment | invoice | cancel_order` → objetivo `venta`. De los **15** alcances de `VALID_BDP_WRITE_SCOPES` (`src/services/bdp_write_guard.rs`) solo **5** se podían armar por lote; los otros **10** —`create_article`, `modify_article`, `modify_prices`, `create_department`, `create_family`, `regularize_stock`, `transfer_stock`, `inventory`, `add_tip`, `add_points`— respondían **422** siempre.
