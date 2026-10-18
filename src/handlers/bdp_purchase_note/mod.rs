@@ -14,7 +14,7 @@ use crate::models::{
     BdpPurchaseNoteListParams, BdpPurchaseNoteSyncRequest, BdpPurchaseNoteSyncResult,
     CrearBdpPurchaseNoteRequest,
 };
-use crate::repositories::BdpPurchaseNoteRepository;
+use crate::repositories::{AuditoriaCicloLocal, BdpPurchaseNoteRepository};
 use crate::services::bdp_weblink::BdpWeblinkError;
 use crate::services::bdp_weblink_catalog::{
     BdpExportPurchaseNotesRequest, BdpExportPurchaseNotesResponse,
@@ -388,15 +388,17 @@ pub async fn marcar_borrador_purchase_note(
     BdpPurchaseNoteRepository::auditar_ciclo_local(
         &mut *tx,
         auth.user_id,
-        "albaran_local_borrador",
-        "albaran",
-        note.id,
-        serde_json::json!({ "serie": note.serie, "numero": note.numero, "estado": "borrador" }),
-        format!(
-            "Albarán local {}-{} pasado a borrador — operación interna, no requiere autorización BDP",
-            note.serie, note.numero
-        ),
-        &format!("albaran-local-borrador-{id}"),
+        AuditoriaCicloLocal {
+            operacion: "albaran_local_borrador",
+            target_entity_type: "albaran",
+            target_entity_id: note.id,
+            datos: serde_json::json!({ "serie": note.serie, "numero": note.numero, "estado": "borrador" }),
+            motivo: format!(
+                "Albarán local {}-{} pasado a borrador — operación interna, no requiere autorización BDP",
+                note.serie, note.numero
+            ),
+            idempotency_key: &format!("albaran-local-borrador-{id}"),
+        },
     )
     .await?;
     tx.commit().await?;

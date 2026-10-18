@@ -9,7 +9,7 @@ use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::models::{BdpPurchaseNoteReconcileRequest, BdpPurchaseNoteReconcileResult};
 use crate::repositories::gasto::NuevoGasto;
-use crate::repositories::{BdpPurchaseNoteRepository, GastoRepository};
+use crate::repositories::{AuditoriaCicloLocal, BdpPurchaseNoteRepository, GastoRepository};
 use crate::services::{verificar_permiso, AccionPermiso, ConfiguracionService, ModoEfectivo};
 use crate::AppState;
 
@@ -184,40 +184,44 @@ async fn auditar_conciliacion(
     BdpPurchaseNoteRepository::auditar_ciclo_local(
         &mut *conn,
         user_id,
-        "albaran_local_conciliar",
-        "albaran",
-        id,
-        serde_json::json!({
-            "serie": note.serie,
-            "numero": note.numero,
-            "gasto_id": gasto_id,
-            "accion": accion,
-        }),
-        format!(
-            "Albarán local {}-{} conciliado con gasto {} — operación interna, no requiere autorización BDP",
-            note.serie, note.numero, gasto_id
-        ),
-        &format!("albaran-local-conciliar-{id}"),
+        AuditoriaCicloLocal {
+            operacion: "albaran_local_conciliar",
+            target_entity_type: "albaran",
+            target_entity_id: id,
+            datos: serde_json::json!({
+                "serie": note.serie,
+                "numero": note.numero,
+                "gasto_id": gasto_id,
+                "accion": accion,
+            }),
+            motivo: format!(
+                "Albarán local {}-{} conciliado con gasto {} — operación interna, no requiere autorización BDP",
+                note.serie, note.numero, gasto_id
+            ),
+            idempotency_key: &format!("albaran-local-conciliar-{id}"),
+        },
     )
     .await?;
     if let Some((numero_documento, importe_base, importe_iva)) = gasto_nuevo {
         BdpPurchaseNoteRepository::auditar_ciclo_local(
             &mut *conn,
             user_id,
-            "gasto_local_crear",
-            "gasto",
-            gasto_id,
-            serde_json::json!({
-                "numero_documento": numero_documento,
-                "importe_base": importe_base,
-                "importe_iva": importe_iva,
-                "albaran_id": id,
-            }),
-            format!(
-                "Gasto {} creado al conciliar albarán local {}-{} — operación interna, no requiere autorización BDP",
-                numero_documento, note.serie, note.numero
-            ),
-            &format!("gasto-local-albaran-{id}"),
+            AuditoriaCicloLocal {
+                operacion: "gasto_local_crear",
+                target_entity_type: "gasto",
+                target_entity_id: gasto_id,
+                datos: serde_json::json!({
+                    "numero_documento": numero_documento,
+                    "importe_base": importe_base,
+                    "importe_iva": importe_iva,
+                    "albaran_id": id,
+                }),
+                motivo: format!(
+                    "Gasto {} creado al conciliar albarán local {}-{} — operación interna, no requiere autorización BDP",
+                    numero_documento, note.serie, note.numero
+                ),
+                idempotency_key: &format!("gasto-local-albaran-{id}"),
+            },
         )
         .await?;
     }

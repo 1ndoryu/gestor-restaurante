@@ -57,6 +57,6 @@ pub use bdp_catalogo_clasificacion::BdpCatalogoClasificacionRepository;
 pub use bdp_menu_local::BdpMenuLocalRepository;
 pub use bdp_pago::BdpPagoRepository;
 pub use bdp_punto_cliente::BdpPuntoClienteRepository;
-pub use bdp_purchase_note::BdpPurchaseNoteRepository;
+pub use bdp_purchase_note::{AuditoriaCicloLocal, BdpPurchaseNoteRepository};
 pub use inactividad::InactividadRepository;
 pub use venta_linea::VentaLineaRepository;

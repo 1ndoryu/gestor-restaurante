@@ -15,6 +15,17 @@ use crate::models::{
     BdpPurchaseNoteListParams, CrearBdpPurchaseNoteRequest,
 };
 
+/// Datos de una fila de auditoría del ciclo local. Agrupa lo que cambia entre operaciones
+/// para que `auditar_ciclo_local` conserve pocos parámetros.
+pub struct AuditoriaCicloLocal<'a> {
+    pub operacion: &'a str,
+    pub target_entity_type: &'a str,
+    pub target_entity_id: Uuid,
+    pub datos: serde_json::Value,
+    pub motivo: String,
+    pub idempotency_key: &'a str,
+}
+
 pub struct BdpPurchaseNoteRepository;
 
 /* [128A-1/F5][F5-1] Prefijo reservado para series de albaranes locales (M18):
@@ -143,20 +154,22 @@ impl BdpPurchaseNoteRepository {
      * determinista por (operación, albarán) para que un reintento no
      * duplique el rastro. Si la auditoría falla, la operación entera
      * revierte (fail-closed: sin rastro no hay escritura). */
-    #[allow(clippy::too_many_arguments)]
     pub async fn auditar_ciclo_local<'e, E>(
         executor: E,
         user_id: Uuid,
-        operacion: &str,
-        target_entity_type: &str,
-        target_entity_id: Uuid,
-        datos: serde_json::Value,
-        motivo: String,
-        idempotency_key: &str,
+        auditoria: AuditoriaCicloLocal<'_>,
     ) -> Result<Uuid, sqlx::Error>
     where
         E: sqlx::Executor<'e, Database = sqlx::Postgres>,
     {
+        let AuditoriaCicloLocal {
+            operacion,
+            target_entity_type,
+            target_entity_id,
+            datos,
+            motivo,
+            idempotency_key,
+        } = auditoria;
         sqlx::query_scalar(
             r"INSERT INTO bdp_audit_log
                   (user_id, operacion, direccion, datos_enviados, resultado, origen_operacion,
@@ -251,20 +264,22 @@ impl BdpPurchaseNoteRepository {
                     Self::auditar_ciclo_local(
                         &mut *tx,
                         user_id,
-                        "albaran_local_crear",
-                        "albaran",
-                        note.id,
-                        serde_json::json!({
-                            "serie": note.serie,
-                            "numero": note.numero,
-                            "total": note.total,
-                            "nombre_proveedor": note.nombre_proveedor,
-                        }),
-                        format!(
-                            "Alta de albarán local {}-{} — operación interna, no requiere autorización BDP",
-                            note.serie, note.numero
-                        ),
-                        &format!("albaran-local-crear-{}", note.id),
+                        AuditoriaCicloLocal {
+                            operacion: "albaran_local_crear",
+                            target_entity_type: "albaran",
+                            target_entity_id: note.id,
+                            datos: serde_json::json!({
+                                "serie": note.serie,
+                                "numero": note.numero,
+                                "total": note.total,
+                                "nombre_proveedor": note.nombre_proveedor,
+                            }),
+                            motivo: format!(
+                                "Alta de albarán local {}-{} — operación interna, no requiere autorización BDP",
+                                note.serie, note.numero
+                            ),
+                            idempotency_key: &format!("albaran-local-crear-{}", note.id),
+                        },
                     )
                     .await?;
                     tx.commit().await?;
