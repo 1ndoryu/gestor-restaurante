@@ -460,9 +460,8 @@ mod tests {
     ),
     security(("bearer_auth" = []))
 )]
-/* [187A-1] Este handler conserva junta la puerta de armado: valida destino,
- * alcance, objetivo, snapshot y huella antes de persistir una autorización. */
-#[allow(clippy::too_many_lines)]
+/* [187A-1] La puerta de armado (destino, alcance, objetivo, snapshot y huella)
+ * vive en `armar_escritura_manual` y se valida antes de persistir cualquier autorización. */
 pub async fn cambiar_bdp_sync_mode(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -483,153 +482,12 @@ pub async fn cambiar_bdp_sync_mode(
         ));
     }
 
-    if req.modo == "unidirectional" {
-        if !req.confirmar_escritura {
-            return Err(AppError::Validation(
-                "Se requiere confirmación explícita para habilitar escrituras reales en BDP."
-                    .into(),
-            ));
-        }
-
-        let actual = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
-        let target = BdpBackupService::canonical_target(&actual).map_err(AppError::Validation)?;
-        if req.confirmar_destino.trim().trim_end_matches('/') != target {
-            return Err(AppError::Validation(
-                "La confirmación del destino no coincide exactamente con la URL BDP configurada."
-                    .into(),
-            ));
-        }
-        BdpWeblinkClient::new(&actual)
-            .ensure_write_target_allowed()
-            .map_err(|error| AppError::Validation(error.to_string()))?;
-        if req.alcances.len() != 1
-            || req
-                .alcances
-                .iter()
-                .any(|scope| !VALID_BDP_WRITE_SCOPES.contains(&scope.as_str()))
-            || !(1..=15).contains(&req.duracion_minutos)
-            || req.max_operaciones != 1
-            || req.motivo.trim().len() < 5
-        {
-            return Err(AppError::Validation(
-                "El armado de pruebas requiere un único alcance, duración 1-15 minutos, exactamente una operación y un motivo explícito."
-                    .into(),
-            ));
-        }
-        let target_type = req.target_entity_type.as_deref().unwrap_or("");
-        let target_crudo = req.target_entity_id.as_deref().ok_or_else(|| {
-            AppError::Validation(
-                "El armado requiere el destino exacto: el UUID de la venta o del cliente, o el código local de la entidad."
-                    .into(),
-            )
-        })?;
-        if !alcance_casa_con_objetivo(&req.alcances, target_type) {
-            return Err(AppError::Validation(
-                "El objetivo no coincide con el alcance: cada uno exige el tipo de destino que declara tipo_destino_de_alcance (venta, cliente, articulo, departamento, familia, stock, propina, cliente_puntos)."
-                    .into(),
-            ));
-        }
-        let target_id = destino_a_uuid(&req.alcances[0], target_type, target_crudo)?;
-        if !actual.bdp_auto_backup_before_write {
-            return Err(AppError::Validation(
-                "No se puede habilitar escritura: bdp_auto_backup_before_write está desactivado."
-                    .into(),
-            ));
-        }
-
-        let fingerprint =
-            BdpBackupService::connection_fingerprint(&actual).map_err(AppError::Validation)?;
-        let snapshot_id: Option<Uuid> = BdpWriteArmingRepository::buscar_snapshot_vigente(
-            &state.pool,
-            auth.user_id,
-            &target,
-            &fingerprint,
-        )
-        .await
-        .map_err(|e| AppError::Internal(format!("Error verificando snapshot BDP: {e}")))?;
-
-        let snapshot_id = snapshot_id.ok_or_else(|| {
-            AppError::Validation(
-                "No se puede habilitar escritura: falta un snapshot completo de esta conexión BDP exacta, vigente y sin lecturas fallidas."
-                    .into(),
-            )
-        })?;
-
-        BdpWriteArmingRepository::armar(
-            &state.pool,
-            NuevoArmado {
-                user_id: auth.user_id,
-                base_url: target,
-                scopes: req.alcances,
-                target_entity_type: target_type.to_string(),
-                target_entity_id: target_id,
-                reason: req.motivo.trim().to_string(),
-                duracion_minutos: req.duracion_minutos,
-                max_operaciones: req.max_operaciones,
-                snapshot_id,
-                connection_fingerprint: fingerprint,
-            },
-        )
-        .await
-        .map_err(|error| AppError::Internal(format!("No se pudo crear armado BDP: {error}")))?;
-    } else if req.modo == "automatic" {
-        /* Modo automático: autorización permanente sin armado por operación.
-         * Exige la misma confirmación explícita, destino exacto, respaldo
-         * previo y snapshot vigente que el modo manual; la diferencia es que
-         * no hay objetivo/alcance por operación y el modo no vuelve solo a
-         * `read_only`. */
-        if !req.confirmar_escritura {
-            return Err(AppError::Validation(
-                "Se requiere confirmación explícita para activar el modo automático de escritura en BDP."
-                    .into(),
-            ));
-        }
-
-        let actual = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
-        let target = BdpBackupService::canonical_target(&actual).map_err(AppError::Validation)?;
-        if req.confirmar_destino.trim().trim_end_matches('/') != target {
-            return Err(AppError::Validation(
-                "La confirmación del destino no coincide exactamente con la URL BDP configurada."
-                    .into(),
-            ));
-        }
-        BdpWeblinkClient::new(&actual)
-            .ensure_write_target_allowed()
-            .map_err(|error| AppError::Validation(error.to_string()))?;
-        if !actual.bdp_auto_backup_before_write {
-            return Err(AppError::Validation(
-                "No se puede activar el modo automático: bdp_auto_backup_before_write está desactivado."
-                    .into(),
-            ));
-        }
-
-        let fingerprint =
-            BdpBackupService::connection_fingerprint(&actual).map_err(AppError::Validation)?;
-        let snapshot_ok: bool = BdpWriteArmingRepository::buscar_snapshot_vigente(
-            &state.pool,
-            auth.user_id,
-            &target,
-            &fingerprint,
-        )
-        .await
-        .map_err(|e| AppError::Internal(format!("Error verificando snapshot BDP: {e}")))?
-        .is_some();
-
-        if !snapshot_ok {
-            return Err(AppError::Validation(
-                "No se puede activar el modo automático: falta un snapshot completo de esta conexión BDP exacta, vigente y sin lecturas fallidas."
-                    .into(),
-            ));
-        }
-
-        /* Sin armados colgados: en automático no hay armado por operación. */
-        BdpWriteArmingRepository::desarmar(&state.pool, auth.user_id)
+    match req.modo.as_str() {
+        "unidirectional" => armar_escritura_manual(&state, auth.user_id, &req).await?,
+        "automatic" => activar_automatico(&state, auth.user_id, &req).await?,
+        _ => BdpWriteArmingRepository::desarmar(&state.pool, auth.user_id)
             .await
-            .map_err(|error| AppError::Internal(format!("No se pudo desarmar BDP: {error}")))?;
-    } else {
-        BdpWriteArmingRepository::desarmar(&state.pool, auth.user_id)
-            .await
-            .map_err(|error| AppError::Internal(format!("No se pudo desarmar BDP: {error}")))?;
+            .map_err(|error| AppError::Internal(format!("No se pudo desarmar BDP: {error}")))?,
     }
 
     let update = ActualizarConfiguracionRequest {
@@ -640,6 +498,167 @@ pub async fn cambiar_bdp_sync_mode(
     /* [128A-1/F1/M3] El cambio de sync-mode puede alterar el modo efectivo. */
     state.modo_operacion.invalidar(auth.user_id);
     Ok(Json(config))
+}
+
+/// Comprueba confirmación, destino exacto y acceso de escritura, comunes a los modos que escriben.
+/// Devuelve la configuración actual y la URL canónica del destino.
+async fn verificar_destino_escritura(
+    state: &AppState,
+    user_id: Uuid,
+    req: &CambiarBdpSyncModeRequest,
+    mensaje_confirmacion: &str,
+) -> Result<(ConfiguracionRestaurante, String), AppError> {
+    if !req.confirmar_escritura {
+        return Err(AppError::Validation(mensaje_confirmacion.into()));
+    }
+
+    let actual = ConfiguracionService::obtener(&state.pool, user_id).await?;
+    let target = BdpBackupService::canonical_target(&actual).map_err(AppError::Validation)?;
+    if req.confirmar_destino.trim().trim_end_matches('/') != target {
+        return Err(AppError::Validation(
+            "La confirmación del destino no coincide exactamente con la URL BDP configurada."
+                .into(),
+        ));
+    }
+    BdpWeblinkClient::new(&actual)
+        .ensure_write_target_allowed()
+        .map_err(|error| AppError::Validation(error.to_string()))?;
+    Ok((actual, target))
+}
+
+/// Modo `unidirectional`: valida el armado de prueba (alcance, objetivo, respaldo y
+/// snapshot) y lo persiste como autorización de una sola operación.
+async fn armar_escritura_manual(
+    state: &AppState,
+    user_id: Uuid,
+    req: &CambiarBdpSyncModeRequest,
+) -> Result<(), AppError> {
+    let (actual, target) = verificar_destino_escritura(
+        state,
+        user_id,
+        req,
+        "Se requiere confirmación explícita para habilitar escrituras reales en BDP.",
+    )
+    .await?;
+    if req.alcances.len() != 1
+        || req
+            .alcances
+            .iter()
+            .any(|scope| !VALID_BDP_WRITE_SCOPES.contains(&scope.as_str()))
+        || !(1..=15).contains(&req.duracion_minutos)
+        || req.max_operaciones != 1
+        || req.motivo.trim().len() < 5
+    {
+        return Err(AppError::Validation(
+            "El armado de pruebas requiere un único alcance, duración 1-15 minutos, exactamente una operación y un motivo explícito."
+                .into(),
+        ));
+    }
+    let target_type = req.target_entity_type.as_deref().unwrap_or("");
+    let target_crudo = req.target_entity_id.as_deref().ok_or_else(|| {
+        AppError::Validation(
+            "El armado requiere el destino exacto: el UUID de la venta o del cliente, o el código local de la entidad."
+                .into(),
+        )
+    })?;
+    if !alcance_casa_con_objetivo(&req.alcances, target_type) {
+        return Err(AppError::Validation(
+            "El objetivo no coincide con el alcance: cada uno exige el tipo de destino que declara tipo_destino_de_alcance (venta, cliente, articulo, departamento, familia, stock, propina, cliente_puntos)."
+                .into(),
+        ));
+    }
+    let target_id = destino_a_uuid(&req.alcances[0], target_type, target_crudo)?;
+    if !actual.bdp_auto_backup_before_write {
+        return Err(AppError::Validation(
+            "No se puede habilitar escritura: bdp_auto_backup_before_write está desactivado."
+                .into(),
+        ));
+    }
+
+    let fingerprint =
+        BdpBackupService::connection_fingerprint(&actual).map_err(AppError::Validation)?;
+    let snapshot_id: Option<Uuid> = BdpWriteArmingRepository::buscar_snapshot_vigente(
+        &state.pool,
+        user_id,
+        &target,
+        &fingerprint,
+    )
+    .await
+    .map_err(|e| AppError::Internal(format!("Error verificando snapshot BDP: {e}")))?;
+
+    let snapshot_id = snapshot_id.ok_or_else(|| {
+        AppError::Validation(
+            "No se puede habilitar escritura: falta un snapshot completo de esta conexión BDP exacta, vigente y sin lecturas fallidas."
+                .into(),
+        )
+    })?;
+
+    BdpWriteArmingRepository::armar(
+        &state.pool,
+        NuevoArmado {
+            user_id,
+            base_url: target,
+            scopes: req.alcances.clone(),
+            target_entity_type: target_type.to_string(),
+            target_entity_id: target_id,
+            reason: req.motivo.trim().to_string(),
+            duracion_minutos: req.duracion_minutos,
+            max_operaciones: req.max_operaciones,
+            snapshot_id,
+            connection_fingerprint: fingerprint,
+        },
+    )
+    .await
+    .map_err(|error| AppError::Internal(format!("No se pudo crear armado BDP: {error}")))?;
+    Ok(())
+}
+
+/// Modo `automatic`: autorización permanente sin armado por operación.
+/// Exige la misma confirmación, destino exacto, respaldo previo y snapshot vigente que el
+/// modo manual; no hay objetivo/alcance por operación y el modo no vuelve solo a `read_only`.
+async fn activar_automatico(
+    state: &AppState,
+    user_id: Uuid,
+    req: &CambiarBdpSyncModeRequest,
+) -> Result<(), AppError> {
+    let (actual, target) = verificar_destino_escritura(
+        state,
+        user_id,
+        req,
+        "Se requiere confirmación explícita para activar el modo automático de escritura en BDP.",
+    )
+    .await?;
+    if !actual.bdp_auto_backup_before_write {
+        return Err(AppError::Validation(
+            "No se puede activar el modo automático: bdp_auto_backup_before_write está desactivado."
+                .into(),
+        ));
+    }
+
+    let fingerprint =
+        BdpBackupService::connection_fingerprint(&actual).map_err(AppError::Validation)?;
+    let snapshot_ok: bool = BdpWriteArmingRepository::buscar_snapshot_vigente(
+        &state.pool,
+        user_id,
+        &target,
+        &fingerprint,
+    )
+    .await
+    .map_err(|e| AppError::Internal(format!("Error verificando snapshot BDP: {e}")))?
+    .is_some();
+
+    if !snapshot_ok {
+        return Err(AppError::Validation(
+            "No se puede activar el modo automático: falta un snapshot completo de esta conexión BDP exacta, vigente y sin lecturas fallidas."
+                .into(),
+        ));
+    }
+
+    /* Sin armados colgados: en automático no hay armado por operación. */
+    BdpWriteArmingRepository::desarmar(&state.pool, user_id)
+        .await
+        .map_err(|error| AppError::Internal(format!("No se pudo desarmar BDP: {error}")))?;
+    Ok(())
 }
 
 pub fn routes() -> Router<AppState> {
