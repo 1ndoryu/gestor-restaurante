@@ -83,37 +83,14 @@ impl VentaService {
             .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /* Paginación y filtros llegan agrupados para no superar el límite de parámetros. */
     pub async fn list(
         pool: &PgPool,
         user_id: Uuid,
-        page: i64,
-        per_page: i64,
-        desde: Option<chrono::NaiveDate>,
-        hasta: Option<chrono::NaiveDate>,
-        busqueda: Option<String>,
-        turno: Option<String>,
-        canal: Option<String>,
-        metodo_pago: Option<String>,
-        estado_haddock: Option<String>,
-        estado_bdp: Option<String>,
-        sort_by: Option<String>,
-        sort_order: Option<String>,
+        filtros: FiltrosListadoVentas<'_>,
     ) -> Result<VentasPaginadas, AppError> {
-        let filtros = FiltrosListadoVentas {
-            page,
-            per_page,
-            desde,
-            hasta,
-            busqueda: busqueda.as_deref(),
-            turno: turno.as_deref(),
-            canal: canal.as_deref(),
-            metodo_pago: metodo_pago.as_deref(),
-            estado_haddock: estado_haddock.as_deref(),
-            estado_bdp: estado_bdp.as_deref(),
-            sort_by: sort_by.as_deref(),
-            sort_order: sort_order.as_deref(),
-        };
+        /* Se copian antes de mover `filtros` al repositorio. */
+        let (page, per_page) = (filtros.page, filtros.per_page);
         let (items, total) = VentaRepository::list(pool, user_id, filtros).await?;
         Ok(VentasPaginadas {
             items,

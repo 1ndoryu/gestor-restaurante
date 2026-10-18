@@ -36,6 +36,27 @@ pub struct ReservaSinMesaRow {
     pub telefono: String,
 }
 
+/// Datos de una pared nueva dentro de una zona.
+pub struct NuevaPared<'a> {
+    pub zona_id: Uuid,
+    pub pos_x: i32,
+    pub pos_y: i32,
+    pub ancho: i32,
+    pub alto: i32,
+    pub rotacion: i32,
+    pub color: &'a str,
+}
+
+/// Campos editables de una pared. `None` deja el valor actual.
+pub struct CambiosPared<'a> {
+    pub pos_x: Option<i32>,
+    pub pos_y: Option<i32>,
+    pub ancho: Option<i32>,
+    pub alto: Option<i32>,
+    pub rotacion: Option<i32>,
+    pub color: Option<&'a str>,
+}
+
 pub struct PlanoSalaRepository;
 
 impl PlanoSalaRepository {
@@ -441,17 +462,19 @@ impl PlanoSalaRepository {
         .await
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn crear_pared(
         pool: &PgPool,
-        zona_id: Uuid,
-        pos_x: i32,
-        pos_y: i32,
-        ancho: i32,
-        alto: i32,
-        rotacion: i32,
-        color: &str,
+        datos: NuevaPared<'_>,
     ) -> Result<ParedSala, sqlx::Error> {
+        let NuevaPared {
+            zona_id,
+            pos_x,
+            pos_y,
+            ancho,
+            alto,
+            rotacion,
+            color,
+        } = datos;
         let id = Uuid::new_v4();
         sqlx::query_as::<_, ParedSala>(
             "INSERT INTO paredes_sala (id, zona_id, pos_x, pos_y, ancho, alto, rotacion, color) \
@@ -469,17 +492,20 @@ impl PlanoSalaRepository {
         .await
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /* Solo se actualizan los campos enviados (COALESCE en SQL). */
     pub async fn actualizar_pared(
         pool: &PgPool,
         id: Uuid,
-        pos_x: Option<i32>,
-        pos_y: Option<i32>,
-        ancho: Option<i32>,
-        alto: Option<i32>,
-        rotacion: Option<i32>,
-        color: Option<&str>,
+        cambios: CambiosPared<'_>,
     ) -> Result<ParedSala, sqlx::Error> {
+        let CambiosPared {
+            pos_x,
+            pos_y,
+            ancho,
+            alto,
+            rotacion,
+            color,
+        } = cambios;
         sqlx::query_as::<_, ParedSala>(
             "UPDATE paredes_sala SET \
              pos_x = COALESCE($2, pos_x), \

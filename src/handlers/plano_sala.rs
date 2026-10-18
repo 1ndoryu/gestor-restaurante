@@ -16,6 +16,7 @@ use crate::models::{
     CrearMesaRequest, CrearParedRequest, CrearZonaRequest, Mesa, ParedSala, PlanoExport,
     PlanoOcupacion, PlanoOcupacionQuery, PlanoSala, ZonaSala,
 };
+use crate::repositories::plano_sala::{CambiosPared, NuevaPared};
 use crate::services::bdp_weblink_catalog::BdpCallWaiterRequest;
 use crate::services::{
     BdpWeblinkClient, ConfiguracionService, ModoEfectivo, PlanoSalaService, ServicioModoOperacion,
@@ -386,17 +387,16 @@ pub async fn crear_pared(
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
-    let pared = crate::repositories::PlanoSalaRepository::crear_pared(
-        &state.pool,
-        req.zona_id,
-        req.pos_x.unwrap_or(0),
-        req.pos_y.unwrap_or(0),
-        req.ancho.unwrap_or(100),
-        req.alto.unwrap_or(20),
-        req.rotacion.unwrap_or(0),
-        req.color.as_deref().unwrap_or("#6b7280"),
-    )
-    .await?;
+    let datos = NuevaPared {
+        zona_id: req.zona_id,
+        pos_x: req.pos_x.unwrap_or(0),
+        pos_y: req.pos_y.unwrap_or(0),
+        ancho: req.ancho.unwrap_or(100),
+        alto: req.alto.unwrap_or(20),
+        rotacion: req.rotacion.unwrap_or(0),
+        color: req.color.as_deref().unwrap_or("#6b7280"),
+    };
+    let pared = crate::repositories::PlanoSalaRepository::crear_pared(&state.pool, datos).await?;
 
     Ok((StatusCode::CREATED, Json(pared)))
 }
@@ -422,17 +422,17 @@ pub async fn actualizar_pared(
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
-    let pared = crate::repositories::PlanoSalaRepository::actualizar_pared(
-        &state.pool,
-        id,
-        req.pos_x,
-        req.pos_y,
-        req.ancho,
-        req.alto,
-        req.rotacion,
-        req.color.as_deref(),
-    )
-    .await?;
+    let cambios = CambiosPared {
+        pos_x: req.pos_x,
+        pos_y: req.pos_y,
+        ancho: req.ancho,
+        alto: req.alto,
+        rotacion: req.rotacion,
+        color: req.color.as_deref(),
+    };
+    let pared =
+        crate::repositories::PlanoSalaRepository::actualizar_pared(&state.pool, id, cambios)
+            .await?;
 
     Ok(Json(pared))
 }

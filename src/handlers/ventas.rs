@@ -16,6 +16,7 @@ use crate::middleware::{
 use crate::models::{
     ActualizarVentaRequest, AnularVentaRequest, CrearVentaRequest, Venta, VentaLinea, VentasQuery,
 };
+use crate::repositories::venta::FiltrosListadoVentas;
 use crate::repositories::{BdpAuditLogRepository, VentaRepository};
 use crate::services::{
     payload_propina, verificar_permiso, AccionPermiso, BdpOrderPollerService, BdpPushService,
@@ -134,23 +135,21 @@ pub async fn listar_ventas(
             return respuesta_cacheable_bytes(bytes, VisibilidadCache::Publica, 15, &headers);
         }
     }
-    let ventas = VentaService::list(
-        &state.pool,
-        auth.user_id,
-        params.page,
-        params.per_page,
-        params.desde,
-        params.hasta,
-        params.busqueda,
-        params.turno,
-        params.canal,
-        params.metodo_pago,
-        params.estado_haddock,
-        params.estado_bdp,
-        params.sort_by,
-        params.sort_order,
-    )
-    .await?;
+    let filtros = FiltrosListadoVentas {
+        page: params.page,
+        per_page: params.per_page,
+        desde: params.desde,
+        hasta: params.hasta,
+        busqueda: params.busqueda.as_deref(),
+        turno: params.turno.as_deref(),
+        canal: params.canal.as_deref(),
+        metodo_pago: params.metodo_pago.as_deref(),
+        estado_haddock: params.estado_haddock.as_deref(),
+        estado_bdp: params.estado_bdp.as_deref(),
+        sort_by: params.sort_by.as_deref(),
+        sort_order: params.sort_order.as_deref(),
+    };
+    let ventas = VentaService::list(&state.pool, auth.user_id, filtros).await?;
     if es_default {
         if let Ok(bytes) = serde_json::to_vec(&ventas) {
             guardar_listado_cache(&state, auth.user_id, ENDPOINT_VENTAS, bytes).await;

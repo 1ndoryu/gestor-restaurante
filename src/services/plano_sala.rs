@@ -11,6 +11,7 @@ use crate::models::{
     MesaExport, MesaOcupacion, ParedExport, PlanoExport, PlanoOcupacion, PlanoSala, ReservaMesa,
     ZonaConMesas, ZonaExport, ZonaOcupacion, ZonaSala,
 };
+use crate::repositories::plano_sala::NuevaPared;
 use crate::repositories::PlanoSalaRepository;
 
 pub struct PlanoSalaService;
@@ -288,17 +289,16 @@ impl PlanoSalaService {
 
             /* [027B-1] Restaurar paredes de la zona */
             for pared_exp in &zona_exp.paredes {
-                Repo::crear_pared(
-                    pool,
-                    zona.id,
-                    pared_exp.pos_x,
-                    pared_exp.pos_y,
-                    pared_exp.ancho,
-                    pared_exp.alto,
-                    pared_exp.rotacion,
-                    &pared_exp.color,
-                )
-                .await?;
+                let datos = NuevaPared {
+                    zona_id: zona.id,
+                    pos_x: pared_exp.pos_x,
+                    pos_y: pared_exp.pos_y,
+                    ancho: pared_exp.ancho,
+                    alto: pared_exp.alto,
+                    rotacion: pared_exp.rotacion,
+                    color: &pared_exp.color,
+                };
+                Repo::crear_pared(pool, datos).await?;
             }
         }
 
