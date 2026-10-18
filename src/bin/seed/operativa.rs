@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [134A-1] Datos demo de operativa: trabajadores, reseñas, reglas de inactividad,
  * paredes y notificaciones. Módulo de `seed.rs` (`#[path]`) para mantener el archivo
  * bajo el umbral de god-object de Sentinel (800 líneas efectivas). */
