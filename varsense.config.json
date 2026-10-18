@@ -15,7 +15,8 @@
     "**/.quality-reports/**",
     "**/.sentinel/**",
     "gate-hardening/**",
-    "frontend/src/api/generated/**"
+    "frontend/src/api/generated/**",
+    "frontend/src/shadcn-tailwind.css"
   ],
   "scanAllFiles": false,
   "hardcodedDetection": {

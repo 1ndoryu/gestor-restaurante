@@ -45,6 +45,7 @@
           "gate-hardening/**",
           "tools/sentinel/**",
           "frontend/src/api/generated/**",
+          "frontend/src/shadcn-tailwind.css",
           "frontend/src/utils/dom.ts"
         ],
         "directoryExceptions": [
