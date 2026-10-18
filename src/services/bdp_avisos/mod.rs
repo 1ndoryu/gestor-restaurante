@@ -28,11 +28,15 @@
 
 mod buzon;
 mod campos;
+mod worker;
 
 pub use buzon::{BdpAvisosService, FilaAviso, ResultadoInbox};
 pub use campos::{
     AvisoPreparado, CamposAviso, RechazoAviso, censurar, clave_idempotencia, hash_payload,
     preparar, secreto_esperado, secreto_valido,
+};
+pub use worker::{
+    Consulta, ConsultaPedido, LIMITE_LOTE_MAX, MAX_INTENTOS, ResumenLote, procesar_lote,
 };
 
 /* --------------------------------------------------------------------------

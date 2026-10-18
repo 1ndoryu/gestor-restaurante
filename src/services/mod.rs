@@ -43,7 +43,10 @@ mod venta;
 
 pub use api_key::ApiKeyService;
 pub use auth::AuthService;
-pub use bdp_avisos::{AccionAviso, AvisoPreparado, BdpAvisosService, CamposAviso, FilaAviso, ResultadoInbox};
+pub use bdp_avisos::{
+    AccionAviso, AvisoPreparado, BdpAvisosService, CamposAviso, Consulta, ConsultaPedido,
+    FilaAviso, MAX_INTENTOS, ResultadoInbox, ResumenLote, procesar_lote,
+};
 pub use bdp_backup::{
     AuditoriaDirecta, BdpAuditEntry, BdpBackupService, BdpSnapshot, RestoreResult,
 };

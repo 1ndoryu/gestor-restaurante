@@ -33,10 +33,15 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::models::UserRole;
+use super::bdp_guard::exigir_modo_bdp;
 use crate::services::bdp_avisos::{
     self, AccionAviso, AvisoPreparado, CamposAviso, RechazoAviso, ResultadoInbox,
+    LIMITE_LOTE_MAX,
 };
-use crate::services::{BdpAvisosService, FilaAviso};
+use crate::services::{
+    BdpAvisosService, BdpWeblinkClient, ConfiguracionService, FilaAviso, ResumenLote,
+    procesar_lote,
+};
 use crate::AppState;
 
 /// Cuerpo máximo de un aviso: son eventos de comanda, no ficheros.
@@ -54,6 +59,8 @@ pub fn routes() -> Router<AppState> {
         .route("/bdp/avisos", get(listar))
         // sentinel-disable-next-line ruta-post-sin-rate-limit: la regla no ve el limitador propio de este mismo archivo (ventana fija, 120/min, en `dentro_del_limite`). Además esta ruta pide sesión de Admin; el limitador está en el receptor público, que es el que no tiene sesión.
         .route("/bdp/avisos/:id/reintentar", post(reintentar))
+        // sentinel-disable-next-line ruta-post-sin-rate-limit: sesión de Admin y lote acotado (LIMITE_LOTE_MAX); el limitador global es el del receptor público.
+        .route("/bdp/avisos/procesar", post(procesar))
 }
 
 /// Rutas del receptor: las llama el TPV, sin sesión. Se aíslan en su propio
@@ -401,4 +408,37 @@ pub async fn reintentar(
     }
 
     Ok(Json(json!({"id": id, "estado": "recibido"})))
+}
+
+/// Parámetros del lote: cuántos avisos `recibido` procesar en esta pasada.
+#[derive(Debug, Deserialize)]
+pub struct ProcesarQuery {
+    pub limite: Option<i64>,
+}
+
+/// Procesa un lote de avisos contra BDP (`GetOrder`). Solo lee de BDP: el TPV no
+/// se toca. Exige modo BDP y configuración completa, igual que el resto de rutas
+/// que hablan con BDP.
+pub async fn procesar(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Query(query): Query<ProcesarQuery>,
+) -> Result<Json<ResumenLote>, AppError> {
+    auth.require_role(&[UserRole::Admin])?;
+    exigir_modo_bdp(&state, auth.user_id).await?;
+
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
+        return Err(AppError::Validation(
+            "BDP no está configurado. Configura URL y credenciales primero.".into(),
+        ));
+    }
+
+    let cliente = BdpWeblinkClient::new(&config);
+    let limite = query.limite.unwrap_or(LIMITE_LOTE_MAX);
+    let resumen = procesar_lote(&state.pool, auth.user_id, &cliente, limite)
+        .await
+        .map_err(AppError::Internal)?;
+
+    Ok(Json(resumen))
 }
