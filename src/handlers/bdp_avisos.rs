@@ -30,17 +30,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use super::bdp_guard::exigir_modo_bdp;
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::models::UserRole;
-use super::bdp_guard::exigir_modo_bdp;
 use crate::services::bdp_avisos::{
-    self, AccionAviso, AvisoPreparado, CamposAviso, RechazoAviso, ResultadoInbox,
-    LIMITE_LOTE_MAX,
+    self, AccionAviso, AvisoPreparado, CamposAviso, RechazoAviso, ResultadoInbox, LIMITE_LOTE_MAX,
 };
 use crate::services::{
-    BdpAvisosService, BdpWeblinkClient, ConfiguracionService, FilaAviso, ResumenLote,
-    procesar_lote,
+    procesar_lote, BdpAvisosService, BdpWeblinkClient, ConfiguracionService, FilaAviso, ResumenLote,
 };
 use crate::AppState;
 
@@ -71,7 +69,9 @@ pub fn public_routes() -> Router<AppState> {
             "/bdp/avisos/:accion",
             get(recibir_aviso).post(recibir_aviso),
         )
-        .layer(tower_http::limit::RequestBodyLimitLayer::new(MAX_AVISO_BYTES))
+        .layer(tower_http::limit::RequestBodyLimitLayer::new(
+            MAX_AVISO_BYTES,
+        ))
 }
 
 /* --------------------------------------------------------------------------
@@ -259,24 +259,20 @@ pub async fn recibir_aviso_con_secreto(
         cuerpo_desde_query(&query)
     };
 
-    let aviso = bdp_avisos::preparar(accion, &campos, &payload_crudo).map_err(|rechazo| match rechazo
-    {
-        RechazoAviso::AccionDesconocida(texto) => AppError::NotFound(texto),
-        RechazoAviso::Invalido(motivo) => AppError::Validation(motivo),
-    })?;
+    let aviso =
+        bdp_avisos::preparar(accion, &campos, &payload_crudo).map_err(|rechazo| match rechazo {
+            RechazoAviso::AccionDesconocida(texto) => AppError::NotFound(texto),
+            RechazoAviso::Invalido(motivo) => AppError::Validation(motivo),
+        })?;
 
     let user_id = BdpAvisosService::resolver_usuario(&state.pool)
         .await
         .map_err(AppError::ServicioNoDisponible)?;
 
-    let resultado = BdpAvisosService::recibir(
-        &state.pool,
-        user_id,
-        origen_de(&headers).as_deref(),
-        &aviso,
-    )
-    .await
-    .map_err(AppError::Internal)?;
+    let resultado =
+        BdpAvisosService::recibir(&state.pool, user_id, origen_de(&headers).as_deref(), &aviso)
+            .await
+            .map_err(AppError::Internal)?;
 
     respuesta_del_buzon(resultado, accion, &aviso)
 }
