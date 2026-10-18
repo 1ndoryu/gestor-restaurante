@@ -16,7 +16,7 @@ Fuentes: log del receptor (`~/taller/_logs/RESTAURANTE/dev-up-RESTAURANTE-3105.l
 | borrar | `borrar-comanda` + `confirmar` sobre ticket aparcado recuperado | 202 | sí | 2026-10-18 16:36:20 |
 | cambiar-estado | no provocado | — | no | Requiere Monitor de Cocina (ver abajo) |
 | traspasar | toda la comanda de mesa 1 a mesa 3 (salón 1), manual y luego `tpv.mjs traspasar` | 202 | sí | 19:57:30 y 20:00:56 (2026-10-18) |
-| traspasar-linea | no probada | — | — | — |
+| traspasar-linea | línea 1 de mesa 3 a mesa 5 (salón 1): manual, y luego `tpv.mjs traspasar-linea 5 1` desde mesa 3 | 202 | sí | 18:50:09 y 18:55:53 UTC (2026-10-18) |
 
 Clave de idempotencia: `<accion>|<id_comanda>|<marca de tiempo>` (p. ej. `crear|19|2026-10-18T16:28:09Z`).
 
@@ -33,7 +33,9 @@ Lo no documentado se registra y no se actúa. Un aviso con acción o `estado` de
 
 ## Pendiente
 
-- `traspasar-linea`: sin medir. Marcar la línea 1 de la mesa 3 (fila en 150,36) sí funciona. Después, «Trasp. Mesas» (982,102) no responde a clic: tres intentos (clic simple y doble en `pulsar-local`, y un clic previo), todos con «Nada cambió» en la ventana. Sin forma automatizada fiable de iniciar el traspaso de línea; no se pulsa a ciegas.
+- **Causa resuelta de «Trasp. Mesas no responde»:** faltaba teclear el destino. La ayuda oficial (`Traspaso_Mesas.htm`) dice: marcar las líneas en la mesa origen, teclear el número de mesa destino en la calculadora y pulsar «Traspaso Mesa»; sin destino la tecla no actúa. Los tres intentos anteriores fueron sin destino.
+- **Procedimiento automatizado:** `scripts/pc/tpv.mjs traspasar-linea <mesa> [salón]` marca la línea 1 (150,36), teclea la mesa, pulsa Trasp. Mesas (982,102) y confirma con Sí. Solo la línea 1 está medida. Probado: mesa 3 → mesa 5 y de vuelta, con aviso 202 en cada caso.
+- Con una sola línea en la mesa origen, el TPV emite `traspasar` (comanda completa), no `traspasar-linea`. Es el comportamiento esperado.
 - **Bloqueo del gate:** `npm run gate:check -- 10AA-3` (plan de la fase D) falla en SETUP: `sentinel.lock.json: analyzers.sentinel.commit no coincide con quality-tools.json`. Es un desfase de herramientas de calidad que afecta a todo el repo, no a este cambio; reparar exige el procedimiento de `mantenimiento-herramientas-calidad-2026-10-06.md` (propagación a los consumidores). Pendiente de decisión de la usuaria; este cambio no se da por gate-limpio.
 - **Descripción de SALONES:** el texto no entra (SendInput solo letras/dígitos; PostMessage no verificado). Bloquea crear salón; no se ha tocado ningún salón salvo SALON 1.
 - Acción `salon` del PANEL (854,102): abre «SELECCIÓN DE SALÓN» (1 - SALON 1, 2 - TERRAZA, 91, 92, Salir) y «Salir» (222,322 en su captura) la cierra. Verificado. No se seleccionó ningún salón distinto de 1.
@@ -61,4 +63,4 @@ Las tres filas de la comanda se borraron del inbox de la 89 después.
 
 - `scripts/pc/tpv.mjs traspasar <mesa> [salón]` (Trasp. Mesas, salón si lo pide, Sí). Ejecutado dos veces con éxito: el primer traspaso fue manual; el segundo, `traspasar 3 1`, emitió `traspasar` en el inbox a las 20:00:56.
 - **Sin verificar:** el contenido de la mesa 3 tras el traspaso. Los intentos posteriores de abrir la mesa 3 dejaron el TPV con «30c3» en el visor y sin respuesta a los clics (ver `Nada cambió`); requiere reinicio con UAC (`scripts/pc/elevar-reinicio-tpv-driver.ps1`).
-- `traspasar-linea`: sin medir. Hace falta marcar una línea en el ticket con dos líneas y medir la fila.
+- `traspasar-linea`: medido y probado (ver tabla y «Pendiente»). Línea 1 con 150,36; otras líneas sin medir.
