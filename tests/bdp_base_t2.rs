@@ -27,7 +27,10 @@ async fn el_buzon_es_idempotente_por_clave(pool: PgPool) {
     insertar(Uuid::new_v4()).await.expect("primer aviso");
 
     let repetido = insertar(Uuid::new_v4()).await;
-    assert!(repetido.is_err(), "la misma clave de idempotencia no puede entrar dos veces");
+    assert!(
+        repetido.is_err(),
+        "la misma clave de idempotencia no puede entrar dos veces"
+    );
 
     /* Otra clave sí entra: el índice es por clave, no por acción. */
     sqlx::query(
@@ -42,12 +45,11 @@ async fn el_buzon_es_idempotente_por_clave(pool: PgPool) {
     .await
     .expect("un aviso distinto del mismo pedido sí entra");
 
-    let total: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM bdp_avisos_inbox WHERE user_id = $1")
-            .bind(user_id)
-            .fetch_one(&pool)
-            .await
-            .expect("contar avisos");
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bdp_avisos_inbox WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .expect("contar avisos");
     assert_eq!(total, 2);
 }
 
@@ -70,15 +72,24 @@ async fn dos_entidades_no_reclaman_el_mismo_id_bdp(pool: PgPool) {
         .execute(&pool)
     };
 
-    insertar(venta_a, Some("9001")).await.expect("primera venta vinculada");
+    insertar(venta_a, Some("9001"))
+        .await
+        .expect("primera venta vinculada");
 
     let robada = insertar(venta_b, Some("9001")).await;
-    assert!(robada.is_err(), "dos ventas no pueden apuntar a la misma comanda de BDP");
+    assert!(
+        robada.is_err(),
+        "dos ventas no pueden apuntar a la misma comanda de BDP"
+    );
 
     /* Sin id de BDP no hay conflicto: BDP no lo devuelve en todas las
      * operaciones, y varias entidades pueden estar a la espera a la vez. */
-    insertar(venta_b, None).await.expect("sin id de BDP no hay colisión");
-    insertar(Uuid::new_v4(), None).await.expect("ni con varias a la espera");
+    insertar(venta_b, None)
+        .await
+        .expect("sin id de BDP no hay colisión");
+    insertar(Uuid::new_v4(), None)
+        .await
+        .expect("ni con varias a la espera");
 
     let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bdp_id_map WHERE user_id = $1")
         .bind(user_id)
@@ -109,13 +120,22 @@ async fn el_bloqueo_de_stock_es_por_articulo_y_almacen(pool: PgPool) {
         .execute(&pool)
     };
 
-    insertar("1001", 1, "op-1").await.expect("primera operación");
+    insertar("1001", 1, "op-1")
+        .await
+        .expect("primera operación");
 
     let mismo_par = insertar("1001", 1, "op-2").await;
-    assert!(mismo_par.is_err(), "el par artículo-almacén está bloqueado mientras hay una pendiente");
+    assert!(
+        mismo_par.is_err(),
+        "el par artículo-almacén está bloqueado mientras hay una pendiente"
+    );
 
-    insertar("1001", 2, "op-3").await.expect("otro almacén no está bloqueado");
-    insertar("2002", 1, "op-4").await.expect("otro artículo no está bloqueado");
+    insertar("1001", 2, "op-3")
+        .await
+        .expect("otro almacén no está bloqueado");
+    insertar("2002", 1, "op-4")
+        .await
+        .expect("otro artículo no está bloqueado");
 
     sqlx::query(
         "UPDATE bdp_stock_ledger SET estado = 'confirmado', stock_posterior = 12.500 \
@@ -164,10 +184,15 @@ async fn los_pendientes_agotados_no_duplican_origen(pool: PgPool) {
     insertar(Some(origen_id)).await.expect("primer agotado");
 
     let repetido = insertar(Some(origen_id)).await;
-    assert!(repetido.is_err(), "el mismo pendiente no se apunta dos veces");
+    assert!(
+        repetido.is_err(),
+        "el mismo pendiente no se apunta dos veces"
+    );
 
     insertar(None).await.expect("sin origen, una fila");
-    insertar(None).await.expect("sin origen, otra fila: no chocan entre sí");
+    insertar(None)
+        .await
+        .expect("sin origen, otra fila: no chocan entre sí");
 
     let total: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM bdp_pendientes_agotados WHERE user_id = $1")
@@ -199,10 +224,17 @@ async fn el_cursor_es_unico_por_dominio_y_perfil(pool: PgPool) {
     insertar("articulos", "1").await.expect("primer cursor");
 
     let repetido = insertar("articulos", "1").await;
-    assert!(repetido.is_err(), "un dominio y perfil tienen un solo cursor");
+    assert!(
+        repetido.is_err(),
+        "un dominio y perfil tienen un solo cursor"
+    );
 
-    insertar("articulos", "2").await.expect("otro perfil, otro cursor");
-    insertar("clientes", "1").await.expect("otro dominio, otro cursor");
+    insertar("articulos", "2")
+        .await
+        .expect("otro perfil, otro cursor");
+    insertar("clientes", "1")
+        .await
+        .expect("otro dominio, otro cursor");
 
     let nulos: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM bdp_sync_cursor WHERE user_id = $1 AND perfil IS NULL",
@@ -211,5 +243,8 @@ async fn el_cursor_es_unico_por_dominio_y_perfil(pool: PgPool) {
     .fetch_one(&pool)
     .await
     .expect("contar perfiles nulos");
-    assert_eq!(nulos, 0, "perfil nunca es NULL: si lo fuera, el índice no protegería");
+    assert_eq!(
+        nulos, 0,
+        "perfil nunca es NULL: si lo fuera, el índice no protegería"
+    );
 }
