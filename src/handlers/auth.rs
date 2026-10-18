@@ -12,6 +12,8 @@ use crate::models::{
 use crate::services::AuthService;
 use crate::AppState;
 
+use super::rate_limit::{limitar, Limitador};
+
 /// Registrar nuevo usuario
 #[utoipa::path(
     post,
@@ -57,12 +59,20 @@ pub async fn login(
     Ok(Json(response))
 }
 
+/* [por que] Estas rutas aceptan credenciales o disparan emails: sin tope, un bucle
+ * de POST prueba contraseñas o inunda el buzón de un usuario. 12 por minuto sostenidos
+ * por IP, con ráfaga de 10 para que un usuario que se equivoca no quede bloqueado. */
+const AUTH_PETICIONES_POR_SEGUNDO: f64 = 0.2;
+const AUTH_RAFAGA: f64 = 10.0;
+
 pub fn routes() -> Router<AppState> {
+    let limitador = Limitador::nuevo(AUTH_PETICIONES_POR_SEGUNDO, AUTH_RAFAGA);
     Router::new()
         .route("/auth/register", post(register))
         .route("/auth/login", post(login))
         .route("/auth/forgot-password", post(forgot_password))
         .route("/auth/reset-password", post(reset_password))
+        .layer(axum::middleware::from_fn_with_state(limitador, limitar))
 }
 
 /* [263A-15] Endpoints de recuperación de contraseña */

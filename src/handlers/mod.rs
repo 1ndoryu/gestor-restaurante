@@ -71,6 +71,7 @@ mod modo_operacion;
 mod notificaciones;
 mod plano_sala;
 mod plantillas_whatsapp;
+mod rate_limit;
 mod recordatorios;
 mod resenas;
 mod reservas;
