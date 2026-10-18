@@ -20,6 +20,8 @@ use crate::repositories::{ConfiguracionRepository, ResenaRepository};
 use crate::services::verificar_seccion;
 use crate::AppState;
 
+use super::rate_limit::{limitar, limitador_escrituras};
+
 /* ========== Panel del propietario (autenticado) ========== */
 
 #[utoipa::path(
@@ -237,6 +239,8 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/resenas", get(listar_resenas))
         .route("/resenas/solicitar", post(solicitar_resena))
+        /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
+        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
 }
 
 /* Rutas públicas (sin auth) — se montan por separado */

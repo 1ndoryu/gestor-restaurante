@@ -14,6 +14,8 @@ use crate::models::{ApiKeyCreatedResponse, ApiKeyResponse, CrearApiKeyRequest, U
 use crate::services::ApiKeyService;
 use crate::AppState;
 
+use super::rate_limit::{limitar, limitador_escrituras};
+
 #[utoipa::path(
     post,
     path = "/api/api-keys",
@@ -88,4 +90,6 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api-keys", post(crear_api_key).get(listar_api_keys))
         .route("/api-keys/:id", delete(revocar_api_key))
+        /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
+        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
 }

@@ -31,11 +31,14 @@ use crate::services::{
 use crate::AppState;
 
 use super::bdp_guard::exigir_modo_bdp; /* [039A-1] Guard compartido (N1). */
+use super::rate_limit::{limitar, limitador_escrituras};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/bdp/customers/import", post(importar_clientes_bdp))
         .route("/clientes/:id/bdp-sync", post(sincronizar_cliente_bdp))
+        /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
+        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
 }
 
 #[derive(Debug, serde::Deserialize, utoipa::ToSchema)]

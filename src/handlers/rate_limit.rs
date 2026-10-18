@@ -115,6 +115,19 @@ impl Limitador {
     }
 }
 
+/* Tope de las escrituras de cada módulo de rutas. 5 por segundo sostenidos
+ * con ráfaga de 60: varias cajas detrás de la misma IP (NAT) no se bloquean
+ * en uso normal, pero un bucle de POST sí se corta. */
+const ESCRITURA_PETICIONES_POR_SEGUNDO: f64 = 5.0;
+const ESCRITURA_RAFAGA: f64 = 60.0;
+
+/* Limitador de las escrituras de un módulo de rutas (`routes()`). Cada
+ * módulo tiene su propio cubo: así cada router es autocontenido y los tests,
+ * que montan la app varias veces con la misma clave de peer, no se pisan. */
+pub fn limitador_escrituras() -> Arc<Limitador> {
+    Limitador::nuevo(ESCRITURA_PETICIONES_POR_SEGUNDO, ESCRITURA_RAFAGA)
+}
+
 fn es_mutante(metodo: &Method) -> bool {
     matches!(
         *metodo,

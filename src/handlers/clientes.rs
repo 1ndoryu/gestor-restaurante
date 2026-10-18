@@ -21,6 +21,8 @@ use crate::repositories::BdpPuntoClienteRepository;
 use crate::services::{payload_puntos, BdpPushService, ClienteService};
 use crate::AppState;
 
+use super::rate_limit::{limitar, limitador_escrituras};
+
 /// Crear un cliente
 #[utoipa::path(
     post,
@@ -173,6 +175,8 @@ pub fn routes() -> Router<AppState> {
             "/clientes/:id/puntos",
             get(listar_puntos_cliente).post(sumar_puntos_cliente),
         )
+        /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
+        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
 }
 
 /* [263A-26] Merge de dos clientes duplicados.

@@ -23,6 +23,8 @@ use crate::repositories::TrabajadorRepository;
 use crate::services::AuthService;
 use crate::AppState;
 
+use super::rate_limit::{limitar, limitador_escrituras};
+
 type Repo = TrabajadorRepository;
 
 /* Helper: solo el propietario puede gestionar trabajadores */
@@ -338,4 +340,6 @@ pub fn routes() -> Router<AppState> {
         .route("/trabajadores/:id", patch(actualizar).delete(eliminar))
         /* Login público (sin auth) — se monta en el router de auth */
         .route("/auth/login-trabajador", post(login_trabajador))
+        /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
+        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
 }

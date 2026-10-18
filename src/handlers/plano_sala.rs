@@ -22,6 +22,8 @@ use crate::services::{
 };
 use crate::AppState;
 
+use super::rate_limit::{limitar, limitador_escrituras};
+
 /* ========== Plano completo ========== */
 
 #[utoipa::path(
@@ -604,4 +606,6 @@ pub fn routes() -> Router<AppState> {
             "/plano-sala/paredes/:id",
             patch(actualizar_pared).delete(eliminar_pared),
         )
+        /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
+        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
 }

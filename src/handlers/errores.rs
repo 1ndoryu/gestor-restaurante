@@ -13,6 +13,8 @@ use crate::middleware::AuthUser;
 use crate::services::email::EmailService;
 use crate::AppState;
 
+use super::rate_limit::{limitar, limitador_escrituras};
+
 #[derive(Deserialize, ToSchema)]
 pub struct ReportarErrorRequest {
     /// Mensaje de error o descripción del problema
@@ -83,5 +85,8 @@ pub async fn reportar_error(
 }
 
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/reportar-error", post(reportar_error))
+    Router::new()
+        .route("/reportar-error", post(reportar_error))
+        /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
+        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
 }

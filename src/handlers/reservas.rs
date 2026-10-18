@@ -21,6 +21,8 @@ use crate::models::{
 use crate::services::ReservaService;
 use crate::AppState;
 
+use super::rate_limit::{limitar, limitador_escrituras};
+
 /// Crear una reserva
 #[utoipa::path(
     post,
@@ -244,4 +246,6 @@ pub fn routes() -> Router<AppState> {
                 .put(actualizar_reserva)
                 .delete(eliminar_reserva),
         )
+        /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
+        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
 }

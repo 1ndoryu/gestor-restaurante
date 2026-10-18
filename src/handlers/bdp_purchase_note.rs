@@ -26,6 +26,8 @@ use crate::services::{
 use crate::AppState;
 use uuid::Uuid;
 
+use super::rate_limit::{limitar, limitador_escrituras};
+
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route(
@@ -45,6 +47,8 @@ pub fn routes() -> Router<AppState> {
             "/bdp/purchase-notes/:id/reconcile",
             post(conciliar_purchase_note),
         )
+        /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
+        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
 }
 
 /// Listar albaranes de compra importados desde BDP.

@@ -16,6 +16,7 @@ use crate::services::{BdpAuditEntry, BdpBackupService, BdpSnapshot, RestoreResul
 use crate::services::{BdpExploracionResultado, BdpExplorerService};
 
 use super::bdp_guard::exigir_modo_bdp; /* [039A-1/H-P1-03] Guard compartido (N1). */
+use super::rate_limit::{limitar, limitador_escrituras};
 
 pub fn routes() -> Router<crate::handlers::AppState> {
     Router::new()
@@ -40,6 +41,8 @@ pub fn routes() -> Router<crate::handlers::AppState> {
             axum::routing::post(restaurar_glory),
         )
         .route("/bdp/audit", get(listar_audit))
+        /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
+        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
 }
 
 /// Explora BDP de forma segura (solo lectura).
