@@ -14,7 +14,7 @@ Estado según §8 (2026-10-17): L3.a y L3.c hechas; L3.b bloqueada por código; 
 - [x] L1 — Conmutar la app a BDP local
 - [x] L2 — Lectura contra BDP local (L2.1, L2.2 y L2.3 hechos)
 - [ ] L3 — Escritura controlada `PRUEBA-*` (L3.a y L3.c hechas 2026-10-17; L3.b bloqueada por código, §9.9)
-- [ ] L4 — F0 empírica de avisos en TPV local (L4.1 hecha; **L4.2 a medias**: el TPV ya apunta al receptor y la pata receptora está probada, falta provocar el primer evento; L4.3–L4.4 pendientes de eso)
+- [ ] L4 — F0 empírica de avisos en TPV local (L4.1 hecha; L4.2: crear, modificar, borrar y finalizar probados el 2026-10-18 con el BDP como administrador; **traspasar y traspasar-linea pendientes**; `cambiar-estado` no replicable en local; L4.3 y L4.4 hechas en `avisos-local-matriz-2026-10-18.md`)
 - [ ] L5 — Fase D F1–F4 (código) y base T2 (L5.0 hecha 2026-10-17: las 5 tablas que faltaban, §8; **F1 hecha 2026-10-17**; F2–F4 pendientes)
 - [ ] L6 — Pagos, propina, puntos y factura (D11a–D20)
 - [ ] L7 — Stock (D26–D27)
@@ -25,6 +25,16 @@ Estado según §8 (2026-10-17): L3.a y L3.c hechas; L3.b bloqueada por código; 
 ## 1. Objetivo
 
 Dejar la aplicación apuntando al BDP local (TPV 36.2 licenciado en el portátil) en lugar del BDP real, y con ese TPV: (1) cerrar la F0 empírica de la fase D (Avisos de Acciones), que bloquea F2 y F4; (2) ejecutar en local las pruebas de aceptación D01–D32 que promete el alcance (`Agente/documentacion/bdp/alcance-fase-d-pdf-2026-10-10.html` y `Agente/usuario/alcance-fase-d-2026-10-02.md`; fichas en `Agente/planes/anexo-b8-aceptacion-2026-10-08.md`, rev. 10/10), cada una en su fase (§10). Lo que el PDF promete y este plan no puede probar en local queda marcado como diferido, con su motivo.
+
+**Regla de alineación (2026-10-18):** este plan **solo cumple y prueba lo que pide el alcance** (`alcance-fase-d-2026-10-02.md`: matriz D01–D32, «Qué se logrará», «Fuera del alcance»). Nada se añade por iniciativa propia. Cada paso L* existe para una ficha D*; lo que el alcance no pide no entra. Lo que el entorno local no puede reproducir se **declara con su motivo y no se persigue**:
+
+| No replicable en local | Motivo | Qué se hace |
+|---|---|---|
+| Aviso `cambiar-estado` (D21/D22, estado de cocina) | Lo emite el Monitor de Cocina, app aparte (sin licencia) en otro PC de la red; no está en este equipo ni se localiza instalador | Se prueba el receptor con carga sintética (acción `cambiar-estado`, `Estado` 0–3) y queda «pendiente de real» en la ficha |
+| L3.a2 / D03a / D09a (envío y efecto en cocina) | Sin impresora de cocina en el TPV local; la tecla Cocina no genera aviso | «Ensayada sin testigo de impresora; pendiente de real» |
+| L3.b / D05–D07 (modificar por la API) | Sin ruta BDP en el código (§9.9) | Tarea de código aparte; no se simula |
+| L6–L10 con pagos, facturas, `AddPoints` | Dependen de la suscripción confirmada | Condicionados; si no hay suscripción, se declaran no probados |
+| D30 piloto | Permiso aparte (F4) | Fuera |
 
 ## 2. Alcance y no alcance
 
@@ -85,6 +95,8 @@ Dejar la aplicación apuntando al BDP local (TPV 36.2 licenciado en el portátil
 - Stage explícito por archivo (AGENTS §5). En `roadmap.md`, por hunk: tiene ediciones ajenas. Nunca `git add .`. No se tocan ni se stashean los cambios ajenos.
 - Subagentes: máximo 3 en paralelo; respuestas de 15 líneas como máximo, con `archivo:línea`. El principal comprueba el dato crítico antes de decidir con él y revisa el diff del `implementador` antes de cerrar.
 - Diseño y decisiones técnicas reversibles: las decide el agente (AGENTS §0.3). La usuaria decide solo lo listado en §9.
+- **Entorno de prueba (dicho por la usuaria, 2026-10-18):** el TPV y la BD locales son de prueba. Los datos que se creen, modifiquen o borren (comandas, tickets, líneas, turnos) no importan. No hace falta preservar ni consultar el estado previo de un ticket de prueba; sí hace falta no tocar el BDP real ni producción.
+- **Antes de cada acción en el TPV, revisar el manual o la ayuda de esa función** (`AyudaHOS.chm`, §11.3b). Sin esa revisión anotada, no se pulsa nada.
 - **Acciones en el TPV:** solo por lote automatizado (`scripts/pc/lote.mjs`, cuando exista) o por `tpv.mjs`; nunca clics sueltos ni pasos «los hace la usuaria» (§11). Sin permiso por lote en el chat, ninguna acción que escriba, cierre, cobre, facture o borre.
 
 ## 5. Fases
@@ -133,7 +145,7 @@ Precondición: L1 OK.
 Precondición: L2 OK y permiso por lote. Un lote cada vez:
 
 - **L3.a HECHA (2026-10-17).** Crear comanda `PRUEBA-1` y verificar en TPV (ficha D03). Precondición: caja del POS 1 abierta en TpvNet; sin ella el envío falla con `301400` (sin comanda en BDP, venta local intacta). Resultado y evidencia en §8. Queda una consecuencia abierta: `bdp_default_article_name` no coincide con el catálogo real del código 1001.
-- **L3.a2** Crear con envío a cocina (D03a, `OrderEndType=0`). La app usa hoy `OrderEndType=1`; el PDF espera `0` (crea, aparca y envía a cocina). Requiere impresora de cocina en el TPV local.
+- **L3.a2** Crear con envío a cocina (D03a, `OrderEndType=0`). La app usa hoy `OrderEndType=1`; el PDF espera `0` (crea, aparca y envía a cocina). **No replicable en local** (sin impresora de cocina; ver regla de alineación): se declara y no se persigue.
 - **L3.b** Modificar líneas de `PRUEBA-1` (D05–D07). **Bloqueada por código:** modificar una venta no tiene ruta BDP; hay que implementarla antes (tarea aparte, §9 punto 9).
 - **L3.c HECHA (2026-10-17).** Cancelar `PRUEBA-1` (`CancelOrder`, según decisión 2; D09 y D09a). Empezó bloqueada por dos defectos del guard (§9.15 y §9.16), corregidos en el mismo día; después el push salió y la comanda desapareció del BDP y de las tablas vivas del TPV. Evidencia en §8. D09a (efecto en cocina) sigue sin testigo de impresora.
 - **L3.d** Pagos y facturas: pasan a L6 (bloqueados hasta confirmar suscripción).
@@ -151,11 +163,11 @@ Precondición: L3.a–L3.c OK. La usuaria configura en el TPV local la URL de de
 | Paso | Qué | Quién | Criterio de aceptación |
 |---|---|---|---|
 | L4.1 | Receptor mínimo que registra avisos en log (sin inbox): escucha solo en `127.0.0.1`, log en `C:\tmp`, parada con PID verificado | Implementador (script según especificación) | Registra un aviso de prueba |
-| L4.2 | Provocar los 7 eventos (crear, modificar, cambiar estado, borrar, finalizar, traspasar, traspasar línea) con `PRUEBA-*` | Principal la primera (una comanda `PRUEBA-2`); la usuaria las otras seis en el TPV | 7 eventos con payload |
+| L4.2 | Provocar los eventos con `PRUEBA-*`: crear, modificar, borrar y finalizar (**hechos**), traspasar y traspasar línea (pendientes, con plano de prueba). `cambiar-estado`: **no replicable en local** (Monitor de Cocina) | Automatizado con `scripts/pc/tpv.mjs`; vigilancia con `scripts/bdp-local/vigilar-avisos.mjs` | 6 de 7 eventos con evidencia; el séptimo, declarado |
 | L4.3 | Matriz: payload real, valores de `Estado` 0–3, orden, duplicados, timestamps, origen y destino | Investigador extrae del log | `Agente/documentacion/bdp/avisos-local-matriz-<fecha>.md` con evidencia por fila |
 | L4.4 | Valor seguro por defecto para lo no documentado (p. ej. `Estado` desconocido: registrar y no actuar) | Principal | Decisión anotada en la matriz |
 
-**Gate L4:** 7 eventos con evidencia. Lo que no se pueda probar queda como limitación.
+**Gate L4:** los eventos reproducibles con evidencia (matriz `avisos-local-matriz-2026-10-18.md`); `cambiar-estado` queda como limitación declarada.
 
 ### L5 — Fase D F1–F4 (código)
 
@@ -285,6 +297,17 @@ La configuración (L1.2), las decisiones y la lectura de resultados de escritura
 - **L5.0 HECHA (2026-10-17): base T2.** `migrations/20261017120000_bdp_base_t2.up.sql` (+ `.down.sql`) crea **cinco** tablas, todas con `user_id` como el resto del esquema y todas nacidas vacías (no migran datos): `bdp_avisos_inbox` (buzón, idempotente por `(user_id, clave_idempotencia)`), `bdp_id_map` (mapeo Glory↔BDP, con índice único parcial sobre `bdp_id` para que dos entidades no reclamen el mismo registro), `bdp_sync_cursor` (único por `(user_id, dominio, perfil)`; `perfil` es `NOT NULL` a propósito porque en PostgreSQL los NULL no chocan entre sí), `bdp_pendientes_agotados` (cola de revisión manual, con `resuelto_por` y `nota_resolucion`) y `bdp_stock_ledger` (libro S/V con `uq_bdp_stock_ledger_bloqueo (user_id, articulo_codigo, almacen) WHERE estado = 'pendiente'`, que es el bloqueo por artículo y almacén de D26g).
   **El PDF nombra seis tablas; se crean cinco a propósito.** La sexta, *outbox*, ya existe: `bdp_push_pendientes` es la cola de salida transaccional (se escribe en la misma transacción que el cambio local, con estados, reintentos e índice único parcial de una sola fila activa por entidad y operación). Duplicarla habría dejado dos colas que pueden discrepar. La correspondencia queda documentada en la cabecera de la migración. El flujo de avisos hace lecturas, no escrituras, así que tampoco necesita outbox propia.
   Evidencia: `tests/bdp_base_t2.rs`, 5 tests (`#[sqlx::test(migrations = "./migrations")]`), **5 pasan / 0 fallan**; suite completa **456 pasan / 0 fallan / 48 ignorados**; `up`/`down` verificados en la 89 sobre la base desechable `t2_check` (`up` crea exactamente esas 5 tablas, `down` deja 0, base borrada después); `Arranque gate --cierre` **0 nuevos** (base 226). De paso se cerró el defecto de la misma clase que el punto 15 en los 15 alcances de escritura (punto 18).
+- **Prueba L4.2 del 2026-10-18 (pausada antes de Aparcar):** pantalla y BD no coinciden. Pantalla, ticket BARRA: AGUA 5,00 + 6× COCA-COLA 1,05 (subtotal 11,30). BD (`Comandas_Cabecera` 1, `Comandas_Lineas`): solo AGUA PLU 1006, precio 0,60, total 0,60, `Linea_Aparcada=true`. Las COCA no están persistidas. Aparcar enviaría a cocina lo de pantalla, impreso y no reversible, así que no se ejecuta sin decisión de la usuaria. Inbox: solo `crear` (16:58). Manual revisado: §11.3b.
+- **Prueba L4.2 del 2026-10-18 (completada, entorno de prueba):** (1) añadir COCA-COLA al ticket de barra: en pantalla sí, BD no. (2) Aparcar Ticket: aparece el ticket 2 en BD (cabecera Num_Comanda_Cocina 22, total 12,35, 8 líneas aparcadas), pero **ningún evento nuevo en el inbox**. (3) Recuperar el ticket 2 con Aparcar vacío (manual, Aparcar_Ticket.htm): sus filas **desaparecen de Comandas_Cabecera/Comandas_Lineas**, sigue en pantalla con 8 líneas (subtotal 12,35). (4) Anular Línea sin selección (manual, Anular_Linea.htm): quita la última COCA; pantalla 11,30; BD sin cambio (el ticket sigue recuperado, fuera de BD). **Inbox: solo `crear` (16:58).** Ningún aviso de modificar, cambiar-estado ni borrar.
+  - Config de avisos (`CONFIG_WEBHOOKS.XML`): los 7 eventos activos, URL `http://127.0.0.1:3105`. El receptor responde 401 a una petición sin secreto (correcto).
+  - Hipótesis sin confirmar: el TPV no envía avisos tras el primer `crear` (o los envía con un secreto que el receptor rechaza). Para confirmarlo hace falta el log del receptor en la 89 (filas 401 desde las 16:59).
+  - Seguimiento en vivo (2026-10-18, solo lectura): `node scripts/bdp-local/vigilar-avisos.mjs` muestra cada fila nueva de `bdp_avisos_inbox` (lee por ssh dev89; no toca el TPV ni la BD del TPV). Ver el inbox sin mirar la base a mano.
+  - **Requisito (2026-10-18): el BDP tiene que correr como administrador** para que salgan los avisos. Sin elevar no llegaba ninguno tras el primer `crear`; tras reabrirlo como administrador llegaron los siguientes.
+  - Resultado tras reabrir como admin (inbox, 18:28–18:29): 2× `crear`, 2× `finalizar`. Todos `estado=recibido`, sin error.
+  - Precio: la BD guarda AGUA a 5,00 en el ticket 2 y 0,60 en el ticket 1. No era un error de lectura: son dos tickets distintos.
+  - **Prueba de avisos (2026-10-18, entorno de prueba, datos sin importancia):** `crear` 18:32:23 (Aparcar con comanda en barra); `modificar` 18:34:47 (añadir COCA y volver a aparcar un ticket recuperado); `borrar` 18:36:20 (`borrar-comanda` + `confirmar` sobre un ticket aparcado recuperado). Los tres `estado=recibido`, sin error. **Cocina** con comanda vacía no genera aviso: conmuta impresoras auxiliares (diálogo «¿Conforme en desactivar…?»). Imp. Coc. restaurado a S (barra de estado, captura 12:38).
+  - **Estado de la fase D (2026-10-18, al cierre de esta tanda):** L4.3 parcial (matriz en `Agente/documentacion/bdp/avisos-local-matriz-2026-10-18.md`; faltan `traspasar` y `traspasar-linea`); L4.4 decidida en esa misma matriz. **Bloqueadas por hechos ajenos a este equipo:** `cambiar-estado` (requiere el Monitor de Cocina, no instalado), L3.a2 (requiere impresora de cocina), L6–L10 (requieren suscripción confirmada, punto 12). L3.b bloqueada por código (§9.9). Pendientes de trabajo propio: F2–F4, C4, C5.
+  - **`cambiar-estado` sin disparar.** Según `Cocina.htm`/`Avisos_Cocina.htm` no depende de la tecla Cocina; el estado de cocina lo cambia el Monitor de Cocina. Pendiente de confirmar si hay Monitor configurado; no se ha provocado.
 - **Próximo paso:** **L4.2** (la usuaria configura la URL de avisos en TpvNet y provoca los 7 eventos; el receptor ya está en marcha y el destino vacío está localizado, punto 17), luego L4.3–L4.4 y **F2** (worker de los 7 eventos, `GetOrder`). F1 ya está hecha (§9.19). L3.b sigue bloqueada por código (punto 9) y L3.a2 exige impresora de cocina. Sigue pendiente decidir las 4 filas `error` de la cola (recomendado: no tocarlas; nunca flush sin `?dominios=venta`) y el gap de stock (punto 7).
 - **Control del PC (2026-10-17):** la causa de los clics que «caían lejos» quedó cerrada y no era la herramienta: mezclaba espacios de coordenadas (físico 2256×1504 del driver frente a lógico 1805×1203) y no pasaba `capture_scope`. Receta y verificación por recaptura en la skill `pc-control` (§«Coordenadas» y §«Verificar cada clic»). Dato nuevo: los hijos de un menú colapsado **no traen `frame`** en el árbol UIA, así que clicar el submenú por píxel es adivinar (un clic a 27 px abrió «Liquidación Empleados» [82] en vez de «Cierres» [78]); hay que expandir el padre y re-snapshottear.
 
@@ -330,7 +353,7 @@ Cada ficha tiene fase. Estado a 2026-10-10: **ninguna superada**; «parcial» = 
 | D13, D13a, D14, D14s, D15, D15t, D16, D17 | Pagos: un cobro por ID, consulta antes de repetir, tope de tres, pago de caja | L6.c | Precondición de suscripción (punto 12) |
 | D18, D18a–d, D19, D19t, D20 | Facturas: número único, simplificada, `InvoiceOrder`, `Status=3`, `BillingDetails` | L6.d | Idem |
 | D21, D21a | Siete avisos; traspaso de comanda completa | L4, L9 | El receptor de los siete avisos ya existe (F1, 2026-10-17); L4.2 (eventos reales) sigue pendiente de la usuaria en el TPV |
-| D22, D22a | Aviso duplicado y fuera de orden; traspaso de línea | L9 | Tras L4 y F2 |
+| D22, D22a | Aviso duplicado y fuera de orden; traspaso de línea | L9 | Receptor probado 2026-10-18 con cargas sintéticas (duplicado 200, conflicto 409, desorden 202; `avisos-local-matriz-2026-10-18.md`). Falta el disparo real en el TPV: sin acción de traspaso en `tpv.mjs` |
 | D23a, D23b | Trabajador caído; receptor inaccesible | L9 | Tras F2 |
 | D23-m | Comanda manual con aviso perdido | L9 | Decisión (punto 11) |
 | D29 | Tres reinicios (sincronización, WebLinkRestAPI, BDP.NET) | L9 | El de BDP.NET lo hace la usuaria |
@@ -383,6 +406,21 @@ Cada ficha tiene fase. Estado a 2026-10-10: **ninguna superada**; «parcial» = 
 ### 11.3 Criterio de «automatizada»
 
 Una acción cuenta como automatizada cuando: (a) pasa en `--dry-run` (solo mira, no pulsa); (b) pasa en el TPV local con permiso por lote y deja captura, log y verificación; (c) la prueba negativa (pantalla equivocada) para sin escribir nada; (d) está en la skill `pc-control`.
+
+### 11.3b Manual y ayuda antes de cada acción (regla obligatoria, rev. 2026-10-18)
+
+Antes de ejecutar cualquier acción del TPV, el agente consulta el manual o la ayuda de esa función. No se prueba a clics ni se adivina el comportamiento. Pasos:
+
+1. Fuente: `C:\Bdp-Net\NetHos\Ayuda\AyudaHOS.chm`, descompilado con `hh.exe -decompile` a `C:/tmp/fase-d-local/ayuda/hos/` (temporal; se regenera si falta). Páginas por función en `Ayuda_BDP/` (p. ej. `Cocina.htm`, `Aparcar_Ticket.htm`, `Avisos_Cocina.htm`, `Anular_Linea.htm`, `Borrar_Comanda.htm`, `Barra_Mesa.htm`, `Comprobante.htm`).
+2. Anotar en el plan (o en la ficha de la acción) qué dice la ayuda: qué hace, con qué precondición, qué se dispara solo.
+3. Si la ayuda contradice la pantalla o el plan, parar y registrar la discrepancia antes de actuar.
+4. Solo entonces ejecutar con `tpv.mjs` o el lote.
+
+**Hallazgos ya verificados en el manual (2026-10-18):**
+- **Cocina** (`Cocina.htm`): conmuta la impresión en cocina solo con la comanda vacía. No envía nada a cocina.
+- **Aparcar Ticket** (`Aparcar_Ticket.htm`): aparca la operación de barra para liberar la comanda; la página no dice que envíe a cocina. **Corrección 2026-10-18:** la versión anterior de esta nota decía lo contrario sin verificarlo; el envío a cocina sigue sin confirmar y es lo que L4.2 debe medir.
+- **Anular Línea** (`Anular_Linea.htm`): elimina las líneas seleccionadas (naranja); sin selección, borra la última. Si la línea ya fue a cocina, cocina recibe aviso de anulación.
+- **Avisos a cocina** (`Avisos_Cocina.htm`): son mensajes de texto libres (tecla «Comentario») a impresoras auxiliares; no modifican comandas. No intervienen en `modificar` ni en `cambiar-estado`.
 
 ### 11.4 Lo que sigue igual
 
