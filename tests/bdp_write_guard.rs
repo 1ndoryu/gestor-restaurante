@@ -484,9 +484,17 @@ async fn armar_push_reutiliza_el_armado_manual_vigente(pool: PgPool) {
     .await
     .expect("crear armado manual");
 
-    BdpWriteGuard::armar_push(&pool, user_id, &config, "cancel_order", "venta", venta_id, true)
-        .await
-        .expect("el armado manual vigente autoriza el push");
+    BdpWriteGuard::armar_push(
+        &pool,
+        user_id,
+        &config,
+        "cancel_order",
+        "venta",
+        venta_id,
+        true,
+    )
+    .await
+    .expect("el armado manual vigente autoriza el push");
 
     let (motivo, operaciones): (String, i32) = sqlx::query_as(
         "SELECT reason, remaining_operations FROM bdp_write_arming WHERE user_id = $1",
@@ -495,7 +503,10 @@ async fn armar_push_reutiliza_el_armado_manual_vigente(pool: PgPool) {
     .fetch_one(&pool)
     .await
     .expect("leer armado");
-    assert_eq!(motivo, "prueba local", "el armado manual se conserva intacto");
+    assert_eq!(
+        motivo, "prueba local",
+        "el armado manual se conserva intacto"
+    );
     assert_eq!(operaciones, 1, "armar el push no consume el armado");
 
     /* Otra entidad no lo reutiliza: cae al auto-armado, que se niega a pisar un
