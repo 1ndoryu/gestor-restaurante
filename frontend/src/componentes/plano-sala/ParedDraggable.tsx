@@ -185,7 +185,6 @@ export default function ParedDraggable({
         '--w': `${previewW.current}px`,
         '--h': `${GROSOR * zoom}px`,
         '--rot': previewRot.current ? `rotate(${previewRot.current}deg)` : 'none',
-        '--sombra': seleccionada ? '0 0 0 2px hsl(var(--primary))' : 'none',
         '--cursor': mode.current === 'move' ? 'grabbing' : mode.current === 'resize' ? resizeCursorForAngle(previewRot.current) : 'grab',
       } as CSSProperties}
       onPointerDown={onPointerDownBody}
