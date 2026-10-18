@@ -162,7 +162,7 @@ impl ServicioModoOperacion {
     }
 
     fn degradado(&self, user_id: Uuid) -> bool {
-        self.cache.lock().ok().is_some_and(|cache| {
+        self.cache.lock().is_ok_and(|cache| {
             cache
                 .iter()
                 .find(|(id, _)| *id == user_id)
