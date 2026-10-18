@@ -14,7 +14,7 @@ Estado según §8 (2026-10-17): L3.a y L3.c hechas; L3.b bloqueada por código; 
 - [x] L1 — Conmutar la app a BDP local
 - [x] L2 — Lectura contra BDP local (L2.1, L2.2 y L2.3 hechos)
 - [ ] L3 — Escritura controlada `PRUEBA-*` (L3.a y L3.c hechas 2026-10-17; L3.b bloqueada por código, §9.9)
-- [ ] L4 — F0 empírica de avisos en TPV local (L4.1 hecha; L4.2: crear, modificar, borrar y finalizar probados el 2026-10-18 con el BDP como administrador; **traspasar y traspasar-linea pendientes**; `cambiar-estado` no replicable en local; L4.3 y L4.4 hechas en `avisos-local-matriz-2026-10-18.md`)
+- [ ] L4 — F0 empírica de avisos en TPV local (L4.1 hecha; L4.2: crear, modificar, borrar, finalizar, traspasar y traspasar-linea probados el 2026-10-18 con el BDP como administrador (`traspasar-linea` automatizado en `tpv.mjs`); `cambiar-estado` no replicable en local; L4.3 y L4.4 hechas en `avisos-local-matriz-2026-10-18.md`)
 - [ ] L5 — Fase D F1–F4 (código) y base T2 (L5.0 hecha 2026-10-17: las 5 tablas que faltaban, §8; **F1 hecha 2026-10-17**; F2–F4 pendientes)
 - [ ] L6 — Pagos, propina, puntos y factura (D11a–D20)
 - [ ] L7 — Stock (D26–D27)
@@ -163,7 +163,7 @@ Precondición: L3.a–L3.c OK. La usuaria configura en el TPV local la URL de de
 | Paso | Qué | Quién | Criterio de aceptación |
 |---|---|---|---|
 | L4.1 | Receptor mínimo que registra avisos en log (sin inbox): escucha solo en `127.0.0.1`, log en `C:\tmp`, parada con PID verificado | Implementador (script según especificación) | Registra un aviso de prueba |
-| L4.2 | Provocar los eventos con `PRUEBA-*`: crear, modificar, borrar y finalizar (**hechos**), traspasar y traspasar línea (pendientes, con plano de prueba). `cambiar-estado`: **no replicable en local** (Monitor de Cocina) | Automatizado con `scripts/pc/tpv.mjs`; vigilancia con `scripts/bdp-local/vigilar-avisos.mjs` | 6 de 7 eventos con evidencia; el séptimo, declarado |
+| L4.2 | Provocar los eventos con `PRUEBA-*`: crear, modificar, borrar y finalizar (**hechos**), traspasar y traspasar línea (**hechos**, sobre SALON 1). `cambiar-estado`: **no replicable en local** (Monitor de Cocina) | Automatizado con `scripts/pc/tpv.mjs`; vigilancia con `scripts/bdp-local/vigilar-avisos.mjs` | 6 de 7 eventos con evidencia; el séptimo, declarado |
 | L4.3 | Matriz: payload real, valores de `Estado` 0–3, orden, duplicados, timestamps, origen y destino | Investigador extrae del log | `Agente/documentacion/bdp/avisos-local-matriz-<fecha>.md` con evidencia por fila |
 | L4.4 | Valor seguro por defecto para lo no documentado (p. ej. `Estado` desconocido: registrar y no actuar) | Principal | Decisión anotada en la matriz |
 
