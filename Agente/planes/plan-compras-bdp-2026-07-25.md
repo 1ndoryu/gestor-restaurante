@@ -234,3 +234,8 @@ Implementado en 25 julio 2026 (`247A-11`).
   - Modelo `BdpPurchaseNoteReconcileRequest` en `models/bdp_purchase_note.rs`
   - **Los 3 feature flags existen** en `configuracion_restaurante` pero están desactivados por defecto.
   - Pendiente: activar flags en producción y pruebas contra BDP real.
+
+### Pendiente abierto
+
+- [ ] Activar en producción los 3 feature flags de Fases 2 y 3 (decisión de la usuaria; depende del cliente).
+- [ ] Probar Fases 2 y 3 contra BDP real.
