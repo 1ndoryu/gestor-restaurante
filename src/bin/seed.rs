@@ -53,7 +53,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reserva_ids = seed_reservas(&pool, user_id, hoy, &canal_ids, &clientes, &mesa_ids).await?;
     seed_ventas(&pool, user_id, hoy, &reserva_ids, &cliente_ids).await?;
     seed_gastos(&pool, user_id, hoy).await?;
-    seed_etiquetas_clientes(&pool, user_id, &cliente_ids).await?;
+    seed_etiquetas_clientes(&pool, &cliente_ids).await?;
+    seed_etiquetas_personalizadas(&pool, user_id).await?;
     seed_campanas(&pool, user_id).await?;
     seed_plantillas_whatsapp(&pool, user_id).await?;
     seed_reglas_recordatorio(&pool, user_id).await?;
@@ -605,7 +606,6 @@ async fn seed_gastos(pool: &PgPool, user_id: Uuid, hoy: NaiveDate) -> Result<(),
 /* Asigna etiquetas del sistema a los clientes para probar el CRM */
 async fn seed_etiquetas_clientes(
     pool: &PgPool,
-    user_id: Uuid,
     cliente_ids: &[Uuid],
 ) -> Result<(), sqlx::Error> {
     let etiquetas = sqlx::query!(
@@ -645,40 +645,30 @@ async fn seed_etiquetas_clientes(
     }
     println!("  {count} asignaciones cliente-etiqueta insertadas.");
 
-    /* Crear etiquetas personalizadas del usuario demo si no existen */
-    let user_tags: i64 =
-        sqlx::query_scalar!("SELECT COUNT(*) FROM etiquetas WHERE user_id = $1", user_id)
-            .fetch_one(pool)
-            .await?
-            .unwrap_or(0);
+    Ok(())
+}
 
-    if user_tags == 0 {
-        let cat_fidelizacion: Option<Uuid> = sqlx::query_scalar!(
-            "SELECT id FROM categorias_etiqueta \
-             WHERE nombre = 'Fidelización' AND aplica_a = 'cliente' AND es_sistema = TRUE"
-        )
-        .fetch_optional(pool)
-        .await?;
+/* Crea las etiquetas personalizadas del usuario demo si aún no tiene ninguna.
+ * Una sola sentencia: la categoría, el conteo de etiquetas y el alta van juntos
+ * para que no haya una ventana entre la comprobación y la escritura. */
+async fn seed_etiquetas_personalizadas(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
+    let creadas = sqlx::query(
+        r"INSERT INTO etiquetas (user_id, categoria_id, nombre, color)
+          SELECT $1, c.id, v.nombre, v.color
+          FROM categorias_etiqueta c
+          CROSS JOIN (VALUES ('Habitual fin de semana', '#2196F3'),
+                             ('Amigo del chef', '#9C27B0')) AS v(nombre, color)
+          WHERE c.nombre = 'Fidelización' AND c.aplica_a = 'cliente' AND c.es_sistema = TRUE
+            AND NOT EXISTS (SELECT 1 FROM etiquetas WHERE user_id = $1)
+          ON CONFLICT DO NOTHING",
+    )
+    .bind(user_id)
+    .execute(pool)
+    .await?
+    .rows_affected();
 
-        if let Some(cat_id) = cat_fidelizacion {
-            let custom = [
-                ("Habitual fin de semana", "#2196F3"),
-                ("Amigo del chef", "#9C27B0"),
-            ];
-            for (nombre, color) in &custom {
-                sqlx::query!(
-                    "INSERT INTO etiquetas (user_id, categoria_id, nombre, color) \
-                     VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
-                    user_id,
-                    cat_id,
-                    *nombre,
-                    *color
-                )
-                .execute(pool)
-                .await?;
-            }
-            println!("  Etiquetas personalizadas del usuario creadas.");
-        }
+    if creadas > 0 {
+        println!("  Etiquetas personalizadas del usuario creadas.");
     }
     Ok(())
 }

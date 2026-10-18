@@ -233,16 +233,14 @@ async fn registrar_linea_conteo(
     Ok(())
 }
 
-/// Aplica la diferencia de una línea al stock local con auditoría idempotente
-/// (`conteo:{id}:{codigo}`). Devuelve el stock resultante; el caller decide si revierte.
-async fn ajustar_stock_conteo(
+/// Registra la auditoría idempotente (`conteo:{id}:{codigo}`) del ajuste de una línea.
+async fn registrar_auditoria_conteo(
     tx: &mut Transaction<'_, Postgres>,
     user_id: Uuid,
     conteo_id: Uuid,
     codigo: &str,
-    esperado: Decimal,
     diferencia: Decimal,
-) -> Result<Decimal, sqlx::Error> {
+) -> Result<(), sqlx::Error> {
     /* Auditoría idempotente por conteo+línea. */
     let audit_payload = serde_json::json!({
         "articulo_glory_codigo": codigo,
@@ -265,6 +263,32 @@ async fn ajustar_stock_conteo(
     .execute(&mut **tx)
     .await?;
 
+    Ok(())
+}
+
+/// Aplica la diferencia de una línea al stock local con auditoría idempotente.
+/// Devuelve el stock resultante; el caller decide si revierte.
+async fn ajustar_stock_conteo(
+    tx: &mut Transaction<'_, Postgres>,
+    user_id: Uuid,
+    conteo_id: Uuid,
+    codigo: &str,
+    esperado: Decimal,
+    diferencia: Decimal,
+) -> Result<Decimal, sqlx::Error> {
+    registrar_auditoria_conteo(tx, user_id, conteo_id, codigo, diferencia).await?;
+    aplicar_delta_stock(tx, user_id, codigo, esperado, diferencia).await
+}
+
+/// Crea la fila base si falta y suma el delta. Las dos escrituras van en orden
+/// dentro de la misma transacción: no son independientes.
+async fn aplicar_delta_stock(
+    tx: &mut Transaction<'_, Postgres>,
+    user_id: Uuid,
+    codigo: &str,
+    esperado: Decimal,
+    diferencia: Decimal,
+) -> Result<Decimal, sqlx::Error> {
     /* Base: si no hay fila local, se crea con el esperado para que
      * el delta deje el stock = contado (no un valor derivado). */
     sqlx::query(

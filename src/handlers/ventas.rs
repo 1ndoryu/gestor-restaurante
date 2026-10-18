@@ -727,8 +727,11 @@ pub async fn listar_bdp_payments(
         .await?
         .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
 
-    let pagos = crate::repositories::BdpPagoRepository::listar_por_venta(&state.pool, id).await?;
-    let pagado = crate::repositories::BdpPagoRepository::total_pagado(&state.pool, id).await?;
+    /* Lecturas independientes: en paralelo, sin esperar una a la otra */
+    let (pagos, pagado) = tokio::try_join!(
+        crate::repositories::BdpPagoRepository::listar_por_venta(&state.pool, id),
+        crate::repositories::BdpPagoRepository::total_pagado(&state.pool, id),
+    )?;
     let total = venta.importe_base + venta.importe_iva;
     let pendiente = (total - pagado).max(rust_decimal::Decimal::ZERO);
 
