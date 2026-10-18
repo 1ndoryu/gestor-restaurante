@@ -35,6 +35,7 @@ Dejar la aplicación apuntando al BDP local (TPV 36.2 licenciado en el portátil
 - F0 empírica de los 7 avisos en el TPV local.
 - Tras la F0: F1–F4 de 199A-1, según el diseño del plan 2026-09-19, precedidas de la base T2 (L5.0, hecha).
 - Pruebas de aceptación D01–D32 en local (L6–L10), con la evidencia que exige cada ficha del anexo B8.
+- **Toda acción manual en el TPV/BDP local se automatiza** (regla obligatoria, §11). Un agente la ejecutará; la usuaria solo da permisos por lote.
 
 **Fuera**
 - BDP real (`IP_BDP:8068`, PC remoto por Tailscale) y cualquier host de producción: ni lectura ni escritura.
@@ -84,6 +85,7 @@ Dejar la aplicación apuntando al BDP local (TPV 36.2 licenciado en el portátil
 - Stage explícito por archivo (AGENTS §5). En `roadmap.md`, por hunk: tiene ediciones ajenas. Nunca `git add .`. No se tocan ni se stashean los cambios ajenos.
 - Subagentes: máximo 3 en paralelo; respuestas de 15 líneas como máximo, con `archivo:línea`. El principal comprueba el dato crítico antes de decidir con él y revisa el diff del `implementador` antes de cerrar.
 - Diseño y decisiones técnicas reversibles: las decide el agente (AGENTS §0.3). La usuaria decide solo lo listado en §9.
+- **Acciones en el TPV:** solo por lote automatizado (`scripts/pc/lote.mjs`, cuando exista) o por `tpv.mjs`; nunca clics sueltos ni pasos «los hace la usuaria» (§11). Sin permiso por lote en el chat, ninguna acción que escriba, cierre, cobre, facture o borre.
 
 ## 5. Fases
 
@@ -343,3 +345,47 @@ Cada ficha tiene fase. Estado a 2026-10-10: **ninguna superada**; «parcial» = 
 | D30 | Piloto y despliegue por etapas | Fuera (F4) | Permiso aparte; requisitos en L10 |
 
 **Base T2:** L5.0 (roadmap 09AA-2), hecha el 2026-10-17 (5 tablas; *outbox* ya era `bdp_push_pendientes`). **Despliegue por etapas del PDF** (observación → maestros → lectura → escritura → pagos/factura → stock): se ejecuta en F4, no aquí; aquí solo se deja probado el rollback en local. **Paradas del PDF** (duplicado económico, descuadre fiscal, pérdida de comanda, degradación del TPV): criterio de aborto de cualquier lote de L6–L10.
+
+## 11. Automatización obligatoria de acciones manuales (rev. 2026-10-18)
+
+**Regla.** Toda acción que este plan exige en el TPV (TpvNet, BDP Net) o en la BDP local se ejecuta con `scripts/pc/tpv.mjs` (sobre `pc.mjs`), o con un lote de `scripts/pc/lote.mjs` cuando exista. Ningún paso queda como «lo hace la usuaria». Un agente menos capaz debe poder ejecutarla sin adivinar: comprueba la pantalla antes, actúa una vez, verifica el resultado y para al primer desvío con evidencia. Si la interfaz no permite una acción, se declara «no automatizable» con su motivo en esta tabla; no queda como paso manual sin nombre.
+
+**Automatizar no es autorizar.** Cada lote que escribe, cierra, cobra, factura, borra o reinicia necesita permiso expreso de la usuaria en el chat (§4), con fecha y alcance. El runner lo exige en el archivo de lote. El BDP real (`IP_BDP:8068`) queda fuera: la automatización solo actúa sobre el TPV local (ventana «CONEXION LOCAL», Terminal 1).
+
+### 11.1 Inventario (estado 2026-10-18)
+
+| Acción | Pasos y fichas | Hoy | Falta |
+|---|---|---|---|
+| Cerrar Día | prerrequisito de turno (L3) | a mano con `pc.mjs` (17/10) | acción `cerrar-dia` (`CIERRE.cerrarDia` [499,315] + Sí); permiso por lote |
+| Abrir turno | L3, L4.2 | `abrir-turno`; no confirma la ventana final a tiempo | confirmar turno abierto antes de dar éxito |
+| Apertura de caja | L3 (`301400` si no está abierta) | a mano en TpvNet | acción nueva; permiso por lote |
+| Crear comanda y añadir artículos | D03, `PRUEBA-n` | `familia`, `articulo` (probado) | `familia REFRESCO`: falso negativo; cantidad |
+| Cantidad de línea | D03, D05–D07, L3.b | `tecla 2` no fija cantidad | secuencia «2», «X», artículo; test de 2 unidades |
+| Modificar línea o comanda | D05–D07, L3.b | no existe | acciones nuevas en el panel; L3.b pasa a automatizable en cuanto exista la ruta BDP (§9.9) |
+| Anular línea, borrar comanda | D09, D09a | `anular-linea`, `borrar-comanda` (probados) | nada; D09a sin testigo de cocina |
+| Traspaso de mesa y de línea | D22a, aviso `traspasar`/`traspasar-linea` | no existe | acción nueva; permiso por lote |
+| Enviar a cocina (`OrderEndType=0`) | D03a, L3.a2 | no existe | localizar botón; sin impresora no hay testigo |
+| Cobro: efectivo, tarjeta, propina, puntos | D11–D17, L6 | no existe | acciones nuevas; L6 solo con suscripción confirmada (§9.12) |
+| Factura, rectificativa, devolución | D18–D20, D32 | no existe | automatizar o declarar no automatizable; fiscal: permiso siempre |
+| Alta, modificación, baja en maestros | D24a–d | no existe | acciones nuevas en TpvNet |
+| Perfil de exportación de documentos | D28, L8 | a mano | acción nueva |
+| URL y eventos de avisos | L4.2 | por fichero `CONFIG_WEBHOOKS.XML` (lote de 17/10) | nada: no se usa la pantalla |
+| Cerrar turno | L3, cierre | `cerrar-turno` (probado de punta a punta, 18/10) | nada |
+| Reinicio de BDP.NET o servicio | D29 | a mano (TpvNet elevado) | ejecutar con el daemon elevado; permiso por lote |
+| Arqueo, efectivo, PDF, reimpresión, controles de cocina, series | D32 | a mano | automatizar o declarar no automatizable con motivo |
+
+### 11.2 Orden de trabajo
+
+1. **Control listo para un agente** (plan `17A-1`, «Quinta vuelta»): defectos de `tpv.mjs`, runner de lotes, protocolo de atasco, pruebas negativas. Sin esto no se ejecuta nada de §11.3.
+2. **Acciones que faltan** del inventario, una a una, cada una con prueba positiva y negativa en el TPV local.
+3. **Fase D**, por lotes automatizados y con permiso: L4.2 (los siete avisos; la comanda `PRUEBA-2` y los seis eventos los dispara el lote, no la usuaria), luego L4.3–L4.4, F2, y L6–L10 según su precondición.
+
+### 11.3 Criterio de «automatizada»
+
+Una acción cuenta como automatizada cuando: (a) pasa en `--dry-run` (solo mira, no pulsa); (b) pasa en el TPV local con permiso por lote y deja captura, log y verificación; (c) la prueba negativa (pantalla equivocada) para sin escribir nada; (d) está en la skill `pc-control`.
+
+### 11.4 Lo que sigue igual
+
+- BDP real: fuera de toda automatización.
+- L1.2 (credenciales de la app): se fija por API con credenciales del entorno, nunca escritas en chat ni en el plan.
+- Gate: `scripts/` no es repo; las pruebas de C5 del plan `17A-1` sustituyen al gate y se declaran en el cierre.
