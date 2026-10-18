@@ -37,6 +37,21 @@ pub struct ActualizarGastoData<'a> {
     pub importe_iva: Option<rust_decimal::Decimal>,
 }
 
+/// Filtros, orden y paginación del listado de gastos. Todos los campos son `Copy`.
+#[derive(Clone, Copy)]
+pub struct FiltrosGasto<'a> {
+    pub page: i64,
+    pub per_page: i64,
+    pub desde: Option<chrono::NaiveDate>,
+    pub hasta: Option<chrono::NaiveDate>,
+    pub categoria_id: Option<Uuid>,
+    pub busqueda: Option<&'a str>,
+    pub tipo_documento: Option<&'a str>,
+    pub metodo_pago: Option<&'a str>,
+    pub sort_by: Option<&'a str>,
+    pub sort_order: Option<&'a str>,
+}
+
 pub struct GastoRepository;
 
 impl GastoRepository {
@@ -87,21 +102,23 @@ impl GastoRepository {
 
     /* [044A-8+9] Whitelist de columnas — previene SQL injection.
      * [064A-3] Añadidos filtros por columna: tipo_documento, metodo_pago (multi-valor separado por coma). */
-    #[allow(clippy::too_many_arguments)]
     pub async fn list(
         pool: &PgPool,
         user_id: Uuid,
-        page: i64,
-        per_page: i64,
-        desde: Option<chrono::NaiveDate>,
-        hasta: Option<chrono::NaiveDate>,
-        categoria_id: Option<Uuid>,
-        busqueda: Option<&str>,
-        tipo_documento: Option<&str>,
-        metodo_pago: Option<&str>,
-        sort_by: Option<&str>,
-        sort_order: Option<&str>,
+        filtros: FiltrosGasto<'_>,
     ) -> Result<(Vec<Gasto>, i64), sqlx::Error> {
+        let FiltrosGasto {
+            page,
+            per_page,
+            desde,
+            hasta,
+            categoria_id,
+            busqueda,
+            tipo_documento,
+            metodo_pago,
+            sort_by,
+            sort_order,
+        } = filtros;
         let offset = (page - 1) * per_page;
 
         /* Whitelist de columnas — previene SQL injection */

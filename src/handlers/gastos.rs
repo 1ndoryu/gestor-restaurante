@@ -18,6 +18,7 @@ use crate::models::{
     ActualizarGastoRequest, CategoriaGasto, CrearGastoRequest, DatosDocumentoExtraidos,
     DigitalizarDocumentoRequest, Gasto, GastosQuery, ProveedoresQuery,
 };
+use crate::repositories::gasto::FiltrosGasto;
 use crate::services::{DashboardService, DigitalizacionService, GastoService};
 use crate::AppState;
 
@@ -107,21 +108,19 @@ pub async fn listar_gastos(
             return respuesta_cacheable_bytes(bytes, VisibilidadCache::Publica, 15, &headers);
         }
     }
-    let gastos = GastoService::list(
-        &state.pool,
-        auth.user_id,
-        params.page,
-        params.per_page,
-        params.desde,
-        params.hasta,
-        params.categoria_id,
-        params.busqueda,
-        params.tipo_documento,
-        params.metodo_pago,
-        params.sort_by,
-        params.sort_order,
-    )
-    .await?;
+    let filtros = FiltrosGasto {
+        page: params.page,
+        per_page: params.per_page,
+        desde: params.desde,
+        hasta: params.hasta,
+        categoria_id: params.categoria_id,
+        busqueda: params.busqueda.as_deref(),
+        tipo_documento: params.tipo_documento.as_deref(),
+        metodo_pago: params.metodo_pago.as_deref(),
+        sort_by: params.sort_by.as_deref(),
+        sort_order: params.sort_order.as_deref(),
+    };
+    let gastos = GastoService::list(&state.pool, auth.user_id, filtros).await?;
     if es_default {
         if let Ok(bytes) = serde_json::to_vec(&gastos) {
             guardar_listado_cache(&state, auth.user_id, ENDPOINT_GASTOS, bytes).await;

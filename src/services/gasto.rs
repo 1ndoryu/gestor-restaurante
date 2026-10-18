@@ -7,7 +7,7 @@ use crate::errors::AppError;
 use crate::models::{
     ActualizarGastoRequest, CategoriaGasto, CrearGastoRequest, Gasto, GastosPaginados,
 };
-use crate::repositories::gasto::{ActualizarGastoData, NuevoGasto};
+use crate::repositories::gasto::{ActualizarGastoData, FiltrosGasto, NuevoGasto};
 use crate::repositories::{CategoriaGastoRepository, GastoRepository};
 
 pub struct GastoService;
@@ -55,41 +55,17 @@ impl GastoService {
             .ok_or_else(|| AppError::NotFound("Gasto no encontrado".into()))
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn list(
         pool: &PgPool,
         user_id: Uuid,
-        page: i64,
-        per_page: i64,
-        desde: Option<chrono::NaiveDate>,
-        hasta: Option<chrono::NaiveDate>,
-        categoria_id: Option<Uuid>,
-        busqueda: Option<String>,
-        tipo_documento: Option<String>,
-        metodo_pago: Option<String>,
-        sort_by: Option<String>,
-        sort_order: Option<String>,
+        filtros: FiltrosGasto<'_>,
     ) -> Result<GastosPaginados, AppError> {
-        let (items, total) = GastoRepository::list(
-            pool,
-            user_id,
-            page,
-            per_page,
-            desde,
-            hasta,
-            categoria_id,
-            busqueda.as_deref(),
-            tipo_documento.as_deref(),
-            metodo_pago.as_deref(),
-            sort_by.as_deref(),
-            sort_order.as_deref(),
-        )
-        .await?;
+        let (items, total) = GastoRepository::list(pool, user_id, filtros).await?;
         Ok(GastosPaginados {
             items,
             total,
-            page,
-            per_page,
+            page: filtros.page,
+            per_page: filtros.per_page,
         })
     }
 
