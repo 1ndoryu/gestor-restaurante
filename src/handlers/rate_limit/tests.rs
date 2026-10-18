@@ -35,13 +35,19 @@ fn la_rafaga_se_agota_y_devuelve_la_espera() {
     let limitador = Limitador::nuevo(1.0, 3.0);
 
     for intento in 0..3 {
-        assert!(limitador.consumir("1.2.3.4").is_ok(), "falla el intento {intento}");
+        assert!(
+            limitador.consumir("1.2.3.4").is_ok(),
+            "falla el intento {intento}"
+        );
     }
 
     let espera = limitador
         .consumir("1.2.3.4")
         .expect_err("la cuarta peticion deberia pasarse del tope");
-    assert!(espera >= 1, "la espera se redondea a segundos enteros: {espera}");
+    assert!(
+        espera >= 1,
+        "la espera se redondea a segundos enteros: {espera}"
+    );
 }
 
 #[test]
@@ -49,7 +55,10 @@ fn el_cubo_se_recarga_con_el_tiempo() {
     let limitador = Limitador::nuevo(2.0, 1.0);
 
     assert!(limitador.consumir("ip").is_ok());
-    assert!(limitador.consumir("ip").is_err(), "la rafaga es de una ficha");
+    assert!(
+        limitador.consumir("ip").is_err(),
+        "la rafaga es de una ficha"
+    );
 
     envejecer(&limitador, "ip", 1.0);
     assert!(limitador.consumir("ip").is_ok(), "1 s a 2 rps son 2 fichas");
@@ -61,7 +70,10 @@ fn cada_ip_tiene_su_propio_cubo() {
 
     assert!(limitador.consumir("a").is_ok());
     assert!(limitador.consumir("a").is_err());
-    assert!(limitador.consumir("b").is_ok(), "otra IP no hereda el gasto");
+    assert!(
+        limitador.consumir("b").is_ok(),
+        "otra IP no hereda el gasto"
+    );
 }
 
 #[test]
@@ -123,7 +135,10 @@ fn sin_connect_info_el_peer_no_revienta() {
     /* Un router al que se llama sin `into_make_service_with_connect_info`
      * (pruebas con `oneshot`) no trae el peer. Debe caer a la clave fija, no
      * a un 500 por extractor que falla. */
-    assert_eq!(peer_de(&Extensions::new()), IpAddr::V4(Ipv4Addr::UNSPECIFIED));
+    assert_eq!(
+        peer_de(&Extensions::new()),
+        IpAddr::V4(Ipv4Addr::UNSPECIFIED)
+    );
 
     let mut extensiones = Extensions::new();
     extensiones.insert(ConnectInfo(SocketAddr::from(([10, 0, 0, 9], 443))));

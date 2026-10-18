@@ -42,9 +42,9 @@ pub use bdp_backup::{
 pub use bdp_guard::exigir_modo_bdp;
 /* [208A-2/C4] Cola de sincronización (D5) — exposición para tests. */
 pub use bdp_avisos::{
-    listar as listar_avisos_bdp, recibir_aviso_con_secreto, reintentar as reintentar_aviso_bdp,
-    routes as rutas_avisos_bdp, public_routes as rutas_publicas_avisos, RespuestaAviso,
-    ListarQuery as ListarAvisosQuery,
+    listar as listar_avisos_bdp, public_routes as rutas_publicas_avisos, recibir_aviso_con_secreto,
+    reintentar as reintentar_aviso_bdp, routes as rutas_avisos_bdp,
+    ListarQuery as ListarAvisosQuery, RespuestaAviso,
 };
 pub use bdp_push::{flush_manual, listar_pendientes as listar_pendientes_push, reintentar_fila};
 /* [208A-2/C5] Normalización standalone+sync (H5) — exposición para tests. */

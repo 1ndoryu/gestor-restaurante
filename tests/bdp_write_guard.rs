@@ -3,7 +3,9 @@
 //! Pruebas `SQLx` del armado BDP. Solo usa una base temporal local; no hace HTTP.
 
 use glory_backend::repositories::ConfiguracionRepository;
-use glory_backend::services::{AuditoriaDirecta, BdpBackupService, BdpWriteGuard};
+use glory_backend::services::{
+    AuditoriaDirecta, BdpBackupService, BdpWriteGuard, EscrituraAutorizar,
+};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -75,13 +77,15 @@ async fn armado_solo_se_consume_por_entidad_exacta(pool: PgPool) {
         &pool,
         user_id,
         &config,
-        "create_order",
-        "venta",
-        otra_venta,
-        "venta_id",
-        &serde_json::json!({"venta_id": otra_venta}),
-        None,
-        None,
+        EscrituraAutorizar {
+            scope: "create_order",
+            target_entity_type: "venta",
+            target_entity_id: otra_venta,
+            entity_json_field: "venta_id",
+            datos_enviados: &serde_json::json!({"venta_id": otra_venta}),
+            snapshot_pre_id: None,
+            idempotency_key: None,
+        },
     )
     .await;
     assert!(denied.is_err());
@@ -90,13 +94,15 @@ async fn armado_solo_se_consume_por_entidad_exacta(pool: PgPool) {
         &pool,
         user_id,
         &config,
-        "create_order",
-        "venta",
-        venta_autorizada,
-        "venta_id",
-        &serde_json::json!({"venta_id": venta_autorizada}),
-        None,
-        None,
+        EscrituraAutorizar {
+            scope: "create_order",
+            target_entity_type: "venta",
+            target_entity_id: venta_autorizada,
+            entity_json_field: "venta_id",
+            datos_enviados: &serde_json::json!({"venta_id": venta_autorizada}),
+            snapshot_pre_id: None,
+            idempotency_key: None,
+        },
     )
     .await
     .expect("la entidad autorizada debe consumir el armado");
@@ -152,13 +158,15 @@ async fn armado_solo_se_consume_por_entidad_exacta(pool: PgPool) {
         &pool,
         user_id,
         &config,
-        "invoice",
-        "venta",
-        venta_autorizada,
-        "venta_id",
-        &serde_json::json!({"venta_id": venta_autorizada}),
-        None,
-        None,
+        EscrituraAutorizar {
+            scope: "invoice",
+            target_entity_type: "venta",
+            target_entity_id: venta_autorizada,
+            entity_json_field: "venta_id",
+            datos_enviados: &serde_json::json!({"venta_id": venta_autorizada}),
+            snapshot_pre_id: None,
+            idempotency_key: None,
+        },
     )
     .await;
     assert!(
@@ -170,13 +178,15 @@ async fn armado_solo_se_consume_por_entidad_exacta(pool: PgPool) {
         &pool,
         user_id,
         &config,
-        "create_order",
-        "venta",
-        venta_autorizada,
-        "venta_id",
-        &serde_json::json!({"venta_id": venta_autorizada}),
-        None,
-        None,
+        EscrituraAutorizar {
+            scope: "create_order",
+            target_entity_type: "venta",
+            target_entity_id: venta_autorizada,
+            entity_json_field: "venta_id",
+            datos_enviados: &serde_json::json!({"venta_id": venta_autorizada}),
+            snapshot_pre_id: None,
+            idempotency_key: None,
+        },
     )
     .await;
     assert!(second.is_err(), "el cupo no puede reutilizarse");
@@ -254,13 +264,15 @@ async fn cambio_de_conexion_invalida_armado_sin_consumirlo(pool: PgPool) {
         &pool,
         user_id,
         &config,
-        "create_order",
-        "venta",
-        venta_id,
-        "venta_id",
-        &serde_json::json!({"venta_id": venta_id}),
-        None,
-        None,
+        EscrituraAutorizar {
+            scope: "create_order",
+            target_entity_type: "venta",
+            target_entity_id: venta_id,
+            entity_json_field: "venta_id",
+            datos_enviados: &serde_json::json!({"venta_id": venta_id}),
+            snapshot_pre_id: None,
+            idempotency_key: None,
+        },
     )
     .await;
     assert!(denied.is_err());
@@ -382,13 +394,15 @@ async fn modo_automatico_autoriza_sin_armado_ni_cierre(pool: PgPool) {
         &pool,
         user_id,
         &config,
-        "create_order",
-        "venta",
-        venta_id,
-        "venta_id",
-        &serde_json::json!({"venta_id": venta_id}),
-        None,
-        None,
+        EscrituraAutorizar {
+            scope: "create_order",
+            target_entity_type: "venta",
+            target_entity_id: venta_id,
+            entity_json_field: "venta_id",
+            datos_enviados: &serde_json::json!({"venta_id": venta_id}),
+            snapshot_pre_id: None,
+            idempotency_key: None,
+        },
     )
     .await
     .expect("el modo automático autoriza sin armado");

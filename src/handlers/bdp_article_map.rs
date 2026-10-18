@@ -44,7 +44,7 @@ use crate::services::{
 use crate::AppState;
 
 use super::bdp_guard::exigir_modo_bdp; /* [039A-1] Guard compartido (N1). */
-use super::rate_limit::{limitar, limitador_escrituras};
+use super::rate_limit::{limitador_escrituras, limitar};
 
 #[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct SyncTablesRequest {
@@ -98,7 +98,10 @@ pub fn routes() -> Router<AppState> {
             patch(actualizar_article_map).delete(eliminar_article_map),
         )
         /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
-        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
+        .layer(axum::middleware::from_fn_with_state(
+            limitador_escrituras(),
+            limitar,
+        ))
 }
 
 /// Listar todos los mapeos de artículos BDP del usuario

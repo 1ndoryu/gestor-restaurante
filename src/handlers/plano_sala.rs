@@ -22,7 +22,7 @@ use crate::services::{
 };
 use crate::AppState;
 
-use super::rate_limit::{limitar, limitador_escrituras};
+use super::rate_limit::{limitador_escrituras, limitar};
 
 /* ========== Plano completo ========== */
 
@@ -607,5 +607,8 @@ pub fn routes() -> Router<AppState> {
             patch(actualizar_pared).delete(eliminar_pared),
         )
         /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
-        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
+        .layer(axum::middleware::from_fn_with_state(
+            limitador_escrituras(),
+            limitar,
+        ))
 }

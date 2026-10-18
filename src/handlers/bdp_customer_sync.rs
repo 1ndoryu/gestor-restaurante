@@ -31,14 +31,17 @@ use crate::services::{
 use crate::AppState;
 
 use super::bdp_guard::exigir_modo_bdp; /* [039A-1] Guard compartido (N1). */
-use super::rate_limit::{limitar, limitador_escrituras};
+use super::rate_limit::{limitador_escrituras, limitar};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/bdp/customers/import", post(importar_clientes_bdp))
         .route("/clientes/:id/bdp-sync", post(sincronizar_cliente_bdp))
         /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
-        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
+        .layer(axum::middleware::from_fn_with_state(
+            limitador_escrituras(),
+            limitar,
+        ))
 }
 
 #[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
@@ -542,13 +545,15 @@ async fn armar_create_customer(
         &state.pool,
         user_id,
         config,
-        "create_customer",
-        "cliente",
-        cliente.id,
-        "cliente_id",
-        &datos_cliente,
-        snapshot_pre_id,
-        None,
+        crate::services::EscrituraAutorizar {
+            scope: "create_customer",
+            target_entity_type: "cliente",
+            target_entity_id: cliente.id,
+            entity_json_field: "cliente_id",
+            datos_enviados: &datos_cliente,
+            snapshot_pre_id,
+            idempotency_key: None,
+        },
     )
     .await
     .map_err(AppError::Validation)?;

@@ -21,7 +21,7 @@ use crate::models::{
 use crate::services::{DashboardService, DigitalizacionService, GastoService};
 use crate::AppState;
 
-use super::rate_limit::{limitar, limitador_escrituras};
+use super::rate_limit::{limitador_escrituras, limitar};
 
 /// Crear un gasto
 #[utoipa::path(
@@ -268,5 +268,8 @@ pub fn routes() -> Router<AppState> {
                 .delete(eliminar_gasto),
         )
         /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
-        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
+        .layer(axum::middleware::from_fn_with_state(
+            limitador_escrituras(),
+            limitar,
+        ))
 }

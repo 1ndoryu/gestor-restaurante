@@ -283,13 +283,15 @@ impl BdpSyncService {
             pool,
             venta.user_id,
             config,
-            "add_payment",
-            "venta",
-            venta.id,
-            "venta_id",
-            &datos_pago,
-            snapshot_pre_id,
-            idempotency_key,
+            crate::services::EscrituraAutorizar {
+                scope: "add_payment",
+                target_entity_type: "venta",
+                target_entity_id: venta.id,
+                entity_json_field: "venta_id",
+                datos_enviados: &datos_pago,
+                snapshot_pre_id,
+                idempotency_key,
+            },
         )
         .await?;
 

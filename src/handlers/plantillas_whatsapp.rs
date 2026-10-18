@@ -19,7 +19,7 @@ use crate::services::verificar_seccion;
 use crate::services::PlantillaService;
 use crate::AppState;
 
-use super::rate_limit::{limitar, limitador_escrituras};
+use super::rate_limit::{limitador_escrituras, limitar};
 
 /// Crear una plantilla `WhatsApp`
 #[utoipa::path(
@@ -181,5 +181,8 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/plantillas-whatsapp/:id/enviar", post(enviar_a_meta))
         /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
-        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
+        .layer(axum::middleware::from_fn_with_state(
+            limitador_escrituras(),
+            limitar,
+        ))
 }

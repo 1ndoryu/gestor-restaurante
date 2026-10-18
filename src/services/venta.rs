@@ -10,7 +10,7 @@ use crate::errors::AppError;
 use crate::models::{
     ActualizarVentaRequest, AnularVentaRequest, BdpPago, CrearVentaRequest, Venta, VentasPaginadas,
 };
-use crate::repositories::venta::{ActualizarVentaData, NuevaVenta};
+use crate::repositories::venta::{ActualizarVentaData, FiltrosListadoVentas, NuevaVenta};
 use crate::repositories::{
     BdpPagoRepository, ConfiguracionRepository, VentaLineaRepository, VentaRepository,
 };
@@ -100,23 +100,21 @@ impl VentaService {
         sort_by: Option<String>,
         sort_order: Option<String>,
     ) -> Result<VentasPaginadas, AppError> {
-        let (items, total) = VentaRepository::list(
-            pool,
-            user_id,
+        let filtros = FiltrosListadoVentas {
             page,
             per_page,
             desde,
             hasta,
-            busqueda.as_deref(),
-            turno.as_deref(),
-            canal.as_deref(),
-            metodo_pago.as_deref(),
-            estado_haddock.as_deref(),
-            estado_bdp.as_deref(),
-            sort_by.as_deref(),
-            sort_order.as_deref(),
-        )
-        .await?;
+            busqueda: busqueda.as_deref(),
+            turno: turno.as_deref(),
+            canal: canal.as_deref(),
+            metodo_pago: metodo_pago.as_deref(),
+            estado_haddock: estado_haddock.as_deref(),
+            estado_bdp: estado_bdp.as_deref(),
+            sort_by: sort_by.as_deref(),
+            sort_order: sort_order.as_deref(),
+        };
+        let (items, total) = VentaRepository::list(pool, user_id, filtros).await?;
         Ok(VentasPaginadas {
             items,
             total,

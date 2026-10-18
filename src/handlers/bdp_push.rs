@@ -29,7 +29,7 @@ use crate::models::UserRole;
 use crate::services::{BdpPushFila, BdpPushFlushResumen, BdpPushFlushService, BdpPushService};
 use crate::AppState;
 
-use super::rate_limit::{limitar, limitador_escrituras};
+use super::rate_limit::{limitador_escrituras, limitar};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -40,7 +40,10 @@ pub fn routes() -> Router<AppState> {
             axum::routing::post(reintentar_fila),
         )
         /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
-        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
+        .layer(axum::middleware::from_fn_with_state(
+            limitador_escrituras(),
+            limitar,
+        ))
 }
 
 /// Query del flush manual: filtro opcional por dominio (159A-2/F1).

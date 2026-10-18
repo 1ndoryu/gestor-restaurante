@@ -16,7 +16,7 @@ use crate::models::UserRole;
 use crate::repositories::AdminRepository;
 use crate::AppState;
 
-use super::rate_limit::{limitar, limitador_escrituras};
+use super::rate_limit::{limitador_escrituras, limitar};
 
 #[derive(Serialize, ToSchema)]
 pub struct AdminResult {
@@ -102,5 +102,8 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/seed", post(ejecutar_seed))
         .route("/admin/reset", post(eliminar_datos))
         /* Tope por IP de las escrituras de este módulo (ver rate_limit.rs). */
-        .layer(axum::middleware::from_fn_with_state(limitador_escrituras(), limitar))
+        .layer(axum::middleware::from_fn_with_state(
+            limitador_escrituras(),
+            limitar,
+        ))
 }

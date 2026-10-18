@@ -6,7 +6,7 @@
 use glory_backend::models::{ActualizarConfiguracionRequest, ConfiguracionRestaurante};
 use glory_backend::services::bdp_push::{
     payload_cancelar, payload_crear_departamento, payload_crear_familia, payload_inventario,
-    payload_propina, payload_puntos, payload_regularizacion, BdpPushService, DOMINIO_ARTICULO,
+    payload_propina, payload_puntos, payload_regularizacion, BdpPushService, MarcarResultado, DOMINIO_ARTICULO,
     DOMINIO_DEPARTAMENTO, DOMINIO_VENTA, ESTADO_ERROR, ESTADO_PENDIENTE,
     ESTADO_PENDIENTE_SUSCRIPCION, ESTADO_RECHAZADO, ESTADO_SINCRONIZADO, OPERACION_CANCELAR,
     OPERACION_CREAR, OPERACION_MODIFICAR, REINTENTOS_MAX,
@@ -81,12 +81,14 @@ async fn suscripcion_no_consume_reintentos(pool: PgPool) {
     BdpPushService::marcar_resultado(
         &pool,
         user,
-        DOMINIO_ARTICULO,
-        "90000123",
-        OPERACION_CREAR,
-        ESTADO_ERROR,
-        Some("timeout"),
-        true,
+        MarcarResultado {
+            dominio: DOMINIO_ARTICULO,
+            entidad_id: "90000123",
+            operacion: OPERACION_CREAR,
+            estado: ESTADO_ERROR,
+            error: Some("timeout"),
+            incrementar_reintento: true,
+        },
     )
     .await
     .unwrap();
@@ -99,12 +101,14 @@ async fn suscripcion_no_consume_reintentos(pool: PgPool) {
     BdpPushService::marcar_resultado(
         &pool,
         user,
-        DOMINIO_ARTICULO,
-        "90000123",
-        OPERACION_CREAR,
-        ESTADO_PENDIENTE_SUSCRIPCION,
-        Some("Subscripción no activada"),
-        false,
+        MarcarResultado {
+            dominio: DOMINIO_ARTICULO,
+            entidad_id: "90000123",
+            operacion: OPERACION_CREAR,
+            estado: ESTADO_PENDIENTE_SUSCRIPCION,
+            error: Some("Subscripción no activada"),
+            incrementar_reintento: false,
+        },
     )
     .await
     .unwrap();
@@ -673,12 +677,14 @@ async fn sincronizado_sale_de_la_cola_activa(pool: PgPool) {
     BdpPushService::marcar_resultado(
         &pool,
         user,
-        DOMINIO_ARTICULO,
-        "a1",
-        OPERACION_CREAR,
-        ESTADO_SINCRONIZADO,
-        None,
-        false,
+        MarcarResultado {
+            dominio: DOMINIO_ARTICULO,
+            entidad_id: "a1",
+            operacion: OPERACION_CREAR,
+            estado: ESTADO_SINCRONIZADO,
+            error: None,
+            incrementar_reintento: false,
+        },
     )
     .await
     .unwrap();
@@ -951,12 +957,14 @@ async fn flush_timeout_mid_write_estado_ambiguo_y_reintento_acotado(pool: PgPool
         BdpPushService::marcar_resultado(
             &pool,
             user,
-            DOMINIO_ARTICULO,
-            "90000123",
-            OPERACION_CREAR,
-            ESTADO_ERROR,
-            Some("timeout simulado"),
-            true,
+            MarcarResultado {
+                dominio: DOMINIO_ARTICULO,
+                entidad_id: "90000123",
+                operacion: OPERACION_CREAR,
+                estado: ESTADO_ERROR,
+                error: Some("timeout simulado"),
+                incrementar_reintento: true,
+            },
         )
         .await
         .unwrap();

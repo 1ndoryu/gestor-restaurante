@@ -405,7 +405,10 @@ mod tests {
 
     #[test]
     fn alcance_desconocido_o_lista_vacia_no_arma() {
-        assert!(!alcance_casa_con_objetivo(&alcances(&["alcance_inventado"]), "venta"));
+        assert!(!alcance_casa_con_objetivo(
+            &alcances(&["alcance_inventado"]),
+            "venta"
+        ));
         assert!(!alcance_casa_con_objetivo(&[], "venta"));
     }
 

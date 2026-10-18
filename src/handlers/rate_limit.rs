@@ -99,7 +99,10 @@ impl Limitador {
      * llenos y quietos; si aun así no baja, se vacía entero: es un limitador,
      * perder la cuenta de una IP solo le regala una ráfaga. */
     fn podar(&self, cubos: &mut HashMap<String, Cubo>) {
-        let mut ultima = self.ultima_poda.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut ultima = self
+            .ultima_poda
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         if ultima.elapsed() < INTERVALO_PODA && cubos.len() < MAX_ENTRADAS {
             return;
         }
