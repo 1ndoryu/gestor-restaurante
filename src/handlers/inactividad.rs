@@ -14,6 +14,7 @@ use crate::middleware::AuthUser;
 use crate::models::{
     ActualizarReglaInactividadRequest, CrearReglaInactividadRequest, ReglaInactividad,
 };
+use crate::repositories::inactividad::CambiosRegla;
 use crate::repositories::InactividadRepository;
 use crate::services::verificar_seccion;
 use crate::AppState;
@@ -84,16 +85,14 @@ pub async fn actualizar(
     verificar_seccion(&state.pool, &auth, "inactividad").await?;
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
-    let regla = InactividadRepository::update(
-        &state.pool,
-        id,
-        auth.user_id,
-        req.nombre.as_deref(),
-        req.dias_inactividad,
-        req.canal.as_deref(),
-        req.mensaje_plantilla.as_deref(),
-        req.activa,
-    )
+    let cambios = CambiosRegla {
+        nombre: req.nombre.as_deref(),
+        dias: req.dias_inactividad,
+        canal: req.canal.as_deref(),
+        mensaje: req.mensaje_plantilla.as_deref(),
+        activa: req.activa,
+    };
+    let regla = InactividadRepository::update(&state.pool, id, auth.user_id, cambios)
     .await?
     .ok_or_else(|| AppError::NotFound("Regla no encontrada".into()))?;
     Ok(Json(regla))

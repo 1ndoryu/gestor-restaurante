@@ -7,6 +7,16 @@ use uuid::Uuid;
 
 use crate::models::{PermisoSeccion, Trabajador};
 
+/// Campos editables de un trabajador. `None` deja el valor actual.
+#[derive(Clone, Copy)]
+pub struct CambiosTrabajador<'a> {
+    pub nombre: Option<&'a str>,
+    pub email: Option<&'a str>,
+    pub password_hash: Option<&'a str>,
+    pub cargo: Option<&'a str>,
+    pub activo: Option<bool>,
+}
+
 pub struct TrabajadorRepository;
 
 impl TrabajadorRepository {
@@ -67,17 +77,20 @@ impl TrabajadorRepository {
         .await
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /* Solo se actualizan los campos enviados (COALESCE en SQL). */
     pub async fn update(
         pool: &PgPool,
         id: Uuid,
         user_id: Uuid,
-        nombre: Option<&str>,
-        email: Option<&str>,
-        password_hash: Option<&str>,
-        cargo: Option<&str>,
-        activo: Option<bool>,
+        cambios: CambiosTrabajador<'_>,
     ) -> Result<Option<Trabajador>, sqlx::Error> {
+        let CambiosTrabajador {
+            nombre,
+            email,
+            password_hash,
+            cargo,
+            activo,
+        } = cambios;
         sqlx::query_as::<_, Trabajador>(
             "UPDATE trabajadores SET \
              nombre = COALESCE($3, nombre), \

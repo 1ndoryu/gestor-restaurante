@@ -20,6 +20,16 @@ pub struct ClienteInactivo {
     pub mensaje_plantilla: String,
 }
 
+/// Campos editables de una regla. `None` deja el valor actual.
+#[derive(Clone, Copy)]
+pub struct CambiosRegla<'a> {
+    pub nombre: Option<&'a str>,
+    pub dias: Option<i32>,
+    pub canal: Option<&'a str>,
+    pub mensaje: Option<&'a str>,
+    pub activa: Option<bool>,
+}
+
 pub struct InactividadRepository;
 
 impl InactividadRepository {
@@ -55,17 +65,20 @@ impl InactividadRepository {
         .await
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /* Solo se actualizan los campos enviados (COALESCE en SQL). */
     pub async fn update(
         pool: &PgPool,
         id: Uuid,
         user_id: Uuid,
-        nombre: Option<&str>,
-        dias: Option<i32>,
-        canal: Option<&str>,
-        mensaje: Option<&str>,
-        activa: Option<bool>,
+        cambios: CambiosRegla<'_>,
     ) -> Result<Option<ReglaInactividad>, sqlx::Error> {
+        let CambiosRegla {
+            nombre,
+            dias,
+            canal,
+            mensaje,
+            activa,
+        } = cambios;
         sqlx::query_as::<_, ReglaInactividad>(
             "UPDATE reglas_inactividad SET \
              nombre = COALESCE($3, nombre), \

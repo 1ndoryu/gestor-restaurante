@@ -19,6 +19,7 @@ use crate::models::{
     ActualizarTrabajadorRequest, CrearTrabajadorRequest, LoginTrabajadorRequest,
     TrabajadorAuthResponse, TrabajadorResponse, SECCIONES_VALIDAS,
 };
+use crate::repositories::trabajador::CambiosTrabajador;
 use crate::repositories::TrabajadorRepository;
 use crate::services::AuthService;
 use crate::AppState;
@@ -209,17 +210,15 @@ pub async fn actualizar(
         None => None,
     };
 
-    let trabajador = Repo::update(
-        &state.pool,
-        id,
-        auth.user_id,
-        req.nombre.as_deref(),
-        req.email.as_deref(),
-        password_hash.as_deref(),
-        req.cargo.as_deref(),
-        req.activo,
-    )
-    .await?
+    let cambios = CambiosTrabajador {
+        nombre: req.nombre.as_deref(),
+        email: req.email.as_deref(),
+        password_hash: password_hash.as_deref(),
+        cargo: req.cargo.as_deref(),
+        activo: req.activo,
+    };
+    let trabajador = Repo::update(&state.pool, id, auth.user_id, cambios)
+        .await?
     .ok_or_else(|| AppError::NotFound("Trabajador no encontrado".into()))?;
 
     if let Some(ref permisos) = req.permisos {
