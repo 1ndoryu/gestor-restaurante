@@ -104,7 +104,7 @@
   border-radius: var(--radius);
   cursor: grab;
   user-select: none;
-  transition: box-shadow 0.15s, border-color 0.15s;
+  transition: border-color 0.15s;
   font-size: var(--plano-fuente-mesa);
   z-index: 1;
   left: var(--x);
@@ -116,20 +116,18 @@
 
 .planoMesa:hover {
   border-color: var(--primary);
-  box-shadow: var(--plano-sombra-flote);
   z-index: 10;
 }
 
 .planoMesa.arrastrando {
   opacity: 0.7;
-  box-shadow: var(--plano-sombra-arrastre);
   z-index: 100;
   cursor: grabbing;
 }
 
 .planoMesa.seleccionada {
   border-color: var(--primary);
-  box-shadow: var(--plano-sombra-seleccion);
+  outline: 2px solid var(--primary);
 }
 
 /* [014A-7] Handles posicionados dentro de la mesa para evitar clipping
@@ -145,7 +143,7 @@
   border-radius: var(--plano-radio-circulo);
   background: var(--primary);
   border: 2px solid var(--background);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 55%, black);
+  outline: 1px solid color-mix(in srgb, var(--primary) 55%, black);
 }
 
 .planoMesaResizeHandle.norte,
@@ -288,7 +286,6 @@
   border-radius: var(--radius);
   transform: var(--rot);
   transform-origin: center center;
-  box-shadow: var(--sombra);
   cursor: var(--cursor);
   z-index: 1;
   touch-action: none;

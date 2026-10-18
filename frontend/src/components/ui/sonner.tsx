@@ -28,6 +28,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
           <Loader2Icon className="size-4 animate-spin" />
         ),
       }}
+      /* Variables que lee la librería sonner en su CSS; VarSense no las ve
+       * como uso porque se inyectan desde JS (excluidas en varsense.config.json). */
       style={
         {
           "--normal-bg": "var(--popover)",

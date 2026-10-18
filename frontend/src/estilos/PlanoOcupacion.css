@@ -43,7 +43,7 @@
   justify-content: center;
   border: 2px solid transparent;
   cursor: default;
-  transition: transform 0.1s, box-shadow 0.1s;
+  transition: transform 0.1s;
   z-index: 1;
   left: var(--x);
   top: var(--y);
@@ -88,7 +88,6 @@
 
 .mesaOcupacion.hover {
   transform: scale(1.05);
-  box-shadow: var(--plano-sombra-flote-ocupacion);
   z-index: 10;
 }
 
@@ -118,7 +117,6 @@
   border-radius: var(--radius);
   padding: 0.5rem;
   min-width: 180px;
-  box-shadow: var(--plano-sombra-tooltip);
   z-index: 200;
   pointer-events: none;
 }

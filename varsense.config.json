@@ -100,7 +100,13 @@
     },
     "unused": {
       "enabled": true,
-      "severity": "hint"
+      "severity": "hint",
+      "excludeTokens": [
+        "--normal-bg",
+        "--normal-text",
+        "--normal-border",
+        "--border-radius"
+      ]
     }
   },
   "bannedProperties": {
@@ -143,7 +149,8 @@
       "^inline$",
       "^mt-lg$",
       "^align-start$",
-      "^flex-wrap-center$"
+      "^flex-wrap-center$",
+      "^(cuadrada|redonda|rectangular|libre|ocupada|no_show|inactiva)$"
     ]
   }
 }

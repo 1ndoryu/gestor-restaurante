@@ -14,15 +14,8 @@
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar: var(--sidebar);
-    --color-chart-5: var(--chart-5);
-    --color-chart-4: var(--chart-4);
-    --color-chart-3: var(--chart-3);
-    --color-chart-2: var(--chart-2);
-    --color-chart-1: var(--chart-1);
     --color-ring: var(--ring);
     --color-input: var(--input);
     --color-border: var(--border);
@@ -45,9 +38,8 @@
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
     --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
-    --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
+    --radius-pill: 999px;
 }
 
 :root {
@@ -160,7 +152,6 @@
   --w: auto;
   --h: auto;
   --rot: none;
-  --sombra: none;
   --cursor: grab;
   --cursorResize: ew-resize;
   /* [039A-1] Tokens del plano de sala/ocupación (valores exactos del diseño;
@@ -176,11 +167,6 @@
   --plano-radio-handle: 2px;
   --plano-radio-circulo: 999px;
   --plano-radio-chico: 4px;
-  --plano-sombra-flote: 0 2px 8px rgba(0, 0, 0, 0.12);
-  --plano-sombra-arrastre: 0 4px 16px rgba(0, 0, 0, 0.2);
-  --plano-sombra-flote-ocupacion: 0 2px 8px rgba(0, 0, 0, 0.15);
-  --plano-sombra-tooltip: 0 4px 12px rgba(0, 0, 0, 0.15);
-  --plano-sombra-seleccion: 0 0 0 2px var(--primary);
   --ancho: 0%;
   --tr: none;
   --trs: none;
@@ -223,7 +209,7 @@
 }
 .sidebar-scroll::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--sidebar-foreground) 22%, transparent);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 .sidebar-scroll:hover::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--sidebar-foreground) 45%, transparent);
