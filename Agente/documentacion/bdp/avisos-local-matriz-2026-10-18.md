@@ -33,7 +33,9 @@ Lo no documentado se registra y no se actúa. Un aviso con acción o `estado` de
 
 ## Pendiente
 
-- `traspasar-linea`: sin medir. Marcar la línea 1 de la mesa 3 (fila en 150,36) sí funciona. Después, «Trasp. Mesas» (982,102) no responde a clic en dos intentos desde el reinicio, así que no hay forma automatizada de iniciar el traspaso de línea.
+- `traspasar-linea`: sin medir. Marcar la línea 1 de la mesa 3 (fila en 150,36) sí funciona. Después, «Trasp. Mesas» (982,102) no responde a clic: tres intentos (clic simple y doble en `pulsar-local`, y un clic previo), todos con «Nada cambió» en la ventana. Sin forma automatizada fiable de iniciar el traspaso de línea; no se pulsa a ciegas.
+- **Bloqueo del gate:** `npm run gate:check -- 10AA-3` (plan de la fase D) falla en SETUP: `sentinel.lock.json: analyzers.sentinel.commit no coincide con quality-tools.json`. Es un desfase de herramientas de calidad que afecta a todo el repo, no a este cambio; reparar exige el procedimiento de `mantenimiento-herramientas-calidad-2026-10-06.md` (propagación a los consumidores). Pendiente de decisión de la usuaria; este cambio no se da por gate-limpio.
+- **Descripción de SALONES:** el texto no entra (SendInput solo letras/dígitos; PostMessage no verificado). Bloquea crear salón; no se ha tocado ningún salón salvo SALON 1.
 - Acción `salon` del PANEL (854,102): abre «SELECCIÓN DE SALÓN» (1 - SALON 1, 2 - TERRAZA, 91, 92, Salir) y «Salir» (222,322 en su captura) la cierra. Verificado. No se seleccionó ningún salón distinto de 1.
 - Mesa 3 verificada tras la apertura manual de la usuaria: dos líneas de COCA-COLA (1,05 cada una), subtotal 2,10.
 - `cambiar-estado`: bloqueado por el Monitor de Cocina (hallazgo 4).
