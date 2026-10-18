@@ -11,9 +11,7 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use glory_backend::services::{
-    procesar_lote, Consulta, ConsultaPedido, ResumenLote, MAX_INTENTOS,
-};
+use glory_backend::services::{procesar_lote, Consulta, ConsultaPedido, ResumenLote, MAX_INTENTOS};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -40,7 +38,10 @@ impl DobleBdp {
 
 impl ConsultaPedido for DobleBdp {
     async fn pedido(&self, comanda: i64) -> Consulta {
-        self.pedidas.lock().expect("bloqueo del doble").push(comanda);
+        self.pedidas
+            .lock()
+            .expect("bloqueo del doble")
+            .push(comanda);
         self.respuestas
             .get(&comanda)
             .cloned()
@@ -106,7 +107,14 @@ async fn pedido_encontrado_queda_procesado_con_su_foto(pool: PgPool) {
 
     let resumen = procesar_lote(&pool, user, &doble, 10).await.expect("lote");
 
-    assert_eq!(resumen, ResumenLote { procesados: 1, reintentos: 0, revision: 0 });
+    assert_eq!(
+        resumen,
+        ResumenLote {
+            procesados: 1,
+            reintentos: 0,
+            revision: 0
+        }
+    );
     let (estado, intentos, error, con_pedido, con_fecha) = fila(&pool, id).await;
     assert_eq!(estado, "procesado");
     assert_eq!(intentos, 1);
@@ -155,7 +163,10 @@ async fn fallo_transitorio_vuelve_a_recibido_y_cuenta_el_intento(pool: PgPool) {
 
     assert_eq!(resumen.reintentos, 1);
     let (estado, intentos, error, _, con_fecha) = fila(&pool, id).await;
-    assert_eq!(estado, "recibido", "un fallo transitorio no saca el aviso de la cola");
+    assert_eq!(
+        estado, "recibido",
+        "un fallo transitorio no saca el aviso de la cola"
+    );
     assert_eq!(intentos, 1);
     assert!(error.unwrap().contains("timeout"));
     assert!(!con_fecha, "procesado_en solo se marca al salir de la cola");
@@ -165,7 +176,14 @@ async fn fallo_transitorio_vuelve_a_recibido_y_cuenta_el_intento(pool: PgPool) {
 async fn fallo_agotado_pasa_a_revision(pool: PgPool) {
     let user = cuenta(&pool).await;
     /* Ya lleva MAX_INTENTOS - 1 intentos: esta pasada es la última. */
-    let id = aviso(&pool, user, "modificar", payload_comanda("19"), MAX_INTENTOS - 1).await;
+    let id = aviso(
+        &pool,
+        user,
+        "modificar",
+        payload_comanda("19"),
+        MAX_INTENTOS - 1,
+    )
+    .await;
     let doble = DobleBdp::con(vec![(19, Consulta::Fallo("500".to_string()))]);
 
     let resumen = procesar_lote(&pool, user, &doble, 10).await.expect("lote");
@@ -180,13 +198,23 @@ async fn fallo_agotado_pasa_a_revision(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn aviso_sin_comanda_numerica_no_llama_a_bdp(pool: PgPool) {
     let user = cuenta(&pool).await;
-    let id = aviso(&pool, user, "crear", json!({"IdentificadorComanda": "abc"}), 0).await;
+    let id = aviso(
+        &pool,
+        user,
+        "crear",
+        json!({"IdentificadorComanda": "abc"}),
+        0,
+    )
+    .await;
     let doble = DobleBdp::default();
 
     let resumen = procesar_lote(&pool, user, &doble, 10).await.expect("lote");
 
     assert_eq!(resumen.revision, 1);
-    assert!(doble.pedidas().is_empty(), "no se inventa un identificador para BDP");
+    assert!(
+        doble.pedidas().is_empty(),
+        "no se inventa un identificador para BDP"
+    );
     let (estado, _, _, _, _) = fila(&pool, id).await;
     assert_eq!(estado, "requiere_revision");
 }
@@ -234,5 +262,8 @@ async fn no_toca_avisos_de_otra_cuenta_ni_ya_procesados(pool: PgPool) {
     assert_eq!(resumen, ResumenLote::default());
     assert!(doble.pedidas().is_empty());
     let (estado, _, _, _, _) = fila(&pool, de_otra).await;
-    assert_eq!(estado, "recibido", "el aviso de otra cuenta debe seguir intacto");
+    assert_eq!(
+        estado, "recibido",
+        "el aviso de otra cuenta debe seguir intacto"
+    );
 }
