@@ -319,7 +319,9 @@ async fn run(config: Config) -> Result<(), BootstrapError> {
             "RustDesk ID: {}",
             rustdesk.id.as_deref().unwrap_or("pendiente")
         );
-        println!("RustDesk password: {}", rustdesk.password);
+        /* La contraseña solo va al reporte (ya escrito en disco), nunca a stdout:
+         * stdout acaba en logs y agregadores. */
+        println!("RustDesk: contraseña disponible en el reporte");
     }
     show_message_box(
         "Glory Remote Bootstrap",
