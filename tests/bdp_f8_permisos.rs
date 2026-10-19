@@ -8,8 +8,6 @@
  * La UI solo refleja el permiso; estos tests prueban el backend (M17).
  */
 
-use glory_backend::services::NotifHub;
-use std::sync::Arc;
 use axum::extract::{Path, State};
 use axum::Json;
 use glory_backend::config::AppConfig;
@@ -28,6 +26,7 @@ use glory_backend::models::{
     CrearBdpPurchaseNoteRequest, UserRole,
 };
 use glory_backend::repositories::ConfiguracionRepository;
+use glory_backend::services::NotifHub;
 use glory_backend::services::{
     verificar_permiso, AccionPermiso, ConfiguracionService, ServicioModoOperacion,
 };
@@ -35,6 +34,7 @@ use glory_backend::AppState;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
 use std::str::FromStr;
+use std::sync::Arc;
 use uuid::Uuid;
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
