@@ -11,8 +11,6 @@
  *   - reintentar una fila ya sincronizada/descartada -> Validation.
  * No hay envío HTTP real: en standalone el reintento es no-op. */
 
-use glory_backend::services::NotifHub;
-use std::sync::Arc;
 use axum::extract::{Path, State};
 use axum::Json;
 use glory_backend::config::AppConfig;
@@ -21,9 +19,11 @@ use glory_backend::handlers::{listar_pendientes_push, reintentar_fila};
 use glory_backend::middleware::AuthUser;
 use glory_backend::models::UserRole;
 use glory_backend::repositories::ConfiguracionRepository;
+use glory_backend::services::NotifHub;
 use glory_backend::services::ServicioModoOperacion;
 use glory_backend::AppState;
 use sqlx::PgPool;
+use std::sync::Arc;
 use uuid::Uuid;
 
 fn make_app_state(pool: PgPool) -> AppState {
