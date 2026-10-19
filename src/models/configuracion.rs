@@ -79,6 +79,8 @@ pub struct ConfiguracionRestaurante {
     pub bdp_default_customer_code: String,
     /* [F6.d] OrderEndType del CreateOrder: 0 = normal (facturable tras pagar), 1 = pendiente. */
     pub bdp_order_end_type: i32,
+    /* [D18d] Enviar BillingDetails (datos fiscales del cliente) en InvoiceOrder. */
+    pub bdp_billing_details: bool,
     /* [F4.5] Intervalo de polling para consultar estado de comandas BDP (segundos) */
     pub bdp_poll_interval_secs: i32,
     /// Opt-in explícito. `false` impide cualquier polling automático externo.
@@ -212,6 +214,8 @@ pub struct ActualizarConfiguracionRequest {
     /* [F6.d] OrderEndType del CreateOrder: 0 o 1. */
     #[validate(range(min = 0, max = 1))]
     pub bdp_order_end_type: Option<i32>,
+    /* [D18d] Activa BillingDetails en InvoiceOrder. */
+    pub bdp_billing_details: Option<bool>,
     /* [F4.5] Intervalo de polling BDP */
     pub bdp_poll_interval_secs: Option<i32>,
     pub bdp_poll_enabled: Option<bool>,

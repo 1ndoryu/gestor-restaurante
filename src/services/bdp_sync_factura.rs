@@ -10,6 +10,7 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::models::{ConfiguracionRestaurante, Venta};
+use crate::repositories::cliente::{ClienteRepository, DatosFiscalesCliente};
 use crate::repositories::{BdpAuditLogRepository, BdpPagoRepository};
 use crate::services::bdp_weblink::BdpWeblinkClient;
 use crate::services::bdp_weblink_catalog::{
@@ -206,18 +207,52 @@ impl BdpSyncService {
 
     /* [F3.2] Ejecuta `InvoiceOrder` y cierra la auditoría en error/ambiguo.
      * Devuelve la respuesta cruda y el InvoiceNumber ya validado. */
+    /* [D18d] Con `bdp_billing_details` activo, InvoiceOrder lleva los datos fiscales del cliente.
+     * Se valida antes de la autorización de un solo uso: un bloqueo local no gasta el armado. */
+    async fn parametros_factura(
+        pool: &PgPool,
+        venta: &Venta,
+        config: &ConfiguracionRestaurante,
+    ) -> Result<Option<Value>, String> {
+        if !config.bdp_billing_details {
+            return Ok(None);
+        }
+        let cliente_id = venta
+            .cliente_id
+            .ok_or("Factura bloqueada: la venta no tiene cliente con datos fiscales")?;
+        let datos = ClienteRepository::datos_fiscales(pool, cliente_id, venta.user_id)
+            .await
+            .map_err(|e| format!("Factura bloqueada: no se pudieron leer los datos fiscales: {e}"))?
+            .ok_or("Factura bloqueada: cliente de la venta no encontrado")?;
+        if datos.nif.trim().is_empty() {
+            return Err("Factura bloqueada: el cliente no tiene NIF".into());
+        }
+        Ok(Some(serde_json::json!({
+            "BillingDetails": {
+                "Name": nombre_fiscal(&datos),
+                "Address": datos.direccion_fiscal.trim(),
+                "ZipCode": datos.codigo_postal.trim(),
+                "City": datos.poblacion.trim(),
+                "TaxId": datos.nif.trim(),
+                /* 1 = N.I.F. según la documentación de InvoiceBillingDetails. */
+                "TaxType": 1
+            }
+        })))
+    }
+
     async fn ejecutar_factura(
         client: &BdpWeblinkClient<'_>,
         config: &ConfiguracionRestaurante,
         order_id: i64,
         pool: &PgPool,
         audit_id: Uuid,
+        invoice_parameters: Option<Value>,
     ) -> Result<(Value, String), String> {
         let request = BdpInvoiceOrderRequest {
             pos_id: config.bdp_pos_id,
             employee_id: config.bdp_employee_id,
             order_identifier: BdpOrderIdentifier::by_order_id(order_id),
-            invoice_parameters: None,
+            invoice_parameters,
         };
 
         let response = match client.invoice_order(&request).await {
@@ -363,8 +398,10 @@ impl BdpSyncService {
         let audit_id =
             Self::autorizar_factura(pool, venta, config, order_id, idempotency_key).await?;
 
+        let invoice_parameters = Self::parametros_factura(pool, venta, config).await?;
         let (response, invoice_number) =
-            Self::ejecutar_factura(&client, config, order_id, pool, audit_id).await?;
+            Self::ejecutar_factura(&client, config, order_id, pool, audit_id, invoice_parameters)
+                .await?;
         Self::confirmar_factura(pool, venta, audit_id, &response, &invoice_number).await?;
 
         info!(
@@ -374,6 +411,17 @@ impl BdpSyncService {
 
         Ok(invoice_number)
     }
+}
+
+/* [D18d] Nombre fiscal: la razón social si existe; si no, nombre y apellidos. */
+fn nombre_fiscal(datos: &DatosFiscalesCliente) -> String {
+    let empresa = datos.empresa.trim();
+    if !empresa.is_empty() {
+        return empresa.to_string();
+    }
+    format!("{} {}", datos.nombre.trim(), datos.apellidos.trim())
+        .trim()
+        .to_string()
 }
 
 #[cfg(test)]

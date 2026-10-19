@@ -314,6 +314,7 @@ async fn test_configuracion_actualizar_haddock_fields(pool: PgPool) {
         bdp_codreg_default: None,
         bdp_articulo_rango_inicial: None,
         bdp_order_end_type: None,
+        bdp_billing_details: None,
     };
 
     let updated = ConfiguracionRepository::actualizar(&pool, user_id, &req)

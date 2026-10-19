@@ -45,6 +45,7 @@ fn bdp_config_from_env() -> Option<ConfiguracionRestaurante> {
         bdp_codreg_default: 1,
         bdp_articulo_rango_inicial: 90_000_000,
         bdp_order_end_type: 0,
+        bdp_billing_details: false,
         reserva_email_obligatorio: false,
         reserva_telefono_obligatorio: true,
         reserva_nombre_obligatorio: true,

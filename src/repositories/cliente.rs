@@ -9,6 +9,18 @@ use uuid::Uuid;
 
 use crate::models::Cliente;
 
+/// Datos fiscales de un cliente para la factura BDP (BillingDetails)
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct DatosFiscalesCliente {
+    pub nombre: String,
+    pub apellidos: String,
+    pub empresa: String,
+    pub nif: String,
+    pub direccion_fiscal: String,
+    pub codigo_postal: String,
+    pub poblacion: String,
+}
+
 /// Datos para crear un cliente
 pub struct NuevoCliente<'a> {
     pub user_id: Uuid,
@@ -115,6 +127,23 @@ impl ClienteRepository {
         .bind(data.preferencias_ubicacion)
         .bind(bdp_customer_code)
         .fetch_one(pool)
+        .await
+    }
+
+    /* [D18d] Datos fiscales para BillingDetails de InvoiceOrder. Consulta aparte para no
+     * tocar los SELECT * del CRM ni el modelo Cliente. */
+    pub async fn datos_fiscales(
+        pool: &PgPool,
+        id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<DatosFiscalesCliente>, sqlx::Error> {
+        sqlx::query_as::<_, DatosFiscalesCliente>(
+            "SELECT nombre, apellidos, empresa, nif, direccion_fiscal, codigo_postal, poblacion \
+             FROM clientes WHERE id = $1 AND user_id = $2",
+        )
+        .bind(id)
+        .bind(user_id)
+        .fetch_optional(pool)
         .await
     }
 

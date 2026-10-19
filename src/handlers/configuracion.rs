@@ -207,6 +207,7 @@ pub async fn actualizar_configuracion(
         || req.bdp_order_type_map.is_some()
         || req.bdp_default_customer_code.is_some()
         || req.bdp_order_end_type.is_some()
+        || req.bdp_billing_details.is_some()
         || req.bdp_auto_sync_customers.is_some()
         || req.bdp_sync_enabled.is_some();
 

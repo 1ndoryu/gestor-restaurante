@@ -220,6 +220,7 @@ async fn seed_config(pool: &PgPool, user_id: Uuid) -> ConfiguracionRestaurante {
         bdp_codreg_default: 1,
         bdp_articulo_rango_inicial: 90_000_000,
         bdp_order_end_type: 0,
+        bdp_billing_details: false,
         google_review_url: String::new(),
         telefono_restaurante: String::new(),
         url_reservas: String::new(),
