@@ -10,8 +10,7 @@ use crate::models::VentaConCliente;
 use super::tipos::VentaRepository;
 
 /* Conteo con los mismos filtros del listado (sin orden ni paginación). */
-const SQL_CONTEO_FILTRADO: &str =
-                "SELECT COUNT(*) FROM ventas v \
+const SQL_CONTEO_FILTRADO: &str = "SELECT COUNT(*) FROM ventas v \
                  LEFT JOIN clientes c ON c.id = v.cliente_id \
                  WHERE v.user_id = $1 \
                  AND ($2::DATE IS NULL OR v.fecha >= $2) \
@@ -41,8 +40,7 @@ const SQL_CONTEO_FILTRADO: &str =
                        END) = ANY(string_to_array($9, ',')))";
 
 /* Conteo sin filtros de texto ni columna: solo usuario y rango de fechas. */
-const SQL_CONTEO_SIMPLE: &str =
-                "SELECT COUNT(*) FROM ventas WHERE user_id = $1 \
+const SQL_CONTEO_SIMPLE: &str = "SELECT COUNT(*) FROM ventas WHERE user_id = $1 \
                  AND ($2::DATE IS NULL OR fecha >= $2) \
                  AND ($3::DATE IS NULL OR fecha <= $3)";
 
