@@ -37,8 +37,13 @@ Precondición: L3 OK, L5.0 hecho (ID de pago estable e idempotencia en T2), caja
   - Tests en la 89 (lib `bdp_sync`, `bdp_weblink`, `modo_operacion`, `haddock`, `check --tests`, integración `haddock_db`, `bdp_service_integration`, `bdp_simulator_integration`): verdes. Gate `--cierre`: 0 nuevos.
   - **D18a–c en la app (2026-10-19):** número único por venta, segunda factura devuelve la existente (`Status 3` en raíz con `Order: null`, corregido en `69271fd`).
   - **D18d (2026-10-19, commit `a14540a`):** `BillingDetails` configurable (`bdp_billing_details`, migración `20261021120000_bdp_billing_details`, default apagado). Con el flag activo: cliente sin NIF → «Factura bloqueada: el cliente no tiene NIF» (422, sin consumir armado ni factura); cliente con NIF → factura `00001TB00000020` en 200. **No verificado:** que BDP reciba `BillingDetails`. La auditoría (`datos_enviados`) guarda solo ids, y la respuesta de Invoice no lo muestra; la consulta directa a BDP con las credenciales de la ficha no devolvió datos (no se obtuvo token válido con ese método de login). Verificación pendiente: captura del tráfico con el proxy o Orders/Get con autenticación correcta.
-  - Pendiente L6.d: D19, D19t (`proxy-lento.mjs` solo retrasa Payment/Add; falta InvoiceOrder), D20.
+  - **D19 OK (2026-10-19, commit `3ec3ebb`, venta `314294f6`, serie `PRUEBA`):** la factura ambigua bloquea un reintento nuevo (`ensure_no_unresolved`, alcance `invoice`). Con BDP ya facturado sin número local, la app no emite de nuevo: `POST /api/ventas/{id}/bdp-invoice-number` (confirmación `REGISTRAR FACTURA {id}`) lee `GetOrder` (`Status 3`), cierra la auditoría ambigua como `exito` con `registro_manual` y marca la venta facturada. Resultado: `PRUEBA-D19-0001`, sin duplicados. Decisión de la usuaria: «Bloquear y registrar número».
+  - **D19t OK (2026-10-19, venta `d977fb9a`, proxy de 75 s en `InvoiceOrder`):** la app agota la escritura a los 64 s y audita `ambiguo`; BDP aplicó la factura. Reintento de `bdp-invoice` → 422 «Factura bloqueada: BDP ya facturó la orden sin número local» (sin emitir). Registro → 200 `PRUEBA-D19T-0001`. Reintento → 200 con el mismo número. Ledger: una fila `exito`; el proxy registra un único `Invoice`. Matiz: el error de transporte del cliente es genérico («error sending request»), no «timeout»; el corte es el de la escritura de 60 s.
+  - **D20 bloqueado (2026-10-19):** exige un aviso `finalizar` real emitido por el TPV al finalizar una comanda (acción de la usuaria en TpvNet). Los dos avisos `finalizar` de la inbox (comandas 17 y 20, 2026-10-18) no corresponden a estas órdenes. Además, la exportación de documentos (D28) no está implementada y falta cruzar Serie/Numero del aviso con `InvoiceNumber`. Hallazgo para L9: los avisos quedan en `recibido` porque no hay worker automático; solo los procesa `POST /api/bdp/avisos/procesar` (Admin).
+  - **Pendiente L6.d:** D18d sin verificar en BDP (`BillingDetails`: la auditoría guarda solo ids y la respuesta de Invoice no lo muestra); D20 (bloqueado, arriba).
   - `bdp_order_type_map` restaurado a `{}`.
+
+**Estado L6 al cierre (2026-10-19):** L6.a y D12 parcial; L6.c con D16 pendiente (pago de caja en el TPV de la usuaria); L6.d con D19 y D19t OK, D20 bloqueado. Lectura intermedia de propina (D11a/b) y origen del 0,00 de D11c sin resolver. D12c: límite de encolar, tarea aparte.
 
 ### L7 — Stock (D26–D27)
 
@@ -53,14 +58,18 @@ Precondición: L3 OK, L5.0 hecho (ID de pago estable e idempotencia en T2), caja
 
 ### L8 — Maestros y documentos (D24–D25, D28)
 
+**Estado (2026-10-19): sin ejecutar.** D24-p/m y D24a–d dependen de la usuaria en TpvNet o de lectura nueva. **D25 (2026-10-19): hecho.** Aprobado por la usuaria («Aprobar en BDP local»). Camino autorizado con `bdp_overwrite_clientes` (apagado por defecto; migración `20261022120000`): `Overwrite=true` solo si el cliente ya tiene ese código vinculado y BDP es loopback. Probado en vivo contra 127.0.0.1:8070 (cliente PRUEBA 900001; evidencia en `Agente/completados/tareas-2026-10-19.md`). D28 y variantes: exportación no implementada.
+
 - **Plano, formas de pago y empleados (D24-p, D24-m):** lectura con `Rooms/GetTables`, `Tenders/GetList`, `Employees/Get`; ya posible con la app; criterio: sin altas fantasma.
 - **Alta, modificación, desactivación y borrado en caja (D24a–D24d):** la usuaria opera en TpvNet; la app lee sin botón (necesita lectura periódica con cursor de T2). Si la API no expone el borrado, se verifica el mensaje de D32.
-- **Clientes (D25):** (a) cambio solo en BDP, (b) solo en la web (`CreateCustomer` con `Overwrite=true`: requiere aprobación expresa de la usuaria; sin ella el caso se declara no soportado), (c) cambios contradictorios con conflicto visible.
+- **Clientes (D25):** (a) cambio solo en BDP, (b) solo en la web (`CreateCustomer` con `Overwrite=true`: aprobado solo en BDP local con flag apagado por defecto; en otro BDP se declara no soportado), (c) cambios contradictorios con conflicto visible.
 - **Documentos (D28, D28-auto, D28-auto-R, D28a):** perfil de exportación programado en el TPV local; invocar `ExportProfiles/Documents` desde código, `OnlyLastMovements` true/false, ventanas solapadas, reinicio a mitad y albaranes por `ExportPurchaseNotes`. Precondición: L5.0, ya cumplida (cursor).
 
 ### L9 — Avisos duplicados, caídas y reinicios (D04, D08, D10, D21–D23, D29, D31)
 
 Precondición: L4 hecho y F1–F2 implementados (L5.0 ya está) (receptor, inbox y worker).
+
+**Estado (2026-10-19): sin ejecutar.** F2 está hecha, pero el worker de avisos no corre solo: los avisos quedan en `recibido` hasta `POST /api/bdp/avisos/procesar`. Ese endpoint solo procesa los avisos del usuario autenticado; los 16 avisos `recibido` pertenecen a `demo@restaurante.com`, no al usuario de prueba `fase-d@prueba.test`. Por eso el lote de 2026-10-19 procesó 0. Procesarlos exige la sesión de esa cuenta (decisión de la usuaria: «Procesar ahora», bloqueado por la credencial). D29 (reinicio de BDP.NET) depende de la usuaria.
 
 - **D21, D21a:** se ensayan ya en L4 (matriz de 7 eventos y traspaso de comanda completa con `GetOrder`); aquí se repiten con el receptor definitivo de F2 y su log por tipo.
 - **D10:** anular en caja una venta vinculada; el aviso `Cancelar` deja la venta anulada en la web (estado en ambos lados).
@@ -73,6 +82,8 @@ Precondición: L4 hecho y F1–F2 implementados (L5.0 ya está) (receptor, inbox
 - **D31:** llamar al camarero desde una mesa vinculada; avisa en caja sin dejar estado.
 
 ### L10 — Excepciones, accesos y piloto (D01, D02, D30, D32)
+
+**Estado (2026-10-19): sin ejecutar.** D01/D02 pendientes de escribir el registro formal y de la licencia del TPV real; D32 necesita la lista de responsables; D30 fuera de esta fase.
 
 - **D01, D02:** salud, versión y login ya verificados en L2.1; el registro formal (`bdp_sync_cursor`) tiene ya su tabla (L5.0), falta escribirlo. La licencia del TPV local es DEMO: la comprobación de la licencia 84 se hace en el TPV real. D02: revisión de logs sin secretos legibles en L1.4 y al cierre.
 - **D32:** mensaje con procedimiento y responsable ante cada operación que la API no expone (traspaso desde la web, borrar artículos, rectificativas, devoluciones, apertura y cierre, arqueo, efectivo, PDF, reimpresión en cocina, controles de cocina, series, cambios tras el pago). Es código de la web (F2/F3) más la lista de responsables, que asignan Guillermo y el propietario por escrito.
