@@ -4,8 +4,6 @@
  * CRUD local 100% operativo sin BDP. No dependen de feature flags (M12).
  * Usan #[sqlx::test] con migraciones aplicadas y no contactan con BDP real. */
 
-use glory_backend::services::NotifHub;
-use std::sync::Arc;
 use axum::extract::{Path, Query, State};
 use axum::Json;
 use glory_backend::config::AppConfig;
@@ -20,11 +18,13 @@ use glory_backend::models::{
     BdpMenuLocalTipo, CrearBdpMenuLocalRequest, UserRole,
 };
 use glory_backend::repositories::{BdpMenuLocalRepository, ConfiguracionRepository};
+use glory_backend::services::NotifHub;
 use glory_backend::services::ServicioModoOperacion;
 use glory_backend::AppState;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
 use std::str::FromStr;
+use std::sync::Arc;
 use uuid::Uuid;
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
