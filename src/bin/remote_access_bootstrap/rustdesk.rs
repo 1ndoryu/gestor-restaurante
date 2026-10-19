@@ -40,7 +40,10 @@ pub(super) async fn ensure_rustdesk_installed() -> Result<PathBuf, BootstrapErro
     Ok(PathBuf::from(RUSTDESK_EXE))
 }
 
-pub(super) fn configure_rustdesk(exe: &Path, config: &Config) -> Result<RustDeskState, BootstrapError> {
+pub(super) fn configure_rustdesk(
+    exe: &Path,
+    config: &Config,
+) -> Result<RustDeskState, BootstrapError> {
     let _ = try_run_capture(exe, ["--install-service"]);
     let _ = try_run_capture("sc", ["start", RUSTDESK_SERVICE]);
     wait_for_service(RUSTDESK_SERVICE, 30)?;
@@ -70,4 +73,3 @@ pub(super) fn random_password() -> String {
         .map(char::from)
         .collect()
 }
-
