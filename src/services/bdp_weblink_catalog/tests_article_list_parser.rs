@@ -62,3 +62,27 @@ fn items_missing_optional_fields_parse_with_defaults() {
     assert_eq!(items[0].price1, None);
     assert!(items[0].active);
 }
+
+/* [10AA-3] Forma real de `Articles/Export` capturada en la 89 (2026-10-19): el código va en
+ * `Article` (numérico), el precio en `Price` y el IVA en `SalesVAT`. Antes de añadir esos alias
+ * el import daba `errores` por cada artículo y dejaba el precio a 0. */
+#[test]
+fn parses_articles_export_real_shape() {
+    let raw = json!({
+        "ErrorMessage": "",
+        "Articles": [{
+            "Article": 1001,
+            "Description": "COCA-COLA",
+            "Price": 1.05,
+            "SalesVAT": 10.0,
+            "Is_Invontariable": true,
+            "ErrorMessage": null
+        }]
+    });
+    let items = parse_articles_value(&raw);
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].art_code(), Some("1001"));
+    assert_eq!(items[0].description(), "COCA-COLA");
+    assert_eq!(items[0].price1, Some(Decimal::new(105, 2)));
+    assert_eq!(items[0].tax1, Some(Decimal::new(100, 1)));
+}
