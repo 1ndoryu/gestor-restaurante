@@ -54,7 +54,7 @@ Precondición: L3 OK, L5.0 hecho (ID de pago estable e idempotencia en T2), caja
   - Causa del fallo anterior: el ajuste se encolaba pero **nada lo enviaba**. El flush solo corre por `POST /api/bdp/push/flush` (Admin); no hay worker automático. Además, `encolar` reemplazaba el payload: dos ajustes ±1 dejaban solo el último. Corregido con `acumular_regularizacion` (`cola.rs`) y su uso en `ajustar_stock` (`stock.rs`).
   - El −1.0 de BDP ya existía antes de L7 y el stock local era 0. Decisión de la usuaria: corregir la cola y empujar +1. Se dejó la fila de 1001 en +1 y se disparó un único armado (`unidirectional`, `regularize_stock`, 1 operación, 10 min) con flush: `sincronizados: 1`, `GetStock` 1001/almacén 1 pasó de −1.0 a 0.0, igual que local. Desarmado con 200.
   - Limpieza de la cola de prueba: `90000003` (ARTÍCULO NO EXISTE) y `ZZPRUEBA99` (IVA 0) pasaron a `descartado`.
-  - Pendiente: el `Store` del payload sale de `bdp_almacen_default`, no del `warehouse_id` pedido. Coincide con el almacén 1 solo porque el default es 1; corregirlo antes de usar otro almacén.
+  - Corregido 2026-10-19 (commit `89ae3e2`): el `Store` de inventario sale del almacén pedido (`warehouse_id`, por defecto `bdp_almacen_default`); la regularización ya lo hacía. Los conteos guardados (`crear_conteo`) siguen en el almacén por defecto.
 
 ### L8 — Maestros y documentos (D24–D25, D28)
 
