@@ -6,7 +6,8 @@
  *
  * Cubre: pedido encontrado, comanda inexistente (con y sin borrado), fallo
  * transitorio que reintenta, fallo agotado, aviso sin comanda numérica, lote
- * acotado y aislamiento por cuenta. */
+ * acotado, aislamiento por cuenta, las siete acciones, y los avisos abandonados
+ * en `procesando` (se retoman tras caducar el reclamo). */
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -15,6 +16,17 @@ use glory_backend::services::{procesar_lote, Consulta, ConsultaPedido, ResumenLo
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
+
+/// Las siete acciones que el TPV puede avisar (guía operativa, F2).
+const ACCIONES: [&str; 7] = [
+    "crear",
+    "modificar",
+    "cambiar-estado",
+    "borrar",
+    "finalizar",
+    "traspasar",
+    "traspasar-linea",
+];
 
 /// Doble del cliente BDP: responde desde un mapa y recuerda qué comandas pidió.
 #[derive(Default)]
@@ -349,4 +361,101 @@ async fn comanda_sin_venta_local_no_falla_el_lote(pool: PgPool) {
     assert_eq!(resumen.procesados, 1);
     let (estado, _, _, _, _) = fila(&pool, id).await;
     assert_eq!(estado, "procesado");
+}
+
+/// Las siete acciones de la guía (F2): con pedido encontrado, todas quedan procesadas.
+#[sqlx::test(migrations = "./migrations")]
+async fn cada_una_de_las_siete_acciones_se_procesa_con_pedido(pool: PgPool) {
+    let user = cuenta(&pool).await;
+    let mut ids = Vec::new();
+    for (i, accion) in ACCIONES.iter().enumerate() {
+        let comanda = (60 + i).to_string();
+        ids.push(aviso(&pool, user, accion, payload_comanda(&comanda), 0).await);
+    }
+    let doble = DobleBdp::con(
+        (0..ACCIONES.len())
+            .map(|i| (60 + i as i64, Consulta::Encontrado(json!({"Lineas": 1}))))
+            .collect(),
+    );
+
+    let resumen = procesar_lote(&pool, user, &doble, 10).await.expect("lote");
+
+    assert_eq!(resumen.procesados, ACCIONES.len() as u32);
+    for (accion, id) in ACCIONES.iter().zip(ids) {
+        let (estado, _, _, _, _) = fila(&pool, id).await;
+        assert_eq!(estado, "procesado", "acción {accion}");
+    }
+}
+
+/// Comanda que BDP no conoce: en todas las acciones va a revisión salvo en `borrar`,
+/// donde es el resultado esperado.
+#[sqlx::test(migrations = "./migrations")]
+async fn comanda_inexistente_depende_de_la_accion(pool: PgPool) {
+    let user = cuenta(&pool).await;
+    let mut ids = Vec::new();
+    for (i, accion) in ACCIONES.iter().enumerate() {
+        let comanda = (70 + i).to_string();
+        ids.push(aviso(&pool, user, accion, payload_comanda(&comanda), 0).await);
+    }
+    let doble = DobleBdp::con(
+        (0..ACCIONES.len())
+            .map(|i| (70 + i as i64, Consulta::NoExiste))
+            .collect(),
+    );
+
+    procesar_lote(&pool, user, &doble, 10).await.expect("lote");
+
+    for (accion, id) in ACCIONES.iter().zip(ids) {
+        let (estado, _, _, _, _) = fila(&pool, id).await;
+        let esperado = if *accion == "borrar" {
+            "procesado"
+        } else {
+            "requiere_revision"
+        };
+        assert_eq!(estado, esperado, "acción {accion}");
+    }
+}
+
+/// Un aviso que quedó en `procesando` tras una caída del worker se retoma cuando su
+/// reclamo caducó. Antes del fix quedaba así para siempre.
+#[sqlx::test(migrations = "./migrations")]
+async fn aviso_abandonado_en_procesando_se_retoma(pool: PgPool) {
+    let user = cuenta(&pool).await;
+    let id = aviso(&pool, user, "modificar", payload_comanda("80"), 1).await;
+    sqlx::query(
+        "UPDATE bdp_avisos_inbox SET estado = 'procesando',
+             reclamado_en = NOW() - INTERVAL '1 hour' WHERE id = $1",
+    )
+    .bind(id)
+    .execute(&pool)
+    .await
+    .expect("simular caída");
+    let doble = DobleBdp::con(vec![(80, Consulta::Encontrado(json!({})))]);
+
+    let resumen = procesar_lote(&pool, user, &doble, 10).await.expect("lote");
+
+    assert_eq!(resumen.procesados, 1);
+    let (estado, intentos, _, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "procesado");
+    assert_eq!(intentos, 2, "el reclamo abandonado cuenta como intento");
+}
+
+/// Un reclamo reciente, aún en curso, no se roba: otro lote no lo duplica.
+#[sqlx::test(migrations = "./migrations")]
+async fn reclamo_reciente_en_procesando_no_se_toca(pool: PgPool) {
+    let user = cuenta(&pool).await;
+    let id = aviso(&pool, user, "modificar", payload_comanda("81"), 1).await;
+    sqlx::query(
+        "UPDATE bdp_avisos_inbox SET estado = 'procesando', reclamado_en = NOW() WHERE id = $1",
+    )
+    .bind(id)
+    .execute(&pool)
+    .await
+    .expect("simular reclamo en curso");
+    let doble = DobleBdp::con(vec![(81, Consulta::Encontrado(json!({})))]);
+
+    let resumen = procesar_lote(&pool, user, &doble, 10).await.expect("lote");
+
+    assert_eq!(resumen, ResumenLote::default());
+    assert!(doble.pedidas().is_empty());
 }
