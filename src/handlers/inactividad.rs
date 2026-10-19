@@ -93,8 +93,8 @@ pub async fn actualizar(
         activa: req.activa,
     };
     let regla = InactividadRepository::update(&state.pool, id, auth.user_id, cambios)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Regla no encontrada".into()))?;
+        .await?
+        .ok_or_else(|| AppError::NotFound("Regla no encontrada".into()))?;
     Ok(Json(regla))
 }
 
