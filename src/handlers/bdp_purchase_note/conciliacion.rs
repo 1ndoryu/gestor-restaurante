@@ -117,7 +117,13 @@ async fn resolver_gasto(
     id: Uuid,
     req: &BdpPurchaseNoteReconcileRequest,
     user_id: Uuid,
-) -> Result<(Uuid, Option<(String, rust_decimal::Decimal, rust_decimal::Decimal)>), AppError> {
+) -> Result<
+    (
+        Uuid,
+        Option<(String, rust_decimal::Decimal, rust_decimal::Decimal)>,
+    ),
+    AppError,
+> {
     if let Some(gasto_existente_id) = req.gasto_existente_id {
         let gasto = GastoRepository::find_by_id(&mut *conn, gasto_existente_id, user_id)
             .await?
