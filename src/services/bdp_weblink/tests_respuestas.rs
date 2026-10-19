@@ -331,7 +331,9 @@ async fn add_order_tip_posts_pascal_case_payload() {
     let client = BdpWeblinkClient::new(&config);
     let response = client
         .add_order_tip(&BdpAddOrderTipRequest {
-            order_identifier: crate::services::bdp_weblink_catalog::BdpOrderIdentifier::by_order_id(123),
+            order_identifier: crate::services::bdp_weblink_catalog::BdpOrderIdentifier::by_order_id(
+                123,
+            ),
             amount: rust_decimal::Decimal::new(25, 1),
             add_tip: true,
         })
