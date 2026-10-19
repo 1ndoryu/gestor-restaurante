@@ -6,10 +6,9 @@
 use glory_backend::models::{ActualizarConfiguracionRequest, ConfiguracionRestaurante};
 use glory_backend::services::bdp_push::{
     payload_cancelar, payload_crear_departamento, payload_crear_familia, payload_inventario,
-    payload_propina, payload_puntos, payload_regularizacion, BdpPushService, MarcarResultado, DOMINIO_ARTICULO,
-    DOMINIO_DEPARTAMENTO, ESTADO_ERROR, ESTADO_PENDIENTE,
-    ESTADO_PENDIENTE_SUSCRIPCION, ESTADO_RECHAZADO, ESTADO_SINCRONIZADO,
-    OPERACION_CREAR,
+    payload_propina, payload_puntos, payload_regularizacion, BdpPushService, MarcarResultado,
+    DOMINIO_ARTICULO, DOMINIO_DEPARTAMENTO, ESTADO_ERROR, ESTADO_PENDIENTE,
+    ESTADO_PENDIENTE_SUSCRIPCION, ESTADO_RECHAZADO, ESTADO_SINCRONIZADO, OPERACION_CREAR,
 };
 use glory_backend::services::bdp_weblink_catalog::BdpStockInfoEntry;
 use glory_backend::services::{BdpBackupService, BdpPushFlushService, ConfiguracionService};
@@ -149,7 +148,6 @@ async fn orden_por_dependencia_departamento_antes_de_articulo(pool: PgPool) {
     assert_eq!(pendientes[0].dominio, DOMINIO_DEPARTAMENTO);
     assert_eq!(pendientes[1].dominio, DOMINIO_ARTICULO);
 }
-
 
 /* ===== [198A-1/F1] Payloads encolados (unit, sin DB) ===== */
 
