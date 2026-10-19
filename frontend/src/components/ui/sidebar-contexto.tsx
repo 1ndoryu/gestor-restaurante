@@ -35,7 +35,6 @@ function SidebarProvider({
     open: openProp,
     onOpenChange: setOpenProp,
     className,
-    style,
     children,
     ...props
 }: React.ComponentProps<'div'> & {
@@ -103,10 +102,9 @@ function SidebarProvider({
     return (
         <SidebarContext.Provider value={contextValue}>
             {/* Anchos del sidebar como variables CSS (clases arbitrarias de Tailwind, no style inline).
-                Un style prop del consumidor sigue ganando, como antes. */}
+                Un style prop del consumidor llega en `props` y sigue ganando, como antes. */}
             <div
                 data-slot="sidebar-wrapper"
-                style={style}
                 className={cn('group/sidebar-wrapper flex min-h-svh w-full [--sidebar-width:16rem] [--sidebar-width-icon:3rem] has-data-[variant=inset]:bg-sidebar', className)}
                 {...props}>
                 {children}
