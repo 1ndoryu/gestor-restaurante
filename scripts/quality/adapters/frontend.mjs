@@ -1,16 +1,7 @@
 import path from 'node:path';
-import { pathToFileURL, fileURLToPath } from 'node:url';
 import { runProcess, DEFAULT_ENV_ALLOWLIST } from '../runner.mjs';
 import { conciseFailure, npmInvocation, writeStageLog } from './common.mjs';
-
-/* [por que] El frontend se valida en la VPS 89, igual que Rust (AGENTS §1): el portátil
- * no compila ni consume recursos del taller. Se reutiliza el taller remoto de
- * workspace-manager (sync Mutagen + ssh); en la propia 89 se ejecuta en local. */
-const RCARGO_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'workspace-manager', 'scripts', 'remoto');
-
-async function cargarTaller() {
-  return import(pathToFileURL(path.join(RCARGO_DIR, 'rcargo.mjs')).href);
-}
+import { cargarTaller, runEnVps } from './remoto-vps.mjs';
 
 async function runCommand(context, name, executable, args, timeoutMs) {
   const execution = await runProcess(executable, args, {
@@ -21,21 +12,9 @@ async function runCommand(context, name, executable, args, timeoutMs) {
   return { name, execution };
 }
 
-/* [por que] Sincroniza la réplica antes de ejecutar: sin el flush, la 89 podría validar un
- * árbol antiguo. Un fallo de Mutagen se devuelve como código 2 (infraestructura, no código roto). */
-async function runEnVps(context, taller, comando, timeoutMs) {
-  const config = taller.cargarConfig();
-  const proyecto = taller.detectarProyecto(context.projectRoot);
-  const rutas = taller.rutasRemotas(config, proyecto, taller.detectarRama(context.projectRoot));
-  const sync = taller.asegurarSesion({ config, proyecto, rutaLocal: context.projectRoot, rutas, cwd: context.projectRoot });
-  if (sync !== 0) return { code: 2, stdout: '', stderr: `mutagen: sincronización fallida (código ${sync})`, timedOut: false, signal: null, durationMs: 0 };
-  const interno = `cd ${taller.shQuote(rutas.dirRemoto)} && ${comando}`;
-  const ssh = taller.argsSsh(config, ['bash', '-lc', taller.shQuote(interno)]);
-  const { BIN_SSH } = await import(pathToFileURL(path.join(RCARGO_DIR, '..', 'shared', 'binarios.mjs')).href);
-  const execution = await runProcess(BIN_SSH, ssh, { cwd: context.projectRoot, timeoutMs, envAllowlist: context.adapterEnvironmentAllowlist ?? DEFAULT_ENV_ALLOWLIST });
-  return execution;
-}
-
+/* [por que] El frontend se valida en la VPS 89, igual que Rust (AGENTS §1): el portátil
+ * no compila ni consume recursos del taller. Se reutiliza el taller remoto de
+ * workspace-manager (sync Mutagen + ssh); en la propia 89 se ejecuta en local. */
 async function runStep(context, name, script) {
   const timeoutMs = name === 'test-full' || name === 'build' ? context.qualityConfig.timeoutsMs.frontendTest : context.qualityConfig.timeoutsMs.frontend;
   const taller = await cargarTaller();
