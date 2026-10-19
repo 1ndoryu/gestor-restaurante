@@ -219,7 +219,7 @@ pub async fn actualizar(
     };
     let trabajador = Repo::update(&state.pool, id, auth.user_id, cambios)
         .await?
-    .ok_or_else(|| AppError::NotFound("Trabajador no encontrado".into()))?;
+        .ok_or_else(|| AppError::NotFound("Trabajador no encontrado".into()))?;
 
     if let Some(ref permisos) = req.permisos {
         Repo::set_permisos(&state.pool, trabajador.id, permisos).await?;
