@@ -2,7 +2,8 @@
  * seed demo idempotente usa SQL dinamico para limpiar datos. */
 /* Etiquetas de clientes demo. Parte de seed (ver main.rs). */
 
-use super::*;
+use sqlx::PgPool;
+use uuid::Uuid;
 
 /* Asigna etiquetas del sistema a los clientes para probar el CRM */
 pub(super) async fn seed_etiquetas_clientes(

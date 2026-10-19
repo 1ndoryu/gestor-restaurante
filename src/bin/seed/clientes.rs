@@ -2,7 +2,10 @@
  * seed demo idempotente usa SQL dinamico para limpiar datos. */
 /* Clientes demo (datos y siembra). Parte de seed (ver main.rs). */
 
-use super::*;
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use super::ClienteCreado;
 
 type ClienteDemo = (
     &'static str,

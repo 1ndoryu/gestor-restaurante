@@ -2,7 +2,8 @@
  * seed demo idempotente usa SQL dinamico para limpiar datos. */
 /* Zonas y mesas del plano demo. Parte de seed (ver main.rs). */
 
-use super::*;
+use sqlx::PgPool;
+use uuid::Uuid;
 
 /* 1 zona de sala + 6 mesas posicionadas. Retorna (zona_id, mesa_ids) */
 pub(super) async fn seed_zonas_mesas(

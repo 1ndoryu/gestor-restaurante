@@ -2,7 +2,12 @@
  * seed demo idempotente usa SQL dinamico para limpiar datos. */
 /* Ventas y gastos demo. Parte de seed (ver main.rs). */
 
-use super::*;
+use chrono::{Duration, NaiveDate};
+use rust_decimal::Decimal;
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use super::ReservaCreada;
 
 /* Ventas vinculadas a reservas completadas + 2 extras sin reserva */
 #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]

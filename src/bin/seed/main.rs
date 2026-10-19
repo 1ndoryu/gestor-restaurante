@@ -79,8 +79,7 @@ use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     Argon2,
 };
-use chrono::{Duration, Local, NaiveDate, NaiveTime};
-use rust_decimal::Decimal;
+use chrono::{Local, NaiveDate, NaiveTime};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -97,13 +96,13 @@ mod mesas;
 mod reservas;
 mod tipos;
 
-use clientes::*;
-use etiquetas::*;
-use finanzas::*;
-use mensajeria::*;
-use mesas::*;
-use reservas::*;
-use tipos::*;
+use clientes::seed_clientes;
+use etiquetas::{seed_etiquetas_clientes, seed_etiquetas_personalizadas};
+use finanzas::{seed_gastos, seed_ventas};
+use mensajeria::{seed_campanas, seed_plantillas_whatsapp, seed_reglas_recordatorio};
+use mesas::seed_zonas_mesas;
+use reservas::seed_reservas;
+use tipos::{seed_canales, seed_configuracion};
 
 /* Limpia todos los datos del usuario demo respetando FKs */
 async fn limpiar_datos(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {

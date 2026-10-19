@@ -2,7 +2,9 @@
  * seed demo idempotente usa SQL dinamico para limpiar datos. */
 /* Campañas, plantillas y recordatorios demo. Parte de seed (ver main.rs). */
 
-use super::*;
+use sqlx::PgPool;
+use uuid::Uuid;
+
 
 /* 3 campañas de marketing en distintos estados */
 #[allow(clippy::type_complexity)]

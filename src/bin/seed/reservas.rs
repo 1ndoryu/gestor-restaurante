@@ -2,7 +2,11 @@
  * seed demo idempotente usa SQL dinamico para limpiar datos. */
 /* Reservas demo. Parte de seed (ver main.rs). */
 
-use super::*;
+use chrono::{Duration, NaiveDate};
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use super::{hora, ClienteCreado, ReservaCreada};
 
 /* 14 dias x 6 reservas/dia = 84 reservas.
  * Dias pasados: ~70% completada, ~15% no_show, ~15% cancelada.

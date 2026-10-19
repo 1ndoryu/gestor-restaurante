@@ -2,7 +2,8 @@
  * seed demo idempotente usa SQL dinamico para limpiar datos. */
 /* Configuración base y canales de reserva. Parte de seed (ver main.rs). */
 
-use super::*;
+use sqlx::PgPool;
+use uuid::Uuid;
 
 /* Configuracion base del restaurante */
 pub(super) async fn seed_configuracion(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
