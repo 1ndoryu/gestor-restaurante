@@ -10,7 +10,7 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::models::{ConfiguracionRestaurante, Venta};
-use crate::repositories::BdpPagoRepository;
+use crate::repositories::{BdpAuditLogRepository, BdpPagoRepository};
 use crate::services::bdp_weblink::BdpWeblinkClient;
 use crate::services::bdp_weblink_catalog::{
     BdpGetOrderRequest, BdpInvoiceOrderRequest, BdpOrderIdentifier,
@@ -18,6 +18,14 @@ use crate::services::bdp_weblink_catalog::{
 use crate::services::{ModoEfectivo, ServicioModoOperacion};
 
 use super::bdp_sync::BdpSyncService;
+
+/* [D18c] Con la orden ya facturada, BDP devuelve `Order: null` y el Status en la raíz. */
+fn order_desde_respuesta(respuesta: &Value) -> &Value {
+    match respuesta.get("Order") {
+        Some(order) if !order.is_null() => order,
+        _ => respuesta,
+    }
+}
 
 impl BdpSyncService {
     /* [F3.2] Puerta de facturación: switch maestro, modo escritura y precondiciones. */
@@ -58,9 +66,7 @@ impl BdpSyncService {
             .map_err(|e| {
                 format!("Factura bloqueada: no se pudo reconciliar la orden antes de escribir: {e}")
             })?;
-        let order = current
-            .get("Order")
-            .ok_or_else(|| "Factura bloqueada: GetOrder no devolvió el objeto Order".to_string())?;
+        let order = order_desde_respuesta(&current);
         let status = order
             .get("Status")
             .and_then(Value::as_i64)
@@ -85,12 +91,19 @@ impl BdpSyncService {
         if status != 3 {
             return Ok(None);
         }
-        let invoice_number = order
+        /* [D18c] BDP no repite el InvoiceNumber con la orden ya facturada: se toma del ledger local. */
+        let invoice_number = match order
             .get("InvoiceNumber")
             .and_then(Value::as_str)
             .filter(|value| !value.trim().is_empty())
-            .map(ToOwned::to_owned)
-            .ok_or_else(|| "Orden ya facturada pero sin InvoiceNumber reconciliable".to_string())?;
+        {
+            Some(number) => number.to_owned(),
+            None => BdpAuditLogRepository::ultimo_invoice_number_exitoso(pool, venta.user_id, venta.id)
+                .await
+                .map_err(|e| format!("Error leyendo la factura previa en auditoría: {e}"))?
+                .filter(|number| !number.trim().is_empty())
+                .ok_or_else(|| "Orden ya facturada pero sin InvoiceNumber reconciliable".to_string())?,
+        };
         /* [AUDIT-N6] Envolver reconciliación en transacción por consistencia
          * con el path normal de facturación. */
         let mut tx = pool
@@ -360,5 +373,23 @@ impl BdpSyncService {
         );
 
         Ok(invoice_number)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::order_desde_respuesta;
+    use serde_json::json;
+
+    #[test]
+    fn usa_status_raiz_si_order_es_null() {
+        let respuesta = json!({ "Order": null, "Status": 3, "ErrorMessage": "" });
+        assert_eq!(order_desde_respuesta(&respuesta)["Status"], 3);
+    }
+
+    #[test]
+    fn usa_el_objeto_order_cuando_viene_informado() {
+        let respuesta = json!({ "Order": { "Status": 1 }, "Status": 3 });
+        assert_eq!(order_desde_respuesta(&respuesta)["Status"], 1);
     }
 }
