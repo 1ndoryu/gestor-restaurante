@@ -90,7 +90,10 @@ const DATOS_CLIENTES_DEMO: &[ClienteDemo] = &[
 ];
 
 /* 8 clientes demo con datos variados */
-pub(super) async fn seed_clientes(pool: &PgPool, user_id: Uuid) -> Result<Vec<ClienteCreado>, sqlx::Error> {
+pub(super) async fn seed_clientes(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<Vec<ClienteCreado>, sqlx::Error> {
     let mut clientes = Vec::with_capacity(DATOS_CLIENTES_DEMO.len());
     for &(nombre, apellidos, tel, email, empresa, alergias, pref_beb, pref_ubi) in
         DATOS_CLIENTES_DEMO
