@@ -4,7 +4,11 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::constantes::{ESTADOS_ACTIVOS, ESTADO_PENDIENTE};
+use rust_decimal::Decimal;
+
+use super::constantes::{
+    DOMINIO_STOCK, ESTADOS_ACTIVOS, ESTADO_DESCARTADO, ESTADO_PENDIENTE, OPERACION_REGULARIZAR,
+};
 
 /// Fila pendiente de push (proyección mínima para el worker).
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -33,6 +37,48 @@ pub struct MarcarResultado<'a> {
 pub struct BdpPushService;
 
 impl BdpPushService {
+    /// Encola un ajuste de stock (`regularizar`) SUMANDO su delta a la fila activa
+    /// del mismo artículo. Los ajustes son deltas, no estado: con `encolar` (que
+    /// reemplaza el payload) dos ajustes +1 y −1 dejaban solo el último. Si el
+    /// neto queda en 0, la fila pasa a `descartado` y no se envía nada.
+    pub async fn acumular_regularizacion(
+        pool: &PgPool,
+        user_id: Uuid,
+        entidad_id: &str,
+        delta: Decimal,
+        payload: &Value,
+    ) -> Result<(), String> {
+        /* Una sola sentencia: leer, sumar y escribir sin carreras entre ajustes. */
+        let actualizadas = sqlx::query(
+            "WITH f AS ( \
+                SELECT id, (payload_json->>'Units')::numeric + $3::text::numeric AS nuevo \
+                FROM bdp_push_pendientes \
+                WHERE user_id = $1 AND dominio = 'stock' AND entidad_id = $2 \
+                  AND operacion = 'regularizar' AND estado = ANY($4) \
+             ) \
+             UPDATE bdp_push_pendientes p \
+             SET payload_json = jsonb_set(p.payload_json, '{Units}', to_jsonb(f.nuevo::text)), \
+                 estado = CASE WHEN f.nuevo = 0 THEN $5 ELSE $6 END, \
+                 reintentos = 0, ultimo_error = NULL, updated_at = NOW() \
+             FROM f WHERE p.id = f.id",
+        )
+        .bind(user_id)
+        .bind(entidad_id)
+        .bind(delta.to_string())
+        .bind(ESTADOS_ACTIVOS)
+        .bind(ESTADO_DESCARTADO)
+        .bind(ESTADO_PENDIENTE)
+        .execute(pool)
+        .await
+        .map_err(|error| format!("No se pudo acumular ajuste de stock: {error}"))?;
+
+        /* Sin fila activa previa: primer ajuste del artículo, se inserta normal. */
+        if actualizadas.rows_affected() > 0 {
+            return Ok(());
+        }
+        Self::encolar(pool, user_id, DOMINIO_STOCK, entidad_id, OPERACION_REGULARIZAR, payload).await
+    }
+
     /// Encola (o refresca) una operación pendiente. Upsert sobre la fila activa
     /// (M19): si ya existe una fila activa para la misma entidad+operación, se
     /// actualiza el payload y se reinicia a 'pendiente'; si no, se inserta.
