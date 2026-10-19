@@ -1,7 +1,9 @@
 use sqlx::PgPool;
 
 use super::campos::{summarize_value, value_count};
-use super::{BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncPreflightService, BDP_DRY_RUN_PAGE_SIZE};
+use super::{
+    BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncPreflightService, BDP_DRY_RUN_PAGE_SIZE,
+};
 use crate::models::ConfiguracionRestaurante;
 use crate::services::bdp_weblink::{BdpWeblinkClient, BdpWeblinkError};
 use crate::services::bdp_weblink_catalog::{
