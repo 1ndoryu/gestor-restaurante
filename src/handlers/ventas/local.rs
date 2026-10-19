@@ -210,9 +210,14 @@ pub async fn agregar_propina(
     Path(id): Path<Uuid>,
     Json(req): Json<AgregarPropinaRequest>,
 ) -> Result<Json<Venta>, AppError> {
-    if req.amount <= rust_decimal::Decimal::ZERO {
+    /* D11c: con `add_tip=false` un importe 0 es válido (deja la propina a cero);
+     * sumar 0 no aporta nada, y un importe negativo nunca es válido. */
+    let cero_no_valido = req.add_tip;
+    if req.amount < rust_decimal::Decimal::ZERO
+        || (cero_no_valido && req.amount == rust_decimal::Decimal::ZERO)
+    {
         return Err(AppError::Validation(
-            "La propina debe ser mayor que cero".into(),
+            "La propina no puede ser negativa; al sumar debe ser mayor que cero".into(),
         ));
     }
     let venta = VentaService::get(&state.pool, id, auth.user_id).await?;
@@ -222,9 +227,10 @@ pub async fn agregar_propina(
         ));
     }
 
-    let venta = VentaRepository::actualizar_propina(&state.pool, id, auth.user_id, req.amount)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
+    let venta =
+        VentaRepository::actualizar_propina(&state.pool, id, auth.user_id, req.amount, req.add_tip)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
 
     /* [M16] Solo encolar si la comanda está en BDP; si no, queda local con el
      * aviso "comanda no sincronizada" (no es error del push). */

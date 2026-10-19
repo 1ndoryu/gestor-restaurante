@@ -47,20 +47,23 @@ impl VentaRepository {
 
     /* [198A-1/D8] Guarda la propina local de una venta. Fuente de verdad local
      * para mostrar/editar la propina sin BDP; el push AddOrderTip se encola en
-     * el handler. */
+     * el handler. `add_tip` suma al valor actual o lo sustituye, igual que en
+     * BDP, y se resuelve en el mismo UPDATE para no leer y escribir por separado. */
     pub async fn actualizar_propina(
         pool: &PgPool,
         id: Uuid,
         user_id: Uuid,
-        propina: rust_decimal::Decimal,
+        importe: rust_decimal::Decimal,
+        add_tip: bool,
     ) -> Result<Option<Venta>, sqlx::Error> {
         sqlx::query_as::<_, Venta>(
-            "UPDATE ventas SET propina = $3, updated_at = NOW() \
-             WHERE id = $1 AND user_id = $2 RETURNING *",
+            "UPDATE ventas SET propina = CASE WHEN $4 THEN propina + $3 ELSE $3 END, \
+             updated_at = NOW() WHERE id = $1 AND user_id = $2 RETURNING *",
         )
         .bind(id)
         .bind(user_id)
-        .bind(propina)
+        .bind(importe)
+        .bind(add_tip)
         .fetch_optional(pool)
         .await
     }
