@@ -150,7 +150,12 @@ fn fecha_hoy() -> String {
 /// `ShortDescription` se trunca a 10 caracteres y `PrinterLevel=1`: el manual
 /// `WebLink` exige abreviada no vacía de máx 10 y nivel de impresión 1-9; sin
 /// ellos el BDP real devuelve avisos en `ListaErroresArticulo` (W-Q2.3).
-pub fn payload_crear_departamento(code: i32, nombre: &str) -> Result<Value, String> {
+/// `overwrite` lo fija el llamador: el catálogo no se sobrescribe por defecto (`false`).
+pub fn payload_crear_departamento(
+    code: i32,
+    nombre: &str,
+    overwrite: bool,
+) -> Result<Value, String> {
     let short_description: String = nombre.chars().take(10).collect();
     let req = BdpCreateDepartmentProfilesRequest {
         code,
@@ -160,19 +165,19 @@ pub fn payload_crear_departamento(code: i32, nombre: &str) -> Result<Value, Stri
         graph_description2: String::new(),
         graph_description3: String::new(),
         printer_level: 1,
-        overwrite: false,
+        overwrite,
         all_profiles: true,
         profile_list: None,
     };
     serde_json::to_value(&req).map_err(|error| format!("No se pudo serializar push: {error}"))
 }
 
-/// Construye el payload de `familia/crear` (D7).
-pub fn payload_crear_familia(code: i32, nombre: &str) -> Result<Value, String> {
+/// Construye el payload de `familia/crear` (D7). `overwrite` lo fija el llamador.
+pub fn payload_crear_familia(code: i32, nombre: &str, overwrite: bool) -> Result<Value, String> {
     let req = BdpCreateFamilyRequest {
         code,
         description: nombre.to_string(),
-        overwrite: false,
+        overwrite,
     };
     serde_json::to_value(&req).map_err(|error| format!("No se pudo serializar push: {error}"))
 }

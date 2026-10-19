@@ -218,7 +218,7 @@ fn payload_puntos_serializa_cliente_y_motivo() {
 
 #[test]
 fn payload_crear_departamento_serializa_all_profiles() {
-    let payload = payload_crear_departamento(5, "Cocina").unwrap();
+    let payload = payload_crear_departamento(5, "Cocina", false).unwrap();
     assert_eq!(payload["Code"], 5);
     assert_eq!(payload["Description"], "Cocina");
     assert_eq!(payload["AllProfiles"], true);
@@ -226,13 +226,13 @@ fn payload_crear_departamento_serializa_all_profiles() {
     /* W-Q2.3: abreviada máx 10 caracteres y nivel de impresión 1-9. */
     assert_eq!(payload["ShortDescription"], "Cocina");
     assert_eq!(payload["PrinterLevel"], 1);
-    let largo = payload_crear_departamento(6, "PRUEBA-149A2-DEP-20260915").unwrap();
+    let largo = payload_crear_departamento(6, "PRUEBA-149A2-DEP-20260915", false).unwrap();
     assert_eq!(largo["ShortDescription"], "PRUEBA-149");
 }
 
 #[test]
 fn payload_crear_familia_serializa_code_y_overwrite() {
-    let payload = payload_crear_familia(7, "Bebidas").unwrap();
+    let payload = payload_crear_familia(7, "Bebidas", false).unwrap();
     assert_eq!(payload["Code"], 7);
     assert_eq!(payload["Description"], "Bebidas");
     assert_eq!(payload["Overwrite"], false);

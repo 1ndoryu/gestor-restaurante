@@ -79,16 +79,17 @@ pub async fn crear_clasificacion(
 
     let item = BdpCatalogoClasificacionRepository::crear(&state.pool, auth.user_id, &req).await?;
 
-    /* Encolar el push BDP (el worker no envía nada en standalone). */
+    /* Encolar el push BDP (el worker no envía nada en standalone).
+     * Overwrite=false: el catálogo BDP no se sobrescribe; D25 solo cubre clientes. */
     let (dominio, payload) = if req.tipo == TIPO_DEPARTAMENTO {
         (
             crate::services::bdp_push::DOMINIO_DEPARTAMENTO,
-            payload_crear_departamento(item.code, &item.nombre),
+            payload_crear_departamento(item.code, &item.nombre, false),
         )
     } else {
         (
             crate::services::bdp_push::DOMINIO_FAMILIA,
-            payload_crear_familia(item.code, &item.nombre),
+            payload_crear_familia(item.code, &item.nombre, false),
         )
     };
     let payload = payload.map_err(AppError::Internal)?;
