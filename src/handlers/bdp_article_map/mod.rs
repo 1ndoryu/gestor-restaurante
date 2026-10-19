@@ -15,7 +15,6 @@
  * [157A-7] F9.1: sync-catalog sincroniza catálogo completo con datos enriquecidos.
  * [157A-9] F9.3-F9.5: sync-prices, sync-tables, menús/fastfoods/packs. */
 
-
 mod catalogo;
 mod stock;
 mod sync;
