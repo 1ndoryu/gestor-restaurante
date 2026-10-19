@@ -6,8 +6,6 @@
  * F5-3 total vs desglose de líneas, F5-4 fallback de desglose logueado y
  * F5-5 fecha inválida y 23505 mapeados. No contactan con BDP real. */
 
-use glory_backend::services::NotifHub;
-use std::sync::Arc;
 use axum::extract::{Path, State};
 use axum::Json;
 use glory_backend::config::AppConfig;
@@ -22,10 +20,12 @@ use glory_backend::models::{
 };
 use glory_backend::repositories::{BdpPurchaseNoteRepository, ConfiguracionRepository};
 use glory_backend::services::bdp_weblink_catalog::BdpPurchaseNoteData;
+use glory_backend::services::NotifHub;
 use glory_backend::AppState;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
 use std::str::FromStr;
+use std::sync::Arc;
 use uuid::Uuid;
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
