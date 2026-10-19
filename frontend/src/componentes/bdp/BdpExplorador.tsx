@@ -39,19 +39,18 @@ import { MenusLocales } from './bdp-explorador/MenusLocales';
 import { BarraConsulta } from './bdp-explorador/BarraConsulta';
 import { ResultadoConsulta } from './bdp-explorador/ResultadoConsulta';
 import { TablaDefinicionesDemo } from './bdp-explorador/TablaDefinicionesDemo';
-import { extraerMensajeError, type BdpDefinition, type ExploreType } from './bdp-explorador/constantes';
+import { extraerMensajeError, type BdpDefinition } from './bdp-explorador/constantes';
+import { useConsultaBdp } from './bdp-explorador/useConsultaBdp';
+import { useModalMenuLocal } from './bdp-explorador/useModalMenuLocal';
 
 function BdpExplorador() {
   const queryClient = useQueryClient();
   /* [159A-3] El toggle demo vive en Configuración → BDP; aquí solo se lee. */
   const { demoMode } = useBdpDemoMode();
-  const [tipo, setTipo] = useState<ExploreType>('all');
-  const [busqueda, setBusqueda] = useState('');
-  const [identificador, setIdentificador] = useState('');
+  const { tipo, setTipo, busqueda, setBusqueda, identificador, setIdentificador } = useConsultaBdp();
   const [buscado, setBuscado] = useState(false);
   const [seleccionado, setSeleccionado] = useState<BdpExplorerItem | null>(null);
-  const [localModalOpen, setLocalModalOpen] = useState(false);
-  const [localModalMenu, setLocalModalMenu] = useState<BdpMenuLocalConLineas | null>(null);
+  const { localModalOpen, localModalMenu, abrirNuevo, abrirEdicion, cerrarModal } = useModalMenuLocal();
 
   /* [128A-1/F7] Menús/packs locales: CRUD local, siempre disponible sin BDP. */
   const { data: menusLocales, isLoading: isLoadingMenus } = useBdpMenusLocales();
@@ -113,16 +112,6 @@ function BdpExplorador() {
     setBuscado(true);
   }
 
-  function abrirNuevo() {
-    setLocalModalMenu(null);
-    setLocalModalOpen(true);
-  }
-
-  function abrirEdicion(menu: BdpMenuLocalConLineas) {
-    setLocalModalMenu(menu);
-    setLocalModalOpen(true);
-  }
-
   function handleMenuSubmit(req: CrearBdpMenuLocalRequest | ActualizarBdpMenuLocalRequest) {
     if (localModalMenu) {
       actualizarMutation.mutate(
@@ -130,7 +119,7 @@ function BdpExplorador() {
         {
           onSuccess: () => {
             toast.success('Menú/pack actualizado');
-            setLocalModalOpen(false);
+            cerrarModal();
           },
           onError: () => toast.error('No se pudo actualizar el menú/pack'),
         },
@@ -139,7 +128,7 @@ function BdpExplorador() {
       crearMutation.mutate(req as CrearBdpMenuLocalRequest, {
         onSuccess: () => {
           toast.success('Menú/pack creado');
-          setLocalModalOpen(false);
+          cerrarModal();
         },
         onError: () => toast.error('No se pudo crear el menú/pack'),
       });
@@ -240,7 +229,7 @@ function BdpExplorador() {
         open={localModalOpen}
         menu={localModalMenu}
         isSubmitting={crearMutation.isPending || actualizarMutation.isPending}
-        onClose={() => setLocalModalOpen(false)}
+        onClose={cerrarModal}
         onSubmit={handleMenuSubmit}
       />
     </div>

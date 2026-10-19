@@ -16,21 +16,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useBdpAudit, useBdpSnapshots, type BdpAuditEntry, type BdpSnapshot } from '@/api/bdp-backup';
+import { useBdpAudit, useBdpSnapshots } from '@/api/bdp-backup';
 import { useBdpDemoMode } from '@/hooks/useBdpDemoMode';
 import { mockAuditEntries, mockSnapshots } from './bdp-mocks';
 import { AuditDetail } from './bdp-historial/AuditDetail';
 import { SnapshotDetail } from './bdp-historial/SnapshotDetail';
 import { direccionLabel, formatDate, operacionLabel, origenBadge, resultadoBadge } from './bdp-historial/formato';
+import { useSeleccionHistorial } from './bdp-historial/useSeleccionHistorial';
 
 function BdpHistorial() {
   /* [159A-3] El toggle demo vive en Configuración → BDP; aquí solo se lee. */
   const { demoMode } = useBdpDemoMode();
   const [filtro, setFiltro] = useState('');
   const [filtroOrigen, setFiltroOrigen] = useState<'todos' | 'local' | 'bdp'>('todos');
-  const [entrySeleccionado, setEntrySeleccionado] = useState<BdpAuditEntry | null>(null);
-  const [snapshotSeleccionado, setSnapshotSeleccionado] = useState<BdpSnapshot | null>(null);
-  const [dialogAbierto, setDialogAbierto] = useState(false);
+  const { entrySeleccionado, snapshotSeleccionado, dialogAbierto, verEntry, verSnapshot, handleDialogOpenChange } =
+    useSeleccionHistorial();
   const { data: auditData, isLoading: loadingAudit, error: auditError, refetch: refetchAudit } = useBdpAudit(100, !demoMode);
   const { data: snapshotsData, isLoading: loadingSnapshots, error: snapshotsError, refetch: refetchSnapshots } = useBdpSnapshots(50, !demoMode);
   /* Mensaje de error honesto (mismo patrón que Compras/Stock): solo se habla
@@ -51,14 +51,6 @@ function BdpHistorial() {
     if (demoMode) return mockSnapshots;
     return snapshotsData ?? [];
   }, [demoMode, snapshotsData]);
-
-  function handleDialogOpenChange(open: boolean) {
-    setDialogAbierto(open);
-    if (!open) {
-      setEntrySeleccionado(null);
-      setSnapshotSeleccionado(null);
-    }
-  }
 
   const auditFiltrado = useMemo(() => {
     const q = filtro.trim().toLowerCase();
@@ -175,11 +167,7 @@ function BdpHistorial() {
                             variant="outline"
                             size="icon"
                             className="bg-muted/40 hover:bg-muted"
-                            onClick={() => {
-                              setEntrySeleccionado(entry);
-                              setSnapshotSeleccionado(null);
-                              setDialogAbierto(true);
-                            }}
+                            onClick={() => verEntry(entry)}
                           >
                             <Eye className="size-4" />
                           </Button>
@@ -229,11 +217,7 @@ function BdpHistorial() {
                             variant="outline"
                             size="icon"
                             className="bg-muted/40 hover:bg-muted"
-                            onClick={() => {
-                              setSnapshotSeleccionado(snapshot);
-                              setEntrySeleccionado(null);
-                              setDialogAbierto(true);
-                            }}
+                            onClick={() => verSnapshot(snapshot)}
                           >
                             <Eye className="size-4" />
                           </Button>
