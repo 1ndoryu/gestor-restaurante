@@ -32,7 +32,7 @@ Dejar la aplicación apuntando al BDP local (TPV 36.2 licenciado en el portátil
 |---|---|---|
 | Aviso `cambiar-estado` (D21/D22, estado de cocina) | Lo emite el Monitor de Cocina, app aparte (sin licencia) en otro PC de la red; no está en este equipo ni se localiza instalador | Se prueba el receptor con carga sintética (acción `cambiar-estado`, `Estado` 0–3) y queda «pendiente de real» en la ficha |
 | L3.a2 / D03a / D09a (envío y efecto en cocina) | Sin impresora de cocina en el TPV local; la tecla Cocina no genera aviso | «Ensayada sin testigo de impresora; pendiente de real» |
-| L3.b / D05–D07 (modificar por la API) | Sin ruta BDP en el código (§9.9) | Tarea de código aparte; no se simula |
+| L3.b / D05–D07 (modificar por la API) | La API WebLink no tiene operación de modificación (§9.9) | «No soportado: pendiente de BDP»; no se simula |
 | L6–L10 con pagos, facturas, `AddPoints` | Dependen de la suscripción confirmada | Condicionados; si no hay suscripción, se declaran no probados |
 | D30 piloto | Permiso aparte (F4) | Fuera |
 
@@ -146,7 +146,7 @@ Precondición: L2 OK y permiso por lote. Un lote cada vez:
 
 - **L3.a HECHA (2026-10-17).** Crear comanda `PRUEBA-1` y verificar en TPV (ficha D03). Precondición: caja del POS 1 abierta en TpvNet; sin ella el envío falla con `301400` (sin comanda en BDP, venta local intacta). Resultado y evidencia en §8. Queda una consecuencia abierta: `bdp_default_article_name` no coincide con el catálogo real del código 1001.
 - **L3.a2** Crear con envío a cocina (D03a, `OrderEndType=0`). La app usa hoy `OrderEndType=1`; el PDF espera `0` (crea, aparca y envía a cocina). **No replicable en local** (sin impresora de cocina; ver regla de alineación): se declara y no se persigue.
-- **L3.b** Modificar líneas de `PRUEBA-1` (D05–D07). **Bloqueada por código:** modificar una venta no tiene ruta BDP; hay que implementarla antes (tarea aparte, §9 punto 9).
+- **L3.b NO SOPORTADA (decidido 2026-10-19).** Modificar líneas de `PRUEBA-1` (D05–D07): la API WebLink no tiene operación para modificar líneas de una comanda enviada (solo `CreateOrder`, `GetOrder`, `CancelOrder`, `AddOrderTip`, `AddOrderPayment`, `InvoiceOrder`; manual `# WEBLINK RESTAPI.md`, categoría Comandas). Decisión: D05–D07 quedan «no soportado: API sin ruta, pendiente de BDP»; la web no ofrece modificar comandas enviadas y los cambios se hacen en el TPV (D07 prevé «función desactivada si no soportada»). Descartado: cancelar y recrear (cambia el identificador, manda anulación a cocina y no cumple D05). Sin código nuevo.
 - **L3.c HECHA (2026-10-17).** Cancelar `PRUEBA-1` (`CancelOrder`, según decisión 2; D09 y D09a). Empezó bloqueada por dos defectos del guard (§9.15 y §9.16), corregidos en el mismo día; después el push salió y la comanda desapareció del BDP y de las tablas vivas del TPV. Evidencia en §8. D09a (efecto en cocina) sigue sin testigo de impresora.
 - **L3.d** Pagos y facturas: pasan a L6 (bloqueados hasta confirmar suscripción).
 
@@ -321,7 +321,7 @@ La configuración (L1.2), las decisiones y la lectura de resultados de escritura
 6. **`.env`**: `BDP_BASE_URL` apunta a `127.0.0.1:8070` y `BDP_LOGIN`/`BDP_PASSWORD` son los del WebLink local; las claves de producción quedan en `.env.prod` (ignorado, no tocar). La BD manda: el bootstrap ya está aplicado (`bdp_env_bootstrap_applied_at`).
 7. **Stock (gap de L2.3)**: `/bdp/article-stock` lee la caché local (557 filas, sync 2026-09-15), no el TPV en vivo. Decidir si cuenta como fallo de L2.3 o se verifica con lectura directa (`Warehouse/GetStock`, ya probada en L2.1 con stock 0).
 8. **Cola `error` (4 filas)**: recomendado no tocarlas. Un flush manual procesaría también `error`; si se hace, filtrar con `?dominios=venta`.
-9. **Modificar venta sin ruta BDP** (bloquea L3.b y D05–D07). Recomendado: tarea aparte en el roadmap y diseñar la ruta dentro de F2/F3 (L5), con prueba en L6–L9. Alternativa: ampliar ahora el alcance del plan, a costa de retrasar L3.
+9. **Modificar venta sin ruta BDP** (L3.b y D05–D07). **Decidido 2026-10-19:** no soportado; la API WebLink no tiene operación de modificación de líneas (verificado en el manual). D05–D07 quedan «no soportado: pendiente de BDP». Reabrir solo si BDP entrega una operación de modificación (vía Guillermo).
 10. **Caja del POS 1** (`301400`; bloqueaba L3 y todo L6–L10). **Resuelto 2026-10-17:** la usuaria cerró la caja y abrió turno nuevo (ver §8). Lo que faltaba era el **cierre de caja**, no el de turno. Sobre `OrderEndType`: D03a usa 0 y la app usa 1; recomendado probar primero con 1 (valor actual) y, si el TPV lo rechaza, ensayar 0 antes de tocar código.
 11. **D23-m (comanda manual con aviso perdido)** contradice «sin preguntas a BDP»: no hay lista de abiertas confirmada. Recomendado: no preguntar a BDP ahora; resolver por listado si existe y, si no, declarar el límite formal. Alternativa: preguntar a BDP (decide la usuaria; sale por Guillermo).
 12. **Suscripción y licencia** (Payment/Add, InvoiceOrder, licencia 84 de D01): el TPV local figura como DEMO. Recomendado: ensayar en local lo que el DEMO permita; lo demás queda «pendiente de real». Alternativa: pedir licencia de pruebas (la usuaria).
@@ -345,7 +345,7 @@ Cada ficha tiene fase. Estado a 2026-10-10: **ninguna superada**; «parcial» = 
 | D01, D02 | Salud, versión, login, licencia 84; logs sin secretos | L2.1, L10 | Parcial (L2.1 OK; licencia 84 solo en el TPV real; `bdp_sync_cursor` ya existe, falta escribirlo desde el código) |
 | D03, D03a | Crear comanda sin y con envío a cocina | L3.a, L3.a2 → L6–L9 | **D03 superada en L3.a (2026-10-17)**: comanda 15 en el BDP y en `Comandas_Cabecera`/`Comandas_Lineas` del TPV. D03a (envío a cocina, `OrderEndType=0`) pendiente de impresora |
 | D04, D08 | Respuesta perdida al crear; toque simultáneo caja y web | L9 | F2 (base T2 lista) |
-| D05–D07 | Modificar venta (añadir, quitar, cambiar líneas) | L3.b | Bloqueada por código (punto 9) |
+| D05–D07 | Modificar venta (añadir, quitar, cambiar líneas) | L3.b | **No soportado (2026-10-19):** la API WebLink no tiene modificación de líneas (punto 9) |
 | D09, D09a | Anular desde la web, con efecto en cocina | L3.c | **D09 superada en L3.c (2026-10-17)**: la anulación llegó al BDP (`301000` en `Orders/Get`) y la comanda desapareció de `Comandas_Cabecera`. D09a (efecto en cocina) pendiente de testigo de impresora auxiliar |
 | D10 | Anular en caja y reflejo en la web | L9 | Tras F2 |
 | D11a–c | Propina: suma, sustitución, cero | L6.a | Tras L3, T2 y permiso |
