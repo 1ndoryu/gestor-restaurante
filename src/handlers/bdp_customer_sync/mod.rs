@@ -70,8 +70,8 @@ pub(super) fn customer_code(value: &serde_json::Value) -> Option<i32> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::crear_customer::split_name;
+    use super::*;
 
     #[test]
     fn customer_code_accepts_number_or_string_and_rejects_invalid() {
