@@ -62,10 +62,12 @@ pub fn payload_inventario(
 }
 
 /// Construye el payload de `stock/regularizar` (ajuste manual de stock).
+/// `almacen` es el almacén BDP del ajuste (no el por defecto de la configuración).
 pub fn payload_regularizacion(
     config: &ConfiguracionRestaurante,
     bdp_articulo_codigo: i64,
     delta: Decimal,
+    almacen: i32,
 ) -> Result<Value, String> {
     let req = BdpRegularizationRequest {
         article: bdp_articulo_codigo,
@@ -74,7 +76,7 @@ pub fn payload_regularizacion(
         sd3: String::new(),
         units: delta,
         cod_reg: config.bdp_codreg_default,
-        store: config.bdp_almacen_default,
+        store: almacen,
         date_reg: fecha_hoy(),
     };
     serde_json::to_value(&req).map_err(|error| format!("No se pudo serializar push: {error}"))

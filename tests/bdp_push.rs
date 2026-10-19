@@ -242,11 +242,12 @@ fn payload_crear_familia_serializa_code_y_overwrite() {
 fn payload_regularizacion_serializa_delta_y_almacen() {
     let config = config_con_push();
     let payload =
-        payload_regularizacion(&config, 90_000_123, Decimal::from_str("-2").unwrap()).unwrap();
+        payload_regularizacion(&config, 90_000_123, Decimal::from_str("-2").unwrap(), 3).unwrap();
     assert_eq!(payload["Article"], 90_000_123);
     assert_eq!(payload["Units"], "-2");
     assert_eq!(payload["CodReg"], 2);
-    assert_eq!(payload["Store"], 1);
+    /* El almacén es el del ajuste (3), no el por defecto de la configuración (1). */
+    assert_eq!(payload["Store"], 3);
 }
 
 #[sqlx::test(migrations = "./migrations")]
