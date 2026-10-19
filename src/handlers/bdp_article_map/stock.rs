@@ -100,12 +100,11 @@ pub async fn ajustar_stock(
             let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
             let payload =
                 payload_regularizacion(&config, bdp_code, req.delta).map_err(AppError::Internal)?;
-            BdpPushService::encolar(
+            BdpPushService::acumular_regularizacion(
                 &state.pool,
                 auth.user_id,
-                crate::services::bdp_push::DOMINIO_STOCK,
                 &map.articulo_glory_codigo,
-                crate::services::bdp_push::OPERACION_REGULARIZAR,
+                req.delta,
                 &payload,
             )
             .await
