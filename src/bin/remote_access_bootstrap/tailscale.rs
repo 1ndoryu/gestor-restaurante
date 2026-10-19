@@ -1,6 +1,15 @@
 /* Instalación y configuración de Tailscale. Parte de remote_access_bootstrap (ver main.rs). */
 
-use super::*;
+use std::env;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
+
+use super::proceso::{command_exists, run_capture, try_run_capture, wait_for_path};
+use super::red::download_to_file;
+use super::{
+    BootstrapError, Config, TailscaleState, TAILSCALE_EXE, TAILSCALE_PACKAGES_URL,
+    TAILSCALE_WINGET_ID,
+};
 
 pub(super) async fn ensure_tailscale_installed() -> Result<PathBuf, BootstrapError> {
     if Path::new(TAILSCALE_EXE).exists() {

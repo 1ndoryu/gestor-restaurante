@@ -1,6 +1,12 @@
 /* Procesos, PowerShell y esperas. Parte de remote_access_bootstrap (ver main.rs). */
 
-use super::*;
+use std::ffi::OsStr;
+use std::path::Path;
+use std::process::Command;
+use std::thread;
+use std::time::Duration;
+
+use super::BootstrapError;
 
 pub(super) fn ps_single_quote(value: &str) -> String {
     value.replace('\'', "''")

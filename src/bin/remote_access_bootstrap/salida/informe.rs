@@ -1,6 +1,11 @@
 /* Informe final y del fallo. Parte de remote_access_bootstrap (ver main.rs). */
 
-use super::super::*;
+use std::env;
+use std::fmt::Write as _;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use super::super::{BootstrapError, Config, RdpState, RustDeskState, StepState, TailscaleState};
 
 pub(crate) fn build_report(
     config: &Config,

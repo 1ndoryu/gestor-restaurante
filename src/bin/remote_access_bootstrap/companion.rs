@@ -1,6 +1,10 @@
 /* Archivo de configuración companion. Parte de remote_access_bootstrap (ver main.rs). */
 
-use super::*;
+use std::env;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use super::{BootstrapError, CompanionConfig, COMPANION_CONFIG_FILE};
 
 pub(super) fn load_companion_config() -> Result<(CompanionConfig, bool), BootstrapError> {
     let path = companion_config_path()?;

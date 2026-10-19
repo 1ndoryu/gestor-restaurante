@@ -1,6 +1,7 @@
 /* Diálogos de Windows: entrada y mensajes. Parte de remote_access_bootstrap (ver main.rs). */
 
-use super::super::*;
+use super::super::proceso::{ps_single_quote, run_powershell};
+use super::super::BootstrapError;
 
 pub(crate) fn show_input_box(
     title: &str,

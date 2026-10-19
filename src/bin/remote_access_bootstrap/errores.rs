@@ -1,6 +1,10 @@
 /* Salida con fallo. Parte de remote_access_bootstrap (ver main.rs). */
 
-use super::*;
+use std::env;
+use std::path::PathBuf;
+
+use super::salida::{show_message_box, write_failure_report};
+use super::BootstrapError;
 
 pub(super) fn exit_with_failure(report_path: PathBuf, error: &BootstrapError) -> ! {
     let final_path = if write_failure_report(&report_path, error).is_ok() {

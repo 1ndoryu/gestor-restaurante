@@ -1,6 +1,10 @@
 /* Pasos de Windows: suspensión, RDP, admin y edición. Parte de remote_access_bootstrap (ver main.rs). */
 
-use super::*;
+use std::env;
+use std::fmt::Write as _;
+
+use super::proceso::{ps_single_quote, run_capture, run_powershell};
+use super::{BootstrapError, RdpState, StepState};
 
 pub(super) fn disable_sleep() -> Result<StepState, BootstrapError> {
     run_capture("powercfg", ["/change", "standby-timeout-ac", "0"])?;

@@ -1,14 +1,7 @@
-use rand::{distributions::Alphanumeric, Rng};
 use serde::Deserialize;
-use serde_json::Value;
 use std::env;
-use std::ffi::{OsStr, OsString};
-use std::fmt::Write as _;
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::thread;
-use std::time::Duration;
+use std::path::PathBuf;
 use thiserror::Error;
 
 mod companion;
@@ -23,14 +16,12 @@ mod tailscale;
 mod tests;
 mod windows;
 
-use companion::*;
-use errores::*;
-use proceso::*;
-use red::*;
-use rustdesk::*;
-use salida::*;
-use tailscale::*;
-use windows::*;
+use errores::exit_with_failure;
+use red::allow_bdp_port;
+use rustdesk::{configure_rustdesk, ensure_rustdesk_installed};
+use salida::{build_report, default_report_path, show_message_box};
+use tailscale::{configure_tailscale, ensure_tailscale_installed};
+use windows::{disable_sleep, enable_rdp, ensure_admin_or_relaunch, windows_edition};
 
 const TAILSCALE_EXE: &str = r"C:\Program Files\Tailscale\tailscale.exe";
 const RUSTDESK_EXE: &str = r"C:\Program Files\RustDesk\rustdesk.exe";

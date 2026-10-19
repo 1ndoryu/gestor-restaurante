@@ -1,6 +1,10 @@
 /* Descargas y puertos de red. Parte de remote_access_bootstrap (ver main.rs). */
 
-use super::*;
+use std::fs;
+use std::path::Path;
+
+use super::proceso::run_powershell;
+use super::{BootstrapError, StepState};
 
 pub(super) fn allow_bdp_port(port: u16) -> Result<StepState, BootstrapError> {
     let name = format!("Glory BDP WebLink {port}");

@@ -1,6 +1,12 @@
 /* Configuración: entorno, archivo companion y argumentos. Parte de remote_access_bootstrap (ver main.rs). */
 
-use super::*;
+use std::env;
+use std::path::PathBuf;
+
+use super::companion::load_companion_config;
+use super::rustdesk::random_password;
+use super::salida::{default_report_path, show_input_box, show_message_box};
+use super::{BootstrapError, CompanionConfig, Config};
 
 impl Config {
     pub(super) fn parse() -> Result<Self, BootstrapError> {

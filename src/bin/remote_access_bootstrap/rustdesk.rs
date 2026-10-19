@@ -1,6 +1,16 @@
 /* Instalación y configuración de RustDesk. Parte de remote_access_bootstrap (ver main.rs). */
 
-use super::*;
+use std::env;
+use std::path::{Path, PathBuf};
+
+use rand::{distributions::Alphanumeric, Rng};
+use serde_json::Value;
+
+use super::proceso::{run_capture, try_run_capture, wait_for_path, wait_for_service};
+use super::red::download_to_file;
+use super::{
+    BootstrapError, Config, RustDeskState, RUSTDESK_EXE, RUSTDESK_RELEASE_API, RUSTDESK_SERVICE,
+};
 
 pub(super) async fn ensure_rustdesk_installed() -> Result<PathBuf, BootstrapError> {
     if Path::new(RUSTDESK_EXE).exists() {

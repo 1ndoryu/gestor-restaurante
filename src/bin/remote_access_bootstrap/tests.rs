@@ -1,7 +1,7 @@
-use super::{
-    edition_supports_rdp, extract_tailscale_amd64_msi_url, ps_single_quote, rdp_firewall_script,
-    Config,
-};
+use super::proceso::ps_single_quote;
+use super::tailscale::extract_tailscale_amd64_msi_url;
+use super::windows::{edition_supports_rdp, rdp_firewall_script};
+use super::Config;
 
 #[test]
 fn windows_home_no_soporta_rdp_host() {
