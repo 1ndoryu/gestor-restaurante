@@ -64,7 +64,10 @@ pub(super) async fn seed_campanas(pool: &PgPool, user_id: Uuid) -> Result<(), sq
 
 /* 3 plantillas WhatsApp en distintos estados */
 #[allow(clippy::type_complexity)]
-pub(super) async fn seed_plantillas_whatsapp(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
+pub(super) async fn seed_plantillas_whatsapp(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<(), sqlx::Error> {
     /* (nombre, categoria, idioma, cuerpo, estado, meta_template_id, meta_razon_rechazo) */
     let plantillas: &[(&str, &str, &str, &str, &str, Option<&str>, Option<&str>)] = &[
         (
@@ -118,7 +121,10 @@ pub(super) async fn seed_plantillas_whatsapp(pool: &PgPool, user_id: Uuid) -> Re
 }
 
 /* 3 reglas de recordatorio automatico */
-pub(super) async fn seed_reglas_recordatorio(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
+pub(super) async fn seed_reglas_recordatorio(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<(), sqlx::Error> {
     /* (nombre, horas_antes, canal, mensaje, activa) */
     let reglas: &[(&str, i32, &str, &str, bool)] = &[
         (
