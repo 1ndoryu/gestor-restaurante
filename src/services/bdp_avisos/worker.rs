@@ -20,6 +20,9 @@ use crate::services::BdpOrderPollerService;
 pub const MAX_INTENTOS: i32 = 5;
 /// Tope por lote: un worker no se come el buzón entero de golpe.
 pub const LIMITE_LOTE_MAX: i64 = 50;
+/* Un aviso en `procesando` más de este tiempo se da por abandonado (el worker cayó
+ * tras reclamarlo) y se retoma. Con más margen que cualquier consulta a BDP. */
+const CADUCIDAD_RECLAMO_SEG: f64 = 600.0;
 
 /// Lo que devuelve BDP al pedir una comanda, ya clasificado.
 #[derive(Debug, Clone, PartialEq)]
@@ -59,8 +62,9 @@ pub struct ResumenLote {
     pub revision: u32,
 }
 
-/// Procesa hasta `limite` avisos `recibido` de la cuenta. Reclama las filas con
-/// `FOR UPDATE SKIP LOCKED` para que dos lotes solapados no dupliquen trabajo.
+/// Procesa hasta `limite` avisos de la cuenta: los `recibido` y los `procesando` cuyo
+/// reclamo caducó. Reclama las filas con `FOR UPDATE SKIP LOCKED` para que dos lotes
+/// solapados no dupliquen trabajo.
 pub async fn procesar_lote(
     pool: &PgPool,
     user_id: Uuid,
@@ -69,10 +73,13 @@ pub async fn procesar_lote(
 ) -> Result<ResumenLote, String> {
     let reclamados: Vec<(Uuid, String, Value, i32)> = sqlx::query_as(
         r"UPDATE bdp_avisos_inbox
-             SET estado = 'procesando', intentos = intentos + 1
+             SET estado = 'procesando', intentos = intentos + 1, reclamado_en = NOW()
            WHERE id IN (
                  SELECT id FROM bdp_avisos_inbox
-                  WHERE user_id = $1 AND estado = 'recibido'
+                  WHERE user_id = $1
+                    AND (estado = 'recibido'
+                         OR (estado = 'procesando'
+                             AND reclamado_en < NOW() - ($3::float8 * INTERVAL '1 second')))
                   ORDER BY recibido_en
                   LIMIT $2
                   FOR UPDATE SKIP LOCKED)
@@ -80,6 +87,7 @@ pub async fn procesar_lote(
     )
     .bind(user_id)
     .bind(limite.clamp(1, LIMITE_LOTE_MAX))
+    .bind(CADUCIDAD_RECLAMO_SEG)
     .fetch_all(pool)
     .await
     .map_err(|error| format!("No se pudieron reclamar los avisos: {error}"))?;
