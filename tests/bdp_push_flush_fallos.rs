@@ -90,7 +90,7 @@ async fn flush_timeout_mid_write_estado_ambiguo_y_reintento_acotado(pool: PgPool
 
     let payload = serde_json::json!({
         "AutomaticCode": false,
-        "ArticleData": { "ArtCode": 90000123, "ArtDescription": "Plato" },
+        "ArticleData": { "ArtCode": 90_000_123, "ArtDescription": "Plato" },
         "AllProfiles": true
     });
     BdpPushService::encolar(
@@ -271,7 +271,7 @@ async fn flush_payload_invalido_marca_rechazado_sin_reintento(pool: PgPool) {
 
     let payload = serde_json::json!({
         "AutomaticCode": false,
-        "ArticleData": { "ArtCode": 90000123, "ArtDescription": "Plato" },
+        "ArticleData": { "ArtCode": 90_000_123, "ArtDescription": "Plato" },
         "AllProfiles": true
     });
     BdpPushService::encolar(

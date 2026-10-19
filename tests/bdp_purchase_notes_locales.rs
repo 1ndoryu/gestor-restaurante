@@ -432,7 +432,7 @@ async fn handler_listar_modo_bdp_flag_off_devuelve_locales(pool: PgPool) {
 /* ── Tests 169A-1: rastro de auditoría del ciclo local ─────────────────── */
 
 /// Lee el rastro de auditoría de un usuario en orden cronológico:
-/// (operacion, origen_operacion, target_entity_type, target_entity_id).
+/// (`operacion`, `origen_operacion`, `target_entity_type`, `target_entity_id`).
 async fn audit_rows(
     pool: &PgPool,
     user_id: Uuid,
@@ -480,7 +480,7 @@ async fn ciclo_local_crear_borrador_conciliar_deja_rastro_auditoria(pool: PgPool
     );
 
     let state = make_app_state(pool.clone());
-    marcar_borrador_purchase_note(
+    let _ = marcar_borrador_purchase_note(
         State(state),
         make_auth(user_id),
         Path(note.id),
@@ -567,7 +567,7 @@ async fn conciliar_gasto_existente_no_fabrica_auditoria_gasto(pool: PgPool) {
         .expect("crear local");
 
     let state = make_app_state(pool.clone());
-    marcar_borrador_purchase_note(
+    let _ = marcar_borrador_purchase_note(
         State(state),
         make_auth(user_id),
         Path(note.id),

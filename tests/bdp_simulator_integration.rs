@@ -178,7 +178,7 @@ async fn simulator_stock_of(client: &BdpWeblinkClient<'_>, article: i64) -> f64 
         .await
         .unwrap()["Stock"]
         .get(article.to_string())
-        .and_then(|v| v.as_f64())
+        .and_then(serde_json::Value::as_f64)
         .unwrap_or(0.0)
 }
 
@@ -259,6 +259,8 @@ fn simulator_config() -> glory_backend::models::ConfiguracionRestaurante {
  * completo. Este helper pertenece únicamente a las pruebas del simulador:
  * no debe convertirse en una fuente de valores por defecto para producción,
  * porque esos valores deben conservarse mediante GetArticle. */
+// Escenario completo de modificación: dividirlo ocultaría el orden de las llamadas al simulador.
+#[allow(clippy::too_many_lines)]
 fn full_modify_article_data(
     code: i64,
     description: &str,
@@ -500,7 +502,7 @@ async fn simulator_export_customers() {
     let customers = response["Customers"]
         .as_array()
         .expect("Customers should be array");
-    assert!(!customers.is_empty());
+    assert_ne!(customers.len(), 0);
 }
 
 #[tokio::test]
@@ -1422,7 +1424,7 @@ async fn simulator_create_article_happy_path() {
         .create_articles_and_update_profiles(&BdpCreateArticlesRequest {
             automatic_code: false,
             article_data: json!({
-                "ArtCode": 910001,
+                "ArtCode": 910_001,
                 "ArtDescription": "Articulo S2 Q2.1",
                 "DeptCode": 2,
                 "DeptDescription": "Test S2",
@@ -1452,11 +1454,11 @@ async fn simulator_create_article_happy_path() {
         .filter_map(|a| a["Code"].as_str().and_then(|c| c.parse().ok()))
         .collect();
     assert!(
-        codes.contains(&910001),
+        codes.contains(&910_001),
         "Artículo 910001 debe existir en el simulador"
     );
     assert_eq!(
-        codes.iter().filter(|c| **c == 910001).count(),
+        codes.iter().filter(|c| **c == 910_001).count(),
         1,
         "Sin duplicados: 910001 exactamente una vez"
     );
@@ -1480,7 +1482,7 @@ async fn simulator_modify_article_and_prices_happy_path() {
     client
         .create_articles_and_update_profiles(&BdpCreateArticlesRequest {
             automatic_code: false,
-            article_data: full_modify_article_data(910002, "Articulo S2 Q2.2", 2, 5.25),
+            article_data: full_modify_article_data(910_002, "Articulo S2 Q2.2", 2, 5.25),
             profiles_list: None,
             all_profiles: Some(true),
         })
@@ -1489,7 +1491,7 @@ async fn simulator_modify_article_and_prices_happy_path() {
 
     /* 2) Leer el artículo completo desde GetArticle y modificar descripción. */
     let get_resp = client
-        .get_article(&BdpGetArticleRequest { art_code: 910002 })
+        .get_article(&BdpGetArticleRequest { art_code: 910_002 })
         .await
         .expect("get article debe funcionar tras create");
     let mut article_data = get_resp["ArticleData"].clone();
@@ -1508,7 +1510,7 @@ async fn simulator_modify_article_and_prices_happy_path() {
     /* 3) Modificar precios y verificar. */
     let prices_resp = client
         .modify_prices_articles(&BdpModifyPricesRequest {
-            articles_data_list: json!([{"Article": 910002, "Price1": 5.25}]),
+            articles_data_list: json!([{"Article": 910_002, "Price1": 5.25}]),
         })
         .await
         .expect("modify prices should succeed");
@@ -1542,7 +1544,7 @@ async fn simulator_create_department_happy_path() {
 
     let resp = client
         .create_department(&BdpCreateDepartmentRequest {
-            code: 910001,
+            code: 910_001,
             description: "Depto S2 Q2.3".into(),
             short_description: "S2".into(),
             graph_description1: String::new(),
@@ -1566,11 +1568,11 @@ async fn simulator_create_department_happy_path() {
         .filter_map(|d| d["Code"].as_i64())
         .collect();
     assert!(
-        codes.contains(&910001),
+        codes.contains(&910_001),
         "Departamento 910001 debe existir en el simulador"
     );
     assert_eq!(
-        codes.iter().filter(|c| **c == 910001).count(),
+        codes.iter().filter(|c| **c == 910_001).count(),
         1,
         "Sin duplicados: 910001 exactamente una vez"
     );
@@ -1728,6 +1730,8 @@ async fn simulator_stock_update_and_massive_happy_path() {
  * reintentos=1, solo manual). */
 #[tokio::test]
 #[ignore = "requiere el simulador BDP local en 127.0.0.1"]
+// Flujo de suscripción bloqueada de principio a fin: dividirlo ocultaría la secuencia de estados.
+#[allow(clippy::too_many_lines)]
 async fn simulator_subscription_blocked_payment_invoice_cancel() {
     skip_if_no_simulator!(_g);
     let config = simulator_config();
@@ -1871,7 +1875,7 @@ async fn simulator_payload_invalido_422_no_crea_fantasma() {
         .create_articles_and_update_profiles(&BdpCreateArticlesRequest {
             automatic_code: false,
             article_data: json!({
-                "ArtCode": 920422,
+                "ArtCode": 920_422,
                 "ArtDescription": "Articulo rechazado S5",
                 "DeptCode": 2,
                 "Price1": 1.00,
@@ -1898,7 +1902,7 @@ async fn simulator_payload_invalido_422_no_crea_fantasma() {
         .filter_map(|a| a["Code"].as_str().and_then(|c| c.parse().ok()))
         .collect();
     assert!(
-        !codes.contains(&920422),
+        !codes.contains(&920_422),
         "El artículo rechazado no debe existir en el simulador"
     );
 }
@@ -1915,7 +1919,7 @@ async fn simulator_duplicate_article_no_doble_alta() {
     let request = BdpCreateArticlesRequest {
         automatic_code: false,
         article_data: json!({
-            "ArtCode": 910101,
+            "ArtCode": 910_101,
             "ArtDescription": "Articulo S6 idempotente",
             "DeptCode": 2,
             "DeptDescription": "Test S6",
@@ -1947,7 +1951,7 @@ async fn simulator_duplicate_article_no_doble_alta() {
         .filter_map(|a| a["Code"].as_str().and_then(|c| c.parse().ok()))
         .collect();
     assert_eq!(
-        codes.iter().filter(|c| **c == 910101).count(),
+        codes.iter().filter(|c| **c == 910_101).count(),
         1,
         "Duplicado deliberado: 910101 exactamente una vez, sin doble alta"
     );
@@ -1963,7 +1967,7 @@ async fn simulator_duplicate_department_rechazado_honesto() {
     let config = simulator_config();
     let client = BdpWeblinkClient::new(&config);
     let request = BdpCreateDepartmentRequest {
-        code: 910101,
+        code: 910_101,
         description: "Depto S6 idempotente".into(),
         short_description: "S6".into(),
         graph_description1: String::new(),
@@ -2001,7 +2005,7 @@ async fn simulator_duplicate_department_rechazado_honesto() {
         .filter_map(|d| d["Code"].as_i64())
         .collect();
     assert_eq!(
-        codes.iter().filter(|c| **c == 910101).count(),
+        codes.iter().filter(|c| **c == 910_101).count(),
         1,
         "Duplicado deliberado: 910101 exactamente una vez"
     );
@@ -2119,7 +2123,7 @@ async fn simulator_neutralize_web_article_via_modify() {
     client
         .create_articles_and_update_profiles(&BdpCreateArticlesRequest {
             automatic_code: false,
-            article_data: full_modify_article_data(910003, "PRUEBA W1 2026-09-05", 1, 1.00),
+            article_data: full_modify_article_data(910_003, "PRUEBA W1 2026-09-05", 1, 1.00),
             profiles_list: Some(json!([{ "Profile": 1, "ProfileName": "PERFIL 1" }])),
             all_profiles: Some(false),
         })
@@ -2151,7 +2155,7 @@ async fn simulator_neutralize_web_article_via_modify() {
      *    UpdateProfile). AllProfiles:true en Modify causa NullReferenceExcep-
      *    tion en el BDP real. */
     let get_resp = client
-        .get_article(&BdpGetArticleRequest { art_code: 910003 })
+        .get_article(&BdpGetArticleRequest { art_code: 910_003 })
         .await
         .expect("get article debe funcionar tras create");
     let mut article_data = get_resp["ArticleData"].clone();

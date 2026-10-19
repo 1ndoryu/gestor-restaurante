@@ -60,8 +60,8 @@ fn make_app_state(pool: PgPool) -> AppState {
         },
         notif_hub,
         modo_operacion: ServicioModoOperacion::default(),
-        resumen_cache: Default::default(),
-        listados_cache: Default::default(),
+        resumen_cache: Arc::default(),
+        listados_cache: Arc::default(),
     }
 }
 
@@ -279,7 +279,7 @@ async fn snapshot_glory_ventas_exporta_con_esquema_real(pool: PgPool) {
     assert_eq!(ventas.len(), 1, "debe exportar la venta insertada");
     let total = ventas[0]
         .get("total")
-        .and_then(|t| t.as_f64())
+        .and_then(serde_json::Value::as_f64)
         .expect("total derivado presente");
     assert_eq!(total, 12.10, "total = importe_base + importe_iva");
     let fantasma = ventas[0].get("estado").is_some();

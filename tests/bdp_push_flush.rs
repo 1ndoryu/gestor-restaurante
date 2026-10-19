@@ -48,7 +48,7 @@ async fn flush_en_standalone_no_envia_ni_consume_la_cola(pool: PgPool) {
     .await
     .expect("config standalone con credenciales");
 
-    let payload = serde_json::json!({ "ArtCode": 90000123 });
+    let payload = serde_json::json!({ "ArtCode": 90_000_123 });
     BdpPushService::encolar(
         &pool,
         user,
@@ -145,7 +145,7 @@ async fn flush_en_modo_bdp_envia_y_marca_sincronizada(pool: PgPool) {
 
     let payload = serde_json::json!({
         "AutomaticCode": false,
-        "ArticleData": { "ArtCode": 90000123, "ArtDescription": "Plato" },
+        "ArticleData": { "ArtCode": 90_000_123, "ArtDescription": "Plato" },
         "AllProfiles": true
     });
     BdpPushService::encolar(
@@ -182,7 +182,7 @@ async fn flush_en_modo_bdp_envia_y_marca_sincronizada(pool: PgPool) {
     let body: serde_json::Value = create.body_json().expect("body JSON válido");
     assert_eq!(body["AutomaticCode"], false);
     assert_eq!(body["AllProfiles"], true);
-    assert_eq!(body["ArticleData"]["ArtCode"], 90000123);
+    assert_eq!(body["ArticleData"]["ArtCode"], 90_000_123);
     assert_eq!(body["ArticleData"]["ArtDescription"], "Plato");
 }
 
@@ -207,7 +207,7 @@ async fn flush_modificar_articulo_enriquece_payload_con_get_article(pool: PgPool
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "ErrorMessage": "",
             "ArticleData": {
-                "ArtCode": 90000123,
+                "ArtCode": 90_000_123,
                 "ArtDescription": "Original BDP",
                 "DeptCode": 7,
                 "Price5": 42.5,
@@ -269,7 +269,7 @@ async fn flush_modificar_articulo_enriquece_payload_con_get_article(pool: PgPool
 
     let payload = serde_json::json!({
         "ArticleData": {
-            "ArtCode": 90000123,
+            "ArtCode": 90_000_123,
             "ArtDescription": "Editado localmente"
         },
         "AllProfiles": false,
@@ -298,7 +298,7 @@ async fn flush_modificar_articulo_enriquece_payload_con_get_article(pool: PgPool
         .find(|r| r.url.path() == "/API/Articles/Get")
         .expect("debe consultar GetArticle antes de modificar");
     let get_body: serde_json::Value = get.body_json().expect("body GetArticle válido");
-    assert_eq!(get_body["ArtCode"], 90000123);
+    assert_eq!(get_body["ArtCode"], 90_000_123);
 
     let modify = requests
         .iter()
@@ -389,7 +389,7 @@ async fn flush_modificar_articulo_fallo_get_cancela_armado(pool: PgPool) {
         OPERACION_MODIFICAR,
         &serde_json::json!({
             "ArticleData": {
-                "ArtCode": 90000123,
+                "ArtCode": 90_000_123,
                 "ArtDescription": "Editado localmente"
             }
         }),

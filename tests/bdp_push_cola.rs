@@ -12,7 +12,6 @@
  * No hay envío HTTP real: en standalone el reintento es no-op. */
 
 use axum::extract::{Path, State};
-use axum::Json;
 use glory_backend::config::AppConfig;
 use glory_backend::errors::AppError;
 use glory_backend::handlers::{listar_pendientes_push, reintentar_fila};
@@ -42,8 +41,8 @@ fn make_app_state(pool: PgPool) -> AppState {
         },
         notif_hub,
         modo_operacion: ServicioModoOperacion::default(),
-        resumen_cache: Default::default(),
-        listados_cache: Default::default(),
+        resumen_cache: Arc::default(),
+        listados_cache: Arc::default(),
     }
 }
 

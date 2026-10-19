@@ -36,16 +36,20 @@ impl DobleBdp {
     }
 }
 
+/* El trait exige un Future: se resuelve de forma síncrona con `ready`, sin `async`
+ * (que no tendría ningún `.await` que lo justifique). */
 impl ConsultaPedido for DobleBdp {
-    async fn pedido(&self, comanda: i64) -> Consulta {
+    fn pedido(&self, comanda: i64) -> impl std::future::Future<Output = Consulta> + Send {
         self.pedidas
             .lock()
             .expect("bloqueo del doble")
             .push(comanda);
-        self.respuestas
+        let respuesta = self
+            .respuestas
             .get(&comanda)
             .cloned()
-            .unwrap_or_else(|| Consulta::Fallo("sin respuesta programada".to_string()))
+            .unwrap_or_else(|| Consulta::Fallo("sin respuesta programada".to_string()));
+        std::future::ready(respuesta)
     }
 }
 
@@ -260,7 +264,7 @@ async fn no_toca_avisos_de_otra_cuenta_ni_ya_procesados(pool: PgPool) {
     let resumen = procesar_lote(&pool, mia, &doble, 10).await.expect("lote");
 
     assert_eq!(resumen, ResumenLote::default());
-    assert!(doble.pedidas().is_empty());
+    assert_eq!(doble.pedidas().len(), 0);
     let (estado, _, _, _, _) = fila(&pool, de_otra).await;
     assert_eq!(
         estado, "recibido",

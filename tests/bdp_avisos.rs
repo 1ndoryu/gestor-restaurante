@@ -50,8 +50,8 @@ fn estado(pool: PgPool) -> AppState {
         },
         notif_hub,
         modo_operacion: ServicioModoOperacion::default(),
-        resumen_cache: Default::default(),
-        listados_cache: Default::default(),
+        resumen_cache: Arc::default(),
+        listados_cache: Arc::default(),
     }
 }
 
@@ -116,7 +116,7 @@ async fn aviso(
     }
 }
 
-fn codigo(respuesta: axum::response::Response) -> StatusCode {
+fn codigo(respuesta: &axum::response::Response) -> StatusCode {
     respuesta.status()
 }
 
@@ -415,7 +415,7 @@ async fn sin_secreto_valido_no_entra_ningun_aviso(pool: PgPool) {
     .await
     .expect_err("sin configurar no admite nada");
     assert_eq!(
-        codigo(axum::response::IntoResponse::into_response(error)),
+        codigo(&axum::response::IntoResponse::into_response(error)),
         StatusCode::SERVICE_UNAVAILABLE
     );
 
@@ -576,7 +576,7 @@ async fn el_buzon_es_del_restaurante_y_solo_lo_ve_admin(pool: PgPool) {
     .await
     .expect_err("solo Admin");
     assert_eq!(
-        codigo(axum::response::IntoResponse::into_response(error)),
+        codigo(&axum::response::IntoResponse::into_response(error)),
         StatusCode::FORBIDDEN
     );
 
@@ -605,7 +605,7 @@ async fn el_buzon_es_del_restaurante_y_solo_lo_ve_admin(pool: PgPool) {
     .await
     .expect_err("estado desconocido");
     assert_eq!(
-        codigo(axum::response::IntoResponse::into_response(error)),
+        codigo(&axum::response::IntoResponse::into_response(error)),
         StatusCode::BAD_REQUEST
     );
 }

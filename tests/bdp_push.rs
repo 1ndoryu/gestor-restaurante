@@ -22,7 +22,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 #[sqlx::test(migrations = "./migrations")]
 async fn encolar_crea_y_refresca_fila_activa_sin_duplicar(pool: PgPool) {
     let user = Uuid::new_v4();
-    let payload = serde_json::json!({ "ArtCode": 90000123, "ArtDescription": "Plato" });
+    let payload = serde_json::json!({ "ArtCode": 90_000_123, "ArtDescription": "Plato" });
 
     BdpPushService::encolar(
         &pool,
@@ -42,7 +42,7 @@ async fn encolar_crea_y_refresca_fila_activa_sin_duplicar(pool: PgPool) {
     assert_eq!(pendientes[0].estado, ESTADO_PENDIENTE);
 
     /* Refrescar el payload no debe duplicar la fila activa (M19). */
-    let payload2 = serde_json::json!({ "ArtCode": 90000123, "ArtDescription": "Plato editado" });
+    let payload2 = serde_json::json!({ "ArtCode": 90_000_123, "ArtDescription": "Plato editado" });
     BdpPushService::encolar(
         &pool,
         user,
@@ -165,11 +165,11 @@ fn payload_inventario_serializa_lote_pascal_case() {
     let config = config_con_push();
     let lineas = vec![
         BdpStockInfoEntry {
-            article: 90000123,
+            article: 90_000_123,
             units: Decimal::from_str("4.5").unwrap(),
         },
         BdpStockInfoEntry {
-            article: 90000124,
+            article: 90_000_124,
             units: Decimal::from_str("0").unwrap(),
         },
     ];
@@ -179,7 +179,7 @@ fn payload_inventario_serializa_lote_pascal_case() {
     assert!(payload["DateReg"].as_str().is_some());
     let articulos = payload["ArticlesList"].as_array().unwrap();
     assert_eq!(articulos.len(), 2);
-    assert_eq!(articulos[0]["Article"], 90000123);
+    assert_eq!(articulos[0]["Article"], 90_000_123);
     /* Decimal serializa como string (rust_decimal serde-with-str). */
     assert_eq!(articulos[0]["Units"], "4.5");
     assert_eq!(articulos[1]["Units"], "0");
@@ -242,8 +242,8 @@ fn payload_crear_familia_serializa_code_y_overwrite() {
 fn payload_regularizacion_serializa_delta_y_almacen() {
     let config = config_con_push();
     let payload =
-        payload_regularizacion(&config, 90000123, Decimal::from_str("-2").unwrap()).unwrap();
-    assert_eq!(payload["Article"], 90000123);
+        payload_regularizacion(&config, 90_000_123, Decimal::from_str("-2").unwrap()).unwrap();
+    assert_eq!(payload["Article"], 90_000_123);
     assert_eq!(payload["Units"], "-2");
     assert_eq!(payload["CodReg"], 2);
     assert_eq!(payload["Store"], 1);
@@ -375,7 +375,7 @@ async fn cola_reintento_manual_uno_error_visible_sin_auto_flush(pool: PgPool) {
 
     let payload = serde_json::json!({
         "AutomaticCode": false,
-        "ArticleData": { "ArtCode": 90000123, "ArtDescription": "Plato" },
+        "ArticleData": { "ArtCode": 90_000_123, "ArtDescription": "Plato" },
         "AllProfiles": true
     });
     BdpPushService::encolar(
@@ -468,7 +468,7 @@ async fn cola_reintento_manual_uno_error_visible_sin_auto_flush(pool: PgPool) {
      *    fila `rechazada` a `pendiente` (M19): vuelve a la cola activa. */
     let payload_corregido = serde_json::json!({
         "AutomaticCode": false,
-        "ArticleData": { "ArtCode": 90000123, "ArtDescription": "Plato corregido" },
+        "ArticleData": { "ArtCode": 90_000_123, "ArtDescription": "Plato corregido" },
         "AllProfiles": true
     });
     BdpPushService::encolar(

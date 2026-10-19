@@ -68,8 +68,8 @@ fn make_app_state(pool: PgPool) -> AppState {
         },
         notif_hub,
         modo_operacion: ServicioModoOperacion::default(),
-        resumen_cache: Default::default(),
-        listados_cache: Default::default(),
+        resumen_cache: Arc::default(),
+        listados_cache: Arc::default(),
     }
 }
 

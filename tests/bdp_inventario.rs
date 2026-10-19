@@ -41,8 +41,8 @@ fn make_app_state(pool: PgPool) -> AppState {
         },
         notif_hub,
         modo_operacion: ServicioModoOperacion::default(),
-        resumen_cache: Default::default(),
-        listados_cache: Default::default(),
+        resumen_cache: Arc::default(),
+        listados_cache: Arc::default(),
     }
 }
 
@@ -120,7 +120,7 @@ async fn inventario_encola_lote_y_omite_locales_puros(pool: PgPool) {
     assert_eq!(fila.1, "inventario");
     let articulos = fila.2["ArticlesList"].as_array().unwrap();
     assert_eq!(articulos.len(), 1);
-    assert_eq!(articulos[0]["Article"], 90000123);
+    assert_eq!(articulos[0]["Article"], 90_000_123);
     assert_eq!(articulos[0]["Units"], "5");
 }
 
