@@ -52,7 +52,10 @@ pub(super) async fn seed_etiquetas_clientes(
 /* Crea las etiquetas personalizadas del usuario demo si aún no tiene ninguna.
  * Una sola sentencia: la categoría, el conteo de etiquetas y el alta van juntos
  * para que no haya una ventana entre la comprobación y la escritura. */
-pub(super) async fn seed_etiquetas_personalizadas(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
+pub(super) async fn seed_etiquetas_personalizadas(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<(), sqlx::Error> {
     let creadas = sqlx::query(
         r"INSERT INTO etiquetas (user_id, categoria_id, nombre, color)
           SELECT $1, c.id, v.nombre, v.color
