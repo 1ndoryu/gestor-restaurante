@@ -1,7 +1,19 @@
 /* [263A-14] Plano de sala: paredes.
  * Parte de plano_sala (ver mod.rs). */
 
-use super::*;
+use axum::extract::{Path, State};
+use axum::http::StatusCode;
+use axum::Json;
+use uuid::Uuid;
+use validator::Validate;
+
+use crate::errors::AppError;
+use crate::middleware::AuthUser;
+use crate::models::{
+    ActualizarParedRequest, ActualizarPosicionesParedesRequest, CrearParedRequest, ParedSala,
+};
+use crate::repositories::plano_sala::{CambiosPared, NuevaPared};
+use crate::AppState;
 
 /* ========== Paredes — 094A-7 ========== */
 

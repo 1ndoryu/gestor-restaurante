@@ -1,7 +1,17 @@
 /* [263A-14] Plano de sala: llamar camarero.
  * Parte de plano_sala (ver mod.rs). */
 
-use super::*;
+use axum::extract::{Path, State};
+use axum::Json;
+use uuid::Uuid;
+
+use crate::errors::AppError;
+use crate::middleware::AuthUser;
+use crate::services::bdp_weblink_catalog::BdpCallWaiterRequest;
+use crate::services::{
+    BdpWeblinkClient, ConfiguracionService, ModoEfectivo, ServicioModoOperacion,
+};
+use crate::AppState;
 
 /* [198A-1/D10] Llamar camarero: push directo a BDP (no va a la cola). En
  * standalone no está disponible (la UI oculta el botón con el motivo). */

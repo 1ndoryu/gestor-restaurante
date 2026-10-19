@@ -1,7 +1,14 @@
 /* [263A-14] Plano de sala: import y export.
  * Parte de plano_sala (ver mod.rs). */
 
-use super::*;
+use axum::extract::State;
+use axum::Json;
+
+use crate::errors::AppError;
+use crate::middleware::AuthUser;
+use crate::models::{PlanoExport, PlanoSala};
+use crate::services::PlanoSalaService;
+use crate::AppState;
 
 /* ========== Export / Import ========== */
 

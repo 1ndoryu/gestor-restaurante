@@ -1,7 +1,17 @@
 /* [263A-14] Plano de sala: mesas.
  * Parte de plano_sala (ver mod.rs). */
 
-use super::*;
+use axum::extract::{Path, State};
+use axum::http::StatusCode;
+use axum::Json;
+use uuid::Uuid;
+use validator::Validate;
+
+use crate::errors::AppError;
+use crate::middleware::AuthUser;
+use crate::models::{ActualizarMesaRequest, ActualizarPosicionesRequest, CrearMesaRequest, Mesa};
+use crate::services::PlanoSalaService;
+use crate::AppState;
 
 /* ========== Mesas ========== */
 

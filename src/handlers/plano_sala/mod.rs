@@ -1,26 +1,14 @@
 /* [263A-14] Handlers del plano de sala — CRUD zonas/mesas/combinaciones + export/import.
  * Tag OpenAPI: "PlanoSala" */
 
-use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::extract::State;
 use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
-use uuid::Uuid;
-use validator::Validate;
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
-use crate::models::{
-    ActualizarMesaRequest, ActualizarParedRequest, ActualizarPosicionesParedesRequest,
-    ActualizarPosicionesRequest, ActualizarZonaRequest, CombinacionMesas, CrearCombinacionRequest,
-    CrearMesaRequest, CrearParedRequest, CrearZonaRequest, Mesa, ParedSala, PlanoExport,
-    PlanoOcupacion, PlanoOcupacionQuery, PlanoSala, ZonaSala,
-};
-use crate::repositories::plano_sala::{CambiosPared, NuevaPared};
-use crate::services::bdp_weblink_catalog::BdpCallWaiterRequest;
-use crate::services::{
-    BdpWeblinkClient, ConfiguracionService, ModoEfectivo, PlanoSalaService, ServicioModoOperacion,
-};
+use crate::models::PlanoSala;
+use crate::services::PlanoSalaService;
 use crate::AppState;
 
 use super::rate_limit::{limitador_escrituras, limitar};

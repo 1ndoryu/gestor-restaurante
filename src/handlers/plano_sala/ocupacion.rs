@@ -1,7 +1,14 @@
 /* [263A-14] Plano de sala: ocupación.
  * Parte de plano_sala (ver mod.rs). */
 
-use super::*;
+use axum::extract::{Query, State};
+use axum::Json;
+
+use crate::errors::AppError;
+use crate::middleware::AuthUser;
+use crate::models::{PlanoOcupacion, PlanoOcupacionQuery};
+use crate::services::PlanoSalaService;
+use crate::AppState;
 
 /* ========== Ocupación (263A-16) ========== */
 
