@@ -5,7 +5,10 @@
 use super::*;
 
 /* 1 zona de sala + 6 mesas posicionadas. Retorna (zona_id, mesa_ids) */
-pub(super) async fn seed_zonas_mesas(pool: &PgPool, user_id: Uuid) -> Result<(Uuid, Vec<Uuid>), sqlx::Error> {
+pub(super) async fn seed_zonas_mesas(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<(Uuid, Vec<Uuid>), sqlx::Error> {
     let zona_id: Uuid = sqlx::query_scalar(
         "INSERT INTO zonas_sala (user_id, nombre, orden, ancho, alto) \
          VALUES ($1, 'Salón principal', 0, 800, 600) RETURNING id",
