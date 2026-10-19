@@ -301,6 +301,7 @@ mod tests {
             bdp_articulo_rango_inicial: 90_000_000,
             bdp_order_end_type: 0,
             bdp_billing_details: false,
+            bdp_overwrite_clientes: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

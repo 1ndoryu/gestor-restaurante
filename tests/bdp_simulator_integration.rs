@@ -186,6 +186,7 @@ async fn simulator_stock_of(client: &BdpWeblinkClient<'_>, article: i64) -> f64 
 
 fn simulator_config() -> glory_backend::models::ConfiguracionRestaurante {
     glory_backend::models::ConfiguracionRestaurante {
+        bdp_overwrite_clientes: false,
         id: Uuid::new_v4(),
         user_id: Uuid::new_v4(),
         reserva_email_obligatorio: false,

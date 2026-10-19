@@ -81,6 +81,8 @@ pub struct ConfiguracionRestaurante {
     pub bdp_order_end_type: i32,
     /* [D18d] Enviar BillingDetails (datos fiscales del cliente) en InvoiceOrder. */
     pub bdp_billing_details: bool,
+    /* [D25] Permite Overwrite=true en CreateCustomer para clientes ya vinculados. Solo BDP local. */
+    pub bdp_overwrite_clientes: bool,
     /* [F4.5] Intervalo de polling para consultar estado de comandas BDP (segundos) */
     pub bdp_poll_interval_secs: i32,
     /// Opt-in explícito. `false` impide cualquier polling automático externo.
@@ -216,6 +218,8 @@ pub struct ActualizarConfiguracionRequest {
     pub bdp_order_end_type: Option<i32>,
     /* [D18d] Activa BillingDetails en InvoiceOrder. */
     pub bdp_billing_details: Option<bool>,
+    /* [D25] Activa Overwrite=true en CreateCustomer (solo BDP local). */
+    pub bdp_overwrite_clientes: Option<bool>,
     /* [F4.5] Intervalo de polling BDP */
     pub bdp_poll_interval_secs: Option<i32>,
     pub bdp_poll_enabled: Option<bool>,

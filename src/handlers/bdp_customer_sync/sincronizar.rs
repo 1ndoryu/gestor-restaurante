@@ -64,7 +64,8 @@ pub(super) async fn sincronizar_existente(
 }
 
 /* [Fase 7.2] Push controlado de un cliente Glory a BDP (CreateCustomer).
- * Exige código explícito, verifica colisión y siempre usa Overwrite=false.
+ * Exige código explícito, verifica colisión y usa Overwrite=false salvo la
+ * autorización de D25 (`bdp_overwrite_clientes`, solo BDP local).
  *
  * [AUDIT-1.3] Reconciliación: si BDP crea el cliente pero Glory no recibe
  * respuesta (timeout/crash), la auditoría queda "ambiguo". La próxima
@@ -105,14 +106,24 @@ pub async fn sincronizar_cliente_bdp(
 
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     let bdp_code = validar_puerta_sincronizacion(&cliente, &sync_req, &config)?;
+    let overwrite = overwrite_autorizado(
+        cliente.bdp_customer_code,
+        bdp_code,
+        config.bdp_overwrite_clientes,
+        &config.bdp_base_url,
+    );
 
     let client = BdpWeblinkClient::new(&config);
-    if let Some(respuesta) = vincular_si_existe(&client, &state, &cliente, bdp_code).await? {
-        return Ok(respuesta);
+    /* Con Overwrite autorizado el objetivo es reemplazar el registro ya vinculado,
+     * así que el preflight de colisión no aplica. */
+    if !overwrite {
+        if let Some(respuesta) = vincular_si_existe(&client, &state, &cliente, bdp_code).await? {
+            return Ok(respuesta);
+        }
     }
 
     let (req, audit_id) =
-        armar_create_customer(&state, auth.user_id, &config, &cliente, bdp_code).await?;
+        armar_create_customer(&state, auth.user_id, &config, &cliente, bdp_code, overwrite).await?;
 
     ejecutar_create_customer(&client, &state, &req, audit_id, &cliente, bdp_code).await
 }
@@ -157,14 +168,42 @@ fn validar_puerta_sincronizacion(
         ));
     }
 
-    /* Nunca sobrescribir ni generar códigos. */
-    if cliente.bdp_customer_code.is_some() {
+    /* Nunca generar códigos. Un cliente ya vinculado solo se reescribe con la
+     * autorización de Overwrite (D25); cualquier otro vínculo queda bloqueado. */
+    let vinculado = cliente.bdp_customer_code;
+    if vinculado.is_some()
+        && !overwrite_autorizado(
+            vinculado,
+            sync_req.bdp_customer_code,
+            config.bdp_overwrite_clientes,
+            &config.bdp_base_url,
+        )
+    {
         return Err(AppError::Validation(
-            "Cliente BDP existente: Overwrite está bloqueado y requiere una autorización específica no implementada."
+            "Cliente BDP existente: Overwrite requiere bdp_overwrite_clientes activo, BDP en local y el mismo código ya vinculado."
                 .into(),
         ));
     }
     Ok(sync_req.bdp_customer_code)
+}
+
+/* [D25] Overwrite=true solo si: flag activo, BDP en loopback y el código pedido
+ * es el ya vinculado a este cliente. Nunca re-apunta un cliente a otro código. */
+fn overwrite_autorizado(
+    vinculado: Option<i32>,
+    bdp_code: i32,
+    flag_activo: bool,
+    base_url: &str,
+) -> bool {
+    flag_activo && vinculado == Some(bdp_code) && es_bdp_local(base_url)
+}
+
+/* [D25] BDP local = host de loopback (mismo criterio que `ensure_target_allowed`). */
+fn es_bdp_local(base_url: &str) -> bool {
+    reqwest::Url::parse(base_url.trim())
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
+        .is_some_and(|host| matches!(host.as_str(), "localhost" | "127.0.0.1" | "[::1]" | "::1"))
 }
 
 /* [267A-8] Preflight de identidad/código contra BDP. Si el código ya existe y
@@ -181,7 +220,7 @@ async fn vincular_si_existe(
         .await
         .map_err(|e| AppError::Internal(format!("Error login BDP: {e}")))?;
 
-    /* Preflight obligatorio de identidad/código. Overwrite=false protege la
+    /* Preflight obligatorio de identidad/código. Overwrite=false (sin D25) protege la
      * carrera final, pero primero evitamos intentar una colisión conocida. */
     let exported = client
         .export_customers(&BdpExportCustomersRequest::default())
@@ -226,4 +265,33 @@ async fn vincular_si_existe(
         )));
     }
     Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{es_bdp_local, overwrite_autorizado};
+
+    /* [D25] Overwrite solo con flag, mismo código ya vinculado y BDP en loopback. */
+    #[test]
+    fn overwrite_exige_flag_mismo_codigo_y_bdp_local() {
+        let local = "http://127.0.0.1:8070";
+        assert!(overwrite_autorizado(Some(7), 7, true, local));
+        assert!(!overwrite_autorizado(Some(7), 7, false, local));
+        assert!(!overwrite_autorizado(Some(7), 8, true, local));
+        assert!(!overwrite_autorizado(None, 7, true, local));
+        assert!(!overwrite_autorizado(
+            Some(7),
+            7,
+            true,
+            "https://bdp.ejemplo.es"
+        ));
+    }
+
+    #[test]
+    fn bdp_local_solo_loopback() {
+        assert!(es_bdp_local("http://localhost:8070"));
+        assert!(es_bdp_local("http://[::1]:8070"));
+        assert!(!es_bdp_local("http://192.168.1.10:8070"));
+        assert!(!es_bdp_local("no es una url"));
+    }
 }

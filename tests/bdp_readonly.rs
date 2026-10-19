@@ -37,6 +37,7 @@ fn bdp_config_from_env() -> Option<ConfiguracionRestaurante> {
         return None;
     }
     Some(ConfiguracionRestaurante {
+        bdp_overwrite_clientes: false,
         id: Uuid::new_v4(),
         user_id: Uuid::new_v4(),
         push_modalidad: "automatico".to_string(),

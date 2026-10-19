@@ -259,6 +259,7 @@ async fn test_configuracion_actualizar_haddock_fields(pool: PgPool) {
         bdp_login: None,
         bdp_password: None,
         bdp_integrator_code: None,
+        bdp_overwrite_clientes: None,
         bdp_sync_enabled: None,
         bdp_pos_id: None,
         bdp_employee_id: None,

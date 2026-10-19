@@ -18,6 +18,7 @@ pub(super) async fn armar_create_customer(
     config: &ConfiguracionRestaurante,
     cliente: &Cliente,
     bdp_code: i32,
+    overwrite: bool,
 ) -> Result<(BdpCreateCustomerRequest, Uuid), AppError> {
     /* Construir nombre completo: apellidos + nombre */
     let fiscal_name = if cliente.apellidos.is_empty() {
@@ -50,13 +51,14 @@ pub(super) async fn armar_create_customer(
         area_code: 1,
         tav_code: 1,
         rate_code: 1,
-        overwrite: false,
+        overwrite,
     };
 
+    /* El overwrite queda en datos_enviados para que la auditoría muestre si se sobrescribió. */
     let datos_cliente = serde_json::json!({
         "cliente_id": cliente.id,
         "bdp_customer_code": bdp_code,
-        "overwrite": false
+        "overwrite": overwrite
     });
     crate::services::BdpWriteGuard::ensure_no_unresolved(
         &state.pool,

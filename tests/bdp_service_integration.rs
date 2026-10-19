@@ -158,6 +158,7 @@ async fn seed_config(pool: &PgPool, user_id: Uuid) -> ConfiguracionRestaurante {
     .execute(pool).await.expect("seed_config failed");
 
     ConfiguracionRestaurante {
+        bdp_overwrite_clientes: false,
         id,
         user_id,
         reserva_email_obligatorio: false,
