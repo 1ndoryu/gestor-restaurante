@@ -9,9 +9,15 @@ use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::AppState;
 use super::openapi::ApiDoc;
-use super::{health, auth, ventas, gastos, reservas, clientes, etiquetas, canales_reserva, dashboard, plano_sala, configuracion, modo_operacion, bdp_article_map, bdp_avisos, bdp_backup, bdp_catalogo, bdp_customer_sync, bdp_menu_local, bdp_purchase_note, bdp_push, campanas, plantillas_whatsapp, recordatorios, chatbot, api_keys, notificaciones, errores, admin, trabajadores, resenas, inactividad};
+use super::{
+    admin, api_keys, auth, bdp_article_map, bdp_avisos, bdp_backup, bdp_catalogo,
+    bdp_customer_sync, bdp_menu_local, bdp_purchase_note, bdp_push, campanas, canales_reserva,
+    chatbot, clientes, configuracion, dashboard, errores, etiquetas, gastos, health, inactividad,
+    modo_operacion, notificaciones, plano_sala, plantillas_whatsapp, recordatorios, resenas,
+    reservas, trabajadores, ventas,
+};
+use crate::AppState;
 
 /* [S16-H2] Límite máximo del body de peticiones: 2 MB.
  * Previene ataques de denegación de servicio mediante payloads excesivos. */
