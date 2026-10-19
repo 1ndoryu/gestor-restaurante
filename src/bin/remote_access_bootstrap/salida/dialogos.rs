@@ -31,4 +31,3 @@ pub(crate) fn show_message_box(title: &str, message: &str, icon: &str) {
     );
     let _ = run_powershell(&script);
 }
-
