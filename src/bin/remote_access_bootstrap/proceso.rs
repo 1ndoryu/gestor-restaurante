@@ -40,7 +40,10 @@ pub(super) fn wait_for_path(path: &Path, timeout_seconds: u64) -> Result<(), Boo
     )))
 }
 
-pub(super) fn wait_for_service(service_name: &str, timeout_seconds: u64) -> Result<(), BootstrapError> {
+pub(super) fn wait_for_service(
+    service_name: &str,
+    timeout_seconds: u64,
+) -> Result<(), BootstrapError> {
     for _ in 0..timeout_seconds {
         let status = try_run_capture(
             "powershell",
@@ -93,4 +96,3 @@ where
         stderr: if stderr.is_empty() { fallback } else { stderr },
     })
 }
-
