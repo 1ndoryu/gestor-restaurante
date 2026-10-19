@@ -1,6 +1,6 @@
 use super::{
-    edition_supports_rdp, extract_tailscale_amd64_msi_url, ps_single_quote,
-    rdp_firewall_script, Config,
+    edition_supports_rdp, extract_tailscale_amd64_msi_url, ps_single_quote, rdp_firewall_script,
+    Config,
 };
 
 #[test]
@@ -57,9 +57,8 @@ fn parseo_cli_aplica_overrides_y_flags() {
 
 #[test]
 fn parseo_cli_rechaza_puerto_bdp_invalido() {
-    let error =
-        Config::parse_from_iter(vec!["--bdp-port".to_string(), "no-es-numero".to_string()])
-            .unwrap_err();
+    let error = Config::parse_from_iter(vec!["--bdp-port".to_string(), "no-es-numero".to_string()])
+        .unwrap_err();
 
     assert!(error.to_string().contains("--bdp-port"));
 }
