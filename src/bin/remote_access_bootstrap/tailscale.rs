@@ -78,7 +78,10 @@ pub(super) fn extract_tailscale_amd64_msi_url(page: &str) -> Result<String, Boot
         })
 }
 
-pub(super) fn configure_tailscale(exe: &Path, config: &Config) -> Result<TailscaleState, BootstrapError> {
+pub(super) fn configure_tailscale(
+    exe: &Path,
+    config: &Config,
+) -> Result<TailscaleState, BootstrapError> {
     if let Some(auth_key) = &config.tailscale_auth_key {
         let mut args = vec![
             "up".to_string(),
@@ -107,4 +110,3 @@ pub(super) fn configure_tailscale(exe: &Path, config: &Config) -> Result<Tailsca
         ip,
     })
 }
-
