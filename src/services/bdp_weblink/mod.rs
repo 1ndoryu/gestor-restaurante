@@ -6,12 +6,12 @@
 
 mod cliente;
 mod cliente_operaciones;
-mod tipos;
-mod transporte;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod tests_respuestas;
+mod tipos;
+mod transporte;
 
 pub use tipos::{
     BdpAuthSession, BdpHealthResponse, BdpLoginResponse, BdpVersionResponse, BdpWeblinkClient,
