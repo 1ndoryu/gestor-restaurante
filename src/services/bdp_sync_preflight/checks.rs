@@ -3,7 +3,10 @@ use sqlx::PgPool;
 
 use super::campos::{number_i64, summarize_value, tender_ids_presentes, value_array};
 use super::payload::{build_only_check_order, build_only_check_order_con_pago, first_article};
-use super::{BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncPreflightService, ONLY_CHECK, ONLY_CHECK_CON_PAGO};
+use super::{
+    BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncPreflightService, ONLY_CHECK,
+    ONLY_CHECK_CON_PAGO,
+};
 use crate::models::ConfiguracionRestaurante;
 use crate::repositories::BdpArticleMapRepository;
 use crate::services::bdp_weblink::BdpWeblinkClient;
