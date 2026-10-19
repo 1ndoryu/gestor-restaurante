@@ -11,8 +11,6 @@
  * bloqueo esperado, y el test fallaría.
  */
 
-use glory_backend::services::NotifHub;
-use std::sync::Arc;
 use axum::extract::State;
 use axum::Json;
 use glory_backend::config::AppConfig;
@@ -24,9 +22,11 @@ use glory_backend::handlers::{
 use glory_backend::middleware::AuthUser;
 use glory_backend::models::{ActualizarConfiguracionRequest, UserRole};
 use glory_backend::repositories::ConfiguracionRepository;
+use glory_backend::services::NotifHub;
 use glory_backend::services::{BdpBackupService, ConfiguracionService, ServicioModoOperacion};
 use glory_backend::AppState;
 use sqlx::PgPool;
+use std::sync::Arc;
 use uuid::Uuid;
 
 /* ── Helpers (mismo patrón que tests/bdp_f8_permisos.rs) ────────────── */
