@@ -6,18 +6,18 @@
  * prueba lo agota a propósito. En el mismo binario que el resto de pruebas del
  * receptor, cualquiera que corriera después se llevaría un 429. */
 
-use glory_backend::services::NotifHub;
-use std::sync::Arc;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use glory_backend::config::AppConfig;
 use glory_backend::handlers::recibir_aviso_con_secreto;
 use glory_backend::repositories::ConfiguracionRepository;
+use glory_backend::services::NotifHub;
 use glory_backend::services::ServicioModoOperacion;
 use glory_backend::AppState;
 use serde_json::json;
 use sqlx::PgPool;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use uuid::Uuid;
 
 const SECRETO: &str = "secreto-de-prueba";
