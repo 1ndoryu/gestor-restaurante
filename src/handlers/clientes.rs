@@ -289,12 +289,12 @@ pub async fn sumar_puntos_cliente(
     if let Some(codigo) = cliente.bdp_customer_code {
         let payload = payload_puntos(i64::from(codigo), req.points_added, &req.reason)
             .map_err(AppError::Internal)?;
-        BdpPushService::encolar(
+        /* Los puntos son deltas: se suman a la fila pendiente del cliente (D12c). */
+        BdpPushService::acumular_puntos(
             &state.pool,
             auth.user_id,
-            crate::services::bdp_push::DOMINIO_CLIENTE_PUNTOS,
             &id.to_string(),
-            crate::services::bdp_push::OPERACION_PUNTOS,
+            req.points_added,
             &payload,
         )
         .await

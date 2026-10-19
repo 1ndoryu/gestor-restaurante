@@ -7,7 +7,8 @@ use uuid::Uuid;
 use rust_decimal::Decimal;
 
 use super::constantes::{
-    DOMINIO_STOCK, ESTADOS_ACTIVOS, ESTADO_DESCARTADO, ESTADO_PENDIENTE, OPERACION_REGULARIZAR,
+    DOMINIO_CLIENTE_PUNTOS, DOMINIO_STOCK, ESTADOS_ACTIVOS, ESTADO_DESCARTADO, ESTADO_PENDIENTE,
+    OPERACION_PUNTOS, OPERACION_REGULARIZAR,
 };
 
 /// Fila pendiente de push (proyección mínima para el worker).
@@ -76,7 +77,68 @@ impl BdpPushService {
         if actualizadas.rows_affected() > 0 {
             return Ok(());
         }
-        Self::encolar(pool, user_id, DOMINIO_STOCK, entidad_id, OPERACION_REGULARIZAR, payload).await
+        Self::encolar(
+            pool,
+            user_id,
+            DOMINIO_STOCK,
+            entidad_id,
+            OPERACION_REGULARIZAR,
+            payload,
+        )
+        .await
+    }
+
+    /// Encola un movimiento de puntos SUMANDO `PointsAdded` a la fila activa del
+    /// mismo cliente. Los puntos son deltas: con `encolar` (que reemplaza) dos
+    /// movimientos seguidos dejaban solo el último y BDP perdía puntos (D12c).
+    /// El motivo se toma del movimiento más reciente. Neto 0 → `descartado`.
+    pub async fn acumular_puntos(
+        pool: &PgPool,
+        user_id: Uuid,
+        entidad_id: &str,
+        delta: Decimal,
+        payload: &Value,
+    ) -> Result<(), String> {
+        /* Una sola sentencia: leer, sumar y escribir sin carreras entre movimientos. */
+        let actualizadas = sqlx::query(
+            "WITH f AS ( \
+                SELECT id, (payload_json->>'PointsAdded')::numeric + $3::text::numeric AS nuevo \
+                FROM bdp_push_pendientes \
+                WHERE user_id = $1 AND dominio = 'cliente_puntos' AND entidad_id = $2 \
+                  AND operacion = 'puntos' AND estado = ANY($4) \
+             ) \
+             UPDATE bdp_push_pendientes p \
+             SET payload_json = jsonb_set(\
+                     jsonb_set(p.payload_json, '{PointsAdded}', to_jsonb(f.nuevo::text)), \
+                     '{Reason}', $7::jsonb), \
+                 estado = CASE WHEN f.nuevo = 0 THEN $5 ELSE $6 END, \
+                 reintentos = 0, ultimo_error = NULL, updated_at = NOW() \
+             FROM f WHERE p.id = f.id",
+        )
+        .bind(user_id)
+        .bind(entidad_id)
+        .bind(delta.to_string())
+        .bind(ESTADOS_ACTIVOS)
+        .bind(ESTADO_DESCARTADO)
+        .bind(ESTADO_PENDIENTE)
+        .bind(payload.get("Reason").cloned().unwrap_or(Value::Null))
+        .execute(pool)
+        .await
+        .map_err(|error| format!("No se pudo acumular puntos pendientes: {error}"))?;
+
+        /* Sin fila activa previa: primer movimiento del cliente, se inserta normal. */
+        if actualizadas.rows_affected() > 0 {
+            return Ok(());
+        }
+        Self::encolar(
+            pool,
+            user_id,
+            DOMINIO_CLIENTE_PUNTOS,
+            entidad_id,
+            OPERACION_PUNTOS,
+            payload,
+        )
+        .await
     }
 
     /// Encola (o refresca) una operación pendiente. Upsert sobre la fila activa
