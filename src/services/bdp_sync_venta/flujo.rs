@@ -349,6 +349,27 @@ impl BdpSyncService {
             .await
             .map_err(|e| format!("Venta confirmada, pero falló el cierre de auditoría: {e}"))?;
 
+            /* [D04] Mapeo Glory↔BDP por OrderId: la reconciliación posterior puede
+             * encontrar la comanda por su id, no solo por la huella. Upsert para
+             * que un reintento confirmado no duplique la fila. */
+            sqlx::query(
+                r"INSERT INTO bdp_id_map (id, user_id, entidad, glory_id, bdp_id, market_id, marketplace_order_id)
+                VALUES ($1, $2, 'venta', $3, $4, $5, $6)
+                ON CONFLICT (user_id, entidad, glory_id)
+                DO UPDATE SET bdp_id = EXCLUDED.bdp_id, market_id = EXCLUDED.market_id,
+                              marketplace_order_id = EXCLUDED.marketplace_order_id,
+                              actualizado_en = NOW()",
+            )
+            .bind(Uuid::new_v4())
+            .bind(venta.user_id)
+            .bind(venta.id.to_string())
+            .bind(order_id.to_string())
+            .bind(crate::services::bdp_sync::BDP_SYNC_MARKET_ID.to_string())
+            .bind(Self::marketplace_order_id(venta.id))
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| format!("Venta confirmada, pero falló el mapeo bdp_id_map: {e}"))?;
+
             tx.commit()
                 .await
                 .map_err(|e| format!("Error confirmando tx post-create_order: {e}"))
@@ -402,5 +423,74 @@ impl BdpSyncService {
                 venta.id
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use rust_decimal::Decimal;
+
+    /// Venta mínima para llamar a `confirmar_orden` sin tocar BDP.
+    fn venta_de_prueba() -> Venta {
+        let importe_base = Decimal::new(2500, 2);
+        Venta {
+            id: Uuid::new_v4(),
+            user_id: Uuid::new_v4(),
+            fecha: Utc::now().date_naive(),
+            comensales: Some(2),
+            descripcion: "Test venta BDP".to_string(),
+            iva_porcentaje: Decimal::new(10, 0),
+            turno: "mediodia".into(),
+            canal: "comedor".into(),
+            metodo_pago: "efectivo".into(),
+            importe_base,
+            importe_iva: Decimal::new(250, 2),
+            reserva_id: None,
+            cliente_id: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            haddock_synced: false,
+            haddock_synced_at: None,
+            haddock_sync_error: None,
+            bdp_synced: false,
+            bdp_synced_at: None,
+            bdp_sync_error: None,
+            bdp_order_id: None,
+            bdp_order_status: None,
+            bdp_invoiced: false,
+            anulada: false,
+            anulada_at: None,
+            anulacion_motivo: None,
+            anulacion_usuario: None,
+            facturada_local: false,
+            factura_numero: None,
+            factura_fecha: None,
+            propina: Decimal::ZERO,
+        }
+    }
+
+    /// [D04] Tras confirmar, `bdp_id_map` guarda el OrderId de BDP. Un reintento
+    /// confirmado actualiza la fila existente y no crea una segunda.
+    #[sqlx::test(migrations = "./migrations")]
+    async fn confirmar_orden_mapea_order_id_sin_duplicar(pool: PgPool) {
+        let venta = venta_de_prueba();
+        let audit_id = Uuid::new_v4();
+        BdpSyncService::confirmar_orden(&pool, &venta, audit_id, 4242).await;
+        BdpSyncService::confirmar_orden(&pool, &venta, audit_id, 4343).await;
+
+        let (filas, bdp_id): (i64, Option<String>) = sqlx::query_as(
+            "SELECT COUNT(*), MAX(bdp_id) FROM bdp_id_map
+              WHERE user_id = $1 AND entidad = 'venta' AND glory_id = $2",
+        )
+        .bind(venta.user_id)
+        .bind(venta.id.to_string())
+        .fetch_one(&pool)
+        .await
+        .expect("consulta de bdp_id_map");
+
+        assert_eq!(filas, 1);
+        assert_eq!(bdp_id.as_deref(), Some("4343"));
     }
 }
