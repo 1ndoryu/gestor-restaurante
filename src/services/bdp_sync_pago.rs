@@ -22,6 +22,9 @@ use crate::services::{ModoEfectivo, ServicioModoOperacion};
 
 use super::bdp_sync::{BdpSyncService, SyncLockGuard, SYNC_LOCKS};
 
+mod reconciliacion;
+use reconciliacion::payment_id_determinista;
+
 /* [267A-8] Intención de pago validada: lo necesario para armar y ejecutar
  * el AddOrderPayment sin arrastrar 8 parámetros (límite clippy). */
 #[derive(Debug, Clone, Copy)]
@@ -80,6 +83,15 @@ impl BdpSyncService {
         }
 
         let client = Self::conectar_bdp(config).await?;
+
+        /* [D15] Antes de bloquear, un add_payment ambiguo se reconcilia con BDP. Si el
+         * pago ya quedó registrado, el reintento con la misma clave no se reenvía. */
+        Self::reconciliar_pagos_ambiguos(&client, pool, venta).await?;
+        if let Some(key) = idempotency_key {
+            if Self::pago_ya_exitoso(pool, venta, key, amount, tender_id).await? {
+                return Ok(None);
+            }
+        }
 
         crate::services::BdpWriteGuard::ensure_no_unresolved(
             pool,
@@ -304,15 +316,13 @@ impl BdpSyncService {
         /* [247A-9] ID de pago determinístico a partir de la idempotencia para
          * que los reintentos con la misma clave reutilicen el mismo identificador
          * en BDP y no se creen pagos duplicados. */
-        let venta_prefix = venta.id.simple().to_string();
-        let venta_prefix = &venta_prefix[..14];
         let payment_id = idempotency_key.map_or_else(
             || {
+                let venta_prefix = venta.id.simple().to_string();
                 let uuid_short = Uuid::new_v4().simple().to_string();
-                let uuid_short = &uuid_short[..8];
-                format!("P{venta_prefix}-{uuid_short}")
+                format!("P{}-{}", &venta_prefix[..14], &uuid_short[..8])
             },
-            |k| format!("P{venta_prefix}-{k}"),
+            |k| payment_id_determinista(venta.id, k),
         );
 
         let request = BdpAddOrderPaymentRequest {
@@ -366,7 +376,9 @@ impl BdpSyncService {
     async fn confirmar_pago(
         pool: &PgPool,
         venta: &Venta,
-        armado: &PagoArmado,
+        audit_id: Uuid,
+        intento: &IntentoPago,
+        payment_id: &str,
         idempotency_key: Option<&str>,
         response: &serde_json::Value,
     ) -> Result<(), String> {
@@ -403,14 +415,14 @@ impl BdpSyncService {
             SET resultado = 'exito', datos_respuesta = $2, error_mensaje = NULL, updated_at = NOW()
             WHERE id = $1",
         )
-        .bind(armado.audit_id)
+        .bind(audit_id)
         .bind(Some(response))
         .execute(&mut *tx)
         .await
         .map_err(|e| format!("Pago confirmado, pero falló el cierre de auditoría: {e}"))?;
 
         /* [247A-9] Registrar pago local en el mismo commit atómico. */
-        let idempotency_for_insert = idempotency_key.unwrap_or(&armado.payment_id).to_string();
+        let idempotency_for_insert = idempotency_key.unwrap_or(payment_id).to_string();
         let pago_respuesta: Option<serde_json::Value> = Some(response.clone());
         sqlx::query(
             r"INSERT INTO bdp_pagos
@@ -426,11 +438,11 @@ impl BdpSyncService {
             RETURNING id",
         )
         .bind(venta.id)
-        .bind(armado.intento.amount)
-        .bind(armado.intento.tender_id)
+        .bind(intento.amount)
+        .bind(intento.tender_id)
         .bind(idempotency_for_insert)
-        .bind(armado.intento.order_id)
-        .bind(Some(&armado.payment_id))
+        .bind(intento.order_id)
+        .bind(Some(payment_id))
         .bind(pago_respuesta)
         .fetch_one(&mut *tx)
         .await
@@ -462,8 +474,16 @@ impl BdpSyncService {
 
         /* [207A-2] S7-H2: Envolver marca local + auditoría + ledger en
          * transacción para consistencia. */
-        let commit_result =
-            Self::confirmar_pago(pool, venta, armado, idempotency_key, &response).await;
+        let commit_result = Self::confirmar_pago(
+            pool,
+            venta,
+            armado.audit_id,
+            &armado.intento,
+            &armado.payment_id,
+            idempotency_key,
+            &response,
+        )
+        .await;
 
         if let Err(e) = commit_result {
             /* La tx falló pero BDP ya procesó el pago → auditoría ambigua. */
