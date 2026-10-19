@@ -186,8 +186,8 @@ async fn export_purchase_notes_posts_profile_and_parses_documents() {
 #[tokio::test]
 async fn get_stock_posts_warehouse_path_and_parses_stock() {
     use crate::services::bdp_weblink_catalog::{
-        BdpGetListStockRequest, BdpGetListStockResponse, BdpGetStockRequest,
-        BdpGetStockResponse, BdpListStockItemRequest,
+        BdpGetListStockRequest, BdpGetListStockResponse, BdpGetStockRequest, BdpGetStockResponse,
+        BdpListStockItemRequest,
     };
 
     let server = MockServer::start().await;
