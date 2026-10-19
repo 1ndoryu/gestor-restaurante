@@ -96,6 +96,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    /* [D23a] Avisos que esperaron en el buzón con el backend parado: se procesan al
+     * arrancar, en segundo plano para no retrasar la escucha del servidor. */
+    let arranque_pool = pool.clone();
+    let arranque_modo = modo_operacion.clone();
+    tokio::spawn(async move {
+        let procesados = glory_backend::services::bdp_avisos::procesar_pendientes_al_arrancar(
+            &arranque_pool,
+            &arranque_modo,
+        )
+        .await;
+        tracing::info!("[D23a] Avisos del buzón procesados al arrancar: {procesados}");
+    });
+
     /* [303A-2] Graceful shutdown: señal SIGTERM/Ctrl+C cierra conexiones limpiamente */
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     /* [por que] El limitador por IP usa el peer de la conexión como último recurso: sin

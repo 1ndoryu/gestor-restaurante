@@ -14,7 +14,9 @@ use uuid::Uuid;
 use super::campos::CamposAviso;
 use crate::services::bdp_weblink::BdpWeblinkClient;
 use crate::services::bdp_weblink_catalog::{BdpGetOrderRequest, BdpOrderIdentifier};
-use crate::services::BdpOrderPollerService;
+use crate::services::{
+    BdpOrderPollerService, ConfiguracionService, ModoEfectivo, ServicioModoOperacion,
+};
 
 /// Intentos antes de dar el aviso por roto y mandarlo a revisión manual.
 pub const MAX_INTENTOS: i32 = 5;
@@ -231,4 +233,53 @@ async fn enlazar_venta(
     .await
     .map_err(|error| format!("No se pudo actualizar la venta de la comanda: {error}"))?;
     Ok(())
+}
+
+/// Lotes máximos por cuenta al arrancar: acota el tiempo de arranque si el buzón es grande.
+const MAX_LOTES_ARRANQUE: u32 = 10;
+
+/// [D23a] Al arrancar el backend procesa los avisos `recibido` que esperaron en el
+/// buzón mientras estaba parado. Solo cuentas en modo BDP y con BDP configurado,
+/// igual que el endpoint manual; no escribe en el TPV. Devuelve los avisos procesados.
+pub async fn procesar_pendientes_al_arrancar(pool: &PgPool, modo: &ServicioModoOperacion) -> u32 {
+    let usuarios: Vec<Uuid> = match sqlx::query_scalar(
+        "SELECT DISTINCT user_id FROM bdp_avisos_inbox WHERE estado = 'recibido'",
+    )
+    .fetch_all(pool)
+    .await
+    {
+        Ok(usuarios) => usuarios,
+        Err(error) => {
+            tracing::warn!("[D23a] No se pudo listar el buzón al arrancar: {error}");
+            return 0;
+        }
+    };
+
+    let mut total = 0;
+    for user_id in usuarios {
+        if !matches!(
+            modo.modo_efectivo(pool, user_id).await,
+            Ok(ModoEfectivo::Bdp)
+        ) {
+            continue;
+        }
+        let Ok(config) = ConfiguracionService::obtener(pool, user_id).await else {
+            continue;
+        };
+        if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
+            continue;
+        }
+        let cliente = BdpWeblinkClient::new(&config);
+        for _ in 0..MAX_LOTES_ARRANQUE {
+            match procesar_lote(pool, user_id, &cliente, LIMITE_LOTE_MAX).await {
+                Ok(resumen) if resumen.procesados > 0 => total += resumen.procesados,
+                Ok(_) => break,
+                Err(error) => {
+                    tracing::warn!("[D23a] Lote de arranque fallido para {user_id}: {error}");
+                    break;
+                }
+            }
+        }
+    }
+    total
 }
