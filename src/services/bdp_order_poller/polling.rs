@@ -388,8 +388,9 @@ impl BdpOrderPollerService {
         Ok(Self::map_status(status_code))
     }
 
-    /* pub(super): los tests del módulo raíz verifican el parseo y el mapeo. */
-    pub(super) fn parse_status(resp: &serde_json::Value) -> Result<i64, String> {
+    /* pub(crate): los tests del módulo raíz verifican el parseo y el mapeo, y el
+     * worker de avisos lo reutiliza para copiar el estado a la venta. */
+    pub(crate) fn parse_status(resp: &serde_json::Value) -> Result<i64, String> {
         let status_value = resp
             .get("Status")
             .or_else(|| resp.get("Order").and_then(|order| order.get("Status")))
@@ -401,7 +402,7 @@ impl BdpOrderPollerService {
     }
 
     /// Mapea el integer de status BDP → string legible almacenado en `bdp_order_status`.
-    pub(super) fn map_status(code: i64) -> String {
+    pub(crate) fn map_status(code: i64) -> String {
         match code {
             0 => "pending".to_string(),
             1 => "accepted".to_string(),
