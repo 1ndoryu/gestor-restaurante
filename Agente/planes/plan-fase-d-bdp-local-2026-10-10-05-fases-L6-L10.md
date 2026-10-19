@@ -21,7 +21,9 @@ Precondición: L3 OK, L5.0 hecho (ID de pago estable e idempotencia en T2), caja
   - D14 (pago total 3,00): OK. BDP queda con 4 pagos y `Total` 10,00 pagado. La repetición de 1,00 la rechaza BDP (`excede el saldo pendiente 0.00`) y no crea fila `exito`. Nota: el validador local aún cuenta 1,00 pendiente por la propina.
   - D14s (misma clave en paralelo): una petición entra y la otra recibe `Ya hay un pago en proceso` (422). Sin cobro doble: BDP sigue con 4 pagos.
   - D17 (cuarto pago): **defecto encontrado y corregido.** El 3,00 de D14 fue el cuarto cobro porque no había tope. Se añadió `MAX_PAGOS_VENTA = 3` en `reconciliar_orden_pago` (`tope_pagos_alcanzado`, test). Verificado: el cuarto (1,00, clave nueva) devuelve `la venta ya tiene 3 pagos registrados en BDP` (422). La venta de prueba queda con 4 pagos y no se corrige.
-  - Pendiente: D15 (respuesta perdida), D15t (timeout) y D16 (pago de caja). Necesitan proxy que corte la respuesta y una venta nueva con saldo en BDP; la venta 26 ya no tiene saldo remoto.
+  - D15 (ambiguo tras Orders/Create cortado a los 20 s): la venta `6aa916e1` quedó ambigua. Causa atendida: timeout de escritura subido a 60 s (`0d71281`, `transporte.rs`). Reconciliación de `add_payment` (`7e941f3`, `bdp_sync_pago/reconciliacion.rs`): GetOrder cruza el PaymentId determinista `P6aa916e1ca9e41-d15-pago-1`; aplicado → `exito`, sin duplicar. Verificado en vivo: local `bdp_pagos` con una fila 3,00; BDP orden 28 con un único Payment 3,00; audit ambiguo → `exito`. La causa exacta del corte en BDP no está confirmada (solo que el cliente cortó).
+  - Pendiente: D15t (timeout > 60 s, no probado) y D16 (pago de caja). Necesitan proxy que corte la respuesta y una venta nueva con saldo en BDP; la venta 26 ya no tiene saldo remoto.
+  - Snapshot previo al armado: el 422 de `POST /api/bdp/backup/completo` era error de formato (el endpoint espera `null` o un string, no `{}`). Hay snapshots `completo` vigentes de 127.0.0.1:8070 (18:33 y 18:36, 3,7 KB), así que la precondición de snapshot se cumplió.
 
 ### L7 — Stock (D26–D27)
 
