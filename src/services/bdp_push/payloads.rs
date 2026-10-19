@@ -5,8 +5,8 @@ use crate::models::{BdpArticleMap, ConfiguracionRestaurante};
 use crate::services::bdp_weblink_catalog::{
     BdpAddOrderTipRequest, BdpAddPointsRequest, BdpArticleData, BdpCancelOrderRequest,
     BdpCreateArticlesRequest, BdpCreateDepartmentProfilesRequest, BdpCreateFamilyRequest,
-    BdpMassiveStockRequest, BdpModifyArticleRequest, BdpOrderIdentifier,
-    BdpRegularizationRequest, BdpStockInfoEntry,
+    BdpMassiveStockRequest, BdpModifyArticleRequest, BdpOrderIdentifier, BdpRegularizationRequest,
+    BdpStockInfoEntry,
 };
 
 /* ===== [198A-1/F1] Payloads de push (construidos por los handlers locales) ===== */
