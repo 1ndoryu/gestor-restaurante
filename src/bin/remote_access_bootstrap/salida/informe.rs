@@ -56,7 +56,10 @@ pub(crate) fn build_report(
     report
 }
 
-pub(crate) fn write_failure_report(report_path: &Path, error: &BootstrapError) -> Result<(), BootstrapError> {
+pub(crate) fn write_failure_report(
+    report_path: &Path,
+    error: &BootstrapError,
+) -> Result<(), BootstrapError> {
     let mut report = String::new();
     let _ = writeln!(report, "Glory Remote Bootstrap - ERROR");
     let _ = writeln!(report, "Cuando: {}", chrono::Utc::now().to_rfc3339());
@@ -88,4 +91,3 @@ pub(crate) fn default_report_path() -> PathBuf {
         .join("Desktop")
         .join("glory-remote-bootstrap.txt")
 }
-
