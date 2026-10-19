@@ -99,7 +99,7 @@ async fn create_article_detects_embedded_rejection() {
         .create_articles_and_update_profiles(&BdpCreateArticlesRequest {
             automatic_code: false,
             article_data: serde_json::json!({
-                "ArtCode": 90000003,
+                "ArtCode": 90_000_003,
                 "ArtDescription": "PRUEBA W1",
                 "DeptCode": 1,
                 "TavCode": 1,
@@ -245,7 +245,7 @@ async fn get_stock_posts_warehouse_path_and_parses_stock() {
         .unwrap();
     let parsed: BdpGetStockResponse = serde_json::from_value(stock).unwrap();
     assert_eq!(parsed.stock, Decimal::new(125, 1));
-    assert!(parsed.error_message.is_empty());
+    assert_eq!(parsed.error_message, "");
 
     let list = client
         .get_list_stock(&BdpGetListStockRequest {
@@ -327,13 +327,11 @@ async fn add_order_tip_posts_pascal_case_payload() {
         .mount(&server)
         .await;
 
-    use crate::services::bdp_weblink_catalog::BdpOrderIdentifier;
-
     let config = config(server.uri());
     let client = BdpWeblinkClient::new(&config);
     let response = client
         .add_order_tip(&BdpAddOrderTipRequest {
-            order_identifier: BdpOrderIdentifier::by_order_id(123),
+            order_identifier: crate::services::bdp_weblink_catalog::BdpOrderIdentifier::by_order_id(123),
             amount: rust_decimal::Decimal::new(25, 1),
             add_tip: true,
         })

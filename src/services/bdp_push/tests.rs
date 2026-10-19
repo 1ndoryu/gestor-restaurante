@@ -144,13 +144,13 @@ mod article_data_merge_tests {
     #[test]
     fn merge_conserva_campos_completos_y_aplica_patch_parcial() {
         let completo = serde_json::json!({
-            "ArtCode": 90000001,
+            "ArtCode": 90_000_001,
             "ArtDescription": "Original BDP",
             "Price5": 42.5,
             "WebArticle": true
         });
         let parcial = serde_json::json!({
-            "ArtCode": 90000001,
+            "ArtCode": 90_000_001,
             "ArtDescription": "Editado localmente"
         });
 

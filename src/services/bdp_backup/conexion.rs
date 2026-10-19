@@ -192,7 +192,7 @@ mod tests {
         let fp1 = BdpBackupService::connection_fingerprint(&c).unwrap();
         let fp2 = BdpBackupService::connection_fingerprint(&c).unwrap();
         assert_eq!(fp1, fp2);
-        assert!(!fp1.is_empty());
+        assert_ne!(fp1, "");
     }
 
     #[test]
