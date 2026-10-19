@@ -3,8 +3,13 @@
 
 use utoipa::OpenApi;
 
+use super::{
+    admin, api_keys, auth, bdp_article_map, bdp_backup, bdp_customer_sync, bdp_menu_local,
+    bdp_purchase_note, campanas, canales_reserva, chatbot, clientes, configuracion, dashboard,
+    errores, etiquetas, gastos, health, inactividad, modo_operacion, notificaciones, plano_sala,
+    plantillas_whatsapp, recordatorios, resenas, reservas, trabajadores, ventas,
+};
 use crate::errors::ErrorResponse;
-use super::{admin, api_keys, auth, bdp_article_map, bdp_backup, bdp_customer_sync, bdp_menu_local, bdp_purchase_note, campanas, canales_reserva, chatbot, clientes, configuracion, dashboard, errores, etiquetas, gastos, health, inactividad, modo_operacion, notificaciones, plano_sala, plantillas_whatsapp, recordatorios, resenas, reservas, trabajadores, ventas};
 
 /// Define el esquema de seguridad Bearer para Swagger UI
 struct SecurityAddon;
