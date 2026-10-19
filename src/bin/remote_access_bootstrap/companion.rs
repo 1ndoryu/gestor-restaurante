@@ -19,4 +19,3 @@ fn companion_config_path() -> Result<PathBuf, BootstrapError> {
         .unwrap_or_else(|| Path::new("."))
         .join(COMPANION_CONFIG_FILE))
 }
-
