@@ -226,6 +226,47 @@ pub struct BdpInvoiceResponse {
     pub bdp_invoiced: bool,
 }
 
+/* [D19] POST /api/ventas/:id/bdp-invoice-number — Registra el número de una factura que BDP
+ * emitió pero cuya respuesta se perdió. Requiere la confirmación `REGISTRAR FACTURA {id}`. */
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct BdpRegistrarNumeroRequest {
+    pub confirmacion: String,
+    pub invoice_number: String,
+}
+
+pub async fn bdp_registrar_numero_factura(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(req): Json<BdpRegistrarNumeroRequest>,
+) -> Result<Json<BdpInvoiceResponse>, AppError> {
+    let expected_confirmation = format!("REGISTRAR FACTURA {id}");
+    if req.confirmacion.trim() != expected_confirmation {
+        return Err(AppError::Validation(format!(
+            "Confirmación inválida. Escriba exactamente: {expected_confirmation}"
+        )));
+    }
+    let config = crate::services::ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    if state.modo_operacion.modo_efectivo_sin_red(&config) != ModoEfectivo::Bdp {
+        return Err(AppError::Validation(
+            "BDP no disponible: el sistema está en modo independiente.".into(),
+        ));
+    }
+    let venta = crate::repositories::VentaRepository::find_by_id(&state.pool, id, auth.user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
+
+    let numero = req.invoice_number.trim().to_owned();
+    BdpSyncService::registrar_numero_factura(&state.pool, &venta, &config, &numero)
+        .await
+        .map_err(AppError::Validation)?;
+    Ok(Json(BdpInvoiceResponse {
+        venta_id: venta.id,
+        invoice_number: numero,
+        bdp_invoiced: true,
+    }))
+}
+
 #[utoipa::path(
     post,
     path = "/api/ventas/{id}/bdp-invoice",

@@ -103,7 +103,9 @@ impl BdpSyncService {
                 .await
                 .map_err(|e| format!("Error leyendo la factura previa en auditoría: {e}"))?
                 .filter(|number| !number.trim().is_empty())
-                .ok_or_else(|| "Orden ya facturada pero sin InvoiceNumber reconciliable".to_string())?,
+                .ok_or_else(|| {
+                    "Factura bloqueada: BDP ya facturó la orden sin número local. Registra el número leído en el TPV".to_string()
+                })?,
         };
         /* [AUDIT-N6] Envolver reconciliación en transacción por consistencia
          * con el path normal de facturación. */
@@ -379,6 +381,13 @@ impl BdpSyncService {
 
         let client = Self::conectar_bdp(config).await?;
 
+        /* [D19] Se consulta BDP antes de la guarda: si la orden ya está facturada, se
+         * devuelve su número y una respuesta perdida no deja la venta bloqueada. */
+        let order = Self::reconciliar_orden_factura(&client, order_id).await?;
+        if let Some(invoice_number) = Self::conciliar_factura_emitida(pool, venta, &order).await? {
+            return Ok(invoice_number);
+        }
+
         crate::services::BdpWriteGuard::ensure_no_unresolved(
             pool,
             venta.user_id,
@@ -388,10 +397,6 @@ impl BdpSyncService {
         )
         .await?;
 
-        let order = Self::reconciliar_orden_factura(&client, order_id).await?;
-        if let Some(invoice_number) = Self::conciliar_factura_emitida(pool, venta, &order).await? {
-            return Ok(invoice_number);
-        }
         Self::verificar_saldo_facturable(pool, venta, &order).await?;
 
         /* [187A-1] Snapshot obligatorio + autorización de un solo uso. */
@@ -410,6 +415,56 @@ impl BdpSyncService {
         );
 
         Ok(invoice_number)
+    }
+
+    /* [D19] Registro manual del número de una factura que BDP emitió pero cuya respuesta
+     * se perdió. Solo cierra la auditoría `ambiguo` más reciente si BDP marca la orden
+     * como facturada (Status 3). Nunca emite una factura nueva. */
+    pub async fn registrar_numero_factura(
+        pool: &PgPool,
+        venta: &Venta,
+        config: &ConfiguracionRestaurante,
+        invoice_number: &str,
+    ) -> Result<(), String> {
+        let order_id = Self::validar_puerta_factura(venta, config)?;
+        let numero = invoice_number.trim();
+        if numero.is_empty() {
+            return Err("Registro bloqueado: el número de factura está vacío".into());
+        }
+
+        let client = Self::conectar_bdp(config).await?;
+        let order = Self::reconciliar_orden_factura(&client, order_id).await?;
+        if order.get("Status").and_then(Value::as_i64) != Some(3) {
+            return Err("Registro bloqueado: BDP no marca la orden como facturada".into());
+        }
+
+        let audit_id = BdpAuditLogRepository::ultimo_invoice_ambiguo_id(pool, venta.user_id, venta.id)
+            .await
+            .map_err(|e| format!("Error leyendo la auditoría de factura: {e}"))?
+            .ok_or("Registro bloqueado: no hay factura ambigua que cerrar")?;
+        let respuesta = serde_json::json!({ "InvoiceNumber": numero, "origen": "registro_manual" });
+
+        /* Auditoría y marca local en una transacción, como en `confirmar_factura`. */
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|e| format!("Error iniciando tx de registro de factura: {e}"))?;
+        BdpAuditLogRepository::marcar_exito_tx(&mut tx, audit_id, Some(&respuesta))
+            .await
+            .map_err(|e| format!("Error cerrando la auditoría de factura: {e}"))?;
+        sqlx::query(
+            "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
+        )
+        .bind(venta.id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| format!("Error marcando la venta como facturada: {e}"))?;
+        tx.commit()
+            .await
+            .map_err(|e| format!("Error confirmando tx de registro de factura: {e}"))?;
+
+        info!("[D19] Número de factura registrado manualmente para la venta {}", venta.id);
+        Ok(())
     }
 }
 

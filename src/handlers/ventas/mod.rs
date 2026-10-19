@@ -33,6 +33,10 @@ pub fn routes() -> Router<AppState> {
         .route("/ventas/:id/lineas", get(obtener_lineas_venta))
         .route("/ventas/:id/bdp-payment", post(bdp_payment))
         .route("/ventas/:id/bdp-invoice", post(bdp_invoice))
+        .route(
+            "/ventas/:id/bdp-invoice-number",
+            post(bdp_registrar_numero_factura),
+        )
         .route("/ventas/:id/anular", post(anular_venta))
         .route("/ventas/:id/bdp-payments", get(listar_bdp_payments))
         .route("/ventas/:id/pagos-locales", post(pago_parcial_local))

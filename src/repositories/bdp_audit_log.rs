@@ -32,6 +32,30 @@ impl BdpAuditLogRepository {
         Ok(())
     }
 
+    /// Auditoría `invoice` ambigua más reciente de la venta: la que cierra un
+    /// registro manual del número cuando la respuesta de BDP se perdió.
+    pub async fn ultimo_invoice_ambiguo_id(
+        pool: &PgPool,
+        user_id: Uuid,
+        venta_id: Uuid,
+    ) -> Result<Option<Uuid>, sqlx::Error> {
+        sqlx::query_scalar(
+            r"SELECT id
+               FROM bdp_audit_log
+               WHERE user_id = $1
+                 AND operacion = 'invoice'
+                 AND target_entity_type = 'venta'
+                 AND target_entity_id = $2
+                 AND resultado = 'ambiguo'
+               ORDER BY created_at DESC
+               LIMIT 1",
+        )
+        .bind(user_id)
+        .bind(venta_id)
+        .fetch_optional(pool)
+        .await
+    }
+
     /// Recupera el `InvoiceNumber` de la última auditoría `invoice` exitosa
     /// ([C1-6]: idempotencia — si la operación ya fue exitosa, se devuelve el
     /// estado actual en lugar de re-facturar).
