@@ -15,14 +15,15 @@
  * fila por (user_id, dominio, entidad_id, operacion). */
 
 mod clasificacion;
-mod constantes;
 mod cola;
+mod constantes;
 mod enriquecimiento;
 mod flush;
 mod payloads;
 #[cfg(test)]
 mod tests;
 
+pub use cola::{BdpPushFila, BdpPushPendiente, BdpPushService, MarcarResultado};
 pub use constantes::{
     DOMINIO_ARTICULO, DOMINIO_CLIENTE_PUNTOS, DOMINIO_DEPARTAMENTO, DOMINIO_FAMILIA,
     DOMINIO_PROPINA, DOMINIO_STOCK, DOMINIO_VENTA, ESTADO_DESCARTADO, ESTADO_ERROR,
@@ -31,7 +32,6 @@ pub use constantes::{
     OPERACION_PRECIOS, OPERACION_PROPINA, OPERACION_PUNTOS, OPERACION_REGULARIZAR,
     OPERACION_TRASPASAR, REINTENTOS_MAX,
 };
-pub use cola::{BdpPushFila, BdpPushPendiente, BdpPushService, MarcarResultado};
 pub use flush::{BdpPushFlushResumen, BdpPushFlushService};
 pub use payloads::{
     payload_cancelar, payload_crear_articulo, payload_crear_departamento, payload_crear_familia,
