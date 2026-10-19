@@ -162,3 +162,14 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 - `Agente/planes/plan-50k-2026-09-16.md` — `169A-5` — escalar a 50.000 personas consultando.
 - `Agente/planes/plan-origen50k-2026-09-17.md` — `179A-1` — abaratar origen y llegar a 50k.
 - `Agente/planes/plan-saas-servidor-seguridad-2026-09-09.md` — `099A-1` — hosting ES/UE, MFA, SaaS y seguridad.
+- `Agente/planes/anexo-b8-aceptacion-2026-10-08.md` — `19AA-1` — fichas de aceptación D: 5 hitos (D01–D32) sin cerrar.
+- `Agente/planes/plan-verificacion-guia-guillermo-2026-10-05.md` — `19AA-2` — verificación de la guía, 8 bloques (B1–B8) sin cerrar.
+- `Agente/planes/plan-fase-d-bdp-local-2026-10-10-07-bitacora-parte-1.md` — parte de `plan-fase-d-bdp-local-2026-10-10.md` (`10AA-3`): bitácora con 8 casillas abiertas.
+- `Agente/planes/plan-auditoria-completa-2026-03-30.md` — `19AA-3` — 23/26 hechas; quedan M1 (token SSE), M2 (rate limiting) y B1/B2 (carpetas en español).
+- `Agente/planes/plan-glory-rs-template-2026-03-28.md` — `19AA-4` — Glory-RS como plantilla reutilizable (crate, auth, front, CI): sin empezar.
+- `Agente/planes/plan-desbordamiento-plano-2026-03-31.md` — `19AA-5` — solución definitiva del desbordamiento del plano y validación en local.
+- `Agente/planes/plan-compras-bdp-2026-07-25.md` — `19AA-6` — probar Fases 2 y 3 contra BDP real y activar sus flags (decisión del cliente).
+- `Agente/planes/plan-pagos-parciales-bdp-2026-07-25.md` — `19AA-7` — tests de integración contra el simulador real de BDP.
+- `Agente/planes/plan-stock-bdp-gestionable-2026-07-25.md` — `19AA-8` — elegir opción A (desglose por almacén) u B (escritura): decisión del cliente.
+- `Agente/planes/plan-pendientes-bdp-2026-07-23.md` — `19AA-9` — pendientes de decisión del cliente: Compras (D2), pagos parciales (D4) y CancelOrder (D5).
+- `Agente/planes/plan-visibilidad-bdp-frontend-2026-07-23.md` — `19AA-10` — pendientes de decisión: Compras, bidireccional (D4), pagos parciales (D5) y CancelOrder.
