@@ -22,4 +22,3 @@ pub(super) fn exit_with_failure(report_path: PathBuf, error: &BootstrapError) ->
     eprintln!("Bootstrap remoto falló: {error}");
     std::process::exit(1);
 }
-
