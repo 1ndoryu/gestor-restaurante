@@ -24,6 +24,7 @@ use super::constantes::{
     OPERACION_REGULARIZAR, OPERACION_TRASPASAR, REINTENTOS_MAX,
 };
 use super::enriquecimiento::enriquecer_payload_modificar_articulo;
+use super::reconciliacion_puntos::resolver_intento_previo;
 
 /* ===== [198A-1/F1] Worker de flush ===== */
 
@@ -181,6 +182,14 @@ impl BdpPushFlushService {
             )
         })?;
         let entity_uuid = entidad_uuid(&pendiente.dominio, &pendiente.entidad_id);
+
+        /* 0. [198A-1/D12c] Puntos con respuesta perdida: no reenviar si BDP ya lo aplicó.
+         * Va antes del armado porque solo consulta (GetPoints), no escribe. */
+        if pendiente.dominio == DOMINIO_CLIENTE_PUNTOS && pendiente.operacion == OPERACION_PUNTOS {
+            if let Some(estado) = resolver_intento_previo(pool, user_id, client, pendiente).await? {
+                return Ok(estado);
+            }
+        }
 
         /* 1. Arming autorizado por push_modalidad (fail-closed). */
         BdpWriteGuard::armar_push(

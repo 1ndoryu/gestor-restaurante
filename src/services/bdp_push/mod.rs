@@ -20,6 +20,7 @@ mod constantes;
 mod enriquecimiento;
 mod flush;
 mod payloads;
+mod reconciliacion_puntos;
 #[cfg(test)]
 mod tests;
 
