@@ -58,9 +58,11 @@ pub struct BdpArticlePriceEntry {
 pub struct BdpExportArticleItem {
     /// Código del artículo (puede venir como string o número en BDP).
     /// `ArtCode` es la clave real de `GetPOSList`; `Code` la de `ExportArticles`.
+    /// `Article` es la que devuelve `Articles/Export` en la práctica (numérica).
     #[serde(
         default,
         alias = "ArtCode",
+        alias = "Article",
         deserialize_with = "deserialize_optional_string"
     )]
     pub code: Option<String>,
@@ -84,13 +86,13 @@ pub struct BdpExportArticleItem {
     #[serde(default)]
     pub department: Option<i32>,
     /// Porcentaje IVA 1 (venta). En `GetPOSList` el IVA llega como `TAVPer`.
-    #[serde(default, alias = "TAVPer")]
+    #[serde(default, alias = "TAVPer", alias = "SalesVAT")]
     pub tax1: Option<Decimal>,
     /// Porcentaje IVA 2
     #[serde(default)]
     pub tax2: Option<Decimal>,
-    /// Precio tarifa 1
-    #[serde(default)]
+    /// Precio tarifa 1 (en `Articles/Export` llega como `Price`)
+    #[serde(default, alias = "Price")]
     pub price1: Option<Decimal>,
     /// Precio tarifa 2
     #[serde(default)]
