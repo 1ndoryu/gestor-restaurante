@@ -81,6 +81,7 @@ pub(super) fn config(base_url: String) -> ConfiguracionRestaurante {
         bdp_almacen_default: 1,
         bdp_codreg_default: 1,
         bdp_articulo_rango_inicial: 90_000_000,
+        bdp_order_end_type: 0,
         created_at: Utc::now(),
         updated_at: Utc::now(),
     }

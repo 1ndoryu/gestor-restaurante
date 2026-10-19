@@ -77,6 +77,7 @@ fn config() -> ConfiguracionRestaurante {
         bdp_almacen_default: 1,
         bdp_codreg_default: 1,
         bdp_articulo_rango_inicial: 90_000_000,
+        bdp_order_end_type: 0,
         created_at: Utc::now(),
         updated_at: Utc::now(),
     }
@@ -165,8 +166,8 @@ fn build_order_never_uses_create_operation() {
     let order = build_only_check_order(&config, &article);
 
     assert_eq!(order.order_operation_type, 1);
-    /* [169A-2] EndType=1 como el flujo real (pendiente, sin cocina). */
-    assert_eq!(order.order_end_type, 1);
+    /* [169A-2] EndType como el flujo real: el valor configurable (por defecto 0). */
+    assert_eq!(order.order_end_type, config.bdp_order_end_type);
     assert_eq!(order.invoice, Some(false));
     assert_eq!(order.order["Items"][0]["Id"], 1001);
     assert_eq!(order.order["AlreadyInvoiced"], false);
@@ -189,7 +190,7 @@ fn only_check_con_pago_replica_payload_real() {
     let order = build_only_check_order_con_pago(&config, &article, 1);
 
     assert_eq!(order.order_operation_type, 1, "OnlyCheck: no crea nada");
-    assert_eq!(order.order_end_type, 1, "pendiente, sin cocina");
+    assert_eq!(order.order_end_type, config.bdp_order_end_type, "EndType configurable");
     assert_eq!(order.invoice, Some(true));
     let payments = order
         .order
@@ -329,8 +330,8 @@ async fn check_order_only_con_pago_valido_envia_payments_en_only_check() {
     );
     assert_eq!(
         preview.get("OrderEndType").and_then(Value::as_i64),
-        Some(1),
-        "pendiente en autocomanda, sin cocina"
+        Some(0),
+        "OrderEndType por defecto: factura tras pagar"
     );
     assert_eq!(preview.get("Invoice").and_then(Value::as_bool), Some(true));
     let payments = preview

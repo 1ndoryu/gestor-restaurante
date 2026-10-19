@@ -15,10 +15,9 @@ pub(super) fn build_only_check_order(
     BdpCreateOrderRequest {
         employee_id: config.bdp_employee_id,
         items_profile_id: config.bdp_items_profile_id,
-        /* [169A-2] EndType=1 como el flujo real: pendiente en autocomanda, sin
-         * cocina. En OnlyCheck nada se crea de todos modos; esto alinea el
-         * dry-run con lo que se enviará de noche. */
-        order_end_type: 1,
+        /* [169A-2] Mismo OrderEndType que el flujo real (configurable). En OnlyCheck
+         * nada se crea de todos modos; esto alinea el dry-run con lo que se enviará. */
+        order_end_type: config.bdp_order_end_type,
         order_operation_type: 1,
         invoice: Some(false),
         order: json!({
@@ -83,7 +82,7 @@ pub(super) fn build_only_check_order_con_pago(
     BdpCreateOrderRequest {
         employee_id: config.bdp_employee_id,
         items_profile_id: config.bdp_items_profile_id,
-        order_end_type: 1,
+        order_end_type: config.bdp_order_end_type,
         order_operation_type: 1,
         invoice: Some(true),
         order: json!({

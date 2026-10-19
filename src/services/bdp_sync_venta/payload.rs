@@ -48,7 +48,8 @@ impl BdpSyncService {
         BdpCreateOrderRequest {
             employee_id: config.bdp_employee_id,
             items_profile_id: config.bdp_items_profile_id,
-            order_end_type: 1, /* Pendiente de validación — no factura, no imprime ticket */
+            /* Configurable: 0 factura tras el pago (valor por defecto); 1 deja la comanda pendiente. */
+            order_end_type: config.bdp_order_end_type,
             order_operation_type: 0, /* Escritura real (0=CheckAndCreate) */
             invoice: Some(pago_incluido),
             order: Self::json_pedido(config, venta, order_ctx, &items, total, pago_incluido),

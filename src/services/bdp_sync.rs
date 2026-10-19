@@ -217,8 +217,8 @@ mod tests {
             .unwrap();
         assert_eq!(tipo, 0);
 
-        /* OrderEndType=1 (pendiente) */
-        assert_eq!(order.order_end_type, 1);
+        /* OrderEndType por defecto=0 (factura tras pagar); configurable por restaurante */
+        assert_eq!(order.order_end_type, 0);
 
         /* OrderOperationType=0 (escritura real) */
         assert_eq!(order.order_operation_type, 0);

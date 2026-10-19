@@ -522,6 +522,7 @@ mod tests {
             bdp_almacen_default: 1,
             bdp_codreg_default: 1,
             bdp_articulo_rango_inicial: 90_000_000,
+            bdp_order_end_type: 0,
             google_review_url: String::new(),
             telefono_restaurante: String::new(),
             url_reservas: String::new(),
@@ -1303,6 +1304,7 @@ mod tests {
             bdp_almacen_default: None,
             bdp_codreg_default: None,
             bdp_articulo_rango_inicial: None,
+            bdp_order_end_type: None,
         };
         ConfiguracionRepository::actualizar(pool, user_id, &req)
             .await
