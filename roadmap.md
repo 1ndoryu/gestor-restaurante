@@ -146,10 +146,11 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 Objetivo: que `workspace-manager` no liste hallazgos de Sentinel en RESTAURANTE (broadcast, sqlite-carga-N, funcion-larga, parametros-excesivos, limite-lineas, god-object, usestate, objeto-mutable). Un commit por bloque, con `Arranque gate "RESTAURANTE" --inicio/--cierre` a 0 nuevos.
 
 - [x] NotifHub: broadcast → mpsc por suscripción (`src/services/notificacion.rs`).
-- [ ] sqlite-carga-N: `handlers/ventas.rs`, `bin/seed.rs`, `bdp_article_map/conteos.rs`.
-- [ ] funcion-larga: `importar_clientes_bdp`, `conciliar_purchase_note`, `cambiar_bdp_sync_mode`.
-- [ ] parametros-excesivos: structs de parámetros (8 funciones).
-- [ ] limite-lineas, god-object, frontend usestate-excesivo y objeto-mutable.
+- [x] sqlite-carga-N: `handlers/ventas.rs`, `bin/seed.rs`, `bdp_article_map/conteos.rs`.
+- [x] funcion-larga: `importar_clientes_bdp`, `conciliar_purchase_note`, `cambiar_bdp_sync_mode`.
+- [x] parametros-excesivos: structs de parámetros (8 funciones).
+- [x] limite-lineas, god-object, frontend usestate-excesivo y objeto-mutable.
+- Resuelto 2026-10-18: backend en `03290ab`, `af7773a`, `ae34951`; frontend en `bee525f`, `df6b3af`, `bf89e37`. Gate `--cierre`: 0 nuevos. Tests Rust: 496 pasados, 0 fallados.
 
 ### Bloque 10AA-3-B — Diez alcances de escritura BDP no se pueden armar (resuelto el 2026-10-17)
 
