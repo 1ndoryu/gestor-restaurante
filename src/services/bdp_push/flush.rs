@@ -304,7 +304,7 @@ impl BdpPushFlushService {
 }
 
 /// Paso 3 del worker: completa `articulo/modificar` antes de autorizar.
-/// `ModifyArticleAndUpdateProfile` no acepta ArticleData parcial y la cola
+/// `ModifyArticleAndUpdateProfile` no acepta `ArticleData` parcial y la cola
 /// conserva payloads históricos parciales; así la auditoría y el HTTP reciben
 /// exactamente el mismo payload final.
 async fn payload_final(

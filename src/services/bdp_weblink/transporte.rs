@@ -33,7 +33,7 @@ fn http_client() -> Result<&'static Client, BdpWeblinkError> {
     })
 }
 
-impl<'a> BdpWeblinkClient<'a> {
+impl BdpWeblinkClient<'_> {
     pub(super) async fn post_authenticated_json<P>(
         &self,
         path: &str,

@@ -17,7 +17,7 @@ use crate::services::bdp_weblink_catalog::{
 use super::tipos::{BdpWeblinkClient, BdpWeblinkError};
 use super::transporte::ensure_embedded_errors_empty;
 
-impl<'a> BdpWeblinkClient<'a> {
+impl BdpWeblinkClient<'_> {
     pub async fn get_points(
         &self,
         request: &BdpGetPointsRequest,

@@ -29,6 +29,7 @@ impl Default for NotifHub {
 }
 
 impl NotifHub {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             suscriptores: Mutex::new(Vec::new()),
@@ -58,7 +59,9 @@ impl NotifHub {
 
     fn lock(&self) -> MutexGuard<'_, Vec<(Uuid, mpsc::Sender<Notificacion>)>> {
         /* Un panic previo no invalida la lista de suscriptores */
-        self.suscriptores.lock().unwrap_or_else(|e| e.into_inner())
+        self.suscriptores
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 

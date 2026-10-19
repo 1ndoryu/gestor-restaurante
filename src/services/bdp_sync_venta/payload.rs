@@ -51,7 +51,7 @@ impl BdpSyncService {
             order_end_type: 1, /* Pendiente de validación — no factura, no imprime ticket */
             order_operation_type: 0, /* Escritura real (0=CheckAndCreate) */
             invoice: Some(pago_incluido),
-            order: Self::json_pedido(config, venta, order_ctx, items, total, pago_incluido),
+            order: Self::json_pedido(config, venta, order_ctx, &items, total, pago_incluido),
         }
     }
 
@@ -164,7 +164,7 @@ impl BdpSyncService {
         config: &ConfiguracionRestaurante,
         venta: &Venta,
         order_ctx: &OrderContext,
-        items: Vec<Value>,
+        items: &[Value],
         total: f64,
         pago_incluido: bool,
     ) -> Value {

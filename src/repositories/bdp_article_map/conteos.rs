@@ -143,8 +143,7 @@ impl BdpArticleMapRepository {
                 if stock_resultante < Decimal::ZERO {
                     let _ = tx.rollback().await;
                     return Err(AjusteStockError::StockNegativo(format!(
-                        "el stock del artículo {codigo} quedaría en {} tras el conteo",
-                        stock_resultante
+                        "el stock del artículo {codigo} quedaría en {stock_resultante} tras el conteo"
                     )));
                 }
                 aplicadas += 1;
