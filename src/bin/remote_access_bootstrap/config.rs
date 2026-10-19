@@ -169,4 +169,3 @@ fn next_value(
     args.next()
         .ok_or_else(|| BootstrapError::Message(format!("Falta valor para {arg}")))
 }
-
