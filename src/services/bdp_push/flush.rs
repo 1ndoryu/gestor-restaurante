@@ -7,8 +7,7 @@ use crate::services::bdp_weblink::{BdpWeblinkClient, BdpWeblinkError};
 use crate::services::bdp_weblink_catalog::{
     BdpAddOrderTipRequest, BdpAddPointsRequest, BdpCancelOrderRequest, BdpCreateArticlesRequest,
     BdpCreateDepartmentProfilesRequest, BdpCreateFamilyRequest, BdpMassiveStockRequest,
-    BdpModifyArticleRequest, BdpModifyPricesRequest, BdpRegularizationRequest,
-    BdpTransferRequest,
+    BdpModifyArticleRequest, BdpModifyPricesRequest, BdpRegularizationRequest, BdpTransferRequest,
 };
 use crate::services::{
     entidad_uuid, BdpBackupService, BdpWriteGuard, ConfiguracionService, EscrituraAutorizar,
@@ -19,10 +18,10 @@ use super::clasificacion::{clasificar_error, es_transitorio};
 use super::cola::{BdpPushPendiente, BdpPushService, MarcarResultado};
 use super::constantes::{
     DOMINIO_ARTICULO, DOMINIO_CLIENTE_PUNTOS, DOMINIO_DEPARTAMENTO, DOMINIO_FAMILIA,
-    DOMINIO_PROPINA, DOMINIO_STOCK, DOMINIO_VENTA, ESTADO_PENDIENTE_SUSCRIPCION,
-    ESTADO_RECHAZADO, ESTADO_SINCRONIZADO, OPERACION_CANCELAR, OPERACION_CREAR,
-    OPERACION_INVENTARIO, OPERACION_MODIFICAR, OPERACION_PRECIOS, OPERACION_PROPINA,
-    OPERACION_PUNTOS, OPERACION_REGULARIZAR, OPERACION_TRASPASAR, REINTENTOS_MAX,
+    DOMINIO_PROPINA, DOMINIO_STOCK, DOMINIO_VENTA, ESTADO_PENDIENTE_SUSCRIPCION, ESTADO_RECHAZADO,
+    ESTADO_SINCRONIZADO, OPERACION_CANCELAR, OPERACION_CREAR, OPERACION_INVENTARIO,
+    OPERACION_MODIFICAR, OPERACION_PRECIOS, OPERACION_PROPINA, OPERACION_PUNTOS,
+    OPERACION_REGULARIZAR, OPERACION_TRASPASAR, REINTENTOS_MAX,
 };
 use super::enriquecimiento::enriquecer_payload_modificar_articulo;
 
@@ -386,14 +385,8 @@ async fn registrar_fallo(
     } else {
         "error"
     };
-    BdpBackupService::actualizar_resultado(
-        pool,
-        audit_id,
-        resultado_audit,
-        None,
-        Some(&mensaje),
-    )
-    .await?;
+    BdpBackupService::actualizar_resultado(pool, audit_id, resultado_audit, None, Some(&mensaje))
+        .await?;
     BdpPushService::marcar_resultado(
         pool,
         user_id,
