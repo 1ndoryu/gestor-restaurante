@@ -4,9 +4,8 @@
  * CRUD completo + búsqueda por código para uso interno de bdp_sync.
  * [157A-7] F9.1: upsert_from_bdp() para sync enriquecida de catálogo. */
 
-
-mod conteos;
 mod consultas;
+mod conteos;
 mod crud;
 mod importacion;
 mod stock;
