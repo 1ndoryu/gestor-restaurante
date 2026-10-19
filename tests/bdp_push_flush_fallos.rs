@@ -3,8 +3,8 @@
  * (estado ambiguo, reintento acotado) y payload inválido (rechazo sin reintento). */
 use glory_backend::models::ActualizarConfiguracionRequest;
 use glory_backend::services::bdp_push::{
-    BdpPushService, DOMINIO_ARTICULO, ESTADO_ERROR, ESTADO_PENDIENTE, ESTADO_RECHAZADO,
-    MarcarResultado, OPERACION_CREAR, REINTENTOS_MAX,
+    BdpPushService, MarcarResultado, DOMINIO_ARTICULO, ESTADO_ERROR, ESTADO_PENDIENTE,
+    ESTADO_RECHAZADO, OPERACION_CREAR, REINTENTOS_MAX,
 };
 use glory_backend::services::{BdpBackupService, BdpPushFlushService, ConfiguracionService};
 use sqlx::PgPool;
