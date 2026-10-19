@@ -11,25 +11,24 @@ use std::thread;
 use std::time::Duration;
 use thiserror::Error;
 
-
 mod companion;
 mod config;
-mod salida;
 mod errores;
 mod proceso;
 mod red;
 mod rustdesk;
+mod salida;
 mod tailscale;
-mod windows;
 #[cfg(test)]
 mod tests;
+mod windows;
 
 use companion::*;
-use salida::*;
 use errores::*;
 use proceso::*;
 use red::*;
 use rustdesk::*;
+use salida::*;
 use tailscale::*;
 use windows::*;
 
@@ -199,4 +198,3 @@ async fn run(config: Config) -> Result<(), BootstrapError> {
     );
     Ok(())
 }
-
