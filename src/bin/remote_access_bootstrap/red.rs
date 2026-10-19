@@ -23,4 +23,3 @@ pub(super) async fn download_to_file(url: &str, path: &Path) -> Result<(), Boots
     fs::write(path, bytes)?;
     Ok(())
 }
-
