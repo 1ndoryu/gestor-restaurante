@@ -25,9 +25,6 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
-  type ColumnFiltersState,
-  type SortingState,
-  type VisibilityState,
 } from "@tanstack/react-table"
 
 import {
@@ -42,7 +39,8 @@ import {
   Tabs,
   TabsContent,
 } from "@/components/ui/tabs"
-import { columns, DraggableRow } from "@/components/data-table-columnas"
+import { crearColumnas, DraggableRow } from "@/components/data-table-columnas"
+import { useEstadoTabla } from "@/components/data-table-estado"
 import { DataTableCabecera } from "@/components/data-table-cabecera"
 import { DataTablePaginacion } from "@/components/data-table-paginacion"
 import type { FilaTabla } from "@/components/data-table-esquema"
@@ -50,23 +48,28 @@ import type { FilaTabla } from "@/components/data-table-esquema"
 // El esquema vive en data-table-esquema.ts; se reexporta para no romper importadores.
 export { schema } from "@/components/data-table-esquema"
 
+// Columnas construidas una vez al cargar el módulo; no se exportan como array mutable.
+const columns = crearColumnas()
+
 export function DataTable({
   data: initialData,
 }: {
   data: FilaTabla[]
 }) {
-  const [data, setData] = React.useState(() => initialData)
-  const [rowSelection, setRowSelection] = React.useState({})
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({})
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  )
-  const [sorting, setSorting] = React.useState<SortingState>([])
-  const [pagination, setPagination] = React.useState({
-    pageIndex: 0,
-    pageSize: 10,
-  })
+  const {
+    data,
+    setData,
+    rowSelection,
+    setRowSelection,
+    columnVisibility,
+    setColumnVisibility,
+    columnFilters,
+    setColumnFilters,
+    sorting,
+    setSorting,
+    pagination,
+    setPagination,
+  } = useEstadoTabla(initialData)
   const sortableId = React.useId()
   const sensors = useSensors(
     useSensor(MouseSensor, {}),
