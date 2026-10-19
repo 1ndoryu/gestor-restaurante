@@ -192,6 +192,14 @@ Precondición: L3 OK, L5.0 hecho (ID de pago estable e idempotencia en T2), caja
 | L6.c Pagos | D13, D13a, D14, D14s, D15, D15t, D16, D17 | Un solo cobro por ID; consulta antes de repetir; tope de tres pagos; pago de caja visible tras el repaso |
 | L6.d Facturas | D18, D18a, D18b, D18c, D18d, D19, D19t, D20 | Número único; simplificada al cobrar; `InvoiceOrder` solo sobre no facturada; guarda `Status=3`; `BillingDetails`; enlace aviso-documento |
 
+- **Resultado L6.c (2026-10-19, venta 26 en BDP local, GetOrder solo lectura):**
+  - D13 (parcial 4,00) y D13a (parcial 2,00, sin factura) OK. D13a dejó ver un defecto: `InvoiceNumber: ""` marcaba la venta como facturada; corregido en `bdp_sync_pago.rs` (`numero_factura`), commit `2657ab9`.
+  - Desfase de saldo 3,00 frente a 4,00: BDP tiene `Total` 10,00 (sin propina); el ledger local suma 11,00 con la propina de 1,00. El validador remoto usa 10,00 (correcto para BDP); el local, 11,00. La propina no llega a BDP: es D11c, pendiente.
+  - D14 (pago total 3,00): OK. BDP queda con 4 pagos y `Total` 10,00 pagado. La repetición de 1,00 la rechaza BDP (`excede el saldo pendiente 0.00`) y no crea fila `exito`. Nota: el validador local aún cuenta 1,00 pendiente por la propina.
+  - D14s (misma clave en paralelo): una petición entra y la otra recibe `Ya hay un pago en proceso` (422). Sin cobro doble: BDP sigue con 4 pagos.
+  - D17 (cuarto pago): **defecto encontrado y corregido.** El 3,00 de D14 fue el cuarto cobro porque no había tope. Se añadió `MAX_PAGOS_VENTA = 3` en `reconciliar_orden_pago` (`tope_pagos_alcanzado`, test). Verificado: el cuarto (1,00, clave nueva) devuelve `la venta ya tiene 3 pagos registrados en BDP` (422). La venta de prueba queda con 4 pagos y no se corrige.
+  - Pendiente: D15 (respuesta perdida), D15t (timeout) y D16 (pago de caja). Necesitan proxy que corte la respuesta y una venta nueva con saldo en BDP; la venta 26 ya no tiene saldo remoto.
+
 ### L7 — Stock (D26–D27)
 
 - **Lectura (ya posible):** D26a (`GetStock`, incluido almacén inexistente) y D26b (`GetListStock`: artículo inexistente solo falla su línea; almacén inexistente). `GetStock` está probado en L2.1 (stock 0).
