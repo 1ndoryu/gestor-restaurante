@@ -132,26 +132,14 @@ impl BdpArticleMapRepository {
             let diferencia = contado - esperado;
             let linea_id = Uuid::new_v4();
             registrar_linea_conteo(
-                &mut tx,
-                linea_id,
-                conteo_id,
-                codigo,
-                esperado,
-                *contado,
-                diferencia,
+                &mut tx, linea_id, conteo_id, codigo, esperado, *contado, diferencia,
             )
             .await?;
 
             if diferencia != Decimal::ZERO {
-                let stock_resultante = ajustar_stock_conteo(
-                    &mut tx,
-                    user_id,
-                    conteo_id,
-                    codigo,
-                    esperado,
-                    diferencia,
-                )
-                .await?;
+                let stock_resultante =
+                    ajustar_stock_conteo(&mut tx, user_id, conteo_id, codigo, esperado, diferencia)
+                        .await?;
                 if stock_resultante < Decimal::ZERO {
                     let _ = tx.rollback().await;
                     return Err(AjusteStockError::StockNegativo(format!(
