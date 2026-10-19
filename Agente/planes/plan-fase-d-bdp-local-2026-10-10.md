@@ -188,7 +188,7 @@ Precondición: L3 OK, L5.0 hecho (ID de pago estable e idempotencia en T2), caja
 | Lote | Fichas | Qué se comprueba |
 |---|---|---|
 | L6.a Propina | D11a, D11b, D11c | `AddTip=true` suma; `AddTip=false` sustituye; a cero sin residuo |
-| L6.b Puntos | D12a, D12b, D12c | Saldo ±N con ID único; sin reintento ciego de `AddPoints`. Pendiente de soporte en el terminal: si no lo soporta, se declara |
+| L6.b Puntos | D12a, D12b, D12c | Saldo ±N con ID único; sin reintento ciego de `AddPoints`. Pendiente de soporte en el terminal: si no lo soporta, se declara. **Resultado 2026-10-19:** D12a (+5 → 5,00) y D12b (−2 → 3,00) OK. D12c: respuesta perdida tras aplicar +1 (BDP 3→4); el flush reconcilió (`GetPoints` 4.0 = ledger 4.00), no reenvió y dejó la fila `sincronizado` (commit `72ec58b`). Límite: `encolar` reemplaza el payload de una fila activa del mismo cliente; dos sumas antes del flush pierden importe (tarea aparte) |
 | L6.c Pagos | D13, D13a, D14, D14s, D15, D15t, D16, D17 | Un solo cobro por ID; consulta antes de repetir; tope de tres pagos; pago de caja visible tras el repaso |
 | L6.d Facturas | D18, D18a, D18b, D18c, D18d, D19, D19t, D20 | Número único; simplificada al cobrar; `InvoiceOrder` solo sobre no facturada; guarda `Status=3`; `BillingDetails`; enlace aviso-documento |
 
