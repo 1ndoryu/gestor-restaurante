@@ -263,6 +263,97 @@ async fn get_stock_posts_warehouse_path_and_parses_stock() {
     assert_eq!(parsed_list.stock[0].units, Decimal::new(325, 2));
 }
 
+/* [D26b] GetListStock con un artículo inexistente: el ErrorMessage global llega
+ * junto a líneas válidas y el error debe quedar en su línea, no tumbar el lote.
+ * Un almacén inexistente no trae líneas y sí es error del lote. */
+#[tokio::test]
+async fn get_list_stock_tolera_error_de_linea_y_rechaza_almacen_inexistente() {
+    use crate::services::bdp_weblink_catalog::{
+        BdpGetListStockRequest, BdpGetListStockResponse, BdpListStockItemRequest,
+    };
+
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/Auth/Login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ErrorMessage": "",
+            "AuthSession": {
+                "Token": "token-bdp",
+                "ExpiresIn_InSecconds": 3540
+            }
+        })))
+        .mount(&server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/API/Warehouse/GetListStock"))
+        .and(body_json(serde_json::json!({
+            "Store": 1,
+            "Articles": [{ "Article": 999999999, "Altern": 0 }, { "Article": 1001, "Altern": 0 }]
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "Stock": [
+                { "Article": 999999999, "Altern": 0, "Units": 0, "ErrorMessage": "[200201]-EL CÓDIGO DE ARTÍCULO 999999999 NO EXISTE" },
+                { "Article": 1001, "Altern": 0, "Units": 3.25, "ErrorMessage": "" }
+            ],
+            "ErrorMessage": "[200204]-ALGUNO DE LOS ARTÍCULOS CONTIENE ERRORES DE VALIDACIÓN"
+        })))
+        .mount(&server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/API/Warehouse/GetListStock"))
+        .and(body_json(serde_json::json!({
+            "Store": 999,
+            "Articles": [{ "Article": 1001, "Altern": 0 }]
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "Stock": [],
+            "ErrorMessage": "[200200]-EL ALMACÉN 999 NO EXISTE"
+        })))
+        .mount(&server)
+        .await;
+
+    let config = config(server.uri());
+    let client = BdpWeblinkClient::new(&config);
+
+    let lote = client
+        .get_list_stock(&BdpGetListStockRequest {
+            store: 1,
+            articles: vec![
+                BdpListStockItemRequest {
+                    article: 999_999_999,
+                    altern: 0,
+                },
+                BdpListStockItemRequest {
+                    article: 1001,
+                    altern: 0,
+                },
+            ],
+        })
+        .await
+        .unwrap();
+    let parsed: BdpGetListStockResponse = serde_json::from_value(lote).unwrap();
+    assert_eq!(parsed.stock.len(), 2);
+    assert!(parsed.stock[0].error_message.contains("NO EXISTE"));
+    assert_eq!(parsed.stock[1].units, Decimal::new(325, 2));
+    assert!(parsed.stock[1].error_message.is_empty());
+
+    let almacen = client
+        .get_list_stock(&BdpGetListStockRequest {
+            store: 999,
+            articles: vec![BdpListStockItemRequest {
+                article: 1001,
+                altern: 0,
+            }],
+        })
+        .await;
+    match almacen {
+        Err(BdpWeblinkError::Remote(message)) => assert!(message.contains("ALMACÉN 999")),
+        other => panic!("se esperaba error remoto del lote, se obtuvo {other:?}"),
+    }
+}
+
 /* [S16-H3] Tests adicionales para ensure_target_allowed.
  * Valida rechazo de query strings, fragmentos y aceptación via env var. */
 

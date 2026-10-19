@@ -33,7 +33,7 @@ use super::tipos::{
     BdpAuthSession, BdpHealthResponse, BdpLoginResponse, BdpVersionResponse, BdpWeblinkClient,
     BdpWeblinkError,
 };
-use super::transporte::ensure_no_remote_error;
+use super::transporte::{ensure_no_remote_error, response_error_message};
 
 const BDP_SESSION_MINUTES: u8 = 59;
 
@@ -356,8 +356,23 @@ impl<'a> BdpWeblinkClient<'a> {
         &self,
         request: &BdpGetListStockRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.post_authenticated_json(BDP_PATH_GET_LIST_STOCK, request)
-            .await
+        let session = self.login().await?;
+        let response: Value = self
+            .post_authenticated(BDP_PATH_GET_LIST_STOCK, request, &session.token)
+            .await?;
+        /* [D26b] Un artículo inexistente marca el ErrorMessage global (200204) aunque
+         * el resto de líneas sean válidas. Solo se rechaza el lote si no llega ninguna
+         * línea; los errores de cada línea se leen en BdpListStockItemResponse. */
+        let con_lineas = response
+            .get("Stock")
+            .and_then(Value::as_array)
+            .is_some_and(|lineas| !lineas.is_empty());
+        if !con_lineas {
+            if let Some(message) = response_error_message(&response) {
+                return Err(BdpWeblinkError::Remote(message));
+            }
+        }
+        Ok(response)
     }
 
     /* [157A-9] F9.4: mesas configuradas de un salón concreto. */
