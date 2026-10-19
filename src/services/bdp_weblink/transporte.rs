@@ -10,27 +10,61 @@ use serde_json::Value;
 use tracing::warn;
 
 use super::tipos::{BdpWeblinkClient, BdpWeblinkError};
+use crate::services::bdp_weblink_catalog::{
+    BDP_PATH_ADD_ORDER_TIP, BDP_PATH_ADD_POINTS, BDP_PATH_CANCEL_ORDER, BDP_PATH_CREATE_ORDER,
+    BDP_PATH_INVOICE_ORDER, BDP_PATH_ORDER_PAYMENT_ADD,
+};
 
-static HTTP_CLIENT: LazyLock<Result<Client, String>> = LazyLock::new(|| {
+/* [D15] Timeout largo solo para venta/pago/puntos. Con 20 s, el Orders/Create de
+ * la prueba D15 terminó como «ambiguo» (error de transporte a los ~20 s); la
+ * causa exacta en BDP no se ha confirmado, solo que el cliente cortó. */
+const TIMEOUT_LECTURA: Duration = Duration::from_secs(20);
+const TIMEOUT_ESCRITURA: Duration = Duration::from_secs(60);
+
+static HTTP_CLIENT: LazyLock<Result<Client, String>> =
+    LazyLock::new(|| construir_cliente(TIMEOUT_LECTURA));
+
+static HTTP_CLIENT_ESCRITURA: LazyLock<Result<Client, String>> =
+    LazyLock::new(|| construir_cliente(TIMEOUT_ESCRITURA));
+
+fn construir_cliente(timeout: Duration) -> Result<Client, String> {
     Client::builder()
-        .timeout(Duration::from_secs(20))
+        .timeout(timeout)
         /* [207A-1] S6-H1: Deshabilitar redirects automáticos para que
          * ensure_target_allowed() realmente controle el destino. Sin esto,
          * un 302 a un host arbitrario bypassa la allowlist. */
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|error| error.to_string())
-});
+}
 
 /* Cliente HTTP compartido de BDP. `build()` solo falla si el backend TLS no puede
  * inicializarse (fallo de entorno, no de configuracion). Se propaga como error de
  * transporte en lugar de entrar en panico, y NO se degrada al cliente por defecto de
  * reqwest porque este perderia `redirect::Policy::none()` y con ello el control de
  * allowlist de `ensure_target_allowed()` ([207A-1] S6-H1). */
-fn http_client() -> Result<&'static Client, BdpWeblinkError> {
-    HTTP_CLIENT.as_ref().map_err(|detalle| {
+fn http_client(path: &str) -> Result<&'static Client, BdpWeblinkError> {
+    let cliente = if es_escritura_venta(path) {
+        &HTTP_CLIENT_ESCRITURA
+    } else {
+        &HTTP_CLIENT
+    };
+    cliente.as_ref().map_err(|detalle| {
         BdpWeblinkError::Http(format!("cliente HTTP BDP no disponible: {detalle}"))
     })
+}
+
+/// Endpoints de escritura de venta, pago y puntos: los que reciben el timeout largo.
+fn es_escritura_venta(path: &str) -> bool {
+    [
+        BDP_PATH_CREATE_ORDER,
+        BDP_PATH_ORDER_PAYMENT_ADD,
+        BDP_PATH_INVOICE_ORDER,
+        BDP_PATH_CANCEL_ORDER,
+        BDP_PATH_ADD_ORDER_TIP,
+        BDP_PATH_ADD_POINTS,
+    ]
+    .contains(&path)
 }
 
 impl BdpWeblinkClient<'_> {
@@ -68,7 +102,7 @@ impl BdpWeblinkClient<'_> {
             .acquire(base_url)
             .map_err(|reason| BdpWeblinkError::Throttled(format!("{reason} ({path})")))?;
         let url = self.build_url(path)?;
-        let response = http_client()?
+        let response = http_client(path)?
             .post(url)
             .bearer_auth(token)
             .json(payload)
@@ -93,7 +127,7 @@ impl BdpWeblinkClient<'_> {
             .acquire(base_url)
             .map_err(|reason| BdpWeblinkError::Throttled(format!("{reason} ({path})")))?;
         let url = self.build_url(path)?;
-        let response = http_client()?
+        let response = http_client(path)?
             .post(url)
             .json(payload)
             .send()
@@ -207,6 +241,20 @@ fn sanitize_body(body: &str) -> String {
      * payloads comerciales. Para errores HTTP basta conservar tamaño y no el
      * contenido; el diagnóstico detallado se hace con status y endpoint. */
     format!("cuerpo BDP omitido ({} bytes)", body.len())
+}
+
+#[cfg(test)]
+mod tests_timeout {
+    use super::*;
+
+    #[test]
+    fn solo_venta_pago_y_puntos_usan_timeout_largo() {
+        assert!(es_escritura_venta(BDP_PATH_CREATE_ORDER));
+        assert!(es_escritura_venta(BDP_PATH_ORDER_PAYMENT_ADD));
+        assert!(es_escritura_venta(BDP_PATH_ADD_POINTS));
+        assert!(!es_escritura_venta("/API/Orders/Get"));
+        assert!(!es_escritura_venta("/API/Loyalty/GetPoints"));
+    }
 }
 
 pub fn response_error_message(value: &Value) -> Option<String> {
