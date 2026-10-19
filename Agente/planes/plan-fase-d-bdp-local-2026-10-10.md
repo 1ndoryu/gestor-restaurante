@@ -17,7 +17,7 @@ Estado según §8 (2026-10-17): L3.a y L3.c hechas; L3.b bloqueada por código; 
 - [ ] L4 — F0 empírica de avisos en TPV local (L4.1 hecha; L4.2: crear, modificar, borrar, finalizar, traspasar y traspasar-linea probados el 2026-10-18 con el BDP como administrador (`traspasar-linea` automatizado en `tpv.mjs`); `cambiar-estado` no replicable en local; L4.3 y L4.4 hechas en `avisos-local-matriz-2026-10-18.md`)
 - [ ] L5 — Fase D F1–F4 (código) y base T2 (L5.0 hecha 2026-10-17: las 5 tablas que faltaban, §8; **F1 hecha 2026-10-17**; F2–F4 pendientes)
 - [ ] L6 — Pagos, propina, puntos y factura (D11a–D20)
-- [ ] L7 — Stock (D26–D27)
+- [ ] L7 — Stock (D26–D27): ensayo en almacén 1 de BDP local hecho (2026-10-19, +1 sincronizado, 1001 = 0 en BDP y local); pendiente de real y del `Store` por `warehouse_id` (ver L7)
 - [ ] L8 — Maestros y documentos (D24–D25, D28)
 - [ ] L9 — Avisos duplicados, caídas y reinicios (D04, D08, D10, D21–D23, D29, D31)
 - [ ] L10 — Excepciones, accesos y piloto (D01, D02, D30, D32)
