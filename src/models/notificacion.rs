@@ -16,4 +16,3 @@ pub struct Notificacion {
     pub leida: bool,
     pub created_at: DateTime<Utc>,
 }
-
