@@ -79,4 +79,3 @@ pub(super) fn edition_supports_rdp(edition: &str) -> bool {
     let normalized = edition.to_ascii_lowercase();
     !normalized.contains("core") && !normalized.contains("home")
 }
-
