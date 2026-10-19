@@ -10,8 +10,6 @@
  * El secreto se pasa a `recibir_aviso_con_secreto` en vez de tocar el entorno:
  * los tests corren en paralelo y una variable de proceso los haría pelearse. */
 
-use glory_backend::services::NotifHub;
-use std::sync::Arc;
 use axum::body::{to_bytes, Body};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, Request, StatusCode};
@@ -24,11 +22,13 @@ use glory_backend::handlers::{
 use glory_backend::middleware::AuthUser;
 use glory_backend::models::UserRole;
 use glory_backend::repositories::ConfiguracionRepository;
+use glory_backend::services::NotifHub;
 use glory_backend::services::ServicioModoOperacion;
 use glory_backend::AppState;
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
 
