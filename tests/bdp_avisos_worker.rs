@@ -271,3 +271,82 @@ async fn no_toca_avisos_de_otra_cuenta_ni_ya_procesados(pool: PgPool) {
         "el aviso de otra cuenta debe seguir intacto"
     );
 }
+
+/// Inserta una venta local con su `bdp_order_id`, como la deja el alta en BDP.
+async fn venta_con_bdp(pool: &PgPool, user_id: Uuid, bdp_order_id: i64) -> Uuid {
+    let id = Uuid::new_v4();
+    sqlx::query(
+        r"INSERT INTO ventas (id, user_id, fecha, descripcion, iva_porcentaje, turno, canal,
+                              metodo_pago, importe_base, importe_iva, bdp_synced, bdp_order_id)
+          VALUES ($1, $2, CURRENT_DATE, 'Venta de aviso', 10, 'mediodia', 'comedor',
+                  'efectivo', 10.00, 1.00, true, $3)",
+    )
+    .bind(id)
+    .bind(user_id)
+    .bind(bdp_order_id)
+    .execute(pool)
+    .await
+    .expect("insertar venta");
+    id
+}
+
+/// Lee el estado BDP y la marca de factura de una venta.
+async fn estado_venta(pool: &PgPool, id: Uuid) -> (Option<String>, bool) {
+    sqlx::query_as("SELECT bdp_order_status, bdp_invoiced FROM ventas WHERE id = $1")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .expect("leer venta")
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn pedido_facturado_actualiza_la_venta_de_su_comanda(pool: PgPool) {
+    let mia = cuenta(&pool).await;
+    let ajena = cuenta(&pool).await;
+    let venta = venta_con_bdp(&pool, mia, 40).await;
+    let venta_ajena = venta_con_bdp(&pool, ajena, 40).await;
+    let id = aviso(&pool, mia, "finalizar", payload_comanda("40"), 0).await;
+    let doble = DobleBdp::con(vec![(40, Consulta::Encontrado(json!({"Status": 3})))]);
+
+    procesar_lote(&pool, mia, &doble, 10).await.expect("lote");
+
+    let (estado, _, _, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "procesado");
+    assert_eq!(
+        estado_venta(&pool, venta).await,
+        (Some("invoiced".to_string()), true),
+        "la venta de la cuenta debe reflejar el estado BDP"
+    );
+    assert_eq!(
+        estado_venta(&pool, venta_ajena).await,
+        (None, false),
+        "la venta de otra cuenta no se toca"
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn pedido_sin_status_procesa_el_aviso_y_no_toca_la_venta(pool: PgPool) {
+    let mia = cuenta(&pool).await;
+    let venta = venta_con_bdp(&pool, mia, 41).await;
+    let id = aviso(&pool, mia, "modificar", payload_comanda("41"), 0).await;
+    let doble = DobleBdp::con(vec![(41, Consulta::Encontrado(json!({"Lineas": 2})))]);
+
+    procesar_lote(&pool, mia, &doble, 10).await.expect("lote");
+
+    let (estado, _, _, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "procesado");
+    assert_eq!(estado_venta(&pool, venta).await, (None, false));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn comanda_sin_venta_local_no_falla_el_lote(pool: PgPool) {
+    let mia = cuenta(&pool).await;
+    let id = aviso(&pool, mia, "crear", payload_comanda("42"), 0).await;
+    let doble = DobleBdp::con(vec![(42, Consulta::Encontrado(json!({"Status": 1})))]);
+
+    let resumen = procesar_lote(&pool, mia, &doble, 10).await.expect("lote");
+
+    assert_eq!(resumen.procesados, 1);
+    let (estado, _, _, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "procesado");
+}

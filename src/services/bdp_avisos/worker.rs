@@ -14,6 +14,7 @@ use uuid::Uuid;
 use super::campos::CamposAviso;
 use crate::services::bdp_weblink::BdpWeblinkClient;
 use crate::services::bdp_weblink_catalog::{BdpGetOrderRequest, BdpOrderIdentifier};
+use crate::services::BdpOrderPollerService;
 
 /// Intentos antes de dar el aviso por roto y mandarlo a revisión manual.
 pub const MAX_INTENTOS: i32 = 5;
@@ -86,7 +87,8 @@ pub async fn procesar_lote(
     let mut resumen = ResumenLote::default();
     for (id, accion, payload, intentos) in reclamados {
         let decision = decidir(&accion, &payload, intentos, consultor).await;
-        aplicar(pool, id, &decision).await?;
+        let vinculo = comanda_de(&payload).zip(decision.pedido.as_ref());
+        aplicar(pool, id, user_id, &decision, vinculo).await?;
         match decision.estado {
             "procesado" => resumen.procesados += 1,
             "recibido" => resumen.reintentos += 1,
@@ -113,10 +115,7 @@ async fn decidir(
 ) -> Decision {
     /* Sin comanda numérica no hay nada que consultar: se guarda para revisión
      * y no se llama a BDP con un identificador inventado. */
-    let comanda = CamposAviso::desde_json(payload)
-        .comanda()
-        .and_then(|texto| texto.parse::<i64>().ok());
-    let Some(comanda) = comanda else {
+    let Some(comanda) = comanda_de(payload) else {
         return Decision {
             estado: "requiere_revision",
             pedido: None,
@@ -154,8 +153,27 @@ async fn decidir(
     }
 }
 
-/// Escribe la decisión. `procesado_en` solo se marca cuando el aviso sale de la cola.
-async fn aplicar(pool: &PgPool, id: Uuid, decision: &Decision) -> Result<(), String> {
+/// Comanda del aviso como número; None si no es numérica.
+fn comanda_de(payload: &Value) -> Option<i64> {
+    CamposAviso::desde_json(payload)
+        .comanda()
+        .and_then(|texto| texto.parse::<i64>().ok())
+}
+
+/// Escribe la decisión y, si hay pedido, enlaza su venta. Va en una transacción:
+/// el aviso nunca queda `procesado` sin que la venta de su comanda esté al día.
+/// `procesado_en` solo se marca cuando el aviso sale de la cola.
+async fn aplicar(
+    pool: &PgPool,
+    id: Uuid,
+    user_id: Uuid,
+    decision: &Decision,
+    vinculo: Option<(i64, &Value)>,
+) -> Result<(), String> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|error| format!("No se pudo abrir la transacción del aviso: {error}"))?;
     sqlx::query(
         r"UPDATE bdp_avisos_inbox
              SET estado = $2::text,
@@ -168,8 +186,41 @@ async fn aplicar(pool: &PgPool, id: Uuid, decision: &Decision) -> Result<(), Str
     .bind(decision.estado)
     .bind(decision.error.as_deref())
     .bind(decision.pedido.as_ref())
-    .execute(pool)
+    .execute(&mut *tx)
     .await
     .map_err(|error| format!("No se pudo guardar el resultado del aviso: {error}"))?;
+    if let Some((comanda, pedido)) = vinculo {
+        enlazar_venta(&mut tx, user_id, comanda, pedido).await?;
+    }
+    tx.commit()
+        .await
+        .map_err(|error| format!("No se pudo confirmar el aviso: {error}"))
+}
+
+/// Copia el estado BDP del pedido a la venta con ese `bdp_order_id`. Sin venta local
+/// no es error (la comanda pudo crearse en otro TPV). Sin `Status` legible no toca la venta.
+async fn enlazar_venta(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    comanda: i64,
+    pedido: &Value,
+) -> Result<(), String> {
+    let Ok(codigo) = BdpOrderPollerService::parse_status(pedido) else {
+        return Ok(());
+    };
+    let estado = BdpOrderPollerService::map_status(codigo);
+    sqlx::query(
+        r"UPDATE ventas
+             SET bdp_order_status = $3::text,
+                 bdp_invoiced = ($3::text = 'invoiced'),
+                 updated_at = NOW()
+           WHERE user_id = $1 AND bdp_order_id = $2",
+    )
+    .bind(user_id)
+    .bind(comanda)
+    .bind(estado)
+    .execute(&mut **tx)
+    .await
+    .map_err(|error| format!("No se pudo actualizar la venta de la comanda: {error}"))?;
     Ok(())
 }
