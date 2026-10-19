@@ -5,6 +5,7 @@
  * archivo no usa. */
 #![allow(dead_code)]
 
+use chrono::NaiveDate;
 use glory_backend::config::AppConfig;
 use glory_backend::middleware::AuthUser;
 use glory_backend::models::{BdpPurchaseNoteListParams, UserRole};
@@ -13,7 +14,6 @@ use glory_backend::repositories::{ConfiguracionRepository, GastoRepository};
 use glory_backend::services::bdp_weblink_catalog::BdpPurchaseNoteData;
 use glory_backend::services::NotifHub;
 use glory_backend::AppState;
-use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
 use std::sync::Arc;
