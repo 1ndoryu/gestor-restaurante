@@ -90,20 +90,20 @@ use operativa::{
 };
 
 mod clientes;
-mod tipos;
+mod etiquetas;
+mod finanzas;
+mod mensajeria;
 mod mesas;
 mod reservas;
-mod finanzas;
-mod etiquetas;
-mod mensajeria;
+mod tipos;
 
 use clientes::*;
-use tipos::*;
+use etiquetas::*;
+use finanzas::*;
+use mensajeria::*;
 use mesas::*;
 use reservas::*;
-use finanzas::*;
-use etiquetas::*;
-use mensajeria::*;
+use tipos::*;
 
 /* Limpia todos los datos del usuario demo respetando FKs */
 async fn limpiar_datos(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
