@@ -4,8 +4,6 @@
  * Al guardar esa combinación, el PATCH fuerza bdp_sync_enabled=false: el modo
  * independiente no sincroniza con BDP. */
 
-use glory_backend::services::NotifHub;
-use std::sync::Arc;
 use axum::extract::State;
 use axum::Json;
 use glory_backend::config::AppConfig;
@@ -13,9 +11,11 @@ use glory_backend::handlers::actualizar_configuracion;
 use glory_backend::middleware::AuthUser;
 use glory_backend::models::{ActualizarConfiguracionRequest, UserRole};
 use glory_backend::repositories::ConfiguracionRepository;
+use glory_backend::services::NotifHub;
 use glory_backend::services::ServicioModoOperacion;
 use glory_backend::AppState;
 use sqlx::PgPool;
+use std::sync::Arc;
 use uuid::Uuid;
 
 fn make_app_state(pool: PgPool) -> AppState {
