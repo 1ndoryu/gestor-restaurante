@@ -4,7 +4,7 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::constantes::{ESTADO_PENDIENTE, ESTADOS_ACTIVOS};
+use super::constantes::{ESTADOS_ACTIVOS, ESTADO_PENDIENTE};
 
 /// Fila pendiente de push (proyección mínima para el worker).
 #[derive(Debug, Clone, sqlx::FromRow)]
