@@ -4,8 +4,8 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use reqwest::{Client, StatusCode};
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use serde_json::Value;
 use tracing::warn;
 
@@ -78,7 +78,11 @@ impl<'a> BdpWeblinkClient<'a> {
         decode_response(response.status(), response.text().await)
     }
 
-    pub(super) async fn post_public<T, P>(&self, path: &str, payload: &P) -> Result<T, BdpWeblinkError>
+    pub(super) async fn post_public<T, P>(
+        &self,
+        path: &str,
+        payload: &P,
+    ) -> Result<T, BdpWeblinkError>
     where
         T: DeserializeOwned,
         P: Serialize + ?Sized,
