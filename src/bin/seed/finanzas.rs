@@ -95,7 +95,11 @@ pub(super) async fn seed_ventas(
     clippy::cast_sign_loss,
     clippy::needless_range_loop
 )]
-pub(super) async fn seed_gastos(pool: &PgPool, user_id: Uuid, hoy: NaiveDate) -> Result<(), sqlx::Error> {
+pub(super) async fn seed_gastos(
+    pool: &PgPool,
+    user_id: Uuid,
+    hoy: NaiveDate,
+) -> Result<(), sqlx::Error> {
     /* Si la tabla de categorias estuviera vacia el seed seguiria con categoria NULL;
      * un fallo real del SELECT ya no se oculta con `unwrap_or_default`. */
     let categorias: Vec<Uuid> =
