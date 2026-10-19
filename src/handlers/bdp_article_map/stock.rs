@@ -98,12 +98,16 @@ pub async fn ajustar_stock(
     {
         if let Ok(bdp_code) = map.articulo_bdp_codigo.trim().parse::<i64>() {
             let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
-            let payload =
-                payload_regularizacion(&config, bdp_code, req.delta).map_err(AppError::Internal)?;
+            let almacen = almacen_bdp(req.warehouse_id.as_deref(), config.bdp_almacen_default)?;
+            let payload = payload_regularizacion(&config, bdp_code, req.delta, almacen)
+                .map_err(AppError::Internal)?;
+            /* La cola se agrupa por artículo y almacén: un ajuste de otro almacén
+             * no debe sumarse al de éste. */
+            let entidad = format!("{}:{}", map.articulo_glory_codigo, almacen);
             BdpPushService::acumular_regularizacion(
                 &state.pool,
                 auth.user_id,
-                &map.articulo_glory_codigo,
+                &entidad,
                 req.delta,
                 &payload,
             )
@@ -113,6 +117,18 @@ pub async fn ajustar_stock(
     }
 
     Ok(Json(stock))
+}
+
+/* Almacén BDP de un ajuste. "0" (General, el valor local sin desglose) o ausente
+ * usan el almacén por defecto de la configuración; cualquier otro valor debe ser
+ * un número, porque BDP identifica el almacén por número. */
+fn almacen_bdp(warehouse_id: Option<&str>, por_defecto: i32) -> Result<i32, AppError> {
+    match warehouse_id.map(str::trim) {
+        None | Some("") | Some("0") => Ok(por_defecto),
+        Some(id) => id.parse::<i32>().map_err(|_| {
+            AppError::Validation(format!("warehouse_id '{id}' no es un almacén BDP numérico"))
+        }),
+    }
 }
 
 /* [198A-1/D6] Inventario (conteo físico) → UpdateMassiveInventory. Localmente
