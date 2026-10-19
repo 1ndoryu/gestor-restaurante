@@ -199,8 +199,7 @@ fn only_check_con_pago_replica_payload_real() {
     assert_eq!(payments.len(), 1);
     assert_eq!(payments[0].get("TenderId").and_then(Value::as_i64), Some(1));
     assert!(
-        (payments[0].get("Amount").and_then(Value::as_f64).unwrap() - 1.05).abs()
-            < f64::EPSILON
+        (payments[0].get("Amount").and_then(Value::as_f64).unwrap() - 1.05).abs() < f64::EPSILON
     );
     assert_eq!(
         payments[0].get("Amount").and_then(Value::as_f64),
