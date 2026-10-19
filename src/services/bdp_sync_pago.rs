@@ -211,6 +211,12 @@ impl BdpSyncService {
          * WebLink. Conservamos también su importe para detectar respuestas
          * internamente inconsistentes y no duplicar una entrada repetida. */
         let (remote_payment_amounts, remote_paid) = Self::parse_remote_payments(payments)?;
+        /* [D17] Tope de pagos: un cuarto cobro se bloquea antes de escribir en BDP. */
+        if tope_pagos_alcanzado(remote_payment_amounts.len()) {
+            return Err(format!(
+                "Pago bloqueado: la venta ya tiene {MAX_PAGOS_VENTA} pagos registrados en BDP"
+            ));
+        }
         let requested = amount;
 
         /* [028A-BDP-WRITE] Calcula la unión de ambos libros. Un pago local con
@@ -364,10 +370,7 @@ impl BdpSyncService {
         idempotency_key: Option<&str>,
         response: &serde_json::Value,
     ) -> Result<(), String> {
-        let invoice_number = response
-            .get("InvoiceNumber")
-            .and_then(|v| v.as_str())
-            .map(String::from);
+        let invoice_number = numero_factura(response);
 
         let mut tx = pool
             .begin()
@@ -455,10 +458,7 @@ impl BdpSyncService {
             }
         };
 
-        let invoice_number = response
-            .get("InvoiceNumber")
-            .and_then(|v| v.as_str())
-            .map(String::from);
+        let invoice_number = numero_factura(&response);
 
         /* [207A-2] S7-H2: Envolver marca local + auditoría + ledger en
          * transacción para consistencia. */
@@ -479,5 +479,55 @@ impl BdpSyncService {
         }
 
         Ok(invoice_number)
+    }
+}
+
+/* BDP devuelve "" en InvoiceNumber cuando el pago no factura: eso no es un número
+ * de factura y no debe marcar la venta como facturada. */
+fn numero_factura(response: &Value) -> Option<String> {
+    response
+        .get("InvoiceNumber")
+        .and_then(Value::as_str)
+        .filter(|numero| !numero.trim().is_empty())
+        .map(String::from)
+}
+
+/* [D17] Máximo de pagos BDP por venta (anexo B8, D17). */
+const MAX_PAGOS_VENTA: usize = 3;
+
+fn tope_pagos_alcanzado(pagos_remotos: usize) -> bool {
+    pagos_remotos >= MAX_PAGOS_VENTA
+}
+
+#[cfg(test)]
+mod tests_tope_pagos {
+    use super::tope_pagos_alcanzado;
+
+    #[test]
+    fn tres_pagos_bloquean_el_cuarto() {
+        assert!(!tope_pagos_alcanzado(2));
+        assert!(tope_pagos_alcanzado(3));
+        assert!(tope_pagos_alcanzado(4));
+    }
+}
+
+#[cfg(test)]
+mod tests_numero_factura {
+    use super::numero_factura;
+    use serde_json::json;
+
+    #[test]
+    fn respuesta_vacia_o_ausente_no_es_factura() {
+        assert_eq!(numero_factura(&json!({"InvoiceNumber": ""})), None);
+        assert_eq!(numero_factura(&json!({"InvoiceNumber": "  "})), None);
+        assert_eq!(numero_factura(&json!({"ErrorMessage": ""})), None);
+    }
+
+    #[test]
+    fn numero_real_se_conserva() {
+        assert_eq!(
+            numero_factura(&json!({"InvoiceNumber": "F-2026-0001"})),
+            Some("F-2026-0001".to_string())
+        );
     }
 }
