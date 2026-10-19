@@ -5,7 +5,6 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-
 /* 3 campañas de marketing en distintos estados */
 #[allow(clippy::type_complexity)]
 pub(super) async fn seed_campanas(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
