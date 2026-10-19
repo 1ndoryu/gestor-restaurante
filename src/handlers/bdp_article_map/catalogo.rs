@@ -1,7 +1,13 @@
 /* Mapeos de artículos BDP: listado, CRUD e importación del catálogo.
  * Parte de bdp_article_map (ver mod.rs). */
 
-use super::*;
+use super::{
+    exigir_modo_bdp, payload_crear_articulo, payload_modificar_articulo, respuesta_cacheable,
+    verificar_permiso, AccionPermiso, ActualizarBdpArticleMapRequest, AppError, AppState, AuthUser,
+    BdpArticleMap, BdpArticleMapRepository, BdpPushService, BdpSyncService, BdpWeblinkClient,
+    ConfiguracionService, CrearBdpArticleMapRequest, HeaderMap, Json, Path, Response, State, Uuid,
+    Validate, VisibilidadCache,
+};
 
 /// Listar todos los mapeos de artículos BDP del usuario
 #[utoipa::path(

@@ -1,7 +1,12 @@
 /* Sincronización BDP → Glory: catálogo, precios, mesas y definiciones de menús.
  * Parte de bdp_article_map (ver mod.rs). */
 
-use super::*;
+use super::{
+    exigir_modo_bdp, verificar_permiso, AccionPermiso, AppError, AppState, AuthUser,
+    BdpCatalogSyncResult, BdpGetFastfoodRequest, BdpGetMenuRequest, BdpGetPackRequest,
+    BdpSyncService, BdpWeblinkClient, ConfiguracionService, Json, Path, State, SyncTablesRequest,
+    SyncTablesResult, UserRole,
+};
 
 /* [157A-7] F9.1: sync-catalog — Sincronización enriquecida del catálogo BDP → Glory.
  * Similar a import-catalog pero almacena precios, IVA, departamento, familia, etc.

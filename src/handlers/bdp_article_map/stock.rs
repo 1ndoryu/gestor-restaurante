@@ -1,7 +1,14 @@
 /* Stock local de artículos: listado, ajustes, inventario y conteos.
  * Parte de bdp_article_map (ver mod.rs). */
 
-use super::*;
+use super::{
+    payload_inventario, payload_regularizacion, respuesta_cacheable, verificar_permiso,
+    AccionPermiso, AjustarBdpArticleStockRequest, AjusteStockError, AppError, AppState, AuthUser,
+    BdpArticleMapRepository, BdpArticleStock, BdpConteoInventario, BdpPushService,
+    BdpStockInfoEntry, ConfiguracionService, ConteoInventarioCreado, CrearConteoInventarioRequest,
+    Decimal, HeaderMap, Json, Path, RegistrarInventarioRequest, Response, State, Uuid, Validate,
+    VisibilidadCache,
+};
 
 /// Listar stock de artículos por almacén. Por defecto devuelve el almacén
 /// "General" (`warehouse_id` = "0") mientras BDP no exponga desglose por almacén.
