@@ -197,6 +197,11 @@ Precondición: L3 OK, L5.0 hecho (ID de pago estable e idempotencia en T2), caja
 - **Lectura (ya posible):** D26a (`GetStock`, incluido almacén inexistente) y D26b (`GetListStock`: artículo inexistente solo falla su línea; almacén inexistente). `GetStock` está probado en L2.1 (stock 0).
 - **Escritura (D26, D26c–D26g, D27):** precondición L5.0, ya cumplida (libro de movimientos y bloqueo por artículo y almacén), permiso por lote y los datos del distribuidor que el PDF deja pendientes (cuál de los 6 almacenes vistos en local es el real; motivos válidos). Las ventas de caja también mueven stock: D27 se prueba con una venta web convergida, y un valor ajeno no se trata como error sin comprobar si viene de una venta.
 - D26b, D26f y D26g (`Units` null, almacén inexistente, fiabilidad de `GetStock` tras escribir) se ensayan en local pero no se dan por aprobadas hasta confirmarse en el BDP real.
+- **Resultado del ensayo L7 (2026-10-19, almacén 1, BDP local 8070):**
+  - Causa del fallo anterior: el ajuste se encolaba pero **nada lo enviaba**. El flush solo corre por `POST /api/bdp/push/flush` (Admin); no hay worker automático. Además, `encolar` reemplazaba el payload: dos ajustes ±1 dejaban solo el último. Corregido con `acumular_regularizacion` (`cola.rs`) y su uso en `ajustar_stock` (`stock.rs`).
+  - El −1.0 de BDP ya existía antes de L7 y el stock local era 0. Decisión de la usuaria: corregir la cola y empujar +1. Se dejó la fila de 1001 en +1 y se disparó un único armado (`unidirectional`, `regularize_stock`, 1 operación, 10 min) con flush: `sincronizados: 1`, `GetStock` 1001/almacén 1 pasó de −1.0 a 0.0, igual que local. Desarmado con 200.
+  - Limpieza de la cola de prueba: `90000003` (ARTÍCULO NO EXISTE) y `ZZPRUEBA99` (IVA 0) pasaron a `descartado`.
+  - Pendiente: el `Store` del payload sale de `bdp_almacen_default`, no del `warehouse_id` pedido. Coincide con el almacén 1 solo porque el default es 1; corregirlo antes de usar otro almacén.
 
 ### L8 — Maestros y documentos (D24–D25, D28)
 
