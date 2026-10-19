@@ -122,6 +122,9 @@ pub struct InventarioLineaRequest {
 pub struct RegistrarInventarioRequest {
     #[validate(length(min = 1, message = "El inventario requiere al menos un artículo"))]
     pub articulos: Vec<InventarioLineaRequest>,
+    /// Almacén BDP del conteo. Ausente o "0" usa el almacén por defecto.
+    #[serde(default)]
+    pub warehouse_id: Option<String>,
 }
 
 /* [208A-2/C3] Persistencia local del conteo de inventario (D3/D4). */

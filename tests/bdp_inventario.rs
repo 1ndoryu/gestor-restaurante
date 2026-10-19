@@ -100,6 +100,7 @@ async fn inventario_encola_lote_y_omite_locales_puros(pool: PgPool) {
                 unidades_contadas: Decimal::from_str("7").unwrap(),
             },
         ],
+        warehouse_id: None,
     };
 
     let result = registrar_inventario(State(state), auth, Json(req)).await;
@@ -141,6 +142,7 @@ async fn inventario_sin_codigos_bdp_devuelve_validacion(pool: PgPool) {
             articulo_glory_codigo: "ART-2".to_string(),
             unidades_contadas: Decimal::from_str("7").unwrap(),
         }],
+        warehouse_id: None,
     };
     let result = registrar_inventario(State(state), auth, Json(req)).await;
     match result {
@@ -162,7 +164,10 @@ async fn inventario_lote_vacio_devuelve_validacion(pool: PgPool) {
         impersonator: None,
         trabajador_id: None,
     };
-    let req = RegistrarInventarioRequest { articulos: vec![] };
+    let req = RegistrarInventarioRequest {
+        articulos: vec![],
+        warehouse_id: None,
+    };
     let result = registrar_inventario(State(state), auth, Json(req)).await;
     match result {
         Err(AppError::Validation(msg)) => {

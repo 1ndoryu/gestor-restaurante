@@ -173,9 +173,10 @@ fn payload_inventario_serializa_lote_pascal_case() {
             units: Decimal::from_str("0").unwrap(),
         },
     ];
-    let payload = payload_inventario(&config, lineas).unwrap();
+    let payload = payload_inventario(&config, 3, lineas).unwrap();
     assert_eq!(payload["CodReg"], 2);
-    assert_eq!(payload["Store"], 1);
+    /* El almacén es el del conteo (3), no el por defecto de la configuración (1). */
+    assert_eq!(payload["Store"], 3);
     assert!(payload["DateReg"].as_str().is_some());
     let articulos = payload["ArticlesList"].as_array().unwrap();
     assert_eq!(articulos.len(), 2);

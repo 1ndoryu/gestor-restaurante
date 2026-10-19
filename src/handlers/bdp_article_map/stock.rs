@@ -179,12 +179,15 @@ pub async fn registrar_inventario(
 
     let omitidos = req.articulos.len() - lineas.len();
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
-    let payload = payload_inventario(&config, lineas).map_err(AppError::Internal)?;
+    let almacen = almacen_bdp(req.warehouse_id.as_deref(), config.bdp_almacen_default)?;
+    let payload = payload_inventario(&config, almacen, lineas).map_err(AppError::Internal)?;
+    /* La cola de conteos se agrupa por almacén: un conteo de otro almacén no
+     * debe reemplazar el pendiente del almacén por defecto. */
     BdpPushService::encolar(
         &state.pool,
         auth.user_id,
         crate::services::bdp_push::DOMINIO_STOCK,
-        "conteo",
+        &format!("conteo:{almacen}"),
         crate::services::bdp_push::OPERACION_INVENTARIO,
         &payload,
     )
@@ -283,12 +286,14 @@ pub async fn crear_conteo_inventario(
     let mut encolados = 0usize;
     if !lotes.is_empty() {
         let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
-        let payload = payload_inventario(&config, lotes).map_err(AppError::Internal)?;
+        /* Los conteos guardados se aplican al almacén local "0": van al almacén por defecto. */
+        let almacen = config.bdp_almacen_default;
+        let payload = payload_inventario(&config, almacen, lotes).map_err(AppError::Internal)?;
         BdpPushService::encolar(
             &state.pool,
             auth.user_id,
             crate::services::bdp_push::DOMINIO_STOCK,
-            "conteo",
+            &format!("conteo:{almacen}"),
             crate::services::bdp_push::OPERACION_INVENTARIO,
             &payload,
         )

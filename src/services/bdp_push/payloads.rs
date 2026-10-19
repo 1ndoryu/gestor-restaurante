@@ -48,13 +48,15 @@ pub fn payload_crear_articulo(
 
 /// Construye el payload de `stock/inventario` (conteo físico por lotes, D6).
 /// `articulos` son las líneas ya resueltas a código BDP + unidades contadas.
+/// `almacen` es el almacén BDP del conteo (no el por defecto de la configuración).
 pub fn payload_inventario(
     config: &ConfiguracionRestaurante,
+    almacen: i32,
     articulos: Vec<BdpStockInfoEntry>,
 ) -> Result<Value, String> {
     let req = BdpMassiveStockRequest {
         cod_reg: config.bdp_codreg_default,
-        store: config.bdp_almacen_default,
+        store: almacen,
         date_reg: fecha_hoy(),
         articles_list: articulos,
     };
