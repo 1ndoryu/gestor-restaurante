@@ -6,9 +6,12 @@
 
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Loader2, Warehouse } from 'lucide-react';
 import { toast } from 'sonner';
 import { BdpImportExportButtons } from '@/components/bdp-import-export-buttons';
 import { BdpRequiredSetting } from '@/components/bdp-required-setting';
+import { TooltipButton } from '@/components/ui/tooltip-button';
+import { useSyncBdpStockAlmacen } from '@/api/bdp';
 import { useSyncCatalog, useSyncPrices } from '@/api/generated/bdp-mapeos/bdp-mapeos';
 import { useBdpReadProfiles } from '@/hooks/useBdpReadProfiles';
 import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
@@ -63,6 +66,19 @@ export function BdpArticleCatalogActions() {
   });
   const importando = catalogMutation.isPending || pricesMutation.isPending;
 
+  /* [D26b] Stock real por almacén: lectura aparte de «Importar del BDP», que
+   * solo trae el agregado. */
+  const stockMutation = useSyncBdpStockAlmacen(queryClient);
+  function refrescarStock() {
+    stockMutation.mutate(undefined, {
+      onSuccess: (resultado) => toast.success(
+        `Stock por almacén: ${resultado.actualizados} actualizados, ${resultado.sin_cambios} sin cambios`
+        + (resultado.errores > 0 ? ` — ${resultado.errores} con error` : ''),
+      ),
+      onError: () => toast.error('No se pudo leer el stock por almacén del BDP'),
+    });
+  }
+
   /* [159A-2/F2] Importar = catálogo y luego precios, con un solo botón.
    * Solo lectura BDP; las ediciones locales de mapeos se omiten (backend). */
   function importar() {
@@ -94,6 +110,22 @@ export function BdpArticleCatalogActions() {
         exportarTooltip={modoEfectivoBdp ? 'Envía al BDP los cambios locales de artículos pendientes en la cola.' : 'Requiere BDP conectado (modo BDP).'}
         exportarDeshabilitado={!modoEfectivoBdp}
         invalidarTrasExportar={[['/api/bdp/article-maps']]}
+        accionExtra={(
+          /* [D26b] El stock por almacén es una lectura aparte (GetListStock) y
+           * no la dispara «Importar del BDP», que trae el agregado. */
+          <TooltipButton
+            variant="outline"
+            size="sm"
+            onClick={refrescarStock}
+            disabled={stockMutation.isPending || !modoEfectivoBdp}
+            tooltip={modoEfectivoBdp
+              ? 'Lee de BDP el stock real de cada almacén y actualiza la tabla local. Solo lectura BDP.'
+              : 'Requiere BDP conectado (modo BDP).'}
+          >
+            {stockMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Warehouse className="size-3.5" />}
+            Stock por almacén
+          </TooltipButton>
+        )}
       />
       {requiresConfiguration && (
         <BdpRequiredSetting

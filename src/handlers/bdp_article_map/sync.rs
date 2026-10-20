@@ -61,6 +61,70 @@ pub async fn sync_catalog(
     Ok(Json(result))
 }
 
+/* [D26b] Cuerpo de sync-stock-almacen: almacén BDP a consultar. Si falta o es
+ * 0, el handler usa `config.bdp_almacen_default`. */
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct SyncStockAlmacenRequest {
+    #[serde(default)]
+    pub almacen: Option<i32>,
+}
+
+/* [D26b] sync-stock-almacen — rellena `bdp_article_stock` con el stock REAL por
+ * almacén (GetListStock). Hasta ahora solo se guardaba el stock agregado de
+ * ExportArticles en el almacén "0"/"General"; este endpoint es el llamador de
+ * producción que faltaba. */
+#[utoipa::path(
+    post,
+    path = "/api/bdp/article-maps/sync-stock-almacen",
+    tag = "BDP Mapeos",
+    request_body = SyncStockAlmacenRequest,
+    responses(
+        (status = 200, description = "Stock por almacén sincronizado", body = BdpCatalogSyncResult),
+        (status = 400, description = "BDP no configurado", body = ErrorResponse),
+        (status = 401, description = "No autorizado", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn sync_stock_almacen(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    /* [D26b] Cuerpo opcional: sin cuerpo, `{}` o `almacen` 0 se usa el defecto. */
+    cuerpo: Option<Json<SyncStockAlmacenRequest>>,
+) -> Result<Json<BdpCatalogSyncResult>, AppError> {
+    /* [149A-3/F4-B] Escribe stock local por almacén: mismo permiso de edición
+     * de catálogo que el resto de syncs. */
+    verificar_permiso(&state.pool, AccionPermiso::CatalogoEdicion, &auth).await?;
+    exigir_modo_bdp(&state, auth.user_id).await?;
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+
+    if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
+        return Err(AppError::Validation(
+            "BDP no está configurado. Configura URL y credenciales primero.".into(),
+        ));
+    }
+
+    /* [D26b] Sin almacén explícito (o 0) se usa el almacén por defecto. */
+    let almacen = cuerpo
+        .and_then(|Json(req)| req.almacen)
+        .filter(|a| *a != 0)
+        .unwrap_or(config.bdp_almacen_default);
+
+    let client = BdpWeblinkClient::new(&config);
+
+    /* Login — la sesión la necesita el ciclo de vida del token BDP. */
+    let _session = client
+        .login()
+        .await
+        .map_err(|e| AppError::Internal(format!("Error login BDP: {e}")))?;
+
+    let result =
+        BdpSyncService::refrescar_stock_almacen(&client, &state.pool, auth.user_id, almacen)
+            .await
+            .map_err(AppError::Internal)?;
+
+    Ok(Json(result))
+}
+
 /* [157A-9] F9.3: Sincroniza precios de artículos mapeados desde BDP.
  * Consulta GetPricesArticles para cada artículo y actualiza precio_tarifa1. */
 #[utoipa::path(

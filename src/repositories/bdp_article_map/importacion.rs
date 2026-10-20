@@ -91,8 +91,17 @@ impl BdpArticleMapRepository {
         .execute(pool)
         .await?;
 
-        /* [247A-10/S2] Propagar stock agregado al almacén por defecto. */
-        if let Err(e) = Self::upsert_stock(pool, user_id, data.bdp_code, data.stock_actual).await {
+        /* [247A-10/S2] Propagar stock agregado al almacén por defecto "0"/"General". */
+        if let Err(e) = Self::upsert_stock(
+            pool,
+            user_id,
+            data.bdp_code,
+            "0",
+            "General",
+            data.stock_actual,
+        )
+        .await
+        {
             warn!(
                 "[247A-10/S2] Error propagando stock del artículo {} a bdp_article_stock: {e}",
                 data.bdp_code

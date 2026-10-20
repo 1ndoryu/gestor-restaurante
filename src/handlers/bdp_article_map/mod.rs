@@ -4,6 +4,7 @@
  * POST   /api/bdp/article-stock/ajustar      — ajuste manual de stock local (F3)
  * POST   /api/bdp/article-maps/import-catalog — importar catálogo desde BDP
  * POST   /api/bdp/article-maps/sync-catalog   — sync enriquecida F9.1
+ * POST   /api/bdp/article-maps/sync-stock-almacen — stock real por almacén (D26b)
  * POST   /api/bdp/article-maps/sync-prices    — refresh precios F9.3
  * PATCH  /api/bdp/article-maps/:id          — actualizar parcialmente
  * DELETE /api/bdp/article-maps/:id          — eliminar un mapeo
@@ -107,6 +108,11 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/bdp/article-maps/sync-catalog",
             axum::routing::post(sync_catalog),
+        )
+        /* [D26b] Stock real por almacén (GetListStock). */
+        .route(
+            "/bdp/article-maps/sync-stock-almacen",
+            axum::routing::post(sync_stock_almacen),
         )
         /* [157A-9] F9.3-F9.5: endpoints de precios, mesas, menús */
         .route(

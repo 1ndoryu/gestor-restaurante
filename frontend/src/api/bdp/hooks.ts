@@ -10,7 +10,7 @@ import { ajustarBdpArticleStock, crearBdpClasificacion, fetchBdpArticleMaps, fet
 import { crearConteoInventario, listarConteosInventario, registrarInventario } from './requests-inventario';
 import { actualizarBdpPurchaseNote, crearBdpPurchaseNote, draftBdpPurchaseNote, eliminarBdpPurchaseNote, fetchBdpPurchaseNotes, reconcileBdpPurchaseNote, syncBdpPurchaseNotes } from './requests-albaranes';
 import { actualizarBdpMenuLocal, crearBdpMenuLocal, eliminarBdpMenuLocal, fetchBdpMenuLocal, fetchBdpMenusLocales } from './requests-menus';
-import { flushBdpPush, listarPushFilas, reintentarPushFila } from './requests-sincronizacion';
+import { flushBdpPush, listarPushFilas, reintentarPushFila, sincronizarStockAlmacen } from './requests-sincronizacion';
 
 /** Query hook: obtener estado BDP de una venta individual. */
 export function useBdpStatus(ventaId: string | null, enabled = true) {
@@ -148,6 +148,15 @@ export function useRetryBdpSync(queryClient?: QueryClient) {
       return result;
     },
   };
+}
+
+/** [D26b] Sync del stock real por almacén (`GetListStock`). Invalida el stock
+ *  mapeado para que la tabla lo relea. */
+export function useSyncBdpStockAlmacen(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: (almacen?: number) => sincronizarStockAlmacen(almacen),
+    onSuccess: () => queryClient?.invalidateQueries({ queryKey: ['bdp-article-stock'] }),
+  });
 }
 
 /** Query hook: listar menús/packs locales. */

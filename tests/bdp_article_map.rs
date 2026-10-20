@@ -882,6 +882,55 @@ async fn test_upsert_stock_actualiza_stock_existente(pool: PgPool) {
     assert_eq!(stock[0].stock, Decimal::new(75, 2));
 }
 
+/* [D26b] El almacén lo elige quien llama: una escritura en el almacén "1" no
+ * toca la fila del almacén por defecto "0" del mismo artículo. */
+#[sqlx::test(migrations = "./migrations")]
+async fn test_upsert_stock_escribe_almacen_indicado(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+
+    /* Fila del almacén por defecto "0". */
+    BdpArticleMapRepository::upsert_stock(
+        &pool,
+        user_id,
+        "ALM01",
+        "0",
+        "General",
+        Decimal::new(10, 0),
+    )
+    .await
+    .unwrap();
+
+    /* Mismo artículo en el almacén 1: fila nueva, distinta de la de "0". */
+    let insertado = BdpArticleMapRepository::upsert_stock(
+        &pool,
+        user_id,
+        "ALM01",
+        "1",
+        "Almacén 1",
+        Decimal::new(25, 0),
+    )
+    .await
+    .unwrap();
+    assert!(insertado, "la fila nueva del almacén 1 debe insertarse");
+
+    let general = BdpArticleMapRepository::listar_stock(&pool, user_id, Some("0"))
+        .await
+        .unwrap();
+    assert_eq!(general.len(), 1);
+    assert_eq!(
+        general[0].stock,
+        Decimal::new(10, 0),
+        "el almacén 0 no cambia"
+    );
+
+    let almacen1 = BdpArticleMapRepository::listar_stock(&pool, user_id, Some("1"))
+        .await
+        .unwrap();
+    assert_eq!(almacen1.len(), 1);
+    assert_eq!(almacen1[0].warehouse_name, "Almacén 1");
+    assert_eq!(almacen1[0].stock, Decimal::new(25, 0));
+}
+
 /* [128A-1/F3] Stock local editable: ajuste manual con auditoría. */
 
 #[sqlx::test(migrations = "./migrations")]

@@ -34,7 +34,9 @@ impl BdpArticleMapRepository {
         Ok(rows)
     }
 
-    /// Upsert del stock por almacén. Por defecto `warehouse_id` "0" / "General".
+    /// Upsert del stock por almacén. El almacén lo elige quien llama
+    /// (`warehouse_id`/`warehouse_name`): el sync agregado de `ExportArticles`
+    /// pasa "0"/"General" y el stock real por almacén pasa el id del almacén.
     /// [247A-10/S2] Se usa desde `sync_catalog` para guardar el stock agregado
     /// de `ExportArticles` mientras BDP no devuelva desglose por almacén.
     /// [128A-1/F3] No sobrescribe filas ajustadas localmente: el UPDATE se
@@ -44,12 +46,14 @@ impl BdpArticleMapRepository {
         pool: &PgPool,
         user_id: Uuid,
         articulo_glory_codigo: &str,
+        warehouse_id: &str,
+        warehouse_name: &str,
         stock: Decimal,
     ) -> Result<bool, sqlx::Error> {
         let result = sqlx::query(
             "INSERT INTO bdp_article_stock \
                 (id, user_id, articulo_glory_codigo, warehouse_id, warehouse_name, stock, ultima_sync_at, created_at, updated_at) \
-             VALUES ($1, $2, $3, '0', 'General', $4, NOW(), NOW(), NOW()) \
+             VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), NOW()) \
              ON CONFLICT (user_id, articulo_glory_codigo, warehouse_id) DO UPDATE SET \
                 stock = EXCLUDED.stock, \
                 warehouse_name = EXCLUDED.warehouse_name, \
@@ -61,6 +65,8 @@ impl BdpArticleMapRepository {
         .bind(Uuid::new_v4())
         .bind(user_id)
         .bind(articulo_glory_codigo)
+        .bind(warehouse_id)
+        .bind(warehouse_name)
         .bind(stock)
         .execute(pool)
         .await?;

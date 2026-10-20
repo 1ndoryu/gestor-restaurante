@@ -6,6 +6,7 @@
  * No ejecuta nada por sí solo: el padre aporta `onImportar` (lectura) y los
  * `dominiosExportar` (filtro del flush). */
 
+import type { ReactNode } from 'react';
 import { Download, Loader2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
@@ -44,6 +45,9 @@ interface BdpImportExportButtonsProps {
   /** Secciones sin lectura BDP (p. ej. familias: el BDP no las expone) solo
    * muestran Exportar. */
   mostrarImportar?: boolean;
+  /** Acción propia de la sección que va en la misma fila (p. ej. el stock por
+   * almacén del catálogo), para no partir el par en dos filas. */
+  accionExtra?: ReactNode;
 }
 
 export function BdpImportExportButtons({
@@ -56,6 +60,7 @@ export function BdpImportExportButtons({
   exportarDeshabilitado = false,
   invalidarTrasExportar = [],
   mostrarImportar = true,
+  accionExtra,
 }: BdpImportExportButtonsProps) {
   const queryClient = useQueryClient();
   const flushMutation = useFlushBdpPush();
@@ -102,6 +107,7 @@ export function BdpImportExportButtons({
         {flushMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
         Exportar al BDP
       </TooltipButton>
+      {accionExtra}
     </div>
   );
 }
