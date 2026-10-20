@@ -17,7 +17,7 @@ use crate::models::{
     ActualizarConfiguracionRequest, ActualizarIntegracionesRequest, ConfiguracionRestaurante,
     IntegracionMarketingPublica, UserRole,
 };
-use crate::repositories::{BdpWriteArmingRepository, NuevoArmado};
+use crate::repositories::{BdpSyncCursorRepository, BdpWriteArmingRepository, NuevoArmado};
 use crate::services::bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
 use crate::services::{
     alcance_usa_uuid_propio, entidad_uuid, tipo_destino_de_alcance, BdpBackupService,
@@ -700,6 +700,36 @@ pub async fn diagnosticar_bdp(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<BdpDiagnosticoResponse>, AppError> {
+    let response = ejecutar_diagnostico_bdp(&state, &auth).await?;
+    /* [L10/D01] Cada diagnóstico configurado deja su registro en bdp_sync_cursor. */
+    if response.configurado {
+        let error = (!registro_ok(&response)).then_some(response.mensaje.as_str());
+        BdpSyncCursorRepository::registrar_salud(&state.pool, auth.user_id, &posicion_salud(&response), error).await?;
+    }
+    Ok(Json(response))
+}
+
+/* [L10/D01] Éxito = salud, login y versión respondieron. */
+fn registro_ok(response: &BdpDiagnosticoResponse) -> bool {
+    response.health_ok && response.login_ok && response.version.is_some()
+}
+
+fn posicion_salud(response: &BdpDiagnosticoResponse) -> serde_json::Value {
+    serde_json::json!({
+        "health_ok": response.health_ok,
+        "login_ok": response.login_ok,
+        "session_expires_in_seconds": response.session_expires_in_seconds,
+        "version": response.version,
+        "sub_version": response.sub_version,
+        "application": response.application,
+        "comprobado_en": chrono::Utc::now().to_rfc3339(),
+    })
+}
+
+async fn ejecutar_diagnostico_bdp(
+    state: &AppState,
+    auth: &AuthUser,
+) -> Result<BdpDiagnosticoResponse, AppError> {
     /* [149A-3/H-06] El diagnóstico abre sesión real contra el BDP: solo el propietario. */
     auth.require_role(&[UserRole::Admin])?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
@@ -714,7 +744,7 @@ pub async fn diagnosticar_bdp(
     if !configurado {
         let mut response = BdpDiagnosticoResponse::sin_configurar(config.bdp_sync_enabled);
         response.modo_operacion = modo.to_string();
-        return Ok(Json(response));
+        return Ok(response);
     }
 
     let client = BdpWeblinkClient::new(&config);
@@ -726,7 +756,7 @@ pub async fn diagnosticar_bdp(
                 "BDP respondio Health pero IsAlive=false",
             );
             response.modo_operacion = modo.to_string();
-            return Ok(Json(response));
+            return Ok(response);
         }
         Err(error) => {
             let mut response = BdpDiagnosticoResponse::health_error(
@@ -734,7 +764,7 @@ pub async fn diagnosticar_bdp(
                 format!("No se pudo contactar BDP Health: {error}"),
             );
             response.modo_operacion = modo.to_string();
-            return Ok(Json(response));
+            return Ok(response);
         }
     }
 
@@ -746,7 +776,7 @@ pub async fn diagnosticar_bdp(
                 format!("BDP Health OK, Login fallo: {error}"),
             );
             response.modo_operacion = modo.to_string();
-            return Ok(Json(response));
+            return Ok(response);
         }
     };
 
@@ -766,7 +796,7 @@ pub async fn diagnosticar_bdp(
                 version,
             );
             response.modo_operacion = modo.to_string();
-            Ok(Json(response))
+            Ok(response)
         }
         Ok(version) => {
             let mut response = BdpDiagnosticoResponse::version_error(
@@ -778,7 +808,7 @@ pub async fn diagnosticar_bdp(
                 ),
             );
             response.modo_operacion = modo.to_string();
-            Ok(Json(response))
+            Ok(response)
         }
         Err(error) => {
             let mut response = BdpDiagnosticoResponse::version_error(
@@ -787,7 +817,7 @@ pub async fn diagnosticar_bdp(
                 format!("Login OK, GetVersion fallo: {error}"),
             );
             response.modo_operacion = modo.to_string();
-            Ok(Json(response))
+            Ok(response)
         }
     }
 }
