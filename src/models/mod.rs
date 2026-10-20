@@ -102,10 +102,9 @@ pub use resena::{
 mod inactividad;
 pub use bdp_article_map::{
     ActualizarBdpArticleMapRequest, AjustarBdpArticleStockRequest, BdpArticleMap, BdpArticleStock,
-    TraspasoStockRequest,
     BdpConteoInventario, BdpConteoInventarioLinea, ConteoInventarioCreado,
     CrearBdpArticleMapRequest, CrearConteoInventarioRequest, InventarioLineaRequest,
-    RegistrarInventarioRequest,
+    RegistrarInventarioRequest, TraspasoStockRequest,
 };
 pub use bdp_catalogo_clasificacion::{
     BdpCatalogoClasificacion, CrearBdpClasificacionRequest, TIPO_DEPARTAMENTO, TIPO_FAMILIA,

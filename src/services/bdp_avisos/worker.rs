@@ -416,9 +416,15 @@ mod pruebas_intervalo {
     #[test]
     fn segundos_automaticos_usa_por_defecto_y_acepta_cero() {
         assert_eq!(parsear_segundos(None), super::SEGUNDOS_AUTO_POR_DEFECTO);
-        assert_eq!(parsear_segundos(Some("  ")), super::SEGUNDOS_AUTO_POR_DEFECTO);
+        assert_eq!(
+            parsear_segundos(Some("  ")),
+            super::SEGUNDOS_AUTO_POR_DEFECTO
+        );
         assert_eq!(parsear_segundos(Some("0")), 0);
         assert_eq!(parsear_segundos(Some("30")), 30);
-        assert_eq!(parsear_segundos(Some("cinco")), super::SEGUNDOS_AUTO_POR_DEFECTO);
+        assert_eq!(
+            parsear_segundos(Some("cinco")),
+            super::SEGUNDOS_AUTO_POR_DEFECTO
+        );
     }
 }

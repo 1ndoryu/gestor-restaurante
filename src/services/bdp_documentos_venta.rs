@@ -18,7 +18,9 @@ use crate::repositories::{BdpDocumentosVentaRepository, DocumentoVentaLocal};
 use crate::services::bdp_purchase_sync::DIAS_MAX_RANGO;
 use crate::services::bdp_weblink::BdpWeblinkError;
 use crate::services::bdp_weblink_catalog::BdpExportDocumentsRequest;
-use crate::services::{BdpWeblinkClient, ConfiguracionService, ModoEfectivo, ServicioModoOperacion};
+use crate::services::{
+    BdpWeblinkClient, ConfiguracionService, ModoEfectivo, ServicioModoOperacion,
+};
 
 /// Días que se releen del último rango: BDP puede cerrar documentos con retraso.
 const DIAS_SOLAPE: i64 = 1;
@@ -114,7 +116,9 @@ pub async fn sincronizar(
     let hoy = Utc::now().date_naive();
     let (desde, hasta) = ventana(cursor, hoy);
     if cursor.is_some_and(|ultimo| ultimo - Duration::days(DIAS_SOLAPE) < desde) {
-        tracing::warn!("[D28] El cursor es más antiguo que el máximo de BDP: hay un hueco de lectura");
+        tracing::warn!(
+            "[D28] El cursor es más antiguo que el máximo de BDP: hay un hueco de lectura"
+        );
     }
 
     let req = BdpExportDocumentsRequest {
@@ -129,7 +133,8 @@ pub async fn sincronizar(
         Err(error) => {
             let mensaje = error_documentos(&error).to_string();
             // Si el propio registro falla, se prefiere devolver el error original.
-            let _ = BdpDocumentosVentaRepository::registrar_error(pool, user_id, perfil, &mensaje).await;
+            let _ = BdpDocumentosVentaRepository::registrar_error(pool, user_id, perfil, &mensaje)
+                .await;
             return Err(error_documentos(&error));
         }
     };
@@ -184,31 +189,38 @@ pub async fn sincronizar_automatico(
     modo: &ServicioModoOperacion,
     perfil: i32,
 ) -> usize {
-    let usuarios: Vec<Uuid> = match sqlx::query_scalar("SELECT user_id FROM configuracion_restaurante")
-        .fetch_all(pool)
-        .await
-    {
-        Ok(usuarios) => usuarios,
-        Err(error) => {
-            tracing::warn!("[D28] No se pudieron listar cuentas para documentos: {error}");
-            return 0;
-        }
-    };
+    let usuarios: Vec<Uuid> =
+        match sqlx::query_scalar("SELECT user_id FROM configuracion_restaurante")
+            .fetch_all(pool)
+            .await
+        {
+            Ok(usuarios) => usuarios,
+            Err(error) => {
+                tracing::warn!("[D28] No se pudieron listar cuentas para documentos: {error}");
+                return 0;
+            }
+        };
 
     let mut total = 0;
     for user_id in usuarios {
-        if !matches!(modo.modo_efectivo(pool, user_id).await, Ok(ModoEfectivo::Bdp)) {
+        if !matches!(
+            modo.modo_efectivo(pool, user_id).await,
+            Ok(ModoEfectivo::Bdp)
+        ) {
             continue;
         }
         let Ok(config) = ConfiguracionService::obtener(pool, user_id).await else {
             continue;
         };
-        if !config.bdp_sync_enabled || config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
+        if !config.bdp_sync_enabled || config.bdp_base_url.is_empty() || config.bdp_login.is_empty()
+        {
             continue;
         }
         match sincronizar(pool, user_id, &config, perfil, true).await {
             Ok(resultado) => total += resultado.procesados,
-            Err(error) => tracing::warn!("[D28] Lectura automática de documentos fallida: {error:?}"),
+            Err(error) => {
+                tracing::warn!("[D28] Lectura automática de documentos fallida: {error:?}")
+            }
         }
     }
     total
@@ -233,7 +245,10 @@ mod tests {
     #[test]
     fn ventana_con_cursor_solapa_un_dia() {
         let hoy = dia("2026-10-20");
-        assert_eq!(ventana(Some(dia("2026-10-18")), hoy), (dia("2026-10-17"), hoy));
+        assert_eq!(
+            ventana(Some(dia("2026-10-18")), hoy),
+            (dia("2026-10-17"), hoy)
+        );
     }
 
     #[test]

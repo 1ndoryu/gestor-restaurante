@@ -13,7 +13,10 @@ pub struct BdpOperacionesNoApiRepository;
 
 impl BdpOperacionesNoApiRepository {
     /// Asignaciones guardadas del usuario, indexadas por código de operación.
-    pub async fn listar(pool: &PgPool, user_id: Uuid) -> Result<HashMap<String, Asignacion>, sqlx::Error> {
+    pub async fn listar(
+        pool: &PgPool,
+        user_id: Uuid,
+    ) -> Result<HashMap<String, Asignacion>, sqlx::Error> {
         let filas = sqlx::query(
             "SELECT codigo, responsable, procedimiento FROM bdp_operaciones_no_api WHERE user_id = $1",
         )

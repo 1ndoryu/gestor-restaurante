@@ -30,7 +30,11 @@ pub enum Reconciliacion {
 }
 
 /// `saldo_local` incluye el `delta` si la operación ya estaba aplicada en BDP.
-pub fn clasificar_saldo(saldo_bdp: Decimal, saldo_local: Decimal, delta: Decimal) -> Reconciliacion {
+pub fn clasificar_saldo(
+    saldo_bdp: Decimal,
+    saldo_local: Decimal,
+    delta: Decimal,
+) -> Reconciliacion {
     if saldo_bdp == saldo_local {
         Reconciliacion::YaAplicado
     } else if saldo_bdp == saldo_local - delta {
@@ -230,7 +234,10 @@ mod tests {
 
     #[test]
     fn error_message_no_vacio_es_fallo() {
-        assert!(saldo_desde_respuesta(&json!({"Points": 0, "ErrorMessage": "cliente no existe"})).is_err());
+        assert!(
+            saldo_desde_respuesta(&json!({"Points": 0, "ErrorMessage": "cliente no existe"}))
+                .is_err()
+        );
         assert!(saldo_desde_respuesta(&json!({"ErrorMessage": ""})).is_err());
     }
 }

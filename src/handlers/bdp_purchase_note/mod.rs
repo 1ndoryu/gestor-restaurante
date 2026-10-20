@@ -17,9 +17,7 @@ use crate::models::{
 use crate::repositories::{AuditoriaCicloLocal, BdpPurchaseNoteRepository};
 use crate::services::bdp_purchase_sync::importar;
 use crate::services::bdp_weblink_catalog::BdpExportPurchaseNotesRequest;
-use crate::services::{
-    verificar_permiso, AccionPermiso, ConfiguracionService, ModoEfectivo,
-};
+use crate::services::{verificar_permiso, AccionPermiso, ConfiguracionService, ModoEfectivo};
 use crate::AppState;
 use uuid::Uuid;
 
@@ -523,7 +521,9 @@ mod tests {
             total_albaran: None,
             extra: serde_json::json!({ "DocumentNumber": "X" }),
         };
-        assert!(!crate::services::bdp_purchase_sync::albaran_tiene_clave(&note));
+        assert!(!crate::services::bdp_purchase_sync::albaran_tiene_clave(
+            &note
+        ));
     }
 
     #[test]
@@ -537,7 +537,9 @@ mod tests {
             total_albaran: None,
             extra: serde_json::json!({}),
         };
-        assert!(crate::services::bdp_purchase_sync::albaran_tiene_clave(&note));
+        assert!(crate::services::bdp_purchase_sync::albaran_tiene_clave(
+            &note
+        ));
     }
 
     #[test]
@@ -551,6 +553,8 @@ mod tests {
             total_albaran: None,
             extra: serde_json::json!({}),
         };
-        assert!(!crate::services::bdp_purchase_sync::albaran_tiene_clave(&note));
+        assert!(!crate::services::bdp_purchase_sync::albaran_tiene_clave(
+            &note
+        ));
     }
 }

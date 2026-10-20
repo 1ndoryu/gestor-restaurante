@@ -38,9 +38,8 @@ use crate::middleware::{respuesta_cacheable, AuthUser, VisibilidadCache};
 use crate::models::UserRole;
 use crate::models::{
     ActualizarBdpArticleMapRequest, AjustarBdpArticleStockRequest, BdpArticleMap, BdpArticleStock,
-    TraspasoStockRequest,
     BdpConteoInventario, ConteoInventarioCreado, CrearBdpArticleMapRequest,
-    CrearConteoInventarioRequest, RegistrarInventarioRequest,
+    CrearConteoInventarioRequest, RegistrarInventarioRequest, TraspasoStockRequest,
 };
 use crate::repositories::{AjusteStockError, BdpArticleMapRepository};
 use crate::services::bdp_weblink_catalog::{

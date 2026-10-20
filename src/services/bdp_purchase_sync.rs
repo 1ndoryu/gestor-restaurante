@@ -14,7 +14,9 @@ use crate::services::bdp_weblink::BdpWeblinkError;
 use crate::services::bdp_weblink_catalog::{
     BdpExportPurchaseNotesRequest, BdpExportPurchaseNotesResponse, BdpPurchaseNoteData,
 };
-use crate::services::{BdpWeblinkClient, ConfiguracionService, ModoEfectivo, ServicioModoOperacion};
+use crate::services::{
+    BdpWeblinkClient, ConfiguracionService, ModoEfectivo, ServicioModoOperacion,
+};
 
 /// Límite de BDP y del endpoint manual: un rango de 31 días como máximo.
 pub const DIAS_MAX_RANGO: i64 = 31;
@@ -75,22 +77,26 @@ pub async fn sincronizar_automatico(
     modo: &ServicioModoOperacion,
     dias: i64,
 ) -> usize {
-    let usuarios: Vec<Uuid> = match sqlx::query_scalar("SELECT user_id FROM configuracion_restaurante")
-        .fetch_all(pool)
-        .await
-    {
-        Ok(usuarios) => usuarios,
-        Err(error) => {
-            tracing::warn!("[D28a] No se pudieron listar cuentas para albaranes: {error}");
-            return 0;
-        }
-    };
+    let usuarios: Vec<Uuid> =
+        match sqlx::query_scalar("SELECT user_id FROM configuracion_restaurante")
+            .fetch_all(pool)
+            .await
+        {
+            Ok(usuarios) => usuarios,
+            Err(error) => {
+                tracing::warn!("[D28a] No se pudieron listar cuentas para albaranes: {error}");
+                return 0;
+            }
+        };
 
     let hoy = Utc::now().date_naive();
     let (desde, hasta) = ventana_automatica(hoy, dias);
     let mut total = 0;
     for user_id in usuarios {
-        if !matches!(modo.modo_efectivo(pool, user_id).await, Ok(ModoEfectivo::Bdp)) {
+        if !matches!(
+            modo.modo_efectivo(pool, user_id).await,
+            Ok(ModoEfectivo::Bdp)
+        ) {
             continue;
         }
         let Ok(config) = ConfiguracionService::obtener(pool, user_id).await else {
@@ -119,7 +125,10 @@ pub async fn sincronizar_automatico(
 pub fn ventana_automatica(hoy: NaiveDate, dias: i64) -> (String, String) {
     let dias = dias.clamp(1, DIAS_MAX_RANGO);
     let desde = hoy - Duration::days(dias);
-    (desde.format("%Y-%m-%d").to_string(), hoy.format("%Y-%m-%d").to_string())
+    (
+        desde.format("%Y-%m-%d").to_string(),
+        hoy.format("%Y-%m-%d").to_string(),
+    )
 }
 
 /// Petición a BDP para el rango automático: sin filtro de proveedor, como el endpoint manual.

@@ -39,7 +39,9 @@ async fn assert_solo_lectura(server: &MockServer) -> usize {
         let ruta = peticion.url.path();
         let ultimo = ruta.rsplit('/').next().unwrap_or_default();
         assert!(
-            ruta == "/Auth/Login" || ruta == "/API/ExportProfiles/Documents" || ultimo.starts_with("Get"),
+            ruta == "/Auth/Login"
+                || ruta == "/API/ExportProfiles/Documents"
+                || ultimo.starts_with("Get"),
             "ruta no permitida en lectura: {ruta}"
         );
     }
@@ -52,7 +54,10 @@ async fn get_tenders_solo_usa_ruta_de_lectura() {
     let config = config(server.uri());
     let client = BdpWeblinkClient::new(&config);
 
-    client.get_tenders().await.expect("get_tenders debe responder");
+    client
+        .get_tenders()
+        .await
+        .expect("get_tenders debe responder");
 
     assert!(assert_solo_lectura(&server).await >= 2);
 }
@@ -112,7 +117,10 @@ async fn get_employees_solo_usa_ruta_de_lectura() {
         only_salespeople: None,
     };
 
-    client.get_employees(&request).await.expect("get_employees debe responder");
+    client
+        .get_employees(&request)
+        .await
+        .expect("get_employees debe responder");
 
     assert!(assert_solo_lectura(&server).await >= 2);
 }

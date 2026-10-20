@@ -351,9 +351,15 @@ mod tests_puntos {
         BdpPushService::acumular_puntos(&pool, user_id, "cli-1", Decimal::ONE, &payload)
             .await
             .unwrap();
-        BdpPushService::acumular_puntos(&pool, user_id, "cli-1", Decimal::from(2), &json!({ "PointsAdded": "2", "Reason": "venta 2" }))
-            .await
-            .unwrap();
+        BdpPushService::acumular_puntos(
+            &pool,
+            user_id,
+            "cli-1",
+            Decimal::from(2),
+            &json!({ "PointsAdded": "2", "Reason": "venta 2" }),
+        )
+        .await
+        .unwrap();
 
         let (puntos, estado) = fila_puntos(&pool, user_id).await;
         assert_eq!(Decimal::from_str_exact(&puntos).unwrap(), Decimal::from(3));
@@ -364,12 +370,24 @@ mod tests_puntos {
     #[sqlx::test(migrations = "./migrations")]
     async fn acumular_puntos_neto_cero_descarta_la_fila(pool: PgPool) {
         let user_id = Uuid::new_v4();
-        BdpPushService::acumular_puntos(&pool, user_id, "cli-1", Decimal::from(2), &json!({ "PointsAdded": "2" }))
-            .await
-            .unwrap();
-        BdpPushService::acumular_puntos(&pool, user_id, "cli-1", Decimal::from(-2), &json!({ "PointsAdded": "-2" }))
-            .await
-            .unwrap();
+        BdpPushService::acumular_puntos(
+            &pool,
+            user_id,
+            "cli-1",
+            Decimal::from(2),
+            &json!({ "PointsAdded": "2" }),
+        )
+        .await
+        .unwrap();
+        BdpPushService::acumular_puntos(
+            &pool,
+            user_id,
+            "cli-1",
+            Decimal::from(-2),
+            &json!({ "PointsAdded": "-2" }),
+        )
+        .await
+        .unwrap();
 
         let (_, estado) = fila_puntos(&pool, user_id).await;
         assert_eq!(estado, ESTADO_DESCARTADO);

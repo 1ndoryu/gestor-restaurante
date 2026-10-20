@@ -146,7 +146,9 @@ pub async fn traspasar_stock(
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     if req.unidades <= Decimal::ZERO {
-        return Err(AppError::Validation("unidades debe ser mayor que cero".into()));
+        return Err(AppError::Validation(
+            "unidades debe ser mayor que cero".into(),
+        ));
     }
     if req.almacen_origen == req.almacen_destino {
         return Err(AppError::Validation(
@@ -169,7 +171,9 @@ pub async fn traspasar_stock(
         )));
     }
     let bdp_code = map.articulo_bdp_codigo.trim().parse::<i64>().map_err(|_| {
-        AppError::Validation("El artículo no tiene código BDP numérico: no se puede traspasar".into())
+        AppError::Validation(
+            "El artículo no tiene código BDP numérico: no se puede traspasar".into(),
+        )
     })?;
 
     let payload = crate::services::bdp_push::payload_traspaso(
@@ -198,7 +202,9 @@ pub async fn traspasar_stock(
     .await
     .map_err(AppError::Internal)?;
 
-    Ok(Json(serde_json::json!({ "encolado": true, "entidad": entidad })))
+    Ok(Json(
+        serde_json::json!({ "encolado": true, "entidad": entidad }),
+    ))
 }
 
 /* Almacén BDP de un ajuste. "0" (General, el valor local sin desglose) o ausente

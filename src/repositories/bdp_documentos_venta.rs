@@ -140,23 +140,43 @@ mod tests {
     #[sqlx::test(migrations = "./migrations")]
     async fn guardar_lote_es_idempotente_y_avanza_cursor(pool: PgPool) {
         let user_id = Uuid::new_v4();
-        assert_eq!(BdpDocumentosVentaRepository::leer_cursor(&pool, user_id, 3).await.unwrap(), None);
+        assert_eq!(
+            BdpDocumentosVentaRepository::leer_cursor(&pool, user_id, 3)
+                .await
+                .unwrap(),
+            None
+        );
 
-        BdpDocumentosVentaRepository::guardar_lote(&pool, user_id, 3, &lote(&["1", "2"]), dia("2026-10-19"))
-            .await
-            .unwrap();
-        BdpDocumentosVentaRepository::guardar_lote(&pool, user_id, 3, &lote(&["2", "3"]), dia("2026-10-20"))
-            .await
-            .unwrap();
+        BdpDocumentosVentaRepository::guardar_lote(
+            &pool,
+            user_id,
+            3,
+            &lote(&["1", "2"]),
+            dia("2026-10-19"),
+        )
+        .await
+        .unwrap();
+        BdpDocumentosVentaRepository::guardar_lote(
+            &pool,
+            user_id,
+            3,
+            &lote(&["2", "3"]),
+            dia("2026-10-20"),
+        )
+        .await
+        .unwrap();
 
-        let filas: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bdp_documentos_venta WHERE user_id = $1")
-            .bind(user_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+        let filas: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM bdp_documentos_venta WHERE user_id = $1")
+                .bind(user_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(filas, 3);
         assert_eq!(
-            BdpDocumentosVentaRepository::leer_cursor(&pool, user_id, 3).await.unwrap(),
+            BdpDocumentosVentaRepository::leer_cursor(&pool, user_id, 3)
+                .await
+                .unwrap(),
             Some(dia("2026-10-20"))
         );
     }
@@ -173,7 +193,9 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            BdpDocumentosVentaRepository::leer_cursor(&pool, user_id, 3).await.unwrap(),
+            BdpDocumentosVentaRepository::leer_cursor(&pool, user_id, 3)
+                .await
+                .unwrap(),
             Some(dia("2026-10-19"))
         );
         let error: Option<String> = sqlx::query_scalar(
@@ -193,6 +215,11 @@ mod tests {
         BdpDocumentosVentaRepository::guardar_lote(&pool, user_id, 3, &[], dia("2026-10-19"))
             .await
             .unwrap();
-        assert_eq!(BdpDocumentosVentaRepository::leer_cursor(&pool, user_id, 4).await.unwrap(), None);
+        assert_eq!(
+            BdpDocumentosVentaRepository::leer_cursor(&pool, user_id, 4)
+                .await
+                .unwrap(),
+            None
+        );
     }
 }

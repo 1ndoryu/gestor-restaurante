@@ -60,7 +60,9 @@ pub fn validar(responsable: &str, procedimiento: &str) -> Result<Asignacion, Str
         return Err(format!("responsable: máximo {MAX_RESPONSABLE} caracteres"));
     }
     if procedimiento.chars().count() > MAX_PROCEDIMIENTO {
-        return Err(format!("procedimiento: máximo {MAX_PROCEDIMIENTO} caracteres"));
+        return Err(format!(
+            "procedimiento: máximo {MAX_PROCEDIMIENTO} caracteres"
+        ));
     }
     Ok(Asignacion {
         responsable: responsable.to_string(),
@@ -82,13 +84,21 @@ pub fn resolver(
 ) -> OperacionNoApi {
     let asignado = asignacion.map(|a| a.responsable.trim()).unwrap_or("");
     let global = responsable_global.trim();
-    let responsable = if !asignado.is_empty() { asignado } else { global };
+    let responsable = if !asignado.is_empty() {
+        asignado
+    } else {
+        global
+    };
     let procedimiento = asignacion
         .map(|a| a.procedimiento.trim())
         .filter(|p| !p.is_empty())
         .unwrap_or(PROCEDIMIENTO_POR_DEFECTO);
     let pendiente = responsable.is_empty();
-    let responsable_mostrado = if pendiente { RESPONSABLE_PENDIENTE } else { responsable };
+    let responsable_mostrado = if pendiente {
+        RESPONSABLE_PENDIENTE
+    } else {
+        responsable
+    };
     OperacionNoApi {
         codigo: codigo.to_string(),
         operacion: operacion.to_string(),
@@ -103,11 +113,19 @@ pub fn resolver(
 }
 
 /// Lista completa de operaciones no expuestas, con sus asignaciones aplicadas.
-pub fn listar(responsable_global: &str, asignaciones: &HashMap<String, Asignacion>) -> Vec<OperacionNoApi> {
+pub fn listar(
+    responsable_global: &str,
+    asignaciones: &HashMap<String, Asignacion>,
+) -> Vec<OperacionNoApi> {
     OPERACIONES_NO_API
         .iter()
         .map(|(codigo, operacion)| {
-            resolver(codigo, operacion, responsable_global, asignaciones.get(*codigo))
+            resolver(
+                codigo,
+                operacion,
+                responsable_global,
+                asignaciones.get(*codigo),
+            )
         })
         .collect()
 }
@@ -125,7 +143,10 @@ mod tests {
 
     #[test]
     fn responsable_de_la_operacion_gana_al_global() {
-        let asignacion = Asignacion { responsable: "Ana García".into(), procedimiento: String::new() };
+        let asignacion = Asignacion {
+            responsable: "Ana García".into(),
+            procedimiento: String::new(),
+        };
         let op = resolver("arqueo", "Arqueo", "Luis", Some(&asignacion));
         assert!(!op.responsable_pendiente);
         assert_eq!(op.responsable, "Ana García");
@@ -141,7 +162,10 @@ mod tests {
 
     #[test]
     fn procedimiento_configurado_sustituye_al_por_defecto() {
-        let asignacion = Asignacion { responsable: String::new(), procedimiento: "Pedir a Guillermo en TpvNet".into() };
+        let asignacion = Asignacion {
+            responsable: String::new(),
+            procedimiento: "Pedir a Guillermo en TpvNet".into(),
+        };
         let op = resolver("devoluciones", "Devoluciones", "", Some(&asignacion));
         assert!(op.mensaje.contains("Pedir a Guillermo en TpvNet"));
         assert!(op.responsable_pendiente);
@@ -150,10 +174,19 @@ mod tests {
     #[test]
     fn listar_cubre_las_doce_operaciones_con_su_asignacion() {
         let mut mapa = HashMap::new();
-        mapa.insert("arqueo".to_string(), Asignacion { responsable: "Ana".into(), procedimiento: String::new() });
+        mapa.insert(
+            "arqueo".to_string(),
+            Asignacion {
+                responsable: "Ana".into(),
+                procedimiento: String::new(),
+            },
+        );
         let lista = listar("", &mapa);
         assert_eq!(lista.len(), 12);
-        assert_eq!(lista.iter().filter(|op| !op.responsable_pendiente).count(), 1);
+        assert_eq!(
+            lista.iter().filter(|op| !op.responsable_pendiente).count(),
+            1
+        );
     }
 
     #[test]

@@ -193,7 +193,10 @@ fn only_check_con_pago_replica_payload_real() {
     let order = build_only_check_order_con_pago(&config, &article, 1);
 
     assert_eq!(order.order_operation_type, 1, "OnlyCheck: no crea nada");
-    assert_eq!(order.order_end_type, config.bdp_order_end_type, "EndType configurable");
+    assert_eq!(
+        order.order_end_type, config.bdp_order_end_type,
+        "EndType configurable"
+    );
     assert_eq!(order.invoice, Some(true));
     let payments = order
         .order

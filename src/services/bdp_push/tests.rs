@@ -244,14 +244,8 @@ mod traspaso_tests {
 
     #[test]
     fn payload_traspaso_usa_claves_bdp() {
-        let payload = payload_traspaso(
-            90000003,
-            Decimal::from_str("2.5").unwrap(),
-            7,
-            1,
-            2,
-        )
-        .unwrap();
+        let payload =
+            payload_traspaso(90000003, Decimal::from_str("2.5").unwrap(), 7, 1, 2).unwrap();
         assert_eq!(payload["Article"], 90000003);
         assert_eq!(payload["CodTransfer"], 7);
         assert_eq!(payload["StoreFrom"], 1);
@@ -272,13 +266,9 @@ mod regularizacion_tests {
     #[test]
     fn payload_regularizacion_conserva_signo_y_almacen() {
         let config = ConfiguracionRestaurante::default();
-        let payload = payload_regularizacion(
-            &config,
-            90000003,
-            Decimal::from_str("-2.5").unwrap(),
-            2,
-        )
-        .unwrap();
+        let payload =
+            payload_regularizacion(&config, 90000003, Decimal::from_str("-2.5").unwrap(), 2)
+                .unwrap();
         assert_eq!(payload["Article"], 90000003);
         assert_eq!(payload["Store"], 2);
         assert!(payload.get("Units").is_some());

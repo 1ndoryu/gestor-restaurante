@@ -53,14 +53,18 @@ impl BdpSyncService {
         key: Option<&str>,
         datos: &Value,
     ) -> Result<(), String> {
-        let key = key.ok_or("Pago bloqueado: intento ambiguo sin clave de idempotencia; no se puede reconciliar")?;
+        let key = key.ok_or(
+            "Pago bloqueado: intento ambiguo sin clave de idempotencia; no se puede reconciliar",
+        )?;
         let intento = IntentoPago {
             order_id: datos
                 .get("order_id")
                 .and_then(Value::as_i64)
                 .ok_or("Pago bloqueado: intento ambiguo sin order_id")?,
             amount: Self::parse_remote_money(
-                datos.get("amount").ok_or("Pago bloqueado: intento ambiguo sin amount")?,
+                datos
+                    .get("amount")
+                    .ok_or("Pago bloqueado: intento ambiguo sin amount")?,
                 "amount",
             )?,
             tender_id: datos
@@ -80,7 +84,9 @@ impl BdpSyncService {
                 order_identifier: BdpOrderIdentifier::by_order_id(intento.order_id),
             })
             .await
-            .map_err(|e| format!("Pago bloqueado: no se pudo consultar la orden para reconciliar: {e}"))?;
+            .map_err(|e| {
+                format!("Pago bloqueado: no se pudo consultar la orden para reconciliar: {e}")
+            })?;
         let payments = remota
             .get("Order")
             .and_then(|orden| orden.get("Payments"))
@@ -95,11 +101,20 @@ impl BdpSyncService {
                     "PaymentId": payment_id,
                     "Amount": intento.amount.to_string(),
                 });
-                Self::confirmar_pago(pool, venta, audit_id, &intento, &payment_id, Some(key), &respuesta)
-                    .await
+                Self::confirmar_pago(
+                    pool,
+                    venta,
+                    audit_id,
+                    &intento,
+                    &payment_id,
+                    Some(key),
+                    &respuesta,
+                )
+                .await
             }
             DecisionPago::NoAplicado => {
-                let msg = format!("Reconciliado: BDP no tiene el pago {payment_id}; reintento permitido");
+                let msg =
+                    format!("Reconciliado: BDP no tiene el pago {payment_id}; reintento permitido");
                 crate::services::BdpBackupService::actualizar_resultado(
                     pool,
                     audit_id,
@@ -164,18 +179,27 @@ mod tests_reconciliacion {
     #[test]
     fn mismo_id_y_importe_se_considera_aplicado() {
         let montos = HashMap::from([("P1-k".to_string(), d("3.00"))]);
-        assert_eq!(decidir_reconciliacion(&montos, "P1-k", d("3")), DecisionPago::Aplicado);
+        assert_eq!(
+            decidir_reconciliacion(&montos, "P1-k", d("3")),
+            DecisionPago::Aplicado
+        );
     }
 
     #[test]
     fn id_ausente_no_esta_aplicado() {
         let montos = HashMap::from([("otro".to_string(), d("3"))]);
-        assert_eq!(decidir_reconciliacion(&montos, "P1-k", d("3")), DecisionPago::NoAplicado);
+        assert_eq!(
+            decidir_reconciliacion(&montos, "P1-k", d("3")),
+            DecisionPago::NoAplicado
+        );
     }
 
     #[test]
     fn mismo_id_con_importe_distinto_es_discordante() {
         let montos = HashMap::from([("P1-k".to_string(), d("5"))]);
-        assert_eq!(decidir_reconciliacion(&montos, "P1-k", d("3")), DecisionPago::Discordante);
+        assert_eq!(
+            decidir_reconciliacion(&montos, "P1-k", d("3")),
+            DecisionPago::Discordante
+        );
     }
 }

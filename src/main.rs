@@ -190,7 +190,9 @@ fn lanzar_avisos_automaticos(pool: sqlx::PgPool, modo: ServicioModoOperacion) {
 
     let segundos = bdp_avisos::segundos_automaticos();
     if segundos == 0 {
-        tracing::warn!("[10AA-3] Procesador del buzón de avisos desactivado (BDP_AVISOS_AUTO_SEGUNDOS=0)");
+        tracing::warn!(
+            "[10AA-3] Procesador del buzón de avisos desactivado (BDP_AVISOS_AUTO_SEGUNDOS=0)"
+        );
         return;
     }
     tokio::spawn(async move {
