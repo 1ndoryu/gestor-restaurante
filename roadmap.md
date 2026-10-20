@@ -33,10 +33,6 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
   Plan `Agente/planes/plan-seguridad-escrituras-bdp-2026-09-14.md`. Sustituye a 049A-1 (archivado). Repite Fase 1 (auditoría de las 13 operaciones), Fase 2 (simulaciones + simulador Python) y Fase 3 (escrituras reales una a una, solo con autorización explícita por operación). Subplan de catálogo: `Agente/planes/plan-catalogo-bdp-front-honesto-2026-09-15.md`.
   Hecho: Fase 3 ejecutada 2026-09-18 (Q2.7/Q2.9/Q2.11 verdes; Q2.5 bloqueado). Pendiente: S9 visual + TPV restaurante (anular 6258, depto 901, crear almacén 1).
 
-- [ ] `169A-4` — **Staging en VPS + informe de rendimiento sin BDP real.**
-  Plan `Agente/planes/plan-perf-vps-2026-09-16.md`. Alcance C (standalone + mock BDP + lecturas reales puntuales). Matriz 9/9 ejecutada 2026-09-16 (~251k peticiones); veredicto T1 (1 vCPU/1 GB) sobrado, cuello = postgres en pico. Informe: `Agente/completados/informe-perf-vps-2026-09-16.md`.
-  Pendiente del usuario: repo a privado, destino del staging (borrar/conservar) y push del cierre.
-
 - [ ] `169A-5` — **Escalar a 50.000 personas consultando con evidencia.**
   Plan `Agente/planes/plan-50k-2026-09-16.md`. D1 perfilado, D2 origen, D3 borde CF, D4 harness `consulta50k`, D5 medición y claim. Claim actual: ≥5.000 personas (lecturas); 50k no alcanzado. Informe: `Agente/completados/informe-50k-2026-09-17.md`.
   Pendiente: autorizaciones para publicar la cifra.
@@ -125,6 +121,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 ## Bloqueos
 
 - `cliente-bdp-produccion` — **Decisiones del cliente y pruebas contra BDP real antes de producción** (viene de `247A-9`, 24-jul). Compras (fases 1-3) y CancelOrder ya están cerrados; el 2026-10-20 se retiró esa parte de la tarea. Queda lo que depende de terceros: las decisiones del cliente sobre compras y cancelación, y las pruebas T1 simulador BDP local, T2 BDP real en entorno controlado, T3 auto-arming y toggles, T4 logs de ambigüedad y reconciliación, T5 runbook de rollback y restauración.
+- `perf-staging` — **Decisiones de la usuaria sobre el staging de rendimiento** (viene de `169A-4`, 16-sep). El trabajo técnico está cerrado: matriz 9/9 ejecutada el 2026-09-16 (~251k peticiones), veredicto T1 (1 vCPU/1 GB) sobrado con el cuello en postgres al pico, informe en `Agente/completados/informe-perf-vps-2026-09-16.md`, y el commit de cierre `00560f8` ya está en `origin/main`. Queda lo que decide la usuaria: pasar `1ndoryu/gestor-restaurante` a privado, y el destino del staging `restaurante-perf` + DNS `perf.wandori.us` con sus ~35k filas `perf-harness` (conservar o borrar).
 - `suscripción-weblink` — **Escrituras reales BDP bloqueadas por la suscripción WebLink de pago.** `Payment/Add` a comanda existente y factura a existente en `⏸`; el pago dentro del `CreateOrder` inicial sí funciona en gratuita. Verificar con cliente/proveedor (tareas `1`, `1c`).
 - `impresora-cocina` — **Sin impresora de cocina** ("pendiente de real"): bloquea L3.a2 y D09a (10AA-3).
 - `conteos-tpv` — **L2.2 y las consultas a BDP pendientes de la sesión de la usuaria con el TPV local** (10AA-3).
