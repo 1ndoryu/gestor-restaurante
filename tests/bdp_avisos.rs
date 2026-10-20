@@ -611,7 +611,8 @@ async fn el_buzon_es_del_restaurante_y_solo_lo_ve_admin(pool: PgPool) {
 }
 
 /// El receptor no sabe a quién apuntar si hay cero o varias configuraciones:
-/// se para en vez de repartir avisos al azar.
+/// se para en vez de repartir avisos al azar. Las dos cuentas de aquí están sin
+/// BDP, que es el caso en que la configuración no da ninguna pista.
 #[sqlx::test(migrations = "./migrations")]
 async fn sin_una_unica_cuenta_el_receptor_se_para(pool: PgPool) {
     let estado = estado(pool.clone());
@@ -639,6 +640,99 @@ async fn sin_una_unica_cuenta_el_receptor_se_para(pool: PgPool) {
     .await
     .expect_err("con dos configuraciones no se puede decidir");
     assert_eq!(error, StatusCode::SERVICE_UNAVAILABLE);
+}
+
+/* --------------------------------------------------------------------------
+ * Destino del aviso cuando hay más de una cuenta
+ * -------------------------------------------------------------------------- */
+
+/// Deja la cuenta con la integración BDP en marcha, que es la que tiene un TPV
+/// emitiendo avisos. La configuración por defecto no sirve de pista: nace sin BDP.
+async fn con_bdp_en_marcha(pool: &PgPool, user_id: Uuid) {
+    sqlx::query(
+        "UPDATE configuracion_restaurante \
+            SET bdp_sync_enabled = true, bdp_base_url = 'http://127.0.0.1:8070', \
+                bdp_login = 'wan', bdp_password = 'secreto', bdp_integrator_code = 'INT' \
+          WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("configurar BDP");
+}
+
+/// Inserta la venta que BDP dejó apuntada con esa comanda.
+async fn venta_con_comanda(pool: &PgPool, user_id: Uuid, comanda: i64) {
+    sqlx::query(
+        r"INSERT INTO ventas (user_id, fecha, descripcion, iva_porcentaje, turno, canal,
+                              metodo_pago, importe_base, importe_iva, bdp_synced, bdp_order_id)
+          VALUES ($1, CURRENT_DATE, 'Venta de aviso', 10, 'mediodia', 'comedor',
+                  'efectivo', 10.00, 1.00, true, $2)",
+    )
+    .bind(user_id)
+    .bind(comanda)
+    .execute(pool)
+    .await
+    .expect("insertar venta");
+}
+
+/// La cuenta bajo la que ha quedado el aviso. Cada prueba estrena base, así que
+/// la única fila del buzón es la suya.
+async fn duena_del_aviso(pool: &PgPool) -> Uuid {
+    sqlx::query_scalar("SELECT user_id FROM bdp_avisos_inbox LIMIT 1")
+        .fetch_one(pool)
+        .await
+        .expect("el aviso debería estar en el buzón")
+}
+
+/// [D16] Con varias cuentas la comanda manda: el aviso es de quien tiene
+/// apuntada esa venta, aunque las dos tengan BDP en marcha.
+#[sqlx::test(migrations = "./migrations")]
+async fn la_comanda_decide_la_cuenta_aunque_haya_varias(pool: PgPool) {
+    let estado = estado(pool.clone());
+    let una = restaurante(&pool).await;
+    let otra = restaurante(&pool).await;
+    con_bdp_en_marcha(&pool, una).await;
+    con_bdp_en_marcha(&pool, otra).await;
+    venta_con_comanda(&pool, otra, 15).await;
+
+    let (codigo, _) = aviso(
+        &estado,
+        "crear",
+        &[],
+        json!({"IdentificadorComanda": "15", "TimeStamp": "2026-10-17T14:00:00Z"}),
+        true,
+    )
+    .await
+    .expect("la comanda decide el destino");
+
+    assert_eq!(codigo, StatusCode::ACCEPTED);
+    assert_eq!(duena_del_aviso(&pool).await, otra);
+    assert_ne!(una, otra);
+}
+
+/// Sin comanda utilizable la pista es la integración: el aviso va a la única
+/// cuenta con BDP en marcha, no a la primera que aparezca.
+#[sqlx::test(migrations = "./migrations")]
+async fn sin_comanda_manda_la_cuenta_con_bdp_en_marcha(pool: PgPool) {
+    let estado = estado(pool.clone());
+    let sin_bdp = restaurante(&pool).await;
+    let con_bdp = restaurante(&pool).await;
+    con_bdp_en_marcha(&pool, con_bdp).await;
+
+    let (codigo, _) = aviso(
+        &estado,
+        "crear",
+        &[],
+        json!({"IdentificadorComanda": "99", "TimeStamp": "2026-10-17T14:00:00Z"}),
+        true,
+    )
+    .await
+    .expect("la integración en marcha decide el destino");
+
+    assert_eq!(codigo, StatusCode::ACCEPTED);
+    assert_eq!(duena_del_aviso(&pool).await, con_bdp);
+    assert_ne!(sin_bdp, con_bdp);
 }
 
 /* --------------------------------------------------------------------------

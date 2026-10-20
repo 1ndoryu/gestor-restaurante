@@ -395,10 +395,13 @@ impl BdpSyncService {
                 "[F8.1] Pago registrado en BDP para venta {} → InvoiceNumber={inv}",
                 venta.id
             );
+            /* [D20] El número queda en la venta: es contra lo que el worker cruza
+             * el aviso `finalizar`. COALESCE para no pisar una corrección manual. */
             sqlx::query(
-                "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
+                "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', bdp_invoice_number = COALESCE(bdp_invoice_number, $2), updated_at = NOW() WHERE id = $1",
             )
             .bind(venta.id)
+            .bind(inv)
             .execute(&mut *tx)
             .await
             .map_err(|e| format!("BDP confirmó pago y factura {inv}, pero no se pudo persistir localmente: {e}"))?;

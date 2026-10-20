@@ -36,7 +36,7 @@ pub use campos::{
     AvisoPreparado, CamposAviso, RechazoAviso,
 };
 pub use worker::{
-    procesar_lote, procesar_pendientes_al_arrancar, Consulta, ConsultaPedido, ResumenLote,
+    procesar_lote, procesar_pendientes, segundos_automaticos, Consulta, ConsultaPedido, ResumenLote,
     LIMITE_LOTE_MAX, MAX_INTENTOS,
 };
 

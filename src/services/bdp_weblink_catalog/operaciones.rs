@@ -75,6 +75,11 @@ pub struct BdpExportDocumentsRequest {
 
 /* ===== [198A-1/F2] Lecturas de soporte ===== */
 
+/* [D01] Aplicación 84: la licencia del terminal. Es el cuarto valor que pide la
+ * ficha D01, además de salud, versión y acceso; el BDP local la responde igual
+ * que el real, así que la comprobación no depende de tener el TPV de producción. */
+pub const APLICACION_LICENCIA_TERMINAL: i32 = 84;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct BdpGetApplicationVersionRequest {

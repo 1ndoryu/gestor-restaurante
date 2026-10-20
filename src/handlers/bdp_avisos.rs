@@ -265,7 +265,14 @@ pub async fn recibir_aviso_con_secreto(
             RechazoAviso::Invalido(motivo) => AppError::Validation(motivo),
         })?;
 
-    let user_id = BdpAvisosService::resolver_usuario(&state.pool)
+    /* La comanda es la mejor pista de a quién pertenece el aviso: el TPV la
+     * conoce y la venta que la tiene apuntada es su dueña. Se pasa tal cual (y no
+     * como texto) porque la columna de la venta es numérica. */
+    let comanda = campos
+        .comanda()
+        .and_then(|texto| texto.trim().parse::<i64>().ok());
+
+    let user_id = BdpAvisosService::resolver_usuario(&state.pool, comanda)
         .await
         .map_err(AppError::ServicioNoDisponible)?;
 

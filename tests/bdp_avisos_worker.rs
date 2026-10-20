@@ -459,3 +459,238 @@ async fn reclamo_reciente_en_procesando_no_se_toca(pool: PgPool) {
     assert_eq!(resumen, ResumenLote::default());
     assert!(doble.pedidas().is_empty());
 }
+
+/* ---------------------------------------------------------------------------
+ * [D20] Aviso y documento enlazados.
+ * El aviso `finalizar` trae `Serie`+`Numero` del documento emitido en caja; la
+ * venta guarda su `InvoiceNumber` de BDP. Los cuatro casos: coinciden, difieren,
+ * la venta aún no tenía número, y no hay venta local.
+ * ------------------------------------------------------------------------- */
+
+/// Payload de un aviso `finalizar` con el documento que emitió el TPV.
+fn payload_finalizar(comanda: &str, serie: &str, numero: &str) -> Value {
+    json!({
+        "IdentificadorComanda": comanda,
+        "Serie": serie,
+        "Numero": numero,
+        "TipoDocumento": 1,
+        "TimeStamp": "2026-10-20T10:00:00Z",
+    })
+}
+
+/// Inserta una venta con el número de factura de BDP ya anotado (o sin él).
+async fn venta_con_factura(
+    pool: &PgPool,
+    user_id: Uuid,
+    bdp_order_id: i64,
+    factura: Option<&str>,
+) -> Uuid {
+    let id = venta_con_bdp(pool, user_id, bdp_order_id).await;
+    if let Some(numero) = factura {
+        sqlx::query("UPDATE ventas SET bdp_invoice_number = $2 WHERE id = $1")
+            .bind(id)
+            .bind(numero)
+            .execute(pool)
+            .await
+            .expect("anotar factura");
+    }
+    id
+}
+
+/// Lee el número de factura anotado en una venta.
+async fn factura_de(pool: &PgPool, id: Uuid) -> Option<String> {
+    sqlx::query_scalar("SELECT bdp_invoice_number FROM ventas WHERE id = $1")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .expect("leer factura")
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn finalizar_con_el_mismo_documento_queda_procesado(pool: PgPool) {
+    let user = cuenta(&pool).await;
+    let venta = venta_con_factura(&pool, user, 90, Some("00001TB00000013")).await;
+    let id = aviso(
+        &pool,
+        user,
+        "finalizar",
+        payload_finalizar("90", "00001TB", "13"),
+        0,
+    )
+    .await;
+    let doble = DobleBdp::con(vec![(90, Consulta::Encontrado(json!({"Status": 3})))]);
+
+    procesar_lote(&pool, user, &doble, 10).await.expect("lote");
+
+    let (estado, _, error, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "procesado");
+    assert!(
+        error.is_none(),
+        "el enlace es correcto: no hay nada que avisar"
+    );
+    assert_eq!(
+        estado_venta(&pool, venta).await,
+        (Some("invoiced".to_string()), true)
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn finalizar_con_documento_distinto_es_incidencia_y_no_toca_la_venta(pool: PgPool) {
+    let user = cuenta(&pool).await;
+    let venta = venta_con_factura(&pool, user, 91, Some("00001TB00000099")).await;
+    let id = aviso(
+        &pool,
+        user,
+        "finalizar",
+        payload_finalizar("91", "00001TB", "14"),
+        0,
+    )
+    .await;
+    let doble = DobleBdp::con(vec![(91, Consulta::Encontrado(json!({"Status": 3})))]);
+
+    let resumen = procesar_lote(&pool, user, &doble, 10).await.expect("lote");
+
+    assert_eq!(resumen.revision, 1);
+    let (estado, _, error, con_pedido, _) = fila(&pool, id).await;
+    assert_eq!(estado, "requiere_revision");
+    let nota = error.expect("la incidencia debe explicarse");
+    assert!(nota.contains("00001TB00000014"), "nota: {nota}");
+    assert!(nota.contains("00001TB00000099"), "nota: {nota}");
+    assert!(con_pedido, "la foto del pedido se guarda igual");
+    assert_eq!(
+        factura_de(&pool, venta).await.as_deref(),
+        Some("00001TB00000099"),
+        "la venta no se toca: sigue con su número"
+    );
+    assert_eq!(
+        estado_venta(&pool, venta).await.0,
+        None,
+        "con incidencia no se enlaza la venta"
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn finalizar_sin_numero_en_la_venta_lo_toma_del_aviso(pool: PgPool) {
+    let user = cuenta(&pool).await;
+    let venta = venta_con_factura(&pool, user, 92, None).await;
+    let id = aviso(
+        &pool,
+        user,
+        "finalizar",
+        payload_finalizar("92", "00001TB", "7"),
+        0,
+    )
+    .await;
+    let doble = DobleBdp::con(vec![(92, Consulta::Encontrado(json!({"Status": 3})))]);
+
+    procesar_lote(&pool, user, &doble, 10).await.expect("lote");
+
+    let (estado, _, error, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "procesado");
+    assert!(error.is_none());
+    assert_eq!(
+        factura_de(&pool, venta).await.as_deref(),
+        Some("00001TB00000007"),
+        "el número se rellena a ocho dígitos, como el InvoiceNumber de BDP"
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn finalizar_sin_venta_local_no_es_incidencia(pool: PgPool) {
+    let user = cuenta(&pool).await;
+    let id = aviso(
+        &pool,
+        user,
+        "finalizar",
+        payload_finalizar("93", "00001TB", "8"),
+        0,
+    )
+    .await;
+    let doble = DobleBdp::con(vec![(93, Consulta::Encontrado(json!({"Status": 3})))]);
+
+    let resumen = procesar_lote(&pool, user, &doble, 10).await.expect("lote");
+
+    assert_eq!(resumen.procesados, 1);
+    let (estado, _, error, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "procesado");
+    assert!(error.is_none(), "la comanda pudo crearse en otro TPV");
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn finalizar_con_el_documento_ya_en_otra_venta_es_incidencia(pool: PgPool) {
+    let user = cuenta(&pool).await;
+    let otra = venta_con_factura(&pool, user, 94, Some("00001TB00000015")).await;
+    let venta = venta_con_factura(&pool, user, 95, None).await;
+    let id = aviso(
+        &pool,
+        user,
+        "finalizar",
+        payload_finalizar("95", "00001TB", "15"),
+        0,
+    )
+    .await;
+    let doble = DobleBdp::con(vec![(95, Consulta::Encontrado(json!({"Status": 3})))]);
+
+    let resumen = procesar_lote(&pool, user, &doble, 10).await.expect("lote");
+
+    assert_eq!(resumen.revision, 1);
+    let (estado, _, error, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "requiere_revision");
+    assert!(error.unwrap().contains("ya consta en otra venta"));
+    assert_eq!(
+        factura_de(&pool, venta).await,
+        None,
+        "no se duplica el documento"
+    );
+    assert_eq!(
+        factura_de(&pool, otra).await.as_deref(),
+        Some("00001TB00000015")
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn finalizar_sin_serie_o_numero_no_cruza_nada(pool: PgPool) {
+    let user = cuenta(&pool).await;
+    let venta = venta_con_factura(&pool, user, 96, Some("00001TB00000016")).await;
+    /* El receptor ya marca este caso para revisión al guardar; aquí se comprueba
+     * que el worker no inventa un documento que el aviso no trae. */
+    let id = aviso(&pool, user, "finalizar", payload_comanda("96"), 0).await;
+    let doble = DobleBdp::con(vec![(96, Consulta::Encontrado(json!({"Status": 3})))]);
+
+    procesar_lote(&pool, user, &doble, 10).await.expect("lote");
+
+    let (estado, _, error, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "procesado");
+    assert!(error.is_none());
+    assert_eq!(
+        factura_de(&pool, venta).await.as_deref(),
+        Some("00001TB00000016"),
+        "sin documento en el aviso, el de la venta se queda como estaba"
+    );
+}
+
+/// El resto de acciones no declara documento: no se cruza nada.
+#[sqlx::test(migrations = "./migrations")]
+async fn otras_acciones_no_cruzan_documento(pool: PgPool) {
+    let user = cuenta(&pool).await;
+    let venta = venta_con_factura(&pool, user, 97, Some("00001TB00000017")).await;
+    let id = aviso(
+        &pool,
+        user,
+        "modificar",
+        payload_finalizar("97", "00001TB", "18"),
+        0,
+    )
+    .await;
+    let doble = DobleBdp::con(vec![(97, Consulta::Encontrado(json!({"Status": 1})))]);
+
+    procesar_lote(&pool, user, &doble, 10).await.expect("lote");
+
+    let (estado, _, error, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "procesado");
+    assert!(error.is_none());
+    assert_eq!(
+        factura_de(&pool, venta).await.as_deref(),
+        Some("00001TB00000017")
+    );
+}

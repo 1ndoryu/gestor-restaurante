@@ -113,10 +113,13 @@ impl BdpSyncService {
             .begin()
             .await
             .map_err(|e| format!("Error iniciando tx reconciliación factura: {e}"))?;
+        /* [D20] El número va también en la venta: es contra lo que el worker cruza
+         * el aviso `finalizar`. COALESCE para no pisar una corrección manual (D11). */
         sqlx::query(
-            "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
+            "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', bdp_invoice_number = COALESCE(bdp_invoice_number, $2), updated_at = NOW() WHERE id = $1",
         )
         .bind(venta.id)
+        .bind(&invoice_number)
         .execute(&mut *tx)
         .await
         .map_err(|error| format!("Factura BDP reconciliada, pero no se pudo persistir localmente: {error}"))?;
@@ -321,11 +324,13 @@ impl BdpSyncService {
                 .await
                 .map_err(|e| format!("Error iniciando tx post-factura: {e}"))?;
 
-            /* [F8.3] Marcar venta como facturada. */
+            /* [F8.3] Marcar venta como facturada. [D20] Con su número, que es lo que
+             * el worker cruza contra el aviso `finalizar`. */
             sqlx::query(
-                "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
+                "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', bdp_invoice_number = COALESCE(bdp_invoice_number, $2), updated_at = NOW() WHERE id = $1",
             )
             .bind(venta.id)
+            .bind(invoice_number)
             .execute(&mut *tx)
             .await
             .map_err(|e| {
@@ -404,9 +409,15 @@ impl BdpSyncService {
             Self::autorizar_factura(pool, venta, config, order_id, idempotency_key).await?;
 
         let invoice_parameters = Self::parametros_factura(pool, venta, config).await?;
-        let (response, invoice_number) =
-            Self::ejecutar_factura(&client, config, order_id, pool, audit_id, invoice_parameters)
-                .await?;
+        let (response, invoice_number) = Self::ejecutar_factura(
+            &client,
+            config,
+            order_id,
+            pool,
+            audit_id,
+            invoice_parameters,
+        )
+        .await?;
         Self::confirmar_factura(pool, venta, audit_id, &response, &invoice_number).await?;
 
         info!(
@@ -438,10 +449,11 @@ impl BdpSyncService {
             return Err("Registro bloqueado: BDP no marca la orden como facturada".into());
         }
 
-        let audit_id = BdpAuditLogRepository::ultimo_invoice_ambiguo_id(pool, venta.user_id, venta.id)
-            .await
-            .map_err(|e| format!("Error leyendo la auditoría de factura: {e}"))?
-            .ok_or("Registro bloqueado: no hay factura ambigua que cerrar")?;
+        let audit_id =
+            BdpAuditLogRepository::ultimo_invoice_ambiguo_id(pool, venta.user_id, venta.id)
+                .await
+                .map_err(|e| format!("Error leyendo la auditoría de factura: {e}"))?
+                .ok_or("Registro bloqueado: no hay factura ambigua que cerrar")?;
         let respuesta = serde_json::json!({ "InvoiceNumber": numero, "origen": "registro_manual" });
 
         /* Auditoría y marca local en una transacción, como en `confirmar_factura`. */
@@ -452,10 +464,13 @@ impl BdpSyncService {
         BdpAuditLogRepository::marcar_exito_tx(&mut tx, audit_id, Some(&respuesta))
             .await
             .map_err(|e| format!("Error cerrando la auditoría de factura: {e}"))?;
+        /* [D20] Aquí el número lo teclea una persona para cerrar una factura ambigua:
+         * manda sobre lo que hubiera, así que se escribe sin COALESCE. */
         sqlx::query(
-            "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1",
+            "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', bdp_invoice_number = $2, updated_at = NOW() WHERE id = $1",
         )
         .bind(venta.id)
+        .bind(numero)
         .execute(&mut *tx)
         .await
         .map_err(|e| format!("Error marcando la venta como facturada: {e}"))?;
@@ -463,7 +478,10 @@ impl BdpSyncService {
             .await
             .map_err(|e| format!("Error confirmando tx de registro de factura: {e}"))?;
 
-        info!("[D19] Número de factura registrado manualmente para la venta {}", venta.id);
+        info!(
+            "[D19] Número de factura registrado manualmente para la venta {}",
+            venta.id
+        );
         Ok(())
     }
 }

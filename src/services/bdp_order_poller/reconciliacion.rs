@@ -283,10 +283,12 @@ impl BdpOrderPollerService {
                 /* [D11] Solo marcar como facturado si NO lo estaba ya localmente.
                  * Evita sobreescribir datos de factura tras una corrección manual. */
                 if invoice_number.is_some() {
+                    /* [D20] Con el número: es contra lo que el worker cruza el aviso. */
                     sqlx::query(
-                        "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1 AND bdp_invoiced = FALSE"
+                        "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', bdp_invoice_number = COALESCE(bdp_invoice_number, $2), updated_at = NOW() WHERE id = $1 AND bdp_invoiced = FALSE"
                     )
                     .bind(venta_id)
+                    .bind(invoice_number.as_deref())
                     .execute(&mut *tx)
                     .await
                     .map_err(|e| e.to_string())?;
@@ -341,10 +343,12 @@ impl BdpOrderPollerService {
                     return Ok(false);
                 }
                 let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+                /* [D20] Con el número (puede faltar: `COALESCE` lo deja como estaba). */
                 sqlx::query(
-                    "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', updated_at = NOW() WHERE id = $1"
+                    "UPDATE ventas SET bdp_invoiced = true, bdp_order_status = 'invoiced', bdp_invoice_number = COALESCE(bdp_invoice_number, $2), updated_at = NOW() WHERE id = $1"
                 )
                 .bind(venta_id)
+                .bind(invoice_number.as_deref())
                 .execute(&mut *tx)
                 .await
                 .map_err(|e| e.to_string())?;

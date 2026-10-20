@@ -44,16 +44,56 @@ pub enum ResultadoInbox {
 pub struct BdpAvisosService;
 
 impl BdpAvisosService {
-    /// Cuenta a la que pertenecen los avisos. El restaurante es uno; si la base
-    /// tuviera varias configuraciones, esto para en vez de repartir avisos al
-    /// azar (fail-closed).
-    pub async fn resolver_usuario(pool: &PgPool) -> Result<Uuid, String> {
-        let cuentas: Vec<Uuid> = sqlx::query_scalar(
-            "SELECT user_id FROM configuracion_restaurante ORDER BY user_id LIMIT 2",
+    /// Cuenta a la que pertenecen los avisos. La configuración es **por usuario**
+    /// (cada cuenta que entra en la web se lleva la suya), así que «la cuenta del
+    /// restaurante» hay que deducirla; nunca suponerla.
+    ///
+    /// [D16] Dos pistas, en orden. La comanda del aviso: la venta que la tiene
+    /// apuntada es, sin discusión, su dueña. Y si el aviso no trae comanda o su
+    /// venta todavía no existe, la cuenta con la integración BDP en marcha, que
+    /// es la que tiene un TPV emitiendo avisos. Cuando la pista no da exactamente
+    /// una cuenta esto para en vez de repartir avisos al azar (fail-closed).
+    pub async fn resolver_usuario(pool: &PgPool, comanda: Option<i64>) -> Result<Uuid, String> {
+        if let Some(comanda) = comanda {
+            let duenas: Vec<Uuid> = sqlx::query_scalar(
+                "SELECT DISTINCT user_id FROM ventas WHERE bdp_order_id = $1 ORDER BY user_id",
+            )
+            .bind(comanda)
+            .fetch_all(pool)
+            .await
+            .map_err(|error| {
+                format!("No se pudo leer la venta de la comanda {comanda}: {error}")
+            })?;
+            /* Sin venta local (la comanda pudo crearse en otro TPV) o con más de
+             * una dueña, la comanda no decide: se sigue por la configuración. */
+            if let [unica] = duenas.as_slice() {
+                return Ok(*unica);
+            }
+        }
+
+        let en_bdp: Vec<Uuid> = sqlx::query_scalar(
+            "SELECT user_id FROM configuracion_restaurante \
+              WHERE bdp_sync_enabled \
+                AND btrim(bdp_base_url) <> '' AND btrim(bdp_login) <> '' \
+                AND btrim(bdp_password) <> '' AND btrim(bdp_integrator_code) <> '' \
+              ORDER BY user_id",
         )
         .fetch_all(pool)
         .await
         .map_err(|error| format!("No se pudo leer la configuración del restaurante: {error}"))?;
+
+        /* Sin integración configurada en ninguna cuenta se cae a la configuración
+         * a secas: es la base recién sembrada, con una sola. */
+        let cuentas: Vec<Uuid> = if en_bdp.is_empty() {
+            sqlx::query_scalar("SELECT user_id FROM configuracion_restaurante ORDER BY user_id")
+                .fetch_all(pool)
+                .await
+                .map_err(|error| {
+                    format!("No se pudo leer la configuración del restaurante: {error}")
+                })?
+        } else {
+            en_bdp
+        };
 
         match cuentas.as_slice() {
             [unica] => Ok(*unica),
@@ -62,7 +102,7 @@ impl BdpAvisosService {
                     .to_string(),
             ),
             _ => Err(
-                "Hay más de una configuración de restaurante: el receptor de avisos no puede decidir el destino."
+                "Hay más de una cuenta con la integración BDP en marcha: el receptor de avisos no puede decidir el destino."
                     .to_string(),
             ),
         }

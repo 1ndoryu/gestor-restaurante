@@ -102,18 +102,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /* [L8/D28-auto] Lectura incremental de documentos de venta. Desactivada por defecto. */
     lanzar_documentos_automaticos(pool.clone(), modo_operacion.clone());
 
-    /* [D23a] Avisos que esperaron en el buzón con el backend parado: se procesan al
-     * arrancar, en segundo plano para no retrasar la escucha del servidor. */
-    let arranque_pool = pool.clone();
-    let arranque_modo = modo_operacion.clone();
-    tokio::spawn(async move {
-        let procesados = glory_backend::services::bdp_avisos::procesar_pendientes_al_arrancar(
-            &arranque_pool,
-            &arranque_modo,
-        )
-        .await;
-        tracing::info!("[D23a] Avisos del buzón procesados al arrancar: {procesados}");
-    });
+    /* [D23a] Buzón de avisos del TPV: se procesa en bucle, no solo al arrancar, porque
+     * el TPV avisa con el backend en marcha y un `finalizar` sin procesar deja la
+     * venta sin marcar como facturada. La primera pasada cubre los avisos que
+     * esperaron con el backend parado. */
+    lanzar_avisos_automaticos(pool.clone(), modo_operacion.clone());
 
     /* [303A-2] Graceful shutdown: señal SIGTERM/Ctrl+C cierra conexiones limpiamente */
     let listener = tokio::net::TcpListener::bind(&addr).await?;
@@ -185,6 +178,31 @@ fn lanzar_albaranes_automaticos(pool: sqlx::PgPool, modo: ServicioModoOperacion)
             let importados = albaranes::sincronizar_automatico(&pool, &modo, dias).await;
             if importados > 0 {
                 tracing::info!("[D28a] Albaranes importados automáticamente: {importados}");
+            }
+        }
+    });
+}
+
+/* [10AA-3] Procesador del buzón de avisos del TPV. El intervalo viene del entorno;
+ * BDP_AVISOS_AUTO_SEGUNDOS=0 lo desactiva (y entonces solo queda el endpoint manual). */
+fn lanzar_avisos_automaticos(pool: sqlx::PgPool, modo: ServicioModoOperacion) {
+    use glory_backend::services::bdp_avisos;
+
+    let segundos = bdp_avisos::segundos_automaticos();
+    if segundos == 0 {
+        tracing::warn!("[10AA-3] Procesador del buzón de avisos desactivado (BDP_AVISOS_AUTO_SEGUNDOS=0)");
+        return;
+    }
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(segundos));
+        /* Igual que en los albaranes: si una pasada tarda más que el intervalo, la
+         * siguiente se retrasa en vez de encadenar ráfagas contra BDP. */
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            let procesados = bdp_avisos::procesar_pendientes(&pool, &modo).await;
+            if procesados > 0 {
+                tracing::info!("[10AA-3] Avisos del buzón procesados: {procesados}");
             }
         }
     });

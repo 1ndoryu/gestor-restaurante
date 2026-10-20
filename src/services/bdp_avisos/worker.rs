@@ -97,9 +97,12 @@ pub async fn procesar_lote(
     let mut resumen = ResumenLote::default();
     for (id, accion, payload, intentos) in reclamados {
         let decision = decidir(&accion, &payload, intentos, consultor).await;
+        let documento = documento_de(&accion, &payload);
         let vinculo = comanda_de(&payload).zip(decision.pedido.as_ref());
-        aplicar(pool, id, user_id, &decision, vinculo).await?;
-        match decision.estado {
+        /* El resumen cuenta el estado con el que el aviso sale de verdad: el cruce
+         * de documento puede degradar un `procesado` a incidencia. */
+        let estado = aplicar(pool, id, user_id, &decision, documento, vinculo).await?;
+        match estado {
             "procesado" => resumen.procesados += 1,
             "recibido" => resumen.reintentos += 1,
             _ => resumen.revision += 1,
@@ -170,20 +173,113 @@ fn comanda_de(payload: &Value) -> Option<i64> {
         .and_then(|texto| texto.parse::<i64>().ok())
 }
 
+/// [D20] Documento que declara un aviso `finalizar`: la `Serie` del TPV más el
+/// `Numero` a ocho dígitos, que es el formato del `InvoiceNumber` de BDP
+/// (`00001TB` + `13` → `00001TB00000013`). `None` para el resto de avisos o si
+/// falta cualquiera de los dos campos: sin ellos no hay documento que cruzar.
+fn documento_de(accion: &str, payload: &Value) -> Option<String> {
+    if accion != "finalizar" {
+        return None;
+    }
+    let campos = CamposAviso::desde_json(payload);
+    let serie = campos.serie()?.trim();
+    let numero = campos.numero()?.trim();
+    if serie.is_empty() || numero.is_empty() {
+        return None;
+    }
+    Some(format!("{serie}{numero:0>8}"))
+}
+
+/// [D20] Cruza el documento del aviso con el de la venta de esa comanda.
+/// Devuelve la nota de incidencia si hay dos documentos distintos para una sola
+/// venta; `None` cuando el enlace queda bien o cuando no hay nada que cruzar.
+async fn cruzar_documento(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    factura: &str,
+    comanda: i64,
+) -> Result<Option<String>, String> {
+    let guardada: Option<String> = sqlx::query_scalar(
+        "SELECT COALESCE(bdp_invoice_number, '') FROM ventas WHERE user_id = $1 AND bdp_order_id = $2",
+    )
+    .bind(user_id)
+    .bind(comanda)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|error| format!("No se pudo leer la factura de la venta: {error}"))?;
+
+    match guardada.as_deref() {
+        /* Sin venta local no hay nada que enlazar: la comanda pudo crearse en otro TPV. */
+        None => Ok(None),
+        Some(numero) if numero == factura => Ok(None),
+        Some(numero) if !numero.is_empty() => Ok(Some(format!(
+            "El aviso finalizar trae {factura} y la venta de la comanda {comanda} tiene {numero}."
+        ))),
+        /* La venta aún no tenía número: el aviso es el documento recién emitido, así
+         * que es su fuente. Si el número ya estuviera en otra venta, el índice único
+         * lo rechaza y el aviso acaba en revisión en vez de duplicar el documento. */
+        Some(_) => {
+            /* El `NOT EXISTS` hace el trabajo del índice único sin romper la
+             * transacción: un choque deja 0 filas y se convierte en incidencia. */
+            let filas = sqlx::query(
+                "UPDATE ventas SET bdp_invoice_number = $3, updated_at = NOW() \
+                 WHERE user_id = $1 AND bdp_order_id = $2 \
+                   AND NOT EXISTS (SELECT 1 FROM ventas otra \
+                                    WHERE otra.user_id = $1 AND otra.bdp_invoice_number = $3)",
+            )
+            .bind(user_id)
+            .bind(comanda)
+            .bind(factura)
+            .execute(&mut **tx)
+            .await
+            .map_err(|error| {
+                format!("No se pudo enlazar el documento {factura} con la venta de la comanda {comanda}: {error}")
+            })?
+            .rows_affected();
+            if filas == 0 {
+                return Ok(Some(format!(
+                    "El documento {factura} del aviso ya consta en otra venta: la comanda {comanda} queda sin enlazar."
+                )));
+            }
+            Ok(None)
+        }
+    }
+}
+
 /// Escribe la decisión y, si hay pedido, enlaza su venta. Va en una transacción:
 /// el aviso nunca queda `procesado` sin que la venta de su comanda esté al día.
 /// `procesado_en` solo se marca cuando el aviso sale de la cola.
+///
+/// [D20] Si el aviso declara un documento (`finalizar`) y la venta tiene otro
+/// distinto, el aviso pasa a `requiere_revision` y la venta no se toca: enlazar
+/// dos documentos diferentes sería justo la incidencia que D20 debe detectar.
+///
+/// Devuelve el estado con el que el aviso queda de verdad, para que el resumen del
+/// lote cuente la incidencia como incidencia y no como éxito.
 async fn aplicar(
     pool: &PgPool,
     id: Uuid,
     user_id: Uuid,
     decision: &Decision,
+    documento: Option<String>,
     vinculo: Option<(i64, &Value)>,
-) -> Result<(), String> {
+) -> Result<&'static str, String> {
     let mut tx = pool
         .begin()
         .await
         .map_err(|error| format!("No se pudo abrir la transacción del aviso: {error}"))?;
+    /* El cruce va antes de escribir el estado: decide si el aviso puede darse por
+     * procesado o si lo que hay es una incidencia. */
+    let incidencia = match (decision.estado, documento.as_deref(), vinculo) {
+        ("procesado", Some(factura), Some((comanda, _))) => {
+            cruzar_documento(&mut tx, user_id, factura, comanda).await?
+        }
+        _ => None,
+    };
+    let (estado, error, enlazar) = match incidencia {
+        Some(nota) => ("requiere_revision", Some(nota), false),
+        None => (decision.estado, decision.error.clone(), true),
+    };
     sqlx::query(
         r"UPDATE bdp_avisos_inbox
              SET estado = $2::text,
@@ -193,18 +289,23 @@ async fn aplicar(
            WHERE id = $1",
     )
     .bind(id)
-    .bind(decision.estado)
-    .bind(decision.error.as_deref())
+    .bind(estado)
+    .bind(error.as_deref())
     .bind(decision.pedido.as_ref())
     .execute(&mut *tx)
     .await
     .map_err(|error| format!("No se pudo guardar el resultado del aviso: {error}"))?;
-    if let Some((comanda, pedido)) = vinculo {
-        enlazar_venta(&mut tx, user_id, comanda, pedido).await?;
+    /* Con incidencia no se enlaza: la venta se queda como estaba hasta que una
+     * persona la resuelva, en vez de quedar marcada con un documento que no es el suyo. */
+    if enlazar {
+        if let Some((comanda, pedido)) = vinculo {
+            enlazar_venta(&mut tx, user_id, comanda, pedido).await?;
+        }
     }
     tx.commit()
         .await
-        .map_err(|error| format!("No se pudo confirmar el aviso: {error}"))
+        .map_err(|error| format!("No se pudo confirmar el aviso: {error}"))?;
+    Ok(estado)
 }
 
 /// Copia el estado BDP del pedido a la venta con ese `bdp_order_id`. Sin venta local
@@ -235,13 +336,37 @@ async fn enlazar_venta(
     Ok(())
 }
 
-/// Lotes máximos por cuenta al arrancar: acota el tiempo de arranque si el buzón es grande.
-const MAX_LOTES_ARRANQUE: u32 = 10;
+/// Lotes máximos por cuenta en cada pasada: acota lo que se le pide a BDP de golpe.
+const MAX_LOTES_PASADA: u32 = 10;
 
-/// [D23a] Al arrancar el backend procesa los avisos `recibido` que esperaron en el
-/// buzón mientras estaba parado. Solo cuentas en modo BDP y con BDP configurado,
-/// igual que el endpoint manual; no escribe en el TPV. Devuelve los avisos procesados.
-pub async fn procesar_pendientes_al_arrancar(pool: &PgPool, modo: &ServicioModoOperacion) -> u32 {
+/// Segundos entre pasadas del procesador del buzón. `0` lo desactiva.
+const SEGUNDOS_AUTO_POR_DEFECTO: u64 = 5;
+
+/// Segundos entre pasadas, leídos de `BDP_AVISOS_AUTO_SEGUNDOS`.
+pub fn segundos_automaticos() -> u64 {
+    parsear_segundos(std::env::var("BDP_AVISOS_AUTO_SEGUNDOS").ok().as_deref())
+}
+
+fn parsear_segundos(valor: Option<&str>) -> u64 {
+    match valor.map(str::trim) {
+        None | Some("") => SEGUNDOS_AUTO_POR_DEFECTO,
+        Some(texto) => texto.parse::<u64>().unwrap_or_else(|_| {
+            tracing::warn!("BDP_AVISOS_AUTO_SEGUNDOS no es un número: se usa el por defecto");
+            SEGUNDOS_AUTO_POR_DEFECTO
+        }),
+    }
+}
+
+/// [D23a] Procesa una pasada de avisos `recibido`. Solo cuentas en modo BDP y con
+/// BDP configurado, igual que el endpoint manual; no escribe en el TPV. Devuelve
+/// los avisos procesados.
+///
+/// [10AA-3] Nació como pasada única al arrancar, para los avisos que esperaron con
+/// el backend parado; pero el TPV avisa con el backend en marcha, así que una sola
+/// pasada al arrancar dejaba el `finalizar` en el buzón hasta el siguiente reinicio
+/// (la venta nunca se marcaba facturada). Ahora la llama el bucle periódico de
+/// `main.rs`, y el caso de arranque es su primera pasada.
+pub async fn procesar_pendientes(pool: &PgPool, modo: &ServicioModoOperacion) -> u32 {
     let usuarios: Vec<Uuid> = match sqlx::query_scalar(
         "SELECT DISTINCT user_id FROM bdp_avisos_inbox WHERE estado = 'recibido'",
     )
@@ -250,7 +375,7 @@ pub async fn procesar_pendientes_al_arrancar(pool: &PgPool, modo: &ServicioModoO
     {
         Ok(usuarios) => usuarios,
         Err(error) => {
-            tracing::warn!("[D23a] No se pudo listar el buzón al arrancar: {error}");
+            tracing::warn!("[D23a] No se pudo listar el buzón: {error}");
             return 0;
         }
     };
@@ -270,16 +395,30 @@ pub async fn procesar_pendientes_al_arrancar(pool: &PgPool, modo: &ServicioModoO
             continue;
         }
         let cliente = BdpWeblinkClient::new(&config);
-        for _ in 0..MAX_LOTES_ARRANQUE {
+        for _ in 0..MAX_LOTES_PASADA {
             match procesar_lote(pool, user_id, &cliente, LIMITE_LOTE_MAX).await {
                 Ok(resumen) if resumen.procesados > 0 => total += resumen.procesados,
                 Ok(_) => break,
                 Err(error) => {
-                    tracing::warn!("[D23a] Lote de arranque fallido para {user_id}: {error}");
+                    tracing::warn!("[D23a] Lote del buzón fallido para {user_id}: {error}");
                     break;
                 }
             }
         }
     }
     total
+}
+
+#[cfg(test)]
+mod pruebas_intervalo {
+    use super::parsear_segundos;
+
+    #[test]
+    fn segundos_automaticos_usa_por_defecto_y_acepta_cero() {
+        assert_eq!(parsear_segundos(None), super::SEGUNDOS_AUTO_POR_DEFECTO);
+        assert_eq!(parsear_segundos(Some("  ")), super::SEGUNDOS_AUTO_POR_DEFECTO);
+        assert_eq!(parsear_segundos(Some("0")), 0);
+        assert_eq!(parsear_segundos(Some("30")), 30);
+        assert_eq!(parsear_segundos(Some("cinco")), super::SEGUNDOS_AUTO_POR_DEFECTO);
+    }
 }
