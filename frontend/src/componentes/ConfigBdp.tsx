@@ -18,6 +18,7 @@ import type { BdpDiagnosticoResponse } from '../api/generated/gestionRestaurante
 import { BotonModoAutomatico, ControlesTarjetaModo } from './config-bdp/ControlesModoBdp';
 import ConexionBdpCard from './config-bdp/ConexionBdpCard';
 import FuncionesBdpCard from './config-bdp/FuncionesBdpCard';
+import OperacionesNoApiCard from './config-bdp/OperacionesNoApiCard';
 import type { BdpSyncDryRunResponse, CambiarCampo } from './config-bdp/tipos';
 
 interface BdpUiState {
@@ -141,6 +142,9 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
     </Card>
 
     <FuncionesBdpCard config={config} cambiarCampo={cambiarCampo} />
+
+    {/* [D32] Responsable y procedimiento de lo que BDP no expone por API. */}
+    <OperacionesNoApiCard />
 
     {/* [167A-1] Botón guardar propio de la pestaña BDP */}
     {guardar && (
