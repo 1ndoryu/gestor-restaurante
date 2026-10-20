@@ -171,6 +171,7 @@ impl utoipa::Modify for SecurityAddon {
         bdp_article_map::actualizar_article_map,
         bdp_article_map::eliminar_article_map,
         bdp_article_map::ajustar_stock,
+        bdp_article_map::traspasar_stock,
         bdp_article_map::importar_catalogo,
         bdp_article_map::sync_catalog,
         bdp_article_map::sync_prices,

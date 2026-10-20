@@ -37,6 +37,7 @@ use crate::middleware::{respuesta_cacheable, AuthUser, VisibilidadCache};
 use crate::models::UserRole;
 use crate::models::{
     ActualizarBdpArticleMapRequest, AjustarBdpArticleStockRequest, BdpArticleMap, BdpArticleStock,
+    TraspasoStockRequest,
     BdpConteoInventario, ConteoInventarioCreado, CrearBdpArticleMapRequest,
     CrearConteoInventarioRequest, RegistrarInventarioRequest,
 };
@@ -73,6 +74,11 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/bdp/article-stock/ajustar",
             axum::routing::post(ajustar_stock),
+        )
+        /* [D26d] Traspaso entre almacenes: rechaza artículos no inventariables. */
+        .route(
+            "/bdp/article-stock/traspasar",
+            axum::routing::post(traspasar_stock),
         )
         .route("/bdp/inventario", axum::routing::post(registrar_inventario))
         /* [208A-2/C3] Conteos persistidos (D3/D4): listar, guardar+aplicar, retomar. */

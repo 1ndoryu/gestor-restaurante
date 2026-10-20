@@ -37,5 +37,5 @@ pub use flush::{BdpPushFlushResumen, BdpPushFlushService};
 pub use payloads::{
     payload_cancelar, payload_crear_articulo, payload_crear_departamento, payload_crear_familia,
     payload_inventario, payload_modificar_articulo, payload_propina, payload_puntos,
-    payload_regularizacion,
+    payload_regularizacion, payload_traspaso,
 };

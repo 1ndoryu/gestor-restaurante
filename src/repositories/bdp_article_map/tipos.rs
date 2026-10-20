@@ -58,4 +58,6 @@ pub struct BdpArticleUpsertData<'a> {
     pub barcode: &'a str,
     /* [237A-4] Stock actual del artículo en BDP */
     pub stock_actual: Decimal,
+    /* [D26d] Marca inventariable de BDP; None si la respuesta no la trae. */
+    pub inventariable: Option<bool>,
 }

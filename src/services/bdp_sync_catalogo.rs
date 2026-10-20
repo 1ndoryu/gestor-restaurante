@@ -190,6 +190,7 @@ impl BdpSyncService {
                  * en la respuesta de ExportArticles. Si el módulo de almacén no
                  * está activo, current_stock será None y queda en 0. */
                 stock_actual: art.effective_stock().unwrap_or(Decimal::ZERO),
+                inventariable: art.is_inventoriable,
             };
 
             match Self::aplicar_upsert(pool, user_id, code, &upsert_data).await {

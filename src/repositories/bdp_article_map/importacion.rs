@@ -46,8 +46,8 @@ impl BdpArticleMapRepository {
             "INSERT INTO bdp_article_map \
                 (id, user_id, articulo_glory_codigo, articulo_bdp_codigo, articulo_bdp_nombre, \
                  descripcion, precio_tarifa1, iva_pct, departamento, familia, subfamilia, \
-                 activo, barcode, stock_actual, origen, local_dirty, ultima_sync_at, created_at, updated_at) \
-             VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'bdp', false, NOW(), NOW(), NOW()) \
+                 activo, barcode, stock_actual, inventariable, origen, local_dirty, ultima_sync_at, created_at, updated_at) \
+             VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'bdp', false, NOW(), NOW(), NOW()) \
              ON CONFLICT (user_id, articulo_glory_codigo) DO UPDATE SET \
                 articulo_bdp_nombre = EXCLUDED.articulo_bdp_nombre, \
                 descripcion = EXCLUDED.descripcion, \
@@ -59,6 +59,8 @@ impl BdpArticleMapRepository {
                 activo = EXCLUDED.activo, \
                 barcode = EXCLUDED.barcode, \
                 stock_actual = EXCLUDED.stock_actual, \
+                /* Si BDP no envía la marca en una sincronización, se conserva la última conocida. */ \
+                inventariable = COALESCE(EXCLUDED.inventariable, bdp_article_map.inventariable), \
                 ultima_sync_at = NOW(), \
                 updated_at = NOW() \
              WHERE \
@@ -70,7 +72,8 @@ impl BdpArticleMapRepository {
                 OR bdp_article_map.subfamilia IS DISTINCT FROM EXCLUDED.subfamilia \
                 OR bdp_article_map.activo IS DISTINCT FROM EXCLUDED.activo \
                 OR bdp_article_map.barcode IS DISTINCT FROM EXCLUDED.barcode \
-                OR bdp_article_map.stock_actual IS DISTINCT FROM EXCLUDED.stock_actual",
+                OR bdp_article_map.stock_actual IS DISTINCT FROM EXCLUDED.stock_actual \
+                OR COALESCE(EXCLUDED.inventariable, bdp_article_map.inventariable) IS DISTINCT FROM bdp_article_map.inventariable",
         )
         .bind(Uuid::new_v4())
         .bind(user_id)
@@ -84,6 +87,7 @@ impl BdpArticleMapRepository {
         .bind(data.activo)
         .bind(data.barcode)
         .bind(data.stock_actual)
+        .bind(data.inventariable)
         .execute(pool)
         .await?;
 

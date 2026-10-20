@@ -119,6 +119,7 @@ mod article_data_merge_tests {
             barcode: String::new(),
             ultima_sync_at: None,
             stock_actual: Decimal::ZERO,
+            inventariable: Some(true),
         }
     }
 
@@ -232,5 +233,30 @@ mod lookup_tav_tests {
             lookup_tav(&config, Decimal::from_str("4.00").unwrap()),
             None
         );
+    }
+}
+
+/* [D26d] Traspaso entre almacenes: el payload usa las claves PascalCase de BDP. */
+mod traspaso_tests {
+    use super::super::payloads::payload_traspaso;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    #[test]
+    fn payload_traspaso_usa_claves_bdp() {
+        let payload = payload_traspaso(
+            90000003,
+            Decimal::from_str("2.5").unwrap(),
+            7,
+            1,
+            2,
+        )
+        .unwrap();
+        assert_eq!(payload["Article"], 90000003);
+        assert_eq!(payload["CodTransfer"], 7);
+        assert_eq!(payload["StoreFrom"], 1);
+        assert_eq!(payload["StoreTo"], 2);
+        assert!(payload.get("Units").is_some());
+        assert!(payload.get("DateTransfer").is_some());
     }
 }

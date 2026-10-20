@@ -102,6 +102,7 @@ pub use resena::{
 mod inactividad;
 pub use bdp_article_map::{
     ActualizarBdpArticleMapRequest, AjustarBdpArticleStockRequest, BdpArticleMap, BdpArticleStock,
+    TraspasoStockRequest,
     BdpConteoInventario, BdpConteoInventarioLinea, ConteoInventarioCreado,
     CrearBdpArticleMapRequest, CrearConteoInventarioRequest, InventarioLineaRequest,
     RegistrarInventarioRequest,

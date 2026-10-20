@@ -6,8 +6,8 @@ use super::{
     AccionPermiso, AjustarBdpArticleStockRequest, AjusteStockError, AppError, AppState, AuthUser,
     BdpArticleMapRepository, BdpArticleStock, BdpConteoInventario, BdpPushService,
     BdpStockInfoEntry, ConfiguracionService, ConteoInventarioCreado, CrearConteoInventarioRequest,
-    Decimal, HeaderMap, Json, Path, RegistrarInventarioRequest, Response, State, Uuid, Validate,
-    VisibilidadCache,
+    Decimal, HeaderMap, Json, Path, RegistrarInventarioRequest, Response, State,
+    TraspasoStockRequest, Uuid, Validate, VisibilidadCache,
 };
 
 /// Listar stock de artículos por almacén. Por defecto devuelve el almacén
@@ -117,6 +117,88 @@ pub async fn ajustar_stock(
     }
 
     Ok(Json(stock))
+}
+
+/* [D26d] Traspaso de stock entre almacenes BDP (`Warehouse/Transfers`). BDP solo
+ * traspasa artículos inventariables: si la marca es `false` se rechaza aquí, antes
+ * de encolar, con un mensaje claro. Cada traspaso es una operación independiente
+ * (no un delta acumulable), así que la entidad lleva un UUID y `encolar` no
+ * reemplaza un traspaso pendiente. */
+#[utoipa::path(
+    post,
+    path = "/api/bdp/article-stock/traspasar",
+    tag = "BDP Mapeos",
+    request_body = TraspasoStockRequest,
+    responses(
+        (status = 200, description = "Traspaso encolado para BDP"),
+        (status = 401, description = "No autorizado", body = ErrorResponse),
+        (status = 404, description = "Artículo no encontrado", body = ErrorResponse),
+        (status = 422, description = "Artículo no inventariable, sin código BDP o datos inválidos", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn traspasar_stock(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(req): Json<TraspasoStockRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    verificar_permiso(&state.pool, AccionPermiso::StockAjuste, &auth).await?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+    if req.unidades <= Decimal::ZERO {
+        return Err(AppError::Validation("unidades debe ser mayor que cero".into()));
+    }
+    if req.almacen_origen == req.almacen_destino {
+        return Err(AppError::Validation(
+            "el almacén de origen y de destino no pueden ser el mismo".into(),
+        ));
+    }
+
+    let map = BdpArticleMapRepository::buscar_por_codigo(
+        &state.pool,
+        auth.user_id,
+        &req.articulo_glory_codigo,
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("Artículo no encontrado".into()))?;
+
+    if map.inventariable == Some(false) {
+        return Err(AppError::Validation(format!(
+            "El artículo {} no es inventariable en BDP: no se puede traspasar",
+            map.articulo_glory_codigo
+        )));
+    }
+    let bdp_code = map.articulo_bdp_codigo.trim().parse::<i64>().map_err(|_| {
+        AppError::Validation("El artículo no tiene código BDP numérico: no se puede traspasar".into())
+    })?;
+
+    let payload = crate::services::bdp_push::payload_traspaso(
+        bdp_code,
+        req.unidades,
+        req.cod_traspaso,
+        req.almacen_origen,
+        req.almacen_destino,
+    )
+    .map_err(AppError::Internal)?;
+    let entidad = format!(
+        "{}:{}>{}:{}",
+        map.articulo_glory_codigo,
+        req.almacen_origen,
+        req.almacen_destino,
+        Uuid::new_v4()
+    );
+    BdpPushService::encolar(
+        &state.pool,
+        auth.user_id,
+        crate::services::bdp_push::DOMINIO_STOCK,
+        &entidad,
+        crate::services::bdp_push::OPERACION_TRASPASAR,
+        &payload,
+    )
+    .await
+    .map_err(AppError::Internal)?;
+
+    Ok(Json(serde_json::json!({ "encolado": true, "entidad": entidad })))
 }
 
 /* Almacén BDP de un ajuste. "0" (General, el valor local sin desglose) o ausente

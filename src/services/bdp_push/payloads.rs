@@ -6,7 +6,7 @@ use crate::services::bdp_weblink_catalog::{
     BdpAddOrderTipRequest, BdpAddPointsRequest, BdpArticleData, BdpCancelOrderRequest,
     BdpCreateArticlesRequest, BdpCreateDepartmentProfilesRequest, BdpCreateFamilyRequest,
     BdpMassiveStockRequest, BdpModifyArticleRequest, BdpOrderIdentifier, BdpRegularizationRequest,
-    BdpStockInfoEntry,
+    BdpStockInfoEntry, BdpTransferRequest,
 };
 
 /* ===== [198A-1/F1] Payloads de push (construidos por los handlers locales) ===== */
@@ -80,6 +80,29 @@ pub fn payload_regularizacion(
         cod_reg: config.bdp_codreg_default,
         store: almacen,
         date_reg: fecha_hoy(),
+    };
+    serde_json::to_value(&req).map_err(|error| format!("No se pudo serializar push: {error}"))
+}
+
+/// Construye el payload de `Warehouse/Transfers` (traspaso entre almacenes BDP).
+/// BDP solo traspasa artículos inventariables; el handler lo valida antes de encolar.
+pub fn payload_traspaso(
+    bdp_articulo_codigo: i64,
+    unidades: Decimal,
+    cod_traspaso: i32,
+    almacen_origen: i32,
+    almacen_destino: i32,
+) -> Result<Value, String> {
+    let req = BdpTransferRequest {
+        article: bdp_articulo_codigo,
+        sd1: String::new(),
+        sd2: String::new(),
+        sd3: String::new(),
+        units: unidades,
+        cod_transfer: cod_traspaso,
+        store_from: almacen_origen,
+        store_to: almacen_destino,
+        date_transfer: fecha_hoy(),
     };
     serde_json::to_value(&req).map_err(|error| format!("No se pudo serializar push: {error}"))
 }

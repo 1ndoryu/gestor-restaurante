@@ -43,6 +43,8 @@ pub struct BdpArticleMap {
     pub ultima_sync_at: Option<DateTime<Utc>>,
     /* [237A-4] Stock actual del artículo en BDP (solo lectura) */
     pub stock_actual: Decimal,
+    /* [D26d] Marca «Inventariable» de BDP. NULL = BDP aún no la ha informado. */
+    pub inventariable: Option<bool>,
 }
 
 /// Request para crear un mapeo de artículo
@@ -107,6 +109,18 @@ pub struct AjustarBdpArticleStockRequest {
     pub warehouse_id: Option<String>,
     #[validate(length(max = 100, message = "idempotency_key max 100"))]
     pub idempotency_key: Option<String>,
+}
+
+/// [D26d] Traspaso de stock entre almacenes BDP (`Warehouse/Transfers`).
+/// `cod_traspaso` es el `CodTransfer` de BDP: el motivo lo fija quien llama.
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct TraspasoStockRequest {
+    #[validate(length(min = 1, max = 100, message = "Código Glory requerido (max 100)"))]
+    pub articulo_glory_codigo: String,
+    pub unidades: Decimal,
+    pub cod_traspaso: i32,
+    pub almacen_origen: i32,
+    pub almacen_destino: i32,
 }
 
 /// [198A-1/D6] Línea de conteo físico de inventario: artículo + unidades contadas.

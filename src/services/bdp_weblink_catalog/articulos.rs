@@ -127,6 +127,10 @@ pub struct BdpExportArticleItem {
     /// anidado dentro de `PricesTableData` o `Prices` en lugar de a nivel raíz.
     #[serde(default, alias = "PricesTableData", alias = "Prices")]
     pub prices_table_data: Vec<BdpArticlePriceEntry>,
+    /// Marca «Inventariable» (`Is_Inventoriable` en ExportArticles). Ausente → None:
+    /// no se rechaza el traspaso por falta de dato.
+    #[serde(default, alias = "Is_Inventoriable")]
+    pub is_inventoriable: Option<bool>,
 }
 
 impl BdpExportArticleItem {
@@ -269,6 +273,7 @@ fn map_article_essential(item: &Value) -> Option<BdpExportArticleItem> {
         discount: field_decimal(item, &["Discount"]),
         bar_code: field_text(item, &["BarCode", "Barcode"]),
         active: field_bool(item, &["Active"]).unwrap_or(true),
+        is_inventoriable: field_bool(item, &["Is_Inventoriable", "IsInventoriable"]),
         current_stock: field_decimal(item, &["CurrentStock", "Stock"]),
         prices_table_data: Vec::new(),
     })
@@ -306,4 +311,26 @@ pub struct BdpCatalogSyncResult {
     pub desactivados_localmente: u32,
     pub errores: u32,
     pub total_bdp: usize,
+}
+
+/* [D26d] `Is_Inventoriable` de ExportArticles llega con guion bajo. */
+#[cfg(test)]
+mod inventariable_tests {
+    use super::BdpExportArticleItem;
+
+    #[test]
+    fn lee_is_inventoriable_con_nombre_de_bdp() {
+        let item: BdpExportArticleItem = serde_json::from_value(
+            serde_json::json!({ "Article": 90000003, "Is_Inventoriable": true }),
+        )
+        .unwrap();
+        assert_eq!(item.is_inventoriable, Some(true));
+    }
+
+    #[test]
+    fn sin_campo_queda_none() {
+        let item: BdpExportArticleItem =
+            serde_json::from_value(serde_json::json!({ "Article": 1 })).unwrap();
+        assert_eq!(item.is_inventoriable, None);
+    }
 }
