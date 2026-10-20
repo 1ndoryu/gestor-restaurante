@@ -59,10 +59,7 @@ pub fn ventana(cursor: Option<NaiveDate>, hoy: NaiveDate) -> (NaiveDate, NaiveDa
 /// `objetos_de` acepta las dos. Sin ninguna de las claves, la respuesta entera
 /// puede ser la lista.
 fn documentos_de(respuesta: &Value) -> Vec<&Value> {
-    match CLAVES_LISTA
-        .iter()
-        .find_map(|clave| respuesta.get(*clave))
-    {
+    match CLAVES_LISTA.iter().find_map(|clave| respuesta.get(*clave)) {
         Some(lista) => objetos_de(Some(lista)),
         None if respuesta.is_array() => objetos_de(Some(respuesta)),
         None => Vec::new(),

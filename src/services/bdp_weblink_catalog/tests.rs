@@ -221,5 +221,8 @@ fn purchase_notes_sin_lista_no_falla_y_deja_el_error() {
     }))
     .unwrap();
     assert!(parsed.documents_lists.is_empty());
-    assert_eq!(parsed.error_message, "[403900]-RANGO DE PROVEEDORES INCORRECTO");
+    assert_eq!(
+        parsed.error_message,
+        "[403900]-RANGO DE PROVEEDORES INCORRECTO"
+    );
 }
