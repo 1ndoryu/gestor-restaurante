@@ -152,34 +152,9 @@ pub async fn obtener_configuracion(
     Ok(Json(config))
 }
 
-/// Actualizar la configuración del restaurante (parcial)
-#[utoipa::path(
-    patch,
-    path = "/api/configuracion",
-    tag = "Configuracion",
-    request_body = ActualizarConfiguracionRequest,
-    responses(
-        (status = 200, description = "Configuración actualizada", body = ConfiguracionRestaurante),
-        (status = 401, description = "No autorizado", body = ErrorResponse),
-        (status = 422, description = "Error de validación", body = ErrorResponse)
-    ),
-    security(("bearer_auth" = []))
-)]
-pub async fn actualizar_configuracion(
-    State(state): State<AppState>,
-    auth: AuthUser,
-    Json(mut req): Json<ActualizarConfiguracionRequest>,
-) -> Result<Json<ConfiguracionRestaurante>, AppError> {
-    /* [149A-3/H-06] Escalada de privilegios: un trabajador podía cambiar la configuración
-     * (incluido el modo y, con ello, habilitar escrituras al BDP). Solo el propietario. */
-    auth.require_role(&[UserRole::Admin])?;
-    if req.bdp_sync_mode.is_some() {
-        return Err(AppError::Validation(
-            "bdp_sync_mode solo puede cambiarse mediante /configuracion/bdp/sync-mode".into(),
-        ));
-    }
-    req.validate()
-        .map_err(|e| AppError::Validation(e.to_string()))?;
+/// [10AA-3] Validación de los campos BDP del PATCH, extraída del handler para
+/// que `actualizar_configuracion` quede por debajo del límite de líneas de clippy.
+fn validar_campos_bdp(req: &ActualizarConfiguracionRequest) -> Result<(), AppError> {
     for (name, map, min) in [
         ("bdp_tender_map", req.bdp_tender_map.as_ref(), 1_i64),
         ("bdp_order_type_map", req.bdp_order_type_map.as_ref(), 0_i64),
@@ -222,6 +197,38 @@ pub async fn actualizar_configuracion(
             ));
         }
     }
+    Ok(())
+}
+
+/// Actualizar la configuración del restaurante (parcial)
+#[utoipa::path(
+    patch,
+    path = "/api/configuracion",
+    tag = "Configuracion",
+    request_body = ActualizarConfiguracionRequest,
+    responses(
+        (status = 200, description = "Configuración actualizada", body = ConfiguracionRestaurante),
+        (status = 401, description = "No autorizado", body = ErrorResponse),
+        (status = 422, description = "Error de validación", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn actualizar_configuracion(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(mut req): Json<ActualizarConfiguracionRequest>,
+) -> Result<Json<ConfiguracionRestaurante>, AppError> {
+    /* [149A-3/H-06] Escalada de privilegios: un trabajador podía cambiar la configuración
+     * (incluido el modo y, con ello, habilitar escrituras al BDP). Solo el propietario. */
+    auth.require_role(&[UserRole::Admin])?;
+    if req.bdp_sync_mode.is_some() {
+        return Err(AppError::Validation(
+            "bdp_sync_mode solo puede cambiarse mediante /configuracion/bdp/sync-mode".into(),
+        ));
+    }
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+    validar_campos_bdp(&req)?;
     let invalida_armado_bdp = req.bdp_base_url.is_some()
         || req.bdp_login.is_some()
         || req.bdp_password.is_some()

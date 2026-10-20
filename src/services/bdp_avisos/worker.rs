@@ -343,6 +343,7 @@ const MAX_LOTES_PASADA: u32 = 10;
 const SEGUNDOS_AUTO_POR_DEFECTO: u64 = 5;
 
 /// Segundos entre pasadas, leídos de `BDP_AVISOS_AUTO_SEGUNDOS`.
+#[must_use]
 pub fn segundos_automaticos() -> u64 {
     parsear_segundos(std::env::var("BDP_AVISOS_AUTO_SEGUNDOS").ok().as_deref())
 }

@@ -71,23 +71,25 @@ pub fn validar(responsable: &str, procedimiento: &str) -> Result<Asignacion, Str
 }
 
 /// Existe el código en la ficha D32.
+#[must_use]
 pub fn es_codigo_valido(codigo: &str) -> bool {
     OPERACIONES_NO_API.iter().any(|(c, _)| *c == codigo)
 }
 
 /// Resuelve una operación con su asignación y el responsable global de respaldo.
+#[must_use]
 pub fn resolver(
     codigo: &str,
     operacion: &str,
     responsable_global: &str,
     asignacion: Option<&Asignacion>,
 ) -> OperacionNoApi {
-    let asignado = asignacion.map(|a| a.responsable.trim()).unwrap_or("");
+    let asignado = asignacion.map_or("", |a| a.responsable.trim());
     let global = responsable_global.trim();
-    let responsable = if !asignado.is_empty() {
-        asignado
-    } else {
+    let responsable = if asignado.is_empty() {
         global
+    } else {
+        asignado
     };
     let procedimiento = asignacion
         .map(|a| a.procedimiento.trim())
@@ -113,9 +115,10 @@ pub fn resolver(
 }
 
 /// Lista completa de operaciones no expuestas, con sus asignaciones aplicadas.
-pub fn listar(
+#[must_use]
+pub fn listar<S: ::std::hash::BuildHasher>(
     responsable_global: &str,
-    asignaciones: &HashMap<String, Asignacion>,
+    asignaciones: &HashMap<String, Asignacion, S>,
 ) -> Vec<OperacionNoApi> {
     OPERACIONES_NO_API
         .iter()

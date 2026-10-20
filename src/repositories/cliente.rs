@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::models::Cliente;
 
-/// Datos fiscales de un cliente para la factura BDP (BillingDetails)
+/// Datos fiscales de un cliente para la factura BDP (`BillingDetails`)
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct DatosFiscalesCliente {
     pub nombre: String,

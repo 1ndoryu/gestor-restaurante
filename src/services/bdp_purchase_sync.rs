@@ -122,6 +122,7 @@ pub async fn sincronizar_automatico(
 }
 
 /// Ventana del disparo automático: los últimos `dias` días hasta hoy, acotados a 1..=31.
+#[must_use]
 pub fn ventana_automatica(hoy: NaiveDate, dias: i64) -> (String, String) {
     let dias = dias.clamp(1, DIAS_MAX_RANGO);
     let desde = hoy - Duration::days(dias);
@@ -147,11 +148,13 @@ fn rango_automatico(perfil: i32, desde: &str, hasta: &str) -> BdpExportPurchaseN
 
 /// Intervalo del disparo automático, en segundos, leído de `BDP_ALBARANES_AUTO_SEGUNDOS`.
 /// 0 lo desactiva. Un valor no numérico usa el por defecto y lo deja registrado.
+#[must_use]
 pub fn segundos_automaticos() -> u64 {
     parsear_segundos(std::env::var("BDP_ALBARANES_AUTO_SEGUNDOS").ok().as_deref())
 }
 
 /// Ventana del disparo automático en días, leída de `BDP_ALBARANES_AUTO_DIAS`.
+#[must_use]
 pub fn dias_automaticos() -> i64 {
     std::env::var("BDP_ALBARANES_AUTO_DIAS")
         .ok()
@@ -171,6 +174,7 @@ fn parsear_segundos(valor: Option<&str>) -> u64 {
 }
 
 /// Mapea un error del cliente BDP a un `AppError` que preserve la semántica HTTP.
+#[must_use]
 pub fn map_bdp_error(err: &BdpWeblinkError) -> AppError {
     match err {
         BdpWeblinkError::NotConfigured | BdpWeblinkError::InvalidBaseUrl(_) => {

@@ -44,7 +44,7 @@ pub fn clasificar_saldo(
     }
 }
 
-/// Lee `Points` de la respuesta de GetPoints; un `ErrorMessage` no vacío es fallo.
+/// Lee `Points` de la respuesta de `GetPoints`; un `ErrorMessage` no vacío es fallo.
 pub fn saldo_desde_respuesta(valor: &Value) -> Result<Decimal, String> {
     if let Some(error) = valor.get("ErrorMessage").and_then(Value::as_str) {
         if !error.is_empty() {
@@ -122,7 +122,7 @@ pub async fn resolver_intento_previo(
     }
 }
 
-/// Último intento de AddPoints con resultado ambiguo y el mismo payload.
+/// Último intento de `AddPoints` con resultado ambiguo y el mismo payload.
 async fn ultimo_ambiguo(
     pool: &PgPool,
     user_id: Uuid,

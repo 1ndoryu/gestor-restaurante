@@ -127,7 +127,7 @@ pub struct BdpExportArticleItem {
     /// anidado dentro de `PricesTableData` o `Prices` en lugar de a nivel raíz.
     #[serde(default, alias = "PricesTableData", alias = "Prices")]
     pub prices_table_data: Vec<BdpArticlePriceEntry>,
-    /// Marca «Inventariable» (`Is_Inventoriable` en ExportArticles). Ausente → None:
+    /// Marca «Inventariable» (`Is_Inventoriable` en `ExportArticles`). Ausente → None:
     /// no se rechaza el traspaso por falta de dato.
     #[serde(default, alias = "Is_Inventoriable")]
     pub is_inventoriable: Option<bool>,

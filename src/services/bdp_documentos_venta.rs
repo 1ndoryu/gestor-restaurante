@@ -41,6 +41,7 @@ pub struct ResultadoDocumentos {
 
 /// Ventana `[desde, hasta]` de la lectura. Con cursor, desde `cursor - solape`;
 /// sin cursor, los últimos días de la primera lectura. Nunca supera `DIAS_MAX_RANGO`.
+#[must_use]
 pub fn ventana(cursor: Option<NaiveDate>, hoy: NaiveDate) -> (NaiveDate, NaiveDate) {
     let desde = match cursor {
         Some(ultimo) => ultimo - Duration::days(DIAS_SOLAPE),
@@ -166,6 +167,7 @@ fn error_documentos(err: &BdpWeblinkError) -> AppError {
 
 /// Intervalo del disparo automático en segundos, de `BDP_DOCUMENTOS_AUTO_SEGUNDOS`.
 /// Por defecto 0: apagado hasta que se configure, porque llama a BDP en cada ciclo.
+#[must_use]
 pub fn segundos_automaticos() -> u64 {
     std::env::var("BDP_DOCUMENTOS_AUTO_SEGUNDOS")
         .ok()
@@ -175,6 +177,7 @@ pub fn segundos_automaticos() -> u64 {
 
 /// Perfil de exportación para el disparo automático, de `BDP_DOCUMENTOS_PERFIL`.
 /// Sin perfil válido el disparo no hace nada.
+#[must_use]
 pub fn perfil_automatico() -> Option<i32> {
     std::env::var("BDP_DOCUMENTOS_PERFIL")
         .ok()
@@ -219,7 +222,7 @@ pub async fn sincronizar_automatico(
         match sincronizar(pool, user_id, &config, perfil, true).await {
             Ok(resultado) => total += resultado.procesados,
             Err(error) => {
-                tracing::warn!("[D28] Lectura automática de documentos fallida: {error:?}")
+                tracing::warn!("[D28] Lectura automática de documentos fallida: {error:?}");
             }
         }
     }

@@ -212,7 +212,7 @@ pub async fn traspasar_stock(
  * un número, porque BDP identifica el almacén por número. */
 fn almacen_bdp(warehouse_id: Option<&str>, por_defecto: i32) -> Result<i32, AppError> {
     match warehouse_id.map(str::trim) {
-        None | Some("") | Some("0") => Ok(por_defecto),
+        None | Some("" | "0") => Ok(por_defecto),
         Some(id) => id.parse::<i32>().map_err(|_| {
             AppError::Validation(format!("warehouse_id '{id}' no es un almacén BDP numérico"))
         }),
