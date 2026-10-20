@@ -44,8 +44,14 @@ async function stageSourcePathBuild(name, config, toolRoot) {
   try {
     /* [SNT-16f] El staging se materializa desde `git archive HEAD`: solo el
      * árbol commiteado (sin cambios sin commitear ni artefactos locales), de
-     * modo que compile + suite certifican exactamente el commit fijado. */
-    const archive = await captureBinary('git', ['archive', '--format=tar', 'HEAD'], { cwd: toolRoot });
+     * modo que compile + suite certifican exactamente el commit fijado.
+     * [10AA-3] `-c core.autocrlf=false`: `git archive` aplica la conversión de
+     * fin de línea de la máquina que archiva, y en el portátil y en la 89 está
+     * en `true`. El staging salía con CRLF y la suite de sentinel moría en
+     * `check:reglas` («rules.md está desfasado del registro») aunque el commit
+     * fuera correcto: el blob del commit es LF. El adaptador compartido ya lo
+     * hacía; esto era el mismo fallo por la otra puerta. */
+    const archive = await captureBinary('git', ['-c', 'core.autocrlf=false', 'archive', '--format=tar', 'HEAD'], { cwd: toolRoot });
     /* Windows bsdtar interpreta `C:\...` como host remoto; rutas en forward-slash
      * y `-C` fuerzan extracción local portable; `--force-local` no se usa
      * porque bsdtar de Windows 3.8.4 lo rechaza. */
