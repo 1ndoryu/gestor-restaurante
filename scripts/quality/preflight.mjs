@@ -29,6 +29,10 @@ async function collectMarkdown(root, output = []) {
 }
 
 async function assertTaskExists(root, taskId) {
+  /* [10AA-3] `AUTOGATE` es el id centinela de `gate-check` cuando nadie pasa tarea
+   * (el autogate de `Arranque gate --cierre` sin --tarea). No es una tarea y no
+   * puede estar en el roadmap: se admite tal cual. */
+  if (taskId === 'AUTOGATE') return;
   const candidates = [path.join(root, 'roadmap.md')];
   await collectMarkdown(path.join(root, 'Agente', 'planes'), candidates);
   await collectMarkdown(path.join(root, 'Agente', 'completados'), candidates);

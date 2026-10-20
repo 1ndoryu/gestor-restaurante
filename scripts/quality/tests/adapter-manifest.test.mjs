@@ -36,7 +36,8 @@ test('rechaza placeholders, estados de salida, perfiles y etapas desconocidas', 
 test('rechaza rutas y task IDs fuera del contrato', () => {
   assert.throws(() => resolveWorkspacePath('C:/workspace', '../outside.json', 'report'), /fuera del workspace/);
   assert.throws(() => resolveWorkspacePath('C:/workspace', 'tmp/report.json', 'report', { allowReportRoot: true }), /\.quality-reports/);
-  assert.equal(resolveWorkspacePath('C:/workspace', '.quality-reports/task/report.json', 'report', { allowReportRoot: true }), 'C:\\workspace\\.quality-reports\\task\\report.json');
+  // El separador depende del sistema: se compone con path.join para que el test valga igual en el portátil y en el taller.
+  assert.equal(resolveWorkspacePath('C:/workspace', '.quality-reports/task/report.json', 'report', { allowReportRoot: true }), path.join(path.resolve('C:/workspace'), '.quality-reports', 'task', 'report.json'));
   assert.throws(() => assertTaskId('../escape'), /identificador inválido/);
   assert.equal(assertTaskId('SNT-12'), 'SNT-12');
 });

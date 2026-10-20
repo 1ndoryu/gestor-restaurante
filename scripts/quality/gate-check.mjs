@@ -30,7 +30,12 @@ function parseArgs(argv) {
     else if (arg === '--keep-stages') parsed.keepStages = true;
     else throw new Error(`Opción desconocida: ${arg}`);
   }
-  if (!parsed.taskId) throw new Error('gate:check requiere task-id');
+  /* [10AA-3] Sin task-id se usa uno fijo en vez de abortar: el autogate lo lanza
+   * `Arranque gate <id> --cierre` con el comando de la ficha (`npm run gate:check`),
+   * que no puede saber la tarea de la sesión. Abortando, el autogate no podía pasar
+   * nunca. La tarea de verdad se pasa a mano (`npm run gate:check -- 10AA-3`); el id
+   * solo nombra la carpeta del informe. Mismo patrón que NAKOMI (`GLORY-BASELINE`). */
+  if (!parsed.taskId) parsed.taskId = 'AUTOGATE';
   return parsed;
 }
 

@@ -21,7 +21,7 @@ export const FIXTURES = Object.freeze({
     changeTypes: ['ts', 'css'],
     profiles: ['frontend', 'css'],
     files: [
-      'frontend/src/api/bdp.ts',
+      'frontend/src/api/bdp/index.ts',
       'frontend/src/index.css',
     ],
     deletedFiles: [],
@@ -32,7 +32,7 @@ export const FIXTURES = Object.freeze({
     changeTypes: ['ts', 'css', 'config', 'delete', 'rename'],
     profiles: ['frontend', 'css'],
     files: [
-      'frontend/src/api/bdp.ts',
+      'frontend/src/api/bdp/index.ts',
       'frontend/src/api/axios-instance.ts',
       'frontend/src/componentes/FormularioReserva.tsx',
       'frontend/src/componentes/ListaClientes.tsx',
