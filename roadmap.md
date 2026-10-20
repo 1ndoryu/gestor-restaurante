@@ -119,9 +119,6 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 - [ ] `159A-2` — **Unificar botones sync en Importar/Exportar + importar departamentos/familias del BDP.**
   Plan `Agente/planes/plan-sync-importar-exportar-bdp-2026-09-15.md`. 13 botones sync reales → 2 por sección + endpoint `importar-departamentos` + spike familias. Bloqueo: F0 spike (rango códigos 1..999, export familias, filtro flush).
 
-- [ ] `267A-9` — **F4 monolitos (`services/bdp_sync.rs` → hub + módulos).**
-  Sub-plan `Agente/planes/completados/plan-f4-split-bdp-sync-2026-09-12.md`. Código + gate + push hechos (`ef6b830`, 2026-09-13). Pendiente: `--full` tras cooldown, cierre y la deuda aparte de `services/bdp_weblink_catalog.rs` (1708 líneas).
-
 - [ ] `318A-3` — **Evaluar reactivación de reglas de consistencia de formularios.**
   `html-nativo-en-vez-de-componente`, `componente-artesanal` y `componente-sin-hook-glory` están deshabilitadas. Revisar su reactivación tras la unificación de formularios de PT; requiere autorización explícita para tocar `sentinel.config.json`.
 
