@@ -90,3 +90,25 @@ Precondición: L4 hecho y F1–F2 implementados (L5.0 ya está) (receptor, inbox
 - **D32:** mensaje con procedimiento y responsable ante cada operación que la API no expone (traspaso desde la web, borrar artículos, rectificativas, devoluciones, apertura y cierre, arqueo, efectivo, PDF, reimpresión en cocina, controles de cocina, series, cambios tras el pago). Es código de la web (F2/F3) más la lista de responsables, que asignan Guillermo y el propietario por escrito.
 - **Decidido (2026-10-20, usuaria): «Genérico + responsable».** Texto: «`<operación>` no se puede hacer desde la web: BDP no la expone por API. Realízala en el TPV de BDP. Responsable: `<responsable>`.» El responsable sale de `configuracion_restaurante.bdp_responsable_no_api` (columna, configurable); vacío → «pendiente de asignar». Lo que falta: que la usuaria rellene el responsable real; el procedimiento concreto por operación lo confirma ella en TpvNet.
 - **D30 piloto y despliegue por etapas:** fuera de este plan (F4, permiso aparte). Requisitos antes de abrir F4: todas las fichas superadas con su evidencia, responsables de las excepciones, umbral de rendimiento y rollback por escrito.
+
+### Cierre de la fase D (2026-10-20)
+
+Decisión de la usuaria: «Cerrar con pendientes declarados». Código y docs de L6.d–L10 cerrados; cada pendiente externo queda aquí con su dueño. Ninguno se da por aprobado.
+
+| Pendiente | Dueño | Qué falta |
+|---|---|---|
+| D16 pago de caja | Usuaria (TpvNet) | Cobro en caja y repaso |
+| D20 factura desde aviso `finalizar` | Usuaria (TpvNet) | Aviso real emitido por el TPV |
+| D24a–d alta/baja/borrado en caja | Usuaria (TpvNet) | Operación en caja; lectura periódica sin botón |
+| D29 reinicio de BDP.NET | Usuaria (TpvNet elevado) | Reinicio y conciliación |
+| D32 responsable y procedimiento | Usuaria | Rellenar `bdp_responsable_no_api`; confirmar procedimiento por operación |
+| D18d `BillingDetails` | Verificación técnica | Captura de tráfico o `Orders/Get` autenticado; hoy no consta que BDP lo reciba |
+| D11c propina | Verificación técnica | Origen del 0,00 en la cola y lectura intermedia de `Tip` |
+| D12c puntos | Tarea aparte | `encolar` reemplaza el payload de una fila activa; dos sumas antes del flush pierden importe |
+| D26b/D26f/D26g, D26e | BDP real | Ensayo en el BDP real (`Units` null, almacén inexistente, escandallo) |
+| D27 venta que mueve stock | Pendiente de código | Sin escritor local; la guarda se implementa con él |
+| D28, D28-auto, D28-auto-R, D28a | BDP real | Prueba viva de `ExportProfiles/Documents`; disparo automático apagado por defecto |
+| D01/D02 | Usuaria / verificación | Registro formal en `bdp_sync_cursor`; licencia del TPV real |
+| L9 (D21–D31) | Verificación técnica y usuaria | Pruebas vivas sin ejecutar; avisos `recibido` solo los procesa la cuenta demo |
+
+Estado: **fase D cerrada en código y docs, con los pendientes de la tabla declarados.**
