@@ -14,7 +14,7 @@ use uuid::Uuid;
 use wiremock::matchers::{body_json, header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-pub(super) fn config(base_url: String) -> ConfiguracionRestaurante {
+pub(crate) fn config(base_url: String) -> ConfiguracionRestaurante {
     ConfiguracionRestaurante {
         id: Uuid::new_v4(),
         user_id: Uuid::new_v4(),
@@ -81,6 +81,7 @@ pub(super) fn config(base_url: String) -> ConfiguracionRestaurante {
         bdp_almacen_default: 1,
         bdp_codreg_default: 1,
         bdp_articulo_rango_inicial: 90_000_000,
+        bdp_responsable_no_api: String::new(),
         bdp_order_end_type: 0,
         bdp_billing_details: false,
         bdp_overwrite_clientes: false,

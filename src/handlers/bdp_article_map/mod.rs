@@ -16,6 +16,7 @@
  * [157A-9] F9.3-F9.5: sync-prices, sync-tables, menús/fastfoods/packs. */
 
 mod catalogo;
+mod operaciones;
 mod stock;
 mod sync;
 
@@ -79,6 +80,11 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/bdp/article-stock/traspasar",
             axum::routing::post(traspasar_stock),
+        )
+        /* [D32] Operaciones que BDP no expone por API, con responsable (solo lectura). */
+        .route(
+            "/bdp/operaciones-no-api",
+            get(operaciones::listar_operaciones_no_api),
         )
         .route("/bdp/inventario", axum::routing::post(registrar_inventario))
         /* [208A-2/C3] Conteos persistidos (D3/D4): listar, guardar+aplicar, retomar. */

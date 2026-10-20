@@ -135,6 +135,8 @@ pub struct ConfiguracionRestaurante {
     pub bdp_almacen_default: i32,
     pub bdp_codreg_default: i32,
     pub bdp_articulo_rango_inicial: i64,
+    /* [D32] Responsable de las operaciones que BDP no expone por API. */
+    pub bdp_responsable_no_api: String,
     /* [094A-4] URL de Google Business para redirigir reseñas positivas */
     pub google_review_url: String,
     /* [094A-6] Datos para botones CTA en mensajes WhatsApp */
@@ -266,6 +268,9 @@ pub struct ActualizarConfiguracionRequest {
     pub bdp_codreg_default: Option<i32>,
     #[validate(range(min = 1))]
     pub bdp_articulo_rango_inicial: Option<i64>,
+    /* [D32] Texto libre: nombre o cargo de quien hace las operaciones en el TPV. */
+    #[validate(length(max = 200))]
+    pub bdp_responsable_no_api: Option<String>,
 }
 
 fn validar_iva(valor: &rust_decimal::Decimal) -> Result<(), validator::ValidationError> {

@@ -63,6 +63,7 @@ fn bdp_data<'a>(
         activo,
         barcode: "",
         stock_actual: Decimal::ZERO,
+        inventariable: None,
     }
 }
 
