@@ -28,17 +28,64 @@
 ## 2. Lo que queda, y qué falta de verdad en cada uno
 
 - [x] **D16** — cerrado: lote `d16-cobro-positivo` en verde el 2026-10-20 y caso negativo capturado. Ver §4.
-- [ ] **D24a–d** — alta, modificación, desactivación y borrado **en caja del TPV local**, leyendo después desde la web sin botón. Necesita acciones nuevas de maestros en `tpv.mjs` (hoy hay `familia` y `articulo` de comanda, no de caja). D24d admite el respaldo de D32 si la API no expone el borrado, y D32 ya está hecho.
-- [ ] **D26b / D26e** — `GetListStock` y `UpdateStock` están tipados (`consultas.rs:87-123`, `cliente_operaciones.rs:171`) pero **sin llamador de producción**: es trabajo de código, no de ensayo.
-- [x] **D28 / D28-auto** — cerrado. El perfil de exportación ya existía; lo que faltaba era `TipoExport=2` y un parser que entendiera la respuesta real. Ver §4.
+- [ ] **D24a–d** — alta, modificación, desactivación y borrado de artículos. **No es trabajo de caja: es de API**, y las cuatro ya tienen servicio WebLink (§2.1). Falta la corrida contra el BDP local, no escribir el camino.
+- [x] **D26b** — cerrado en código: `GetListStock` ya tiene llamador de producción (`refrescar_stock_almacen`, `src/services/bdp_sync_catalogo.rs`), ruta `POST /bdp/article-maps/sync-stock-almacen` y botón «Stock por almacén» en Configuración BDP. 39 tests en verde en la 89.
+- [ ] **D26e** — `UpdateStock` y `UpdateMassiveStock` siguen tipados (`consultas.rs:87-123`, `cliente_operaciones.rs:171`) y **sin llamador de producción**: es trabajo de código, no de ensayo.
+- [x] **D28 / D28-auto** — cerrado. El perfil de exportación ya existía; lo que faltaba era `TipoExport=2` y un parser que entendiera la respuesta real. Cierre end-to-end el 2026-10-20: el lote `d28-incremental` (`C:/tmp/pc/lotes/d28-incremental/`) mete un artículo, abre el cobro y cobra en el TPV local, 4/4 en verde, y el documento `00001TB00000031` que genera sale después por WebLink con cabecera, líneas y pagos. Ver §4.
 - [x] **D18d** — cerrado sin escribir nada: la exportación de documentos ya trae `CIF_Cliente` y `Nombre_Cliente` por documento. Ver §4.
 - [ ] **D29** — los tres reinicios (sincronización, WebLinkRestAPI, BDP.NET). La reanudación ya está: `procesar_lote` reclama con `FOR UPDATE SKIP LOCKED` y retoma los `procesando` caducados (`worker.rs:27,70,84`). Falta la corrida y la alerta de reinicio.
 - [ ] **D02** — rotación de la contraseña del terminal local: no hay código de rotación ni registro de intentos; el único secreto gestionado es `BDP_AVISOS_SECRETO`.
 - [ ] **L0–L10** — llevar la evidencia de cada fase al checklist del índice.
 
+## 2.1 D24 no es de caja: los cuatro casos son servicios WebLink
+
+El plan anterior daba por hecho que el alta, la modificación, la desactivación y
+el borrado de artículos había que hacerlos **en la caja del TPV**. Comprobado
+contra el código y contra el manual del BDP, los cuatro tienen servicio web, y el
+camino ya está escrito y probado en el proyecto:
+
+| Caso | Servicio WebLink | Dónde se llama ya |
+|---|---|---|
+| **D24a** alta | `CreateArticlesAndUpdateProfiles` | `src/services/bdp_weblink/cliente_operaciones.rs:34`, `src/services/bdp_push/flush.rs:256` |
+| **D24b** modificación | `ModifyArticleAndUpdateProfile` | `cliente_operaciones.rs:46`, `flush.rs:261` |
+| **D24b'** precios | `ModifyPricesArticles` | `cliente_operaciones.rs:58`, `flush.rs:266` |
+| **D24c** desactivación | `WebArticle` (booleano) | `src/services/bdp_push/payloads.rs:136-139` → `web_article: Some(map.activo)` |
+| **D24d** borrado | **no existe `DeleteArticle`** | — |
+
+**La desactivación ya es una baja lógica y es la del BDP, no un invento nuestro.**
+`WebArticle` es el **único** campo de estado del artículo que el BDP documenta
+(`# WEBLINK RESTAPI.md:1532, 3553, 3707`), y el proyecto lo escribe con el valor
+de `bdp_article_map.activo`: desactivar en la app despublica el artículo en el
+BDP, reactivarlo lo vuelve a publicar. Es exactamente el «botón de desactivar» de
+D24c, sin tocar la caja.
+
+**El borrado no tiene servicio, y por eso entra D32.** No hay `DeleteArticle` ni
+nada equivalente en la superficie del BDP (`src/services/bdp_sync_catalogo.rs:66`
+lista lo que sí hay: `GetArticle`, `GetPricesArticles`, `ExportArticles`,
+`GetPOSArticlesList` de lectura; `CreateArticlesAndUpdateProfiles`,
+`ModifyArticleAndUpdateProfile`, `ModifyPricesArticles` de escritura). El plan ya
+lo preveía: «D24d admite el respaldo de D32 si la API no expone el borrado», y
+**D32 está hecho** — responsable y procedimiento configurables en el front
+(`bdp_responsable_no_api`, `bdp_operaciones_no_api`, §1). Borrar un artículo en
+el BDP es una operación sin API: se documenta quién la hace y cómo.
+
+**El front ya manda las cuatro.** `frontend/src/api/bdp/catalogo.rs:46` encola
+las altas (`:62`) y modificaciones (`:86`), y `:115` encola los precios (`:133`);
+la cola la vacía «Exportar al BDP» por dominio `articulo`
+(`BdpArticleCatalogActions.tsx:109`). Lo que falta de D24 **no es código**: es la
+corrida contra el BDP local comprobando que el artículo creado desde la app
+aparece en la web y en el maestro de artículos del BDP.
+
+**Lo que sí necesita la pantalla** es solo la comprobación cruzada: leer el
+artículo recién creado por la app en el maestro «MANTENIMIENTO DE ARTÍCULOS» del
+BDP. Esa ruta ya está automatizada y no exige cazar coordenadas a mano:
+`node scripts/pc/tpv.mjs menu "Dept. y Artículos > Artículos"` (UIA, sin píxeles)
+y el maestro se cierra con **ESC**.
+
 ## 3. Defectos de herramienta encontrados y corregidos por el camino
 
-Los siete hacían fallar el gate por infraestructura y parecían fallos del proyecto:
+Los diez primeros hacían fallar el gate por infraestructura y parecían fallos del
+proyecto; los tres últimos (11–13) dejaron el arnés sin poder cobrar en el TPV:
 
 1. **`cm-heavy` no era reentrante** (el peor): `comandoEnVps` envuelve *todo* el ssh en `cm-heavy`, y la etapa de Rust vuelve a llamar a `cm-heavy` por dentro. Se bloqueaba contra sí misma 600 s, salía 75 y el error decía «otro build ocupa el lock». Corregido en `workspace-manager/scripts/remoto/provision-89.sh` con la marca `CM_HEAVY_HELD`.
 2. La **sesión de Mutagen** no aprende que `sync.ignorar` creció (esta versión no tiene `sync configure`): se recrea sola desde `asegurarSesion`, invocada por el gate.
@@ -50,6 +97,11 @@ Los siete hacían fallar el gate por infraestructura y parecían fallos del proy
 8. `pc.mjs` **subía la ventana equivocada del TPV**: el proceso tiene dos ventanas de nivel superior en el MISMO rectángulo (`MENÚ GENERAL`, con su barra de menús, y su hija `Tpv Táctil`) y el primer plano del driver sube «la del proceso». Tres clics a ciegas abrieron varios menús del BDP y hubo que cerrarlo a mano. Ahora `pulsar-local` **se niega a pulsar** si el punto lo tapa otra aplicación (`--tapada-ok` para forzarlo).
 9. **`ventana-al-frente.ps1` no podía funcionar**: el TPV corre elevado y desde un proceso normal `SetWindowPos` devuelve `False` sin más (UIPI). Se retiró y se añadió `traer-al-frente` a `pc.mjs`, que va por el driver elevado (`bring_to_front`).
 10. **Falso negativo al pulsar dentro de un diálogo empotrado**: `pulsarLocal` da por fallido el clic que sí entró, porque ni la captura de la ventana ni el testigo de píxel ven el diálogo, y con el modal abierto UIA está bloqueado (8,5 s sin visitar un nodo). Queda pendiente un `--sin-testigo` para el caso en que el efecto se comprueba después a mano.
+11. **`pulsar-local` se negaba a pulsar una ventana tapada** aunque la tapara la propia ventana de trabajo de Claude, que está siempre encima: el TPV no se podía tocar con el chat a la vista. Ahora sube el hwnd exacto por el driver elevado (`bring_to_front`, que informa `landed_on_target`) y reintenta una vez; solo entonces se rinde.
+12. **El testigo de clic no veía los diálogos del TPV.** «TOTAL DOCUMENTO» no sale en `ventanas` y no se pinta en la captura por ventana, así que ni el mosaico ni la lista de ventanas notaban que se había abierto, y el clic que sí había entrado se daba por fallido. Añadido un testigo de pantalla completa sobre el marco de la ventana (huella antes/después) y `contarColorEnPantalla`, que es además lo que usa `hayCobro` ahora: mide el naranja de la fila de botones sobre la captura del escritorio, la única que pinta el diálogo.
+13. **`cobrar` pulsaba la forma de pago por etiqueta UIA** y moría con «no contesta a UIA: 8514 ms sin visitar ni un nodo» justo con el cobro abierto, que es cuando hace falta. Las formas de pago pasan a pulsarse por píxel (`FORMA_PUNTO`), medido sobre la captura del escritorio.
+
+**Coste del arnés, medido el 2026-10-20** (por si vuelve a parecer que se cuelga): `escritorio` 0,66 s, `capturar` 2,37 s, `pulsar-local` con testigo 8,2 s. Un paso del lote son ~15 s porque cada clic paga tres capturas (mosaico base, vuelta del testigo, `mirar` final). Y `lote.mjs` volcado a un `| tail` no imprime nada hasta terminar: los lotes largos van a un fichero con `>` y se siguen en vivo.
 
 ## 4. D28 y D18d: la evidencia
 
@@ -65,14 +117,22 @@ documentos con `Items` y `Pagos`.
 **`OnlyLastMovements` consume lo que devuelve.** Con `false` la ventana devuelve
 todos los documentos del rango; con `true`, solo los que tienen
 `Documentos_Cabecera.DocumentoEnviado_WebLink = 0`, **y los marca al devolverlos**.
-Prueba: se puso el flag a 0 en `00001TB00000030` → la primera lectura `true`
-devolvió ese documento y ninguna otra → la segunda lectura `true` ya no lo vio, y
-el flag estaba otra vez a 1.
 
-**Consecuencia para la app:** el TPV ya deja el flag a 1 al cerrar el documento, así
-que `true` no sirve como mecanismo incremental aquí. La incrementalidad la da el
-cursor de `bdp_sync_cursor` con un día de solape, que es lo que ya hace
-`ventana()` en `src/services/bdp_documentos_venta.rs:47`.
+**Corrección (2026-10-20, medida dos veces).** Aquí decía que «el TPV ya deja el
+flag a 1 al cerrar el documento, así que `true` no sirve como incremental». Es
+**falso**, y la medición anterior era un artefacto: se había puesto el flag a 0 a
+mano en `00001TB00000030`, la lectura `true` lo devolvió y lo marcó, y de ahí se
+generalizó. La prueba limpia es la de hoy: el TPV cerró `00001TB00000031`, `32` y
+`33` por la vía normal (lote `d28-incremental`) y los tres quedaron con el flag a
+`0`; una lectura `true` de `2026-10-17..21` **devolvió los tres** y los dejó a `1`.
+
+**Consecuencia para la app (la decisión no cambia, el porqué sí).** `true` es un
+mecanismo incremental que funciona y no necesita ventana de fechas. Aun así la app
+usa el cursor de `bdp_sync_cursor` con un día de solape (`ventana()` en
+`src/services/bdp_documentos_venta.rs:47`) porque `true` **pierde documentos para
+siempre** si la lectura se corta después de que el BDP marque los flags: no hay
+forma de volver a pedirlos. El cursor con solape y la deduplicación por `idWeblink`
+son recuperables. Queda como mejora opcional, no como pendiente.
 
 **La deduplicación es obligatoria, no defensiva.** Dos ventanas solapadas
 (2026-10-17..20 y 2026-10-18..20) devolvieron 20 documentos cada una y **los 20
@@ -102,7 +162,7 @@ falta leer `Documentos_Cabecera`.
 
 - [x] Las afirmaciones «no se puede en local» comprobadas una a una contra la evidencia.
 - [x] D20, D01, D32 y D26f verificados en código con `archivo:línea`.
-- [x] Los 7 defectos de herramienta que hacían fallar el gate, corregidos.
-- [ ] `Arranque gate "RESTAURANTE" --cierre` a 0 nuevos.
+- [x] Los 10 defectos de herramienta que hacían fallar el gate, corregidos, más los 3 que impedían cobrar en el TPV (§3).
+- [x] `Arranque gate "RESTAURANTE" --cierre` a 0 nuevos (corrida `b7bxtiym1`, 2026-10-20: «0 nuevos, 0 resueltos (base 0, ahora 0)»).
 - [ ] D16, D24a–d, D26b, D26e, D28, D18d, D29 y D02 cerrados con su ensayo.
 - [ ] L0–L10 con evidencia en el checklist del índice.
