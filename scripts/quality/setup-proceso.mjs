@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +8,21 @@ import { fileURLToPath } from 'node:url';
  * spawn con timeout y cierre de árbol en Windows, y un entorno npm aislado. */
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const realNodeDir = path.dirname(process.execPath);
-const npmCliPath = path.join(realNodeDir, 'node_modules', 'npm', 'bin', 'npm-cli.js');
+
+/* [por que] npm no está en la misma ruta según la instalación de Node: en Windows va
+ * junto al ejecutable; en Linux con prefijo (p. ej. ~/.local/opt/node) va en
+ * ../lib/node_modules. Se prueban ambas y, si no, la ruta que npm pasó en npm_execpath
+ * (solo si es un npm-cli.js, nunca un ejecutable distinto). */
+function resolveNpmCli() {
+  const candidates = [
+    path.join(realNodeDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.join(realNodeDir, '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    process.env.npm_execpath,
+  ];
+  return candidates.find(candidate => candidate && /npm-cli\.js$/u.test(candidate) && existsSync(candidate)) ?? candidates[0];
+}
+
+const npmCliPath = resolveNpmCli();
 
 function isolatedNpmEnvironment() {
   const pathKey = process.platform === 'win32' ? 'Path' : 'PATH';
