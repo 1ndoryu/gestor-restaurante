@@ -324,3 +324,54 @@ pub struct BdpPushFila {
     pub ultimo_error: Option<String>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
+
+#[cfg(test)]
+mod tests_puntos {
+    use super::*;
+    use serde_json::json;
+
+    /* Fila activa de puntos del cliente: devuelve (PointsAdded, estado). */
+    async fn fila_puntos(pool: &PgPool, user_id: Uuid) -> (String, String) {
+        sqlx::query_as(
+            "SELECT payload_json->>'PointsAdded', estado FROM bdp_push_pendientes \
+             WHERE user_id = $1 AND dominio = $2 AND entidad_id = 'cli-1'",
+        )
+        .bind(user_id)
+        .bind(DOMINIO_CLIENTE_PUNTOS)
+        .fetch_one(pool)
+        .await
+        .expect("debe existir una fila de puntos")
+    }
+
+    /* [D12c] Dos movimientos seguidos suman en una sola fila; antes el segundo reemplazaba al primero. */
+    #[sqlx::test(migrations = "./migrations")]
+    async fn acumular_puntos_suma_deltas_sin_perder_el_primero(pool: PgPool) {
+        let user_id = Uuid::new_v4();
+        let payload = json!({ "PointsAdded": "1", "Reason": "venta 1" });
+        BdpPushService::acumular_puntos(&pool, user_id, "cli-1", Decimal::ONE, &payload)
+            .await
+            .unwrap();
+        BdpPushService::acumular_puntos(&pool, user_id, "cli-1", Decimal::from(2), &json!({ "PointsAdded": "2", "Reason": "venta 2" }))
+            .await
+            .unwrap();
+
+        let (puntos, estado) = fila_puntos(&pool, user_id).await;
+        assert_eq!(Decimal::from_str_exact(&puntos).unwrap(), Decimal::from(3));
+        assert_eq!(estado, ESTADO_PENDIENTE);
+    }
+
+    /* Neto 0 (+2 y −2) pasa a descartado: no se envía nada a BDP. */
+    #[sqlx::test(migrations = "./migrations")]
+    async fn acumular_puntos_neto_cero_descarta_la_fila(pool: PgPool) {
+        let user_id = Uuid::new_v4();
+        BdpPushService::acumular_puntos(&pool, user_id, "cli-1", Decimal::from(2), &json!({ "PointsAdded": "2" }))
+            .await
+            .unwrap();
+        BdpPushService::acumular_puntos(&pool, user_id, "cli-1", Decimal::from(-2), &json!({ "PointsAdded": "-2" }))
+            .await
+            .unwrap();
+
+        let (_, estado) = fila_puntos(&pool, user_id).await;
+        assert_eq!(estado, ESTADO_DESCARTADO);
+    }
+}
