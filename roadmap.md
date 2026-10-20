@@ -125,11 +125,9 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 - [ ] `318A-3` — **Evaluar reactivación de reglas de consistencia de formularios.**
   `html-nativo-en-vez-de-componente`, `componente-artesanal` y `componente-sin-hook-glory` están deshabilitadas. Revisar su reactivación tras la unificación de formularios de PT; requiere autorización explícita para tocar `sentinel.config.json`.
 
-- [ ] `247A-9` — **Decisiones pendientes del cliente y pruebas antes de producción.**
-  Items: Compras (fases 1-3 hechas) y CancelOrder (ver `3`). Pruebas: T1 simulador BDP local, T2 BDP real en entorno controlado, T3 auto-arming y toggles, T4 logs de ambigüedad y reconciliación, T5 runbook de rollback y restauración.
-
 ## Bloqueos
 
+- `cliente-bdp-produccion` — **Decisiones del cliente y pruebas contra BDP real antes de producción** (viene de `247A-9`, 24-jul). Compras (fases 1-3) y CancelOrder ya están cerrados; el 2026-10-20 se retiró esa parte de la tarea. Queda lo que depende de terceros: las decisiones del cliente sobre compras y cancelación, y las pruebas T1 simulador BDP local, T2 BDP real en entorno controlado, T3 auto-arming y toggles, T4 logs de ambigüedad y reconciliación, T5 runbook de rollback y restauración.
 - `suscripción-weblink` — **Escrituras reales BDP bloqueadas por la suscripción WebLink de pago.** `Payment/Add` a comanda existente y factura a existente en `⏸`; el pago dentro del `CreateOrder` inicial sí funciona en gratuita. Verificar con cliente/proveedor (tareas `1`, `1c`).
 - `impresora-cocina` — **Sin impresora de cocina** ("pendiente de real"): bloquea L3.a2 y D09a (10AA-3).
 - `conteos-tpv` — **L2.2 y las consultas a BDP pendientes de la sesión de la usuaria con el TPV local** (10AA-3).
