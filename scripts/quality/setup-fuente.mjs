@@ -51,7 +51,7 @@ async function stageSourcePathBuild(name, config, toolRoot) {
      * `check:reglas` («rules.md está desfasado del registro») aunque el commit
      * fuera correcto: el blob del commit es LF. El adaptador compartido ya lo
      * hacía; esto era el mismo fallo por la otra puerta. */
-    const archive = await captureBinary('git', ['-c', 'core.autocrlf=false', 'archive', '--format=tar', 'HEAD'], { cwd: toolRoot });
+    const archive = await captureBinary('git', ['-c', 'core.autocrlf=false', '-c', 'core.eol=lf', 'archive', '--format=tar', 'HEAD'], { cwd: toolRoot });
     /* Windows bsdtar interpreta `C:\...` como host remoto; rutas en forward-slash
      * y `-C` fuerzan extracción local portable; `--force-local` no se usa
      * porque bsdtar de Windows 3.8.4 lo rechaza. */

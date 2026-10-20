@@ -23,10 +23,15 @@ export function untrustedCheckoutChanges(statusOutput) {
     });
 }
 
-// Hash del árbol versionado (git archive): un checkout con otro contenido no puede pasar por el lock.
+/* Hash del árbol versionado (git archive): un checkout con otro contenido no puede pasar por el lock.
+ * [10AA-3] `core.autocrlf=false` + `core.eol=lf`: `git archive` convierte los finales de línea del
+ * árbol que archiva, y con `autocrlf=true` (portátil y 89) el mismo commit daba un tar con CRLF y por
+ * tanto otro sha256. El lock del área se genera con el generador del workspace-manager, que ya fija
+ * LF, así que aquí salía «SHA-256 del árbol instalado no coincide» en cualquier máquina con autocrlf.
+ * El hash tiene que depender del commit, no del `core.autocrlf` de quien mira. */
 export async function gitArchiveSha256(toolRoot) {
   return new Promise((resolve, reject) => {
-    const child = spawn('git', ['-C', toolRoot, 'archive', '--format=tar', 'HEAD'], {
+    const child = spawn('git', ['-c', 'core.autocrlf=false', '-c', 'core.eol=lf', '-C', toolRoot, 'archive', '--format=tar', 'HEAD'], {
       cwd: toolRoot,
       shell: false,
       windowsHide: true,
