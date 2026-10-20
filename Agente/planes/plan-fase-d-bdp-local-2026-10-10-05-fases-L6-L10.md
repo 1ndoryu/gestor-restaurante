@@ -109,6 +109,6 @@ Decisión de la usuaria: «Cerrar con pendientes declarados». Código y docs de
 | D27 venta que mueve stock | Guarda hecha, sin escritor | Commit `2d1a7db`: `BdpWriteGuard::venta_puede_mover_stock` (`bdp_synced`, `bdp_order_id`), 3 tests. No hay columna `origen`; el criterio cubre el origen TPV solo si la venta tiene `bdp_order_id`. Sin llamador hasta que exista el escritor |
 | D28, D28-auto, D28-auto-R, D28a | BDP real | Prueba viva de `ExportProfiles/Documents`; disparo automático apagado por defecto |
 | D01/D02 | Usuaria / verificación | Registro formal en `bdp_sync_cursor`; licencia del TPV real |
-| L9 (D21–D31) | Verificación técnica | Clave de `demo@restaurante.com` restablecida en la BD local y guardada en `.env` como `DEMO_RESTAURANTE_PASSWORD` (no mostrada). Falta procesar los 16 avisos `recibido`: la API de RESTAURANTE no tiene vía `Arranque up` y su BD está en 127.0.0.1 del laptop, mientras que compilar y probar va a la 89 |
+| L9 (D21–D31) | Verificación técnica | Clave de `demo@restaurante.com` restablecida en la BD de la 89 (`glory_backend`, la que tiene `bdp_avisos`) y guardada en `.env` como `DEMO_RESTAURANTE_PASSWORD` (no mostrada). También cambió el hash en una BD local del laptop (`glory_backend_kamples`), que no tiene `bdp_avisos`. Falta procesar los 16 avisos `recibido`: `Arranque comandos "RESTAURANTE"` no tiene `up`, así que la API no se puede levantar por la vía del taller sin ampliar el wrapper |
 
 Estado: **fase D cerrada en código y docs, con los pendientes de la tabla declarados.**
