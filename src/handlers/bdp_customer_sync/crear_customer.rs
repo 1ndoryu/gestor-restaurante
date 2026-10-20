@@ -27,6 +27,13 @@ pub(super) async fn armar_create_customer(
         format!("{} {}", cliente.apellidos, cliente.nombre)
     };
 
+    /* [D18d] El NIF viaja en FIN: sin él BDP da de alta el cliente sin identificación fiscal. */
+    let fin = ClienteRepository::datos_fiscales(&state.pool, cliente.id, user_id)
+        .await
+        .map_err(|e| AppError::Internal(format!("Error leyendo NIF del cliente: {e}")))?
+        .map(|datos| datos.nif.trim().to_string())
+        .unwrap_or_default();
+
     /* [048A-8] Payload completo del contrato CreateCustomer. El BDP real con
      * módulo de gestión devuelve NullReferenceException si faltan los campos
      * de gestión (PaymentMode, Representative, AreaCode, TAVCode, RateCode),
@@ -42,7 +49,7 @@ pub(super) async fn armar_create_customer(
         province: String::new(),
         land_line: String::new(),
         mobile_phone: cliente.telefono.clone(),
-        fin: String::new(),
+        fin,
         fin_type: 1,
         email: cliente.email.clone(),
         per_discount: 0.0,
