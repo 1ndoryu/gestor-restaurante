@@ -72,16 +72,27 @@ export function getBranchDbUrl({ verbose = true } = {}) {
   const baseDbUrl = envVars.DATABASE_URL;
   if (!baseDbUrl) throw new Error('DATABASE_URL no encontrado en .env');
 
-  /* 3. Parsear URL — solo necesitamos user/pass/host/port */
-  const m = baseDbUrl.match(/^postgres(?:ql)?:\/\/([^:]+):([^@]+)@([^:/]+):(\d+)\/(.+)$/);
+  /* 3. Parsear URL — solo necesitamos user/pass/host/port.
+   * [10AA-3] El mismo `.env` vale para el portátil y para la 89, pero no lleva la
+   * misma forma de conexión: en el portátil va por TCP (`usuario:clave@host:puerto`)
+   * y en la 89 por el socket local, que libpq escribe con la ruta codificada
+   * (`dev@%2Fvar%2Frun%2Fpostgresql/base`), sin clave y sin puerto. La expresión
+   * anterior exigía clave y puerto, así que en la 89 —donde corre todo el cómputo—
+   * el gate moría en la etapa de Rust con «No se pudo parsear DATABASE_URL». */
+  const m = baseDbUrl.match(/^postgres(?:ql)?:\/\/([^:@/]+)(?::([^@]*))?@([^/:]+)(?::(\d+))?\/(.+)$/);
   if (!m) throw new Error(`No se pudo parsear DATABASE_URL: ${baseDbUrl}`);
-  const [, dbUser, dbPass, dbHost, dbPort] = m;
+  const [, dbUser, dbPass = '', dbHostCodificado, dbPort] = m;
+  /* La ruta del socket viaja codificada; psql la quiere literal en `-h`. */
+  const dbHost = decodeURIComponent(dbHostCodificado);
+  const porSocket = dbHost.startsWith('/');
 
   /* 4. Nombre de BD y cargo target derivados de Cargo.toml + rama (sin hardcodes) */
   const pkgName = readPackageName();
   const isDefault = branch === 'main' || branch === 'master';
   const dbName = isDefault ? pkgName : `${pkgName}_${branchSlug}`;
-  const dbUrl = `postgres://${dbUser}:${dbPass}@${dbHost}:${dbPort}/${dbName}`;
+  const autoridad = dbPass ? `${dbUser}:${dbPass}@` : `${dbUser}@`;
+  const anfitrion = porSocket ? encodeURIComponent(dbHost) : dbHost;
+  const dbUrl = `postgres://${autoridad}${anfitrion}${dbPort ? `:${dbPort}` : ''}/${dbName}`;
   /* GLORY_CARGO_TARGET_DIR es el override manual; CARGO_TARGET_DIR esta fijado a nivel
    * global en config.toml y se ignora aqui para que el subdirectorio por proyecto+rama
    * siempre se calcule correctamente. */
@@ -97,10 +108,13 @@ export function getBranchDbUrl({ verbose = true } = {}) {
 
   /* 5. Crear BD si no existe */
   const psqlBin = findPsql();
-  const psqlEnv = { ...process.env, PGPASSWORD: dbPass };
+  /* Sin clave (socket con `peer`) no se pone PGPASSWORD: psql lo usaría y fallaría. */
+  const psqlEnv = dbPass ? { ...process.env, PGPASSWORD: dbPass } : { ...process.env };
 
   function psql(sql, db = 'postgres') {
-    return execFileSync(psqlBin, ['-U', dbUser, '-h', dbHost, '-p', dbPort, '-d', db, '-t', '-A', '-c', sql], {
+    /* Por socket no hay puerto que pasar. */
+    const args = ['-U', dbUser, '-h', dbHost, ...(dbPort ? ['-p', dbPort] : []), '-d', db, '-t', '-A', '-c', sql];
+    return execFileSync(psqlBin, args, {
       env: psqlEnv, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
     });
   }

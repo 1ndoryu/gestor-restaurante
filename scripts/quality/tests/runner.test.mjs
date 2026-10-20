@@ -40,3 +40,18 @@ test('safeEnvironment no permite extras fuera del allowlist efectivo', () => {
   assert.equal(env.ALLOWED, 'yes');
   assert.equal(Object.hasOwn(env, 'SECRET_SHOULD_NOT_PASS'), false);
 });
+
+/* [10AA-3] La marca de reentrada de cm-heavy tiene que llegar a los comandos del gate:
+ * el gate envuelve el ssh en cm-heavy y su etapa de Rust vuelve a entrar en cm-heavy, así
+ * que si el filtro la borra, el hijo espera 600 s al candado de su propio abuelo y el gate
+ * falla por «otro build ocupa el lock», que parece un fallo del proyecto. */
+test('safeEnvironment deja pasar la marca de reentrada de cm-heavy', () => {
+  const previo = process.env.CM_HEAVY_HELD;
+  process.env.CM_HEAVY_HELD = '1';
+  try {
+    assert.equal(safeEnvironment().CM_HEAVY_HELD, '1');
+  } finally {
+    if (previo === undefined) delete process.env.CM_HEAVY_HELD;
+    else process.env.CM_HEAVY_HELD = previo;
+  }
+});

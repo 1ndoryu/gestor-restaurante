@@ -6,6 +6,11 @@ export const DEFAULT_ENV_ALLOWLIST = Object.freeze([
   'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'PROGRAMFILES', 'PROGRAMFILES(X86)',
   'NUMBER_OF_PROCESSORS', 'CI', 'NO_COLOR', 'TERM', 'npm_execpath',
   'CARGO_TARGET_DIR_BASE', 'SWAGGER_UI_DOWNLOAD_URL',
+  /* [10AA-3] La marca de reentrada de cm-heavy tiene que atravesar el filtro: el gate
+   * envuelve el ssh entero en cm-heavy, su etapa de Rust vuelve a entrar en cm-heavy y,
+   * sin la marca, el hijo se bloqueaba 600 s contra el candado de su propio abuelo
+   * (fallaba por «otro build ocupa el lock» y parecía un fallo del código). */
+  'CM_HEAVY_HELD', 'CM_HEAVY_ESPERA',
   'GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0',
   'GIT_CONFIG_KEY_1', 'GIT_CONFIG_VALUE_1',
 ]);
