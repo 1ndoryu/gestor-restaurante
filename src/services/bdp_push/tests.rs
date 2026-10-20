@@ -260,3 +260,28 @@ mod traspaso_tests {
         assert!(payload.get("DateTransfer").is_some());
     }
 }
+
+/* [D26e] Ajuste por delta: va a `Warehouse/Regularizations` (BDP regulariza el
+ * escandallo). Un delta negativo debe viajar con signo y con el almacén indicado. */
+mod regularizacion_tests {
+    use super::super::payloads::payload_regularizacion;
+    use crate::models::ConfiguracionRestaurante;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    #[test]
+    fn payload_regularizacion_conserva_signo_y_almacen() {
+        let config = ConfiguracionRestaurante::default();
+        let payload = payload_regularizacion(
+            &config,
+            90000003,
+            Decimal::from_str("-2.5").unwrap(),
+            2,
+        )
+        .unwrap();
+        assert_eq!(payload["Article"], 90000003);
+        assert_eq!(payload["Store"], 2);
+        assert!(payload.get("Units").is_some());
+        assert!(payload.get("DateReg").is_some());
+    }
+}

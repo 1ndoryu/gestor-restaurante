@@ -463,3 +463,83 @@ pub struct SyncTablesResult {
     pub mesas_creadas: u32,
     pub applied: bool,
 }
+
+#[cfg(test)]
+mod tests_sync_tables {
+    use super::*;
+    use crate::services::bdp_weblink::tests::config;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    /* [D24-p] BDP simulado con un salón y dos mesas: login y GetTables. */
+    async fn montar_bdp() -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/Auth/Login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": "",
+                "AuthSession": { "Token": "token-bdp", "ExpiresIn_InSecconds": 3540 }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/API/Rooms/GetTables"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": "",
+                "Rooms": [{ "Id": 1, "Name": "Comedor", "Tables": [1, 2] }]
+            })))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    /* Cuenta zonas y mesas del usuario en la BD local. */
+    async fn contar(pool: &PgPool, user_id: Uuid) -> (i64, i64) {
+        let zonas: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM zonas_sala WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(pool)
+            .await
+            .unwrap();
+        let mesas: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM mesas m JOIN zonas_sala z ON z.id = m.zona_id WHERE z.user_id = $1",
+        )
+        .bind(user_id)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+        (zonas, mesas)
+    }
+
+    /* [D24-p] Con aplicar=false el sync de mesas solo lee y calcula; el caso aplicar=true
+     * contra el mismo BDP sirve de testigo de que sí escribe cuando se le pide. */
+    #[sqlx::test(migrations = "./migrations")]
+    async fn sync_tables_sin_aplicar_no_escribe(pool: PgPool) {
+        let server = montar_bdp().await;
+        let user_id = Uuid::new_v4();
+        /* zonas_sala exige un usuario real (FK user_id). */
+        sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+            .bind(user_id)
+            .bind(format!("sync-tables-{user_id}@example.com"))
+            .bind("argon2_hash_placeholder")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let cfg = config(server.uri());
+        let client = BdpWeblinkClient::new(&cfg);
+
+        let simulacion = BdpSyncService::sync_tables(&client, &pool, user_id, false)
+            .await
+            .unwrap();
+        assert_eq!(simulacion.salones_bdp, 1);
+        assert_eq!(simulacion.zonas_creadas, 1);
+        assert_eq!(simulacion.mesas_creadas, 2);
+        assert!(!simulacion.applied);
+        assert_eq!(contar(&pool, user_id).await, (0, 0));
+
+        let aplicado = BdpSyncService::sync_tables(&client, &pool, user_id, true)
+            .await
+            .unwrap();
+        assert!(aplicado.applied);
+        assert_eq!(contar(&pool, user_id).await, (1, 2));
+    }
+}
