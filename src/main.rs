@@ -96,6 +96,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    /* [D28a] Importación automática de albaranes de compra. El intervalo y la ventana
+     * vienen del entorno; BDP_ALBARANES_AUTO_SEGUNDOS=0 la desactiva. */
+    lanzar_albaranes_automaticos(pool.clone(), modo_operacion.clone());
+
     /* [D23a] Avisos que esperaron en el buzón con el backend parado: se procesan al
      * arrancar, en segundo plano para no retrasar la escucha del servidor. */
     let arranque_pool = pool.clone();
@@ -129,4 +133,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Pool cerrado, servidor detenido limpiamente.");
 
     Ok(())
+}
+
+/* [D28a] Importación automática de albaranes de compra. El intervalo y la ventana
+ * vienen del entorno; BDP_ALBARANES_AUTO_SEGUNDOS=0 la desactiva. */
+fn lanzar_albaranes_automaticos(pool: sqlx::PgPool, modo: ServicioModoOperacion) {
+    use glory_backend::services::bdp_purchase_sync as albaranes;
+
+    let segundos = albaranes::segundos_automaticos();
+    if segundos == 0 {
+        return;
+    }
+    let dias = albaranes::dias_automaticos();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(segundos));
+        /* Si un ciclo tarda más que el intervalo, el siguiente se retrasa en vez de
+         * encadenar ráfagas de llamadas a BDP. */
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            let importados = albaranes::sincronizar_automatico(&pool, &modo, dias).await;
+            if importados > 0 {
+                tracing::info!("[D28a] Albaranes importados automáticamente: {importados}");
+            }
+        }
+    });
 }

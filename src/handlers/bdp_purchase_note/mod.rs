@@ -15,12 +15,10 @@ use crate::models::{
     CrearBdpPurchaseNoteRequest,
 };
 use crate::repositories::{AuditoriaCicloLocal, BdpPurchaseNoteRepository};
-use crate::services::bdp_weblink::BdpWeblinkError;
-use crate::services::bdp_weblink_catalog::{
-    BdpExportPurchaseNotesRequest, BdpExportPurchaseNotesResponse,
-};
+use crate::services::bdp_purchase_sync::importar;
+use crate::services::bdp_weblink_catalog::BdpExportPurchaseNotesRequest;
 use crate::services::{
-    verificar_permiso, AccionPermiso, BdpWeblinkClient, ConfiguracionService, ModoEfectivo,
+    verificar_permiso, AccionPermiso, ConfiguracionService, ModoEfectivo,
 };
 use crate::AppState;
 use uuid::Uuid;
@@ -283,8 +281,6 @@ pub async fn sincronizar_purchase_notes(
         config.bdp_purchase_notes_profile_id,
     )?;
 
-    let client = BdpWeblinkClient::new(&config);
-
     let bdp_request = BdpExportPurchaseNotesRequest {
         export_profile_code,
         initial_date: req.fecha_desde.clone(),
@@ -298,42 +294,8 @@ pub async fn sincronizar_purchase_notes(
         final_serial: None,
     };
 
-    let bdp_response: serde_json::Value = client
-        .export_purchase_notes(&bdp_request)
-        .await
-        .map_err(|e| map_bdp_error(&e))?;
-
-    let parsed: BdpExportPurchaseNotesResponse =
-        serde_json::from_value(bdp_response).map_err(|e| {
-            AppError::Internal(format!(
-                "Respuesta de BDP no tiene el formato esperado: {e}"
-            ))
-        })?;
-
-    let total_bdp = parsed.documents_lists.len();
-    let mut procesados = 0;
-
-    for note in parsed.documents_lists {
-        if !albaran_tiene_clave(&note) {
-            tracing::warn!(
-                "[247A-11] Albarán descartado por no tener serie ni número: {:?}",
-                note.extra
-            );
-            continue;
-        }
-        match BdpPurchaseNoteRepository::upsert_from_bdp(&state.pool, auth.user_id, &note).await {
-            Ok(true) => procesados += 1,
-            Ok(false) => {}
-            Err(e) => {
-                tracing::warn!("[247A-11] Error guardando albarán: {e}");
-            }
-        }
-    }
-
-    Ok(Json(BdpPurchaseNoteSyncResult {
-        procesados,
-        total_bdp,
-    }))
+    let resultado = importar(&state.pool, auth.user_id, &config, &bdp_request).await?;
+    Ok(Json(resultado))
 }
 
 /// Marca un albarán de compra como borrador (Fase 2).
@@ -411,19 +373,6 @@ pub async fn marcar_borrador_purchase_note(
     Ok(Json(note))
 }
 
-/// Mapea un error del cliente BDP a un `AppError` que preserve la semántica HTTP.
-fn map_bdp_error(err: &BdpWeblinkError) -> AppError {
-    match err {
-        BdpWeblinkError::NotConfigured | BdpWeblinkError::InvalidBaseUrl(_) => {
-            AppError::Validation("BDP no está configurado correctamente".into())
-        }
-        BdpWeblinkError::Throttled(_) => {
-            AppError::Validation("BDP ha limitado las peticiones; inténtalo más tarde".into())
-        }
-        _ => AppError::Internal(format!("Error ExportPurchaseNotes: {err}")),
-    }
-}
-
 /* [128A-1/F5][F5-5] Mapeo de errores del repo local: las validaciones de
  * negocio viajan como `sqlx::Error::Protocol(msg)` → 422 con el mensaje; el
  * `UNIQUE(user_id, serie, numero)` duplicado (23505) → 409 accionable. */
@@ -468,15 +417,6 @@ fn resolver_perfil_exportacion(
                 "Configura el código de plantilla ExportPurchaseNotes para continuar".into(),
             )
         })
-}
-
-/// Indica si el albarán tiene clave natural completa (serie y número).
-/// Los documentos sin ambos valores se descartan para evitar conflictos de clave
-/// vacía en la restricción `UNIQUE (user_id, serie, numero)`.
-fn albaran_tiene_clave(note: &crate::services::bdp_weblink_catalog::BdpPurchaseNoteData) -> bool {
-    let serie = note.serie_albaran.as_deref().unwrap_or("").trim();
-    let numero = note.num_albaran.as_deref().unwrap_or("").trim();
-    !serie.is_empty() && !numero.is_empty()
 }
 
 /// Valida que el rango de fechas esté presente y sea menor o igual a 31 días.
@@ -583,7 +523,7 @@ mod tests {
             total_albaran: None,
             extra: serde_json::json!({ "DocumentNumber": "X" }),
         };
-        assert!(!super::albaran_tiene_clave(&note));
+        assert!(!crate::services::bdp_purchase_sync::albaran_tiene_clave(&note));
     }
 
     #[test]
@@ -597,7 +537,7 @@ mod tests {
             total_albaran: None,
             extra: serde_json::json!({}),
         };
-        assert!(super::albaran_tiene_clave(&note));
+        assert!(crate::services::bdp_purchase_sync::albaran_tiene_clave(&note));
     }
 
     #[test]
@@ -611,6 +551,6 @@ mod tests {
             total_albaran: None,
             extra: serde_json::json!({}),
         };
-        assert!(!super::albaran_tiene_clave(&note));
+        assert!(!crate::services::bdp_purchase_sync::albaran_tiene_clave(&note));
     }
 }

@@ -7,6 +7,7 @@ mod bdp_config_bootstrap;
 mod bdp_explorer;
 mod bdp_import_departamentos;
 pub(crate) mod bdp_order_poller;
+pub mod bdp_purchase_sync;
 pub mod bdp_push;
 mod bdp_sync;
 mod bdp_sync_catalogo;
