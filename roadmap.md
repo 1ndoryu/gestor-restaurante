@@ -7,7 +7,8 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 - [ ] `10AA-3` — **Fase D sobre BDP local.**
   Plan `Agente/planes/plan-fase-d-bdp-local-2026-10-10.md` (parte 05). Conmutar la app de BDP real a local (configuración en BD, no `.env`; con volcado previo), luego lectura L2, escritura controlada por lote L3 (`PRUEBA-*`), F0 empírica de los 7 avisos en TPV local (L4) y después F1–F4 de 199A-1. Sin preguntas al distribuidor (decisión 2026-09-20).
   Hecho: L0, L1, L2.1, L2.3, L3.a, L3.c; F1 (receptor + inbox, 2026-10-17); L6.d/D19/D19t, D12c, D11a–c, D25 (`Overwrite=true` solo local), L7 y L9 (D26b/D23a/D04) — 2026-10-19.
-  Pendiente: L6 parcial (D20 bloqueado por aviso `finalizar` real; D28 sin implementar; D18d sin verificar en BDP; D16); L7 `Store` por `warehouse_id`; L8, L9 y L10 sin ejecutar; avisos `finalizar` de comandas 17 y 20.
+  Cierre 2026-10-20 (plan `Agente/planes/plan-fase-d-cierre-2026-10-20.md`): verificado que D16, D20, D24a–d, D29, D32, D18d, D26b/f/e, D28 y la licencia 84 **no** están bloqueados en local (el otro agente los dio por imposibles sin comprobarlo). En curso: D20 (persistir el `InvoiceNumber` de BDP en `ventas` + cruce aviso↔venta), D16, D28/D18d, D29, D24a–d, D01/84, D26b/f/e, D32. Suite de la 89: 232 pasan / 5 fallan / 1 ignorado (los 2 fallos reales corregidos; los 5 restantes son el submódulo `tools/sentinel` con el checkout sucio).
+  Pendiente: L6 parcial (D16, D20, D28, D18d); L7 `Store` por `warehouse_id`; L8, L9 y L10 sin ejecutar; avisos `finalizar` de comandas 17 y 20.
   Criterio de hecho: L0–L10 ejecutados con evidencia en el plan, decisiones de la usuaria aplicadas y `Arranque gate "RESTAURANTE" --cierre` a 0 nuevos.
 
 ## Pendientes
@@ -96,9 +97,6 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 - [ ] `12AA-5` — **Fallos preexistentes del gate de alcance completo.**
   `--full`: Sentinel marca ~45 errores fuera del cambio (`ventas.rs`, `bdp_backup.rs`, `bdp_sync_venta.rs`, `secreto-en-log`, ~40× `ruta-post-sin-rate-limit`); clippy y tests estuvieron bloqueados por la BD desfasada (BD migrada 2026-10-12). Deuda: 3 avisos `unused axum::Json` y lints de `--all-targets`; 4 tests con `DATABASE_URL`.
-
-- [ ] `11AA-2` — **Gate: checklist en planes activos.**
-  Hallazgo `docs-plan-no-checklist` en `Agente/planes/plan-deploy-desde-cero-2026-09-18.md` y `Agente/planes/plan-fase-d-bdp-local-2026-10-10.md`. Añadir a cada plan su checklist de cierre y repetir `npm run gate:check -- <id>`.
 
 - [ ] `12AA-1` — **Frontend a Vite 8 + TypeScript 6.**
   Hecho: `frontend/package.json` y `frontend/tsconfig.json` migrados. Pendiente: `vite build` y comprobación visual. Decidir cómo cubrir el build en el contrato (`Arranque comandos`).
