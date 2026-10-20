@@ -6,8 +6,22 @@ import path from 'node:path';
 import test from 'node:test';
 import { checkLock, generateLock, parseLockArgs, writeLock } from '../lock-generator.mjs';
 
+/* El runtime global de Sentinel vive fuera del workspace: en el fixture se simula
+ * con el mismo layout que `sentinel install` (current.json + versions/<v>/manifest.json). */
+async function writeRuntime(dir, version) {
+  const sha = 'a'.repeat(64);
+  await mkdir(path.join(dir, 'versions', version), { recursive: true });
+  await writeFile(path.join(dir, 'current.json'), JSON.stringify({ version, artifactSha256: sha }), 'utf8');
+  await writeFile(path.join(dir, 'versions', version, 'manifest.json'), JSON.stringify({ artifactSha256: sha }), 'utf8');
+}
+
 async function createFixture() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'quality-lock-generator-'));
+  // runtimeRoot() lee LOCALAPPDATA en Windows y HOME en el resto: se apuntan al fixture.
+  process.env.LOCALAPPDATA = path.join(root, 'local');
+  process.env.HOME = path.join(root, 'home');
+  await writeRuntime(path.join(root, 'local', 'GlorySentinel'), '0.4.0');
+  await writeRuntime(path.join(root, 'home', '.glory-sentinel'), '0.4.0');
   const toolRoot = path.join(root, '.quality-tools', 'sentinel');
   await mkdir(path.join(toolRoot, 'out'), { recursive: true });
   await writeFile(path.join(toolRoot, 'out', 'cli.js'), "process.stdout.write('0.4.0\\n');\n", 'utf8');
@@ -63,9 +77,22 @@ test('generateLock inspecciona el analyzer y construye un lock válido', async (
   try {
     const result = await generateLock(fixture.root);
     assert.equal(result.lock.schemaVersion, 1);
-    assert.equal(result.lock.runtime.status, 'project-adapter');
+    assert.equal(result.lock.runtime.status, 'installed');
+    assert.equal(result.lock.runtime.version, '0.4.0');
+    assert.equal(result.lock.runtime.artifactSha256, 'a'.repeat(64));
     assert.equal(result.lock.analyzers.sentinel.version, '0.4.0');
     assert.match(result.lock.analyzers.sentinel.sha256, /^[a-f0-9]{64}$/);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('generateLock rechaza un runtime instalado distinto del analizador fijado', async () => {
+  const fixture = await createFixture();
+  try {
+    await writeRuntime(path.join(fixture.root, 'local', 'GlorySentinel'), '0.5.0');
+    await writeRuntime(path.join(fixture.root, 'home', '.glory-sentinel'), '0.5.0');
+    await assert.rejects(() => generateLock(fixture.root), /reinstala el runtime/);
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }

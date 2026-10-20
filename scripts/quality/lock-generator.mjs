@@ -1,4 +1,5 @@
 import { access, copyFile, lstat, mkdir, readFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { writeAtomic } from './atomic-file.mjs';
@@ -11,12 +12,34 @@ import {
   validateLock,
 } from './lockfile.mjs';
 
-const RUNTIME = Object.freeze({
-  status: 'project-adapter',
-  version: '1.0.0-local',
-  commit: 'repo-scripts',
-  artifactSha256: null,
-});
+/* [por que] Destino por defecto de `sentinel install` (README §Instalación):
+ * %LOCALAPPDATA%\GlorySentinel en Windows; si no hay LOCALAPPDATA, ~/.glory-sentinel. */
+function runtimeRoot() {
+  if (process.platform === 'win32' && process.env.LOCALAPPDATA) return path.join(process.env.LOCALAPPDATA, 'GlorySentinel');
+  return path.join(os.homedir(), '.glory-sentinel');
+}
+
+/* [por que] El bloque runtime describe el Sentinel instalado globalmente (current.json
+ * + manifest de la versión), no un valor fijo. El commit sale del analizador fijado y
+ * solo se acepta si la versión instalada es la fijada: así el lock no declara un
+ * runtime distinto del pin. Si algo no cuadra, falla sin escribir. */
+async function inspectRuntime(analyzers) {
+  const root = runtimeRoot();
+  const pointer = await readJson(path.join(root, 'current.json')).catch(() => null);
+  if (!pointer?.version || !pointer?.artifactSha256) {
+    throw new Error('no hay runtime global de Sentinel; instala el checkout fijado con `sentinel install --source-root . --with-shims --with-path`');
+  }
+  const manifest = await readJson(path.join(root, 'versions', pointer.version, 'manifest.json')).catch(() => null);
+  if (manifest?.artifactSha256 !== pointer.artifactSha256) {
+    throw new Error(`runtime ${pointer.version}: manifest y current.json no coinciden en artifactSha256`);
+  }
+  const sentinel = analyzers.sentinel;
+  if (!sentinel) throw new Error('falta analyzers.sentinel en quality-tools.json; no se puede fijar el runtime');
+  if (sentinel.version !== pointer.version) {
+    throw new Error(`runtime global ${pointer.version} != analizador fijado ${sentinel.version}; reinstala el runtime`);
+  }
+  return { status: 'installed', version: pointer.version, commit: sentinel.commit, artifactSha256: pointer.artifactSha256 };
+}
 
 function relativeWorkspacePath(value, label) {
   if (typeof value !== 'string' || value.length === 0 || path.isAbsolute(value) || value.replace(/\\\\/g, '/').split('/').includes('..')) {
@@ -29,10 +52,10 @@ function readJson(filePath) {
   return readFile(filePath, 'utf8').then(value => JSON.parse(value));
 }
 
-function runtimeEntry() {
+function runtimeEntry(runtime) {
   return {
-    ...RUNTIME,
-    identitySha256: runtimeLockHash(RUNTIME.status, RUNTIME.version, RUNTIME.commit),
+    ...runtime,
+    identitySha256: runtimeLockHash(runtime.status, runtime.version, runtime.commit),
   };
 }
 
@@ -69,11 +92,11 @@ function stableSerialize(value) {
   return JSON.stringify(value);
 }
 
-export function buildLock(analyzers, generatedAt = new Date().toISOString()) {
+export function buildLock(analyzers, runtime, generatedAt = new Date().toISOString()) {
   return {
     schemaVersion: LOCK_SCHEMA_VERSION,
     generatedAt,
-    runtime: runtimeEntry(),
+    runtime: runtimeEntry(runtime),
     analyzers: Object.fromEntries(Object.entries(analyzers).map(([name, value]) => [name, {
       version: value.version,
       protocolVersion: value.protocolVersion,
@@ -95,7 +118,8 @@ export async function generateLock(workspaceRoot, { manifestPath = 'quality-tool
   );
   const manifest = await readJson(manifestPathAbsolute);
   const analyzers = await inspectInstalledAnalyzers(root, manifest);
-  const lock = buildLock(analyzers);
+  const runtime = await inspectRuntime(analyzers);
+  const lock = buildLock(analyzers, runtime);
   validateLock(lock, manifest);
   return { root, manifest, lock };
 }
