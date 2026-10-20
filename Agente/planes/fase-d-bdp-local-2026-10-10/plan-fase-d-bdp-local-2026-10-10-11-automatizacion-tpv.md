@@ -1,6 +1,6 @@
 # Fase D BDP local — 11 Automatización del TPV
 
-> Parte del [plan Fase D sobre BDP local](plan-fase-d-bdp-local-2026-10-10.md) (índice y checklist). Las referencias «§N» son secciones del plan original; su mapa está en el índice.
+> Parte del [plan Fase D sobre BDP local](../plan-fase-d-bdp-local-2026-10-10.md) (índice y checklist). Las referencias «§N» son secciones del plan original; su mapa está en el índice.
 
 ## 11. Automatización obligatoria de acciones manuales (rev. 2026-10-18)
 

@@ -1,6 +1,6 @@
 # Fase D BDP local — 07 Bitácora, parte 1
 
-> Parte del [plan Fase D sobre BDP local](plan-fase-d-bdp-local-2026-10-10.md) (índice y checklist). Las referencias «§N» son secciones del plan original; su mapa está en el índice.
+> Parte del [plan Fase D sobre BDP local](../plan-fase-d-bdp-local-2026-10-10.md) (índice y checklist). Las referencias «§N» son secciones del plan original; su mapa está en el índice.
 
 ## Cabecera original (copia literal, líneas 3–5)
 

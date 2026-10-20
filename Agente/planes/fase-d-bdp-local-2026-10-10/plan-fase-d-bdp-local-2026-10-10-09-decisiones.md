@@ -1,6 +1,6 @@
 # Fase D BDP local — 09 Decisiones pendientes
 
-> Parte del [plan Fase D sobre BDP local](plan-fase-d-bdp-local-2026-10-10.md) (índice y checklist). Las referencias «§N» son secciones del plan original; su mapa está en el índice.
+> Parte del [plan Fase D sobre BDP local](../plan-fase-d-bdp-local-2026-10-10.md) (índice y checklist). Las referencias «§N» son secciones del plan original; su mapa está en el índice.
 
 ## 9. Decisiones pendientes (por recomendación)
 

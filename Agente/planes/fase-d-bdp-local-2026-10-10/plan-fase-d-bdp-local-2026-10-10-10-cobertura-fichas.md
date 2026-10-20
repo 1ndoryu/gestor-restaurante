@@ -1,6 +1,6 @@
 # Fase D BDP local — 10 Cobertura de fichas D01–D32
 
-> Parte del [plan Fase D sobre BDP local](plan-fase-d-bdp-local-2026-10-10.md) (índice y checklist). Las referencias «§N» son secciones del plan original; su mapa está en el índice.
+> Parte del [plan Fase D sobre BDP local](../plan-fase-d-bdp-local-2026-10-10.md) (índice y checklist). Las referencias «§N» son secciones del plan original; su mapa está en el índice.
 
 ## 10. Cobertura del PDF (anexo B8, fichas D01–D32)
 
