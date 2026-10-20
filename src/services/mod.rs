@@ -16,6 +16,7 @@ mod bdp_sync_catalogo;
 mod bdp_sync_factura;
 mod bdp_sync_pago;
 mod bdp_sync_preflight;
+mod bdp_sync_stock;
 mod bdp_sync_venta;
 pub mod bdp_throttle;
 pub mod bdp_weblink;

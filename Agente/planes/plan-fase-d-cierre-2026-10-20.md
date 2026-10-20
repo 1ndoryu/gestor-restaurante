@@ -29,8 +29,8 @@
 
 - [x] **D16** — cerrado: lote `d16-cobro-positivo` en verde el 2026-10-20 y caso negativo capturado. Ver §4.
 - [ ] **D24a–d** — alta, modificación, desactivación y borrado de artículos. **No es trabajo de caja: es de API**, y las cuatro ya tienen servicio WebLink (§2.1). Falta la corrida contra el BDP local, no escribir el camino.
-- [x] **D26b** — cerrado en código: `GetListStock` ya tiene llamador de producción (`refrescar_stock_almacen`, `src/services/bdp_sync_catalogo.rs`), ruta `POST /bdp/article-maps/sync-stock-almacen` y botón «Stock por almacén» en Configuración BDP. 39 tests en verde en la 89.
-- [ ] **D26e** — `UpdateStock` y `UpdateMassiveStock` siguen tipados (`consultas.rs:87-123`, `cliente_operaciones.rs:171`) y **sin llamador de producción**: es trabajo de código, no de ensayo.
+- [x] **D26b** — cerrado en código: `GetListStock` ya tiene llamador de producción (`refrescar_stock_almacen`, `src/services/bdp_sync_stock.rs`), ruta `POST /bdp/article-maps/sync-stock-almacen` y botón «Stock por almacén» en Configuración BDP. 39 tests en verde en la 89.
+- [x] **D26e** — cerrado por decisión, no por ensayo: `UpdateStock` **no se usa y no debe usarse**. Ver §2.2.
 - [x] **D28 / D28-auto** — cerrado. El perfil de exportación ya existía; lo que faltaba era `TipoExport=2` y un parser que entendiera la respuesta real. Cierre end-to-end el 2026-10-20: el lote `d28-incremental` (`C:/tmp/pc/lotes/d28-incremental/`) mete un artículo, abre el cobro y cobra en el TPV local, 4/4 en verde, y el documento `00001TB00000031` que genera sale después por WebLink con cabecera, líneas y pagos. Ver §4.
 - [x] **D18d** — cerrado sin escribir nada: la exportación de documentos ya trae `CIF_Cliente` y `Nombre_Cliente` por documento. Ver §4.
 - [ ] **D29** — los tres reinicios (sincronización, WebLinkRestAPI, BDP.NET). La reanudación ya está: `procesar_lote` reclama con `FOR UPDATE SKIP LOCKED` y retoma los `procesando` caducados (`worker.rs:27,70,84`). Falta la corrida y la alerta de reinicio.
@@ -81,6 +81,34 @@ artículo recién creado por la app en el maestro «MANTENIMIENTO DE ARTÍCULOS�
 BDP. Esa ruta ya está automatizada y no exige cazar coordenadas a mano:
 `node scripts/pc/tpv.mjs menu "Dept. y Artículos > Artículos"` (UIA, sin píxeles)
 y el maestro se cierra con **ESC**.
+
+## 2.2 D26e: `UpdateStock` es un subconjunto de `Regularizations`, y por eso no se usa
+
+D26e pide probar el «ajuste delta» con `UpdateStock`. Comprobados los dos cuerpos
+de petición, `UpdateStock` **no aporta nada que `Regularizations` no haga**:
+
+```
+BdpUpdateStockRequest        { Article, Altern, Units, CodReg, Store, DateReg }
+BdpRegularizationRequest     { Article, sD1, sD2, sD3, Units, CodReg, Store, DateReg }
+```
+
+Mismos seis campos con el mismo significado, y `Regularizations` añade los tres
+`sd` (los motivos del ajuste). `UpdateStock` es el subconjunto, no una
+alternativa: cualquier cosa que se pueda pedir con él se puede pedir con
+`Regularizations`, y encima queda con motivo, que es lo que un ajuste de stock
+necesita para ser auditable.
+
+**Lo que el proyecto hace, y está bien hecho:** el ajuste por delta va a
+`Warehouse/Regularizations` (`src/services/bdp_push/tests.rs:258-260`), con el
+delta viajando **con signo y con el almacén** (`payload_regularizacion_conserva_signo_y_almacen`,
+`:270`), que es justo lo que D26e quiere comprobar — incluido el escandallo, que
+lo regulariza el propio BDP al recibir la regularización.
+
+**Decisión:** `UpdateStock` y `UpdateMassiveStock` se quedan tipados y **sin
+llamador a propósito**, como alternativa documentada para un caso que hoy no
+existe (ajuste sin motivo). No es deuda: es una capacidad que no se necesita.
+D26e queda cubierto por la prueba de `Regularizations`, y así se anota en vez de
+inventar un ensayo para un camino que nadie va a recorrer.
 
 ## 3. Defectos de herramienta encontrados y corregidos por el camino
 
@@ -163,6 +191,6 @@ falta leer `Documentos_Cabecera`.
 - [x] Las afirmaciones «no se puede en local» comprobadas una a una contra la evidencia.
 - [x] D20, D01, D32 y D26f verificados en código con `archivo:línea`.
 - [x] Los 10 defectos de herramienta que hacían fallar el gate, corregidos, más los 3 que impedían cobrar en el TPV (§3).
-- [x] `Arranque gate "RESTAURANTE" --cierre` a 0 nuevos (corrida `b7bxtiym1`, 2026-10-20: «0 nuevos, 0 resueltos (base 0, ahora 0)»).
-- [ ] D16, D24a–d, D26b, D26e, D28, D18d, D29 y D02 cerrados con su ensayo.
-- [ ] L0–L10 con evidencia en el checklist del índice.
+- [x] `Arranque gate "RESTAURANTE" --cierre` a 0 nuevos. Corrida del 2026-10-20 con el bloque D26b ya commiteado: **«0 nuevos, 0 resueltos (base 2, ahora 2)»**, y el informe `PASS` con las cinco etapas en verde (sentinel, varsense, rust, frontend, docs; 0 errores). Los 2 de base eran dos avisos de tamaño en ficheros que tocaba este bloque (`bdp_sync_catalogo.rs` a 512 líneas efectivas y `tests/bdp_article_map.rs` a 1003), corregidos partiendo cada uno por dominio: el stock se va a `src/services/bdp_sync_stock.rs` y a `tests/bdp_article_map_stock.rs`. *(La corrida `b7bxtiym1` que figuraba aquí no tiene log que la respalde; el `gate-10AA-3-final.log` de esa franja es un timeout de ssh.)*
+- [ ] D16, D24a–d, D26b, D26e, D28, D18d, D29 y D02 cerrados con su ensayo. *(D16, D20, D26b, D26e, D28, D18d, D32 y D01 cerrados; quedan D24a–d —solo la corrida—, D29 y D02.)*
+- [x] L0–L10 con evidencia en el checklist del índice: actualizado el 2026-10-20 con lo cerrado en este bloque.
