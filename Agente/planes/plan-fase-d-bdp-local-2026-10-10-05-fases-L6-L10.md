@@ -102,11 +102,11 @@ Decisión de la usuaria: «Cerrar con pendientes declarados». Código y docs de
 | D24a–d alta/baja/borrado en caja | Usuaria (TpvNet) | Operación en caja; lectura periódica sin botón |
 | D29 reinicio de BDP.NET | Usuaria (TpvNet elevado) | Reinicio y conciliación |
 | D32 responsable y procedimiento | Usuaria | Rellenar `bdp_responsable_no_api`; confirmar procedimiento por operación |
-| D18d `BillingDetails` | Verificación técnica | Captura de tráfico o `Orders/Get` autenticado; hoy no consta que BDP lo reciba |
-| D11c propina | Verificación técnica | Origen del 0,00 en la cola y lectura intermedia de `Tip` |
-| D12c puntos | Tarea aparte | `encolar` reemplaza el payload de una fila activa; dos sumas antes del flush pierden importe |
+| D18d `BillingDetails` | Verificación técnica | Login BDP verificado con las credenciales del `.env` (sin mostrarlas). Falta ejecutar la factura de prueba: la app corre en la 89 y BDP en el laptop (127.0.0.1:8070), sin túnel; luego captura o `Orders/Get` con token |
+| D11c propina | Verificación técnica | Origen del 0,00 identificado por código: `add_tip=false` admite importe 0 por diseño (`handlers/ventas/local.rs:215`). Falta la lectura viva de `Tip` en BDP |
+| D12c puntos | Resuelto | Commit `5e467b5`: `acumular_puntos` suma deltas y descarta neto 0; 2/2 tests |
 | D26b/D26f/D26g, D26e | BDP real | Ensayo en el BDP real (`Units` null, almacén inexistente, escandallo) |
-| D27 venta que mueve stock | Pendiente de código | Sin escritor local; la guarda se implementa con él |
+| D27 venta que mueve stock | Guarda hecha, sin escritor | Commit `2d1a7db`: `BdpWriteGuard::venta_puede_mover_stock` (`bdp_synced`, `bdp_order_id`), 3 tests. No hay columna `origen`; el criterio cubre el origen TPV solo si la venta tiene `bdp_order_id`. Sin llamador hasta que exista el escritor |
 | D28, D28-auto, D28-auto-R, D28a | BDP real | Prueba viva de `ExportProfiles/Documents`; disparo automático apagado por defecto |
 | D01/D02 | Usuaria / verificación | Registro formal en `bdp_sync_cursor`; licencia del TPV real |
 | L9 (D21–D31) | Verificación técnica y usuaria | Pruebas vivas sin ejecutar; avisos `recibido` solo los procesa la cuenta demo |
