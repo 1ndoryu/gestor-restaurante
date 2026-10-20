@@ -81,10 +81,15 @@ pub fn routes() -> Router<AppState> {
             "/bdp/article-stock/traspasar",
             axum::routing::post(traspasar_stock),
         )
-        /* [D32] Operaciones que BDP no expone por API, con responsable (solo lectura). */
+        /* [D32] Operaciones que BDP no expone por API, con responsable y procedimiento. */
         .route(
             "/bdp/operaciones-no-api",
             get(operaciones::listar_operaciones_no_api),
+        )
+        /* [D32] Asignar responsable y procedimiento a una operación (solo Admin). */
+        .route(
+            "/bdp/operaciones-no-api/:codigo",
+            axum::routing::put(operaciones::actualizar_operacion_no_api),
         )
         .route("/bdp/inventario", axum::routing::post(registrar_inventario))
         /* [208A-2/C3] Conteos persistidos (D3/D4): listar, guardar+aplicar, retomar. */
