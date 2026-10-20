@@ -99,17 +99,33 @@ async function installTool(name, config, installRoot) {
   };
 }
 
+/* [10AA-3] `--tool a,b` limita el setup a esas herramientas. Hace falta porque el
+ * setup monta las herramientas en orden y aborta en la primera que no se puede: con
+ * sentinel 0.7.27 fijado, su `test:unit` falla en un checkout limpio (`rules.md`
+ * desfasado del registro, defecto del propio tag), así que `quality:setup` a secas
+ * nunca llegaba a montar varsense. Sin filtro, el comportamiento es el de siempre. */
+function herramientasPedidas(manifest) {
+  const i = process.argv.indexOf('--tool');
+  if (i < 0) return manifest.tools;
+  const pedidas = String(process.argv[i + 1] ?? '').split(',').map(nombre => nombre.trim()).filter(Boolean);
+  if (pedidas.length === 0) throw new Error('--tool necesita una lista de herramientas: --tool sentinel,varsense');
+  const desconocidas = pedidas.filter(nombre => manifest.tools[nombre] === undefined);
+  if (desconocidas.length > 0) throw new Error(`--tool: no están en quality-tools.json: ${desconocidas.join(', ')}`);
+  return Object.fromEntries(pedidas.map(nombre => [nombre, manifest.tools[nombre]]));
+}
+
 async function main() {
   const manifest = await readManifest();
-  const externalOnly = Object.values(manifest.tools).every(config => resolveConfiguredSourcePath(config, 'quality-tools.json.tools', { baseDir: projectRoot }) !== null);
+  const tools = herramientasPedidas(manifest);
+  const externalOnly = Object.values(tools).every(config => resolveConfiguredSourcePath(config, 'quality-tools.json.tools', { baseDir: projectRoot }) !== null);
   if (externalOnly) {
     /* [028A-8] Un sourcePath interno (submódulo) debe estar inicializado y
      * compilado antes de inspeccionar, para que un clon limpio sea reproducible. */
-    for (const [name, config] of Object.entries(manifest.tools)) {
+    for (const [name, config] of Object.entries(tools)) {
       if (resolveConfiguredSourcePath(config, `quality-tools.json.tools.${name}`, { baseDir: projectRoot }) === null) continue;
       await ensureSourcePathReady(name, config);
     }
-    const inspected = await inspectInstalledAnalyzers(projectRoot, manifest);
+    const inspected = await inspectInstalledAnalyzers(projectRoot, { ...manifest, tools });
     for (const [name, tool] of Object.entries(inspected)) {
       process.stdout.write(`[quality:setup] ${name}: sourcePath verificado (${tool.commit}), no se modifica .quality-tools\\n`);
     }
@@ -121,7 +137,7 @@ async function main() {
   await mkdir(installRoot, { recursive: true });
   const installed = {};
 
-  for (const [name, config] of Object.entries(manifest.tools)) {
+  for (const [name, config] of Object.entries(tools)) {
     installed[name] = await installTool(name, config, installRoot);
   }
 

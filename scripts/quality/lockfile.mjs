@@ -103,6 +103,20 @@ async function patchFileSha256(workspaceRoot, patchPath) {
   return createHash('sha256').update(await readFile(patchAbsolute)).digest('hex');
 }
 
+/* [10AA-3] El gitlink solo prueba donde el repo padre manda. La réplica del taller
+ * (la 89) es un espejo de Mutagen que NO sincroniza `.git` —está en `sync.ignorar`—,
+ * así que su HEAD se queda en el commit del día en que se creó y el pin de submódulo
+ * que registra es viejo por construcción: el gate fallaba allí con «gitlink del
+ * workspace no coincide con el checkout instalado», y en las réplicas sin `.git`
+ * (WANDORIUS y casi todas) ni siquiera se podía leer. El gestor marca esa situación
+ * con GLORY_TALLER=1 en toda orden que lanza en la 89 (scripts/shared/vps.mjs). No se
+ * pierde vigilancia: en la réplica el pin (quality-tools.json) contra el checkout del
+ * submódulo se compara unas líneas más arriba, y ese checkout es lo que Mutagen copió
+ * del portátil. */
+function enReplicaDelTaller() {
+  return process.env.GLORY_TALLER === '1';
+}
+
 export async function inspectInstalledAnalyzers(workspaceRoot, manifest) {
   const results = {};
   if (manifest.installRoot !== undefined) validateInstallRoot(manifest.installRoot);
@@ -150,7 +164,7 @@ export async function inspectInstalledAnalyzers(workspaceRoot, manifest) {
     if (configuredSourcePath !== null && revision.stdout.trim() !== config.commit) {
       throw new Error(`${name}: sourcePath externo no coincide con el commit fijado`);
     }
-    if (configuredSourcePath !== null) {
+    if (configuredSourcePath !== null && !enReplicaDelTaller()) {
       const gitlink = await parentGitlinkCommit(workspaceRoot, configuredSourcePath);
       if (!gitlink) {
         const stagedGitlink = await parentGitlinkCommit(workspaceRoot, configuredSourcePath, true);

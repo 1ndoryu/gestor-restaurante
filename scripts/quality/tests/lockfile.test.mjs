@@ -156,37 +156,59 @@ test('rechaza un patch raíz manipulado antes de confiar en el checkout', async 
   }
 });
 
-test('lock preflight distingue gitlink staged de gitlink ausente en HEAD', async () => {    const root = await mkdtemp(path.join(os.tmpdir(), 'sentinel-lock-staged-gitlink-'));
+/* Fixture de los casos de gitlink: repo padre con el gitlink del submódulo preparado en el
+ * índice (sin commitear) y un submódulo real y provisionado. Sirve para los dos desenlaces
+ * que hay que distinguir: «falta commitear el pin» y «corro en la réplica del taller, donde
+ * el gitlink del padre no puede estar al día» (10AA-3). */
+async function fixtureGitlinkPreparado() {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'sentinel-lock-staged-gitlink-'));
+  const { mkdir, cp } = await import('node:fs/promises');
+  const { spawnSync } = await import('node:child_process');
+  spawnSync('git', ['init', '-q'], { cwd: root });
+  spawnSync('git', ['config', 'user.email', 'lock@test'], { cwd: root });
+  spawnSync('git', ['config', 'user.name', 'lock'], { cwd: root });
+  await writeFile(path.join(root, '.sentinel-fixture'), 'parent\n', 'utf8');
+  spawnSync('git', ['add', '.sentinel-fixture'], { cwd: root });
+  spawnSync('git', ['commit', '-qm', 'parent'], { cwd: root });
+  const source = path.join(root, 'tools', 'sentinel');
+  const provision = path.join(root, '.quality-tools', 'sentinel');
+  await mkdir(path.join(source, 'out'), { recursive: true });
+  await writeFile(path.join(source, 'package.json'), JSON.stringify({ version: '0.4.0' }), 'utf8');
+  await writeFile(path.join(source, 'out', 'cli.js'), "process.stdout.write('0.4.0\\n');\n", 'utf8');
+  spawnSync('git', ['init', '-q'], { cwd: source });
+  spawnSync('git', ['add', '.'], { cwd: source });
+  spawnSync('git', ['-c', 'user.email=lock@test', '-c', 'user.name=lock', 'commit', '-qm', 'fixture'], { cwd: source });
+  const commit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: source, encoding: 'utf8' }).stdout.trim();
+  await mkdir(provision, { recursive: true });
+  await cp(path.join(source, 'package.json'), path.join(provision, 'package.json'));
+  await cp(path.join(source, 'out'), path.join(provision, 'out'), { recursive: true });
+  const manifest = { installRoot: '.quality-tools', tools: { sentinel: { sourcePath: 'tools/sentinel', provisionPath: '.quality-tools/sentinel', version: '0.4.0', outputSchemaVersion: '1', commit, cli: 'out/cli.js' } } };
+  const sha256 = await gitArchiveSha256(source);
+  const lock = { analyzers: { sentinel: { version: '0.4.0', commit, sha256, patchSha256: null } } };
+  spawnSync('git', ['update-index', '--add', '--cacheinfo', `160000,${commit},tools/sentinel`], { cwd: root });
+  return { root, manifest, lock };
+}
+
+test('lock preflight distingue gitlink staged de gitlink ausente en HEAD', async () => {
+  const { root, manifest, lock } = await fixtureGitlinkPreparado();
   try {
-    const { mkdir, cp } = await import('node:fs/promises');
-    const { spawnSync } = await import('node:child_process');
-    spawnSync('git', ['init', '-q'], { cwd: root });
-    spawnSync('git', ['config', 'user.email', 'lock@test'], { cwd: root });
-    spawnSync('git', ['config', 'user.name', 'lock'], { cwd: root });
-    await writeFile(path.join(root, '.sentinel-fixture'), 'parent\n', 'utf8');
-    spawnSync('git', ['add', '.sentinel-fixture'], { cwd: root });
-    spawnSync('git', ['commit', '-qm', 'parent'], { cwd: root });
-    const source = path.join(root, 'tools', 'sentinel');
-    const provision = path.join(root, '.quality-tools', 'sentinel');
-    await mkdir(path.join(source, 'out'), { recursive: true });
-    await writeFile(path.join(source, 'package.json'), JSON.stringify({ version: '0.4.0' }), 'utf8');
-    await writeFile(path.join(source, 'out', 'cli.js'), "process.stdout.write('0.4.0\\n');\n", 'utf8');
-    spawnSync('git', ['init', '-q'], { cwd: source });
-    spawnSync('git', ['add', '.'], { cwd: source });
-    spawnSync('git', ['-c', 'user.email=lock@test', '-c', 'user.name=lock', 'commit', '-qm', 'fixture'], { cwd: source });
-    const commit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: source, encoding: 'utf8' }).stdout.trim();
-    await mkdir(provision, { recursive: true });
-    await cp(path.join(source, 'package.json'), path.join(provision, 'package.json'));
-    await cp(path.join(source, 'out'), path.join(provision, 'out'), { recursive: true });
-    const manifest = { installRoot: '.quality-tools', tools: { sentinel: { sourcePath: 'tools/sentinel', provisionPath: '.quality-tools/sentinel', version: '0.4.0', outputSchemaVersion: '1', commit, cli: 'out/cli.js' } } };
-    const sha256 = await gitArchiveSha256(source);
-    const lock = { analyzers: { sentinel: { version: '0.4.0', commit, sha256, patchSha256: null } } };
-    spawnSync('git', ['update-index', '--add', '--cacheinfo', `160000,${commit},tools/sentinel`], { cwd: root });
     await assert.rejects(
       () => verifyInstalledAnalyzers(root, manifest, lock),
       /gitlink está preparado en el índice .* aún no está committeado en HEAD/,
     );
   } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('en la réplica del taller el gitlink del padre no se exige (10AA-3)', async () => {
+  const { root, manifest, lock } = await fixtureGitlinkPreparado();
+  process.env.GLORY_TALLER = '1';
+  try {
+    const instalado = await verifyInstalledAnalyzers(root, manifest, lock);
+    assert.equal(instalado.sentinel.commit, lock.analyzers.sentinel.commit);
+  } finally {
+    delete process.env.GLORY_TALLER;
     await rm(root, { recursive: true, force: true });
   }
 });
