@@ -39,6 +39,8 @@ pub const BDP_PATH_GET_FASTFOOD: &str = "/API/FastFoods/Get";
 pub const BDP_PATH_GET_PACK: &str = "/API/Packs/Get";
 /* [247A-11] Fase 1 compras BDP: exportación de albaranes de compra. */
 pub const BDP_PATH_EXPORT_PURCHASE_NOTES: &str = "/API/ExportProfiles/PurchaseNotes";
+/* [L8/D28] Documentos de venta exportados por perfil; el cursor sale de bdp_sync_cursor. */
+pub const BDP_PATH_EXPORT_DOCUMENTS: &str = "/API/ExportProfiles/Documents";
 /* [198A-1/F2] Lecturas de soporte para escrituras BDP. */
 pub const BDP_PATH_GET_APPLICATION_VERSION: &str = "/Service/GetApplicationVersion";
 pub const BDP_PATH_PROFILES_CREATE_ARTICLE_LIST: &str = "/API/ProfilesLists/GetCreateArticleList";

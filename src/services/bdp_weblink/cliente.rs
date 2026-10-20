@@ -11,7 +11,8 @@ use crate::services::bdp_weblink_catalog::{
     parse_articles_value, BdpAddOrderPaymentRequest, BdpCancelOrderRequest,
     BdpCreateCustomerRequest, BdpCreateOrderRequest, BdpDepartmentsExportFromProfileRequest,
     BdpEmptyRequest, BdpExportArticleItem, BdpExportArticlesRequest, BdpExportCustomersRequest,
-    BdpExportDepartmentsRequest, BdpExportPurchaseNotesRequest, BdpGetApplicationVersionRequest,
+    BdpExportDepartmentsRequest, BdpExportDocumentsRequest, BdpExportPurchaseNotesRequest,
+    BdpGetApplicationVersionRequest,
     BdpGetArticleRequest, BdpGetEmployeeRequest, BdpGetEmployeesRequest, BdpGetFastfoodRequest,
     BdpGetListStockRequest, BdpGetMenuRequest, BdpGetOrderRequest, BdpGetPackRequest,
     BdpGetPosArticlesRequest, BdpGetPosEmployeesRequest, BdpGetPosRequest, BdpGetPosTendersRequest,
@@ -19,7 +20,8 @@ use crate::services::bdp_weblink_catalog::{
     BdpGetStockRequest, BdpInvoiceOrderRequest, BDP_PATH_CANCEL_ORDER, BDP_PATH_CREATE_CUSTOMER,
     BDP_PATH_CREATE_ORDER, BDP_PATH_EXPORT_ARTICLES, BDP_PATH_EXPORT_CUSTOMERS,
     BDP_PATH_EXPORT_DEPARTMENTS, BDP_PATH_EXPORT_DEPARTMENTS_FROM_PROFILE,
-    BDP_PATH_EXPORT_PURCHASE_NOTES, BDP_PATH_GET_APPLICATION_VERSION, BDP_PATH_GET_ARTICLE,
+    BDP_PATH_EXPORT_DOCUMENTS, BDP_PATH_EXPORT_PURCHASE_NOTES, BDP_PATH_GET_APPLICATION_VERSION,
+    BDP_PATH_GET_ARTICLE,
     BDP_PATH_GET_EMPLOYEE, BDP_PATH_GET_EMPLOYEES, BDP_PATH_GET_FASTFOOD, BDP_PATH_GET_LIST_STOCK,
     BDP_PATH_GET_MENU, BDP_PATH_GET_ORDER, BDP_PATH_GET_PACK, BDP_PATH_GET_POS, BDP_PATH_GET_POSES,
     BDP_PATH_GET_POS_ARTICLES, BDP_PATH_GET_POS_EMPLOYEES, BDP_PATH_GET_POS_TENDERS,
@@ -426,6 +428,15 @@ impl<'a> BdpWeblinkClient<'a> {
         request: &BdpExportPurchaseNotesRequest,
     ) -> Result<Value, BdpWeblinkError> {
         self.post_authenticated_json(BDP_PATH_EXPORT_PURCHASE_NOTES, request)
+            .await
+    }
+
+    /* [L8/D28] Exportación de documentos de venta; la respuesta se parsea de forma tolerante. */
+    pub async fn export_documents(
+        &self,
+        request: &BdpExportDocumentsRequest,
+    ) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_EXPORT_DOCUMENTS, request)
             .await
     }
 

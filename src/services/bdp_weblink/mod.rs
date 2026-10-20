@@ -7,7 +7,9 @@
 mod cliente;
 mod cliente_operaciones;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
+#[cfg(test)]
+mod tests_lectura;
 #[cfg(test)]
 mod tests_respuestas;
 mod tipos;

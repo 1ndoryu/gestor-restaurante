@@ -62,6 +62,17 @@ pub struct BdpExportPurchaseNotesResponse {
     pub error_message: String,
 }
 
+/* [L8/D28] Petición de ExportProfiles/Documents. Los campos de documento no
+ * están documentados en el manual: la respuesta se lee de forma tolerante. */
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpExportDocumentsRequest {
+    pub export_profile_code: i32,
+    pub initial_date: String,
+    pub final_date: String,
+    pub only_last_movements: bool,
+}
+
 /* ===== [198A-1/F2] Lecturas de soporte ===== */
 
 #[derive(Debug, Clone, Serialize)]

@@ -99,6 +99,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /* [D28a] Importación automática de albaranes de compra. El intervalo y la ventana
      * vienen del entorno; BDP_ALBARANES_AUTO_SEGUNDOS=0 la desactiva. */
     lanzar_albaranes_automaticos(pool.clone(), modo_operacion.clone());
+    /* [L8/D28-auto] Lectura incremental de documentos de venta. Desactivada por defecto. */
+    lanzar_documentos_automaticos(pool.clone(), modo_operacion.clone());
 
     /* [D23a] Avisos que esperaron en el buzón con el backend parado: se procesan al
      * arrancar, en segundo plano para no retrasar la escucha del servidor. */
@@ -133,6 +135,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Pool cerrado, servidor detenido limpiamente.");
 
     Ok(())
+}
+
+/* [L8/D28-auto] Lectura automática de documentos de venta. Necesita intervalo
+ * (BDP_DOCUMENTOS_AUTO_SEGUNDOS > 0) y perfil (BDP_DOCUMENTOS_PERFIL > 0); sin ambos no arranca. */
+fn lanzar_documentos_automaticos(pool: sqlx::PgPool, modo: ServicioModoOperacion) {
+    use glory_backend::services::bdp_documentos_venta as documentos;
+
+    let segundos = documentos::segundos_automaticos();
+    let Some(perfil) = documentos::perfil_automatico() else {
+        if segundos > 0 {
+            tracing::warn!("[D28-auto] BDP_DOCUMENTOS_AUTO_SEGUNDOS sin BDP_DOCUMENTOS_PERFIL válido: desactivado");
+        }
+        return;
+    };
+    if segundos == 0 {
+        return;
+    }
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(segundos));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            let procesados = documentos::sincronizar_automatico(&pool, &modo, perfil).await;
+            if procesados > 0 {
+                tracing::info!("[D28-auto] Documentos de venta guardados: {procesados}");
+            }
+        }
+    });
 }
 
 /* [D28a] Importación automática de albaranes de compra. El intervalo y la ventana

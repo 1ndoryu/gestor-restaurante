@@ -3,6 +3,7 @@ mod auth;
 /* [147A-F6] módulos BDP — sincronización Glory → BDP WebLink REST API */
 pub mod bdp_avisos;
 mod bdp_backup;
+pub mod bdp_documentos_venta;
 mod bdp_config_bootstrap;
 mod bdp_explorer;
 mod bdp_import_departamentos;
