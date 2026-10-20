@@ -7,7 +7,8 @@ use super::clientes_pedidos::BdpOrderIdentifier;
 use super::consultas::BdpGetPosTendersRequest;
 use super::endpoints::{es_escritura_bdp, BdpEndpointArea, BDP_ENDPOINTS};
 use super::operaciones::{
-    BdpAddOrderTipRequest, BdpCallWaiterRequest, BdpRegularizationRequest, BdpUpdateStockRequest,
+    BdpAddOrderTipRequest, BdpCallWaiterRequest, BdpExportPurchaseNotesResponse,
+    BdpRegularizationRequest, BdpUpdateStockRequest,
 };
 
 use std::str::FromStr;
@@ -180,4 +181,45 @@ fn effective_stock_returns_none_when_stock_module_inactive() {
     }))
     .unwrap();
     assert!(parsed.articles[0].effective_stock().is_none());
+}
+
+/* [D28] La lista de albaranes del BDP local llega en `ExportedData.Cabecera`,
+ * no en `DocumentsLists`: el contrato anterior devolvía cero albaranes sin
+ * error. Las dos formas se aceptan. */
+#[test]
+fn purchase_notes_lee_cabecera_dentro_de_exported_data() {
+    let parsed: BdpExportPurchaseNotesResponse = serde_json::from_value(serde_json::json!({
+        "ExportedData": {"Cabecera": [
+            {"SerieAlbaran": "00001AC", "NumAlbaran": 7, "NomProveedor": "PROVEEDOR UNO",
+             "TotalAlbaran": 12.5, "CampoDesconocido": "se conserva en extra"},
+        ]},
+        "ErrorMessage": ""
+    }))
+    .unwrap();
+    assert_eq!(parsed.documents_lists.len(), 1);
+    let albaran = &parsed.documents_lists[0];
+    assert_eq!(albaran.serie_albaran.as_deref(), Some("00001AC"));
+    assert_eq!(albaran.num_albaran.as_deref(), Some("7"));
+    assert_eq!(albaran.nom_proveedor.as_deref(), Some("PROVEEDOR UNO"));
+    assert_eq!(albaran.extra["CampoDesconocido"], "se conserva en extra");
+}
+
+#[test]
+fn purchase_notes_sigue_aceptando_documents_lists() {
+    let parsed: BdpExportPurchaseNotesResponse = serde_json::from_value(serde_json::json!({
+        "DocumentsLists": [{"NumAlbaran": 9}]
+    }))
+    .unwrap();
+    assert_eq!(parsed.documents_lists.len(), 1);
+}
+
+#[test]
+fn purchase_notes_sin_lista_no_falla_y_deja_el_error() {
+    let parsed: BdpExportPurchaseNotesResponse = serde_json::from_value(serde_json::json!({
+        "ExportedData": {},
+        "ErrorMessage": "[403900]-RANGO DE PROVEEDORES INCORRECTO"
+    }))
+    .unwrap();
+    assert!(parsed.documents_lists.is_empty());
+    assert_eq!(parsed.error_message, "[403900]-RANGO DE PROVEEDORES INCORRECTO");
 }

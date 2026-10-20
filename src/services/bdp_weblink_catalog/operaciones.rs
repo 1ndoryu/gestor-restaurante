@@ -6,6 +6,7 @@ use serde_json::Value;
 
 use super::articulos::deserialize_optional_string;
 use super::clientes_pedidos::BdpOrderIdentifier;
+use super::listas::objetos_de;
 
 /* [247A-11/287A-4] Fase 1 compras BDP: petición de ExportPurchaseNotes.
  * Los filtros son opcionales en Glory, pero el BDP real exige un rango de
@@ -52,14 +53,51 @@ pub struct BdpPurchaseNoteData {
 }
 
 /// Respuesta tipada de `POST /API/ExportProfiles/PurchaseNotes`.
-/// BDP devuelve `DocumentsLists` como array de albaranes.
+///
+/// El BDP local contesta `{"ExportedData":{"Cabecera":[ … ]}}` (comprobado el
+/// 2026-10-20): ni `DocumentsLists` ni array. Con el contrato anterior —que
+/// buscaba `DocumentsLists` y traía `#[serde(default)]`— la clave que faltaba se
+/// tragaba sin error y la sincronización leía cero albaranes como si no hubiera
+/// ninguno. Se aceptan las dos formas por si otra versión usa la vieja.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(from = "BdpExportPurchaseNotesRaw")]
+pub struct BdpExportPurchaseNotesResponse {
+    pub documents_lists: Vec<BdpPurchaseNoteData>,
+    pub error_message: String,
+}
+
+/// Cuerpo crudo: la lista de albaranes no está en una clave fija, así que se
+/// recoge el resto de la respuesta en un `Value` y se busca después.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct BdpExportPurchaseNotesResponse {
-    #[serde(default, alias = "DocumentsLists")]
-    pub documents_lists: Vec<BdpPurchaseNoteData>,
+struct BdpExportPurchaseNotesRaw {
     #[serde(default)]
-    pub error_message: String,
+    error_message: String,
+    #[serde(flatten)]
+    resto: Value,
+}
+
+impl From<BdpExportPurchaseNotesRaw> for BdpExportPurchaseNotesResponse {
+    fn from(raw: BdpExportPurchaseNotesRaw) -> Self {
+        Self {
+            documents_lists: albaranes_de(&raw.resto),
+            error_message: raw.error_message,
+        }
+    }
+}
+
+/// Albaranes de la respuesta, en el primer sitio donde aparezcan: `Cabecera`
+/// dentro de `ExportedData` es la forma real; `DocumentsLists` la del contrato
+/// viejo. Un albarán que no encaje en `BdpPurchaseNoteData` se descarta en vez de
+/// tumbar la sincronización entera.
+fn albaranes_de(cuerpo: &Value) -> Vec<BdpPurchaseNoteData> {
+    let lista = cuerpo
+        .pointer("/ExportedData/Cabecera")
+        .or_else(|| cuerpo.get("DocumentsLists"));
+    objetos_de(lista)
+        .into_iter()
+        .filter_map(|item| serde_json::from_value(item.clone()).ok())
+        .collect()
 }
 
 /* [L8/D28] Petición de ExportProfiles/Documents. Los campos de documento no

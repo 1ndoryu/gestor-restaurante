@@ -7,6 +7,7 @@ mod articulos;
 mod clientes_pedidos;
 mod consultas;
 mod endpoints;
+mod listas;
 mod operaciones;
 mod rutas;
 #[cfg(test)]
@@ -36,6 +37,7 @@ pub use consultas::{
 pub use endpoints::{
     es_escritura_bdp, BdpEndpointArea, BdpEndpointSpec, BDP_ENDPOINTS, BDP_WRITE_PATHS,
 };
+pub use listas::objetos_de;
 pub use operaciones::{
     BdpAddOrderTipRequest, BdpAddPointsRequest, BdpArticleData, BdpCallWaiterRequest,
     BdpCreateArticlesRequest, BdpCreateDepartmentProfilesRequest, BdpCreateDepartmentRequest,

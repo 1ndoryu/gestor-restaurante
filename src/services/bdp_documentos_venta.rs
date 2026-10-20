@@ -17,7 +17,7 @@ use crate::models::ConfiguracionRestaurante;
 use crate::repositories::{BdpDocumentosVentaRepository, DocumentoVentaLocal};
 use crate::services::bdp_purchase_sync::DIAS_MAX_RANGO;
 use crate::services::bdp_weblink::BdpWeblinkError;
-use crate::services::bdp_weblink_catalog::BdpExportDocumentsRequest;
+use crate::services::bdp_weblink_catalog::{objetos_de, BdpExportDocumentsRequest};
 use crate::services::{
     BdpWeblinkClient, ConfiguracionService, ModoEfectivo, ServicioModoOperacion,
 };
@@ -26,9 +26,11 @@ use crate::services::{
 const DIAS_SOLAPE: i64 = 1;
 /// Ventana de la primera lectura, cuando todavía no hay cursor.
 const DIAS_PRIMERA_LECTURA: i64 = 7;
-/// Claves bajo las que BDP puede devolver la lista; gana la primera que sea un array.
+/// Claves bajo las que BDP puede devolver la lista; gana la primera que exista.
 const CLAVES_LISTA: [&str; 3] = ["DocumentsLists", "Documents", "DocumentsList"];
-const CLAVES_ID: [&str; 4] = ["Id", "DocumentId", "Document_Id", "Number"];
+/// `idWeblink` es el único identificador que trae el documento real: sin él la
+/// lectura entera se descarta documento a documento (comprobado contra el BDP).
+const CLAVES_ID: [&str; 5] = ["Id", "DocumentId", "Document_Id", "Number", "idWeblink"];
 const CLAVES_FECHA: [&str; 3] = ["Date", "DocumentDate", "Fecha"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,15 +54,27 @@ pub fn ventana(cursor: Option<NaiveDate>, hoy: NaiveDate) -> (NaiveDate, NaiveDa
     (desde.clamp(minimo, hoy), hoy)
 }
 
+/// Documentos de la respuesta. La lista llega agrupada por serie
+/// (`"DocumentsLists": { "TB": [ … ], "FA": [ … ] }`) o como array directo;
+/// `objetos_de` acepta las dos. Sin ninguna de las claves, la respuesta entera
+/// puede ser la lista.
+fn documentos_de(respuesta: &Value) -> Vec<&Value> {
+    match CLAVES_LISTA
+        .iter()
+        .find_map(|clave| respuesta.get(*clave))
+    {
+        Some(lista) => objetos_de(Some(lista)),
+        None if respuesta.is_array() => objetos_de(Some(respuesta)),
+        None => Vec::new(),
+    }
+}
+
 /// Parsea la respuesta de forma tolerante: descarta entradas sin id y deduplica por id.
 pub fn parsear_documentos(respuesta: &Value) -> Vec<DocumentoVentaLocal> {
-    let lista = CLAVES_LISTA
-        .iter()
-        .find_map(|clave| respuesta.get(*clave).and_then(Value::as_array))
-        .or_else(|| respuesta.as_array());
-    let Some(items) = lista else {
+    let items = documentos_de(respuesta);
+    if items.is_empty() {
         return Vec::new();
-    };
+    }
     let mut por_id: BTreeMap<String, DocumentoVentaLocal> = BTreeMap::new();
     for item in items {
         let Some(id) = texto_de(item, &CLAVES_ID) else {
@@ -280,6 +294,44 @@ mod tests {
         assert_eq!(docs[0].fecha, Some(dia("2026-10-19")));
         assert_eq!(docs[1].bdp_documento_id, "A-2");
         assert_eq!(docs[1].fecha, Some(dia("2026-10-19")));
+    }
+
+    /* [D28] La forma REAL que devuelve el BDP local, copiada de una respuesta
+     * del 2026-10-20: la lista viene agrupada por serie y el único identificador
+     * es `idWeblink` —no hay `Id`, `DocumentId`, `Document_Id` ni `Number`—.
+     * Con la forma que el contrato suponía (array y `Id`) el parser devolvía
+     * cero documentos y lo hacía en silencio: `serde` no se quejaba porque la
+     * respuesta se lee como `Value`. */
+    #[test]
+    fn parsear_lee_la_forma_real_agrupada_por_serie() {
+        let respuesta = json!({"DocumentsLists": {"TB": [
+            {"Serie": "00001TB", "Numero": 11.0, "Fecha": "2026-10-18T00:00:00",
+             "Total_Documento": 11.3, "idWeblink": 18, "Items": [{"PLU": 1006.0}], "Pagos": [{}]},
+            {"Serie": "00001TB", "Numero": 30.0, "Fecha": "2026-10-18T00:00:00",
+             "Total_Documento": 1.0, "idWeblink": 53, "Items": [{}], "Pagos": [{}]},
+        ]}});
+        let docs = parsear_documentos(&respuesta);
+        assert_eq!(docs.len(), 2);
+        assert_eq!(docs[0].bdp_documento_id, "18");
+        assert_eq!(docs[1].bdp_documento_id, "53");
+        assert_eq!(docs[0].fecha, Some(dia("2026-10-18")));
+        assert_eq!(docs[0].datos["Total_Documento"], 11.3);
+        assert_eq!(docs[1].datos["Items"].as_array().unwrap().len(), 1);
+    }
+
+    /* Dos series en la misma respuesta: se leen en orden alfabético de serie y
+     * el mismo id en dos series cuenta una vez. */
+    #[test]
+    fn parsear_ordena_las_series_y_deduplica_entre_ellas() {
+        let respuesta = json!({"DocumentsLists": {
+            "TB": [{"idWeblink": 2}],
+            "FA": [{"idWeblink": 1}, {"idWeblink": 2}],
+        }});
+        let ids: Vec<String> = parsear_documentos(&respuesta)
+            .into_iter()
+            .map(|d| d.bdp_documento_id)
+            .collect();
+        assert_eq!(ids, vec!["1", "2"]);
     }
 
     /* [D28-auto-R] Una ventana solapada que repite documentos no los duplica. */
