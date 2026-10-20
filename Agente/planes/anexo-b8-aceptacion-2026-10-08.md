@@ -471,7 +471,7 @@ Estado: fichas de aceptación pendientes de ejecución; el avance real de cada p
 - Evidencia: stock antes/después + ausencia de movimiento en el caso de diferencia cero.
 
 ### D26g — Respuesta perdida en stock
-- Previos: stock inicial S registrado antes de escribir; bloqueo por artículo y almacén durante la operación. Son trabajo a implementar (09AA-2): hoy no hay bloqueo por artículo y almacén ni libro S/V, y BDP no devuelve identificador de operación. Fiabilidad de `GetStock` tras escribir: por confirmar.
+- Previos: stock inicial S registrado antes de escribir; bloqueo por artículo y almacén durante la operación. Estado real (2026-10-19): el esquema existe en `migrations/20261017120000_bdp_base_t2.up.sql` (`bdp_stock_ledger`, `id_local` único por usuario, índice de bloqueo `uq_bdp_stock_ledger_bloqueo` sobre `pendiente` por artículo y almacén) y está probado en `tests/bdp_base_t2.rs`. Lo que falta es el flujo de escritura que lo usa: ningún handler ni servicio de `src/` escribe todavía en el libro ni toma el bloqueo. BDP no devuelve identificador de operación. Fiabilidad de `GetStock` tras escribir: por confirmar.
 - Datos: artículo y almacén con S conocido; variación V de prueba; ID local único (no lo devuelve BDP); pérdida de respuesta provocada. En el TPV las ventas también mueven stock: un valor ajeno puede venir de una venta, no de un error.
 - Pasos: guardar S y V; enviar; provocar la pérdida; consultar `GetStock`: si ve S+V, no reintentar; si ve S, un único reintento controlado; si ve otro valor, parar y pasar a revisión manual.
 - Esperado: como máximo un movimiento; cualquier otro valor queda en revisión manual.
