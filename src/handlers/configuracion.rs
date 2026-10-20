@@ -18,7 +18,10 @@ use crate::models::{
     IntegracionMarketingPublica, UserRole,
 };
 use crate::repositories::{BdpSyncCursorRepository, BdpWriteArmingRepository, NuevoArmado};
-use crate::services::bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
+use crate::services::bdp_weblink::{BdpAuthSession, BdpVersionResponse, BdpWeblinkClient};
+use crate::services::bdp_weblink_catalog::{
+    BdpGetApplicationVersionRequest, APLICACION_LICENCIA_TERMINAL, BDP_PATH_GET_APPLICATION_VERSION,
+};
 use crate::services::{
     alcance_usa_uuid_propio, entidad_uuid, tipo_destino_de_alcance, BdpBackupService,
     BdpSyncDryRunResponse, BdpSyncPreflightService, ConfiguracionService,
@@ -39,7 +42,29 @@ pub struct BdpDiagnosticoResponse {
     pub sub_version: Option<i32>,
     pub application: Option<String>,
     pub application_description: Option<String>,
+    /// [L10/D01] Cuarto valor de la ficha: la licencia 84 del terminal.
+    pub licencia_ok: bool,
+    pub licencia: Option<BdpLicenciaResponse>,
     pub mensaje: String,
+}
+
+/// [L10/D01] Respuesta de `GetApplicationVersion` para la aplicación 84. Misma
+/// forma que `GetVersion`: los cuatro valores de la ficha quedan en un solo sitio.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "PascalCase")]
+pub struct BdpLicenciaResponse {
+    #[serde(default)]
+    pub version: i32,
+    #[serde(default)]
+    pub subversion: i32,
+    #[serde(default)]
+    pub revision: String,
+    #[serde(default)]
+    pub application: String,
+    #[serde(default)]
+    pub application_description: String,
+    #[serde(default)]
+    pub error_message: String,
 }
 
 impl BdpDiagnosticoResponse {
@@ -101,6 +126,8 @@ impl BdpDiagnosticoResponse {
             sub_version: None,
             application: None,
             application_description: None,
+            licencia_ok: false,
+            licencia: None,
             mensaje: mensaje.into(),
         }
     }
@@ -704,14 +731,21 @@ pub async fn diagnosticar_bdp(
     /* [L10/D01] Cada diagnóstico configurado deja su registro en bdp_sync_cursor. */
     if response.configurado {
         let error = (!registro_ok(&response)).then_some(response.mensaje.as_str());
-        BdpSyncCursorRepository::registrar_salud(&state.pool, auth.user_id, &posicion_salud(&response), error).await?;
+        BdpSyncCursorRepository::registrar_salud(
+            &state.pool,
+            auth.user_id,
+            &posicion_salud(&response),
+            error,
+        )
+        .await?;
     }
     Ok(Json(response))
 }
 
-/* [L10/D01] Éxito = salud, login y versión respondieron. */
+/* [L10/D01] Éxito = los cuatro valores de la ficha: salud, acceso, versión y
+ * licencia 84. Si falta la licencia, el registro queda incompleto y lo dice. */
 fn registro_ok(response: &BdpDiagnosticoResponse) -> bool {
-    response.health_ok && response.login_ok && response.version.is_some()
+    response.health_ok && response.login_ok && response.version.is_some() && response.licencia_ok
 }
 
 fn posicion_salud(response: &BdpDiagnosticoResponse) -> serde_json::Value {
@@ -722,8 +756,30 @@ fn posicion_salud(response: &BdpDiagnosticoResponse) -> serde_json::Value {
         "version": response.version,
         "sub_version": response.sub_version,
         "application": response.application,
+        /* [L10/D01] El bloque entero de la licencia, no solo el booleano: la
+         * ficha pide que los valores queden registrados. */
+        "licencia_ok": response.licencia_ok,
+        "licencia": response.licencia,
         "comprobado_en": chrono::Utc::now().to_rfc3339(),
     })
+}
+
+/* [L10/D01] Licencia 84 del terminal sobre la sesión ya abierta. Un fallo aquí no
+ * invalida salud, acceso ni versión: se anota y el registro queda incompleto. */
+async fn consultar_licencia(
+    client: &BdpWeblinkClient<'_>,
+    token: &str,
+) -> Result<BdpLicenciaResponse, String> {
+    client
+        .post_authenticated(
+            BDP_PATH_GET_APPLICATION_VERSION,
+            &BdpGetApplicationVersionRequest {
+                application: APLICACION_LICENCIA_TERMINAL,
+            },
+            token,
+        )
+        .await
+        .map_err(|error| error.to_string())
 }
 
 async fn ejecutar_diagnostico_bdp(
@@ -780,6 +836,18 @@ async fn ejecutar_diagnostico_bdp(
         }
     };
 
+    Ok(diagnostico_con_sesion(&client, &session, &config, modo).await)
+}
+
+/// Cierra el diagnóstico con la sesión ya abierta: `GetVersion` y, si sale bien, la
+/// licencia del terminal. Se separa del cuerpo principal porque el `match` de tres
+/// ramas con la licencia anidada dentro pasaba de largo la regla `funcion-larga-rs`.
+async fn diagnostico_con_sesion(
+    client: &BdpWeblinkClient<'_>,
+    session: &BdpAuthSession,
+    config: &ConfiguracionRestaurante,
+    modo: &str,
+) -> BdpDiagnosticoResponse {
     let version: Result<BdpVersionResponse, _> = client
         .post_authenticated(
             "/Service/GetVersion",
@@ -796,7 +864,26 @@ async fn ejecutar_diagnostico_bdp(
                 version,
             );
             response.modo_operacion = modo.to_string();
-            Ok(response)
+            /* [L10/D01] Cuarto valor de la ficha. Si falla, los otros tres siguen
+             * valiendo: se anota el motivo en el mensaje y el registro lo refleja. */
+            match consultar_licencia(client, &session.token).await {
+                Ok(licencia) => {
+                    response.licencia_ok = licencia.error_message.trim().is_empty();
+                    if !response.licencia_ok {
+                        response.mensaje = format!(
+                            "BDP conectado, pero GetApplicationVersion (aplicación {APLICACION_LICENCIA_TERMINAL}) devolvió error: {}",
+                            licencia.error_message
+                        );
+                    }
+                    response.licencia = Some(licencia);
+                }
+                Err(error) => {
+                    response.mensaje = format!(
+                        "BDP conectado, pero no se pudo consultar la licencia {APLICACION_LICENCIA_TERMINAL}: {error}"
+                    );
+                }
+            }
+            response
         }
         Ok(version) => {
             let mut response = BdpDiagnosticoResponse::version_error(
@@ -808,7 +895,7 @@ async fn ejecutar_diagnostico_bdp(
                 ),
             );
             response.modo_operacion = modo.to_string();
-            Ok(response)
+            response
         }
         Err(error) => {
             let mut response = BdpDiagnosticoResponse::version_error(
@@ -817,7 +904,7 @@ async fn ejecutar_diagnostico_bdp(
                 format!("Login OK, GetVersion fallo: {error}"),
             );
             response.modo_operacion = modo.to_string();
-            Ok(response)
+            response
         }
     }
 }

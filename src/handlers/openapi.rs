@@ -297,6 +297,7 @@ impl utoipa::Modify for SecurityAddon {
         crate::models::ConfiguracionRestaurante,
         crate::models::ActualizarConfiguracionRequest,
         configuracion::BdpDiagnosticoResponse,
+        configuracion::BdpLicenciaResponse,
         configuracion::CambiarBdpSyncModeRequest,
         modo_operacion::ModoOperacionResponse,
         modo_operacion::CambiarModoOperacionRequest,

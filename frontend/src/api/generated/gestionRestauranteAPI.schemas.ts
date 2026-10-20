@@ -742,6 +742,9 @@ export interface BdpDiagnosticoResponse {
   application_description?: string | null;
   configurado: boolean;
   health_ok: boolean;
+  /** [L10/D01] Licencia 84 del terminal. */
+  licencia?: BdpLicenciaResponse | null;
+  licencia_ok: boolean;
   login_ok: boolean;
   mensaje: string;
   modo_operacion: string;
@@ -752,6 +755,15 @@ export interface BdpDiagnosticoResponse {
   sync_habilitado: boolean;
   /** @nullable */
   version?: number | null;
+}
+
+export interface BdpLicenciaResponse {
+  application: string;
+  application_description: string;
+  error_message: string;
+  revision: string;
+  subversion: number;
+  version: number;
 }
 
 /**

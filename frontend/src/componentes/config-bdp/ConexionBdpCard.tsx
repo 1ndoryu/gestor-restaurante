@@ -255,6 +255,12 @@ export default function ConexionBdpCard({
           <div className="grid gap-2 rounded-md border p-3 text-sm md:grid-cols-2">
             <span>Versión: {diagnostico.version}.{diagnostico.sub_version ?? 0}</span>
             <span>Aplicación: {diagnostico.application_description || diagnostico.application}</span>
+            {/* [L10/D01] Cuarto valor de la ficha, junto a salud, acceso y versión. */}
+            <span className={diagnostico.licencia_ok ? 'text-green-600' : 'text-destructive'}>
+              Licencia 84: {diagnostico.licencia
+                ? `v${diagnostico.licencia.version}.${diagnostico.licencia.subversion} (${diagnostico.licencia.application_description})`
+                : 'sin respuesta'}
+            </span>
           </div>
         )}
         {dryRun && (
