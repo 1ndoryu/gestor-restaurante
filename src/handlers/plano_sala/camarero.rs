@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
+use crate::services::bdp_weblink::BdpWeblinkError;
 use crate::services::bdp_weblink_catalog::BdpCallWaiterRequest;
 use crate::services::{
     BdpWeblinkClient, ConfiguracionService, ModoEfectivo, ServicioModoOperacion,
@@ -76,6 +77,10 @@ pub async fn llamar_camarero(
             ))
         }
         Err(e) => {
+            /* [D31] El TPV contestó con un error de negocio (p. ej. el terminal
+             * no tiene IP de Servidor de Mensajes): el resultado se registra
+             * como `rechazado`, no como `error` de transporte. */
+            let rechazado = matches!(e, BdpWeblinkError::Remote(_));
             let _ = crate::services::BdpBackupService::auditar_escritura_directa(
                 crate::services::AuditoriaDirecta {
                     pool: &state.pool,
@@ -84,12 +89,56 @@ pub async fn llamar_camarero(
                     target_entity_type: "mesa",
                     target_entity_id: id,
                     datos_enviados: &datos_enviados,
-                    resultado: "error",
+                    resultado: if rechazado { "rechazado" } else { "error" },
                     error_mensaje: Some(&e.to_string()),
                 },
             )
             .await;
-            Err(AppError::Internal(format!("Error llamando camarero: {e}")))
+            Err(error_llamar_camarero(e))
         }
+    }
+}
+
+/* [D31] Un rechazo del TPV es un mensaje para el usuario, no un fallo interno:
+ * `No se ha establecido una IP de Servidor de Mensajes…` es una
+ * misconfiguración del terminal y quien llama tiene que leerla. Solo lo que no
+ * llegó al TPV sigue siendo 500. */
+fn error_llamar_camarero(e: BdpWeblinkError) -> AppError {
+    match e {
+        BdpWeblinkError::Remote(mensaje) => {
+            AppError::Conflict(format!("El TPV rechazó el aviso: {mensaje}"))
+        }
+        BdpWeblinkError::NotConfigured => AppError::Forbidden("BDP no está configurado".into()),
+        BdpWeblinkError::WriteTargetDenied(destino) => {
+            AppError::Forbidden(format!("Escritura a BDP bloqueada para {destino}"))
+        }
+        otro => AppError::Internal(format!("Error llamando camarero: {otro}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /* [D31] Lo comprobado con el TPV local el 2026-10-21: el aviso llegaba y el
+     * terminal contestaba `[404602]-No se ha establecido una IP de Servidor de
+     * Mensajes…`, que salía como 500 «Ocurrió un error interno». El operario no
+     * podía saber qué arreglar y la auditoría lo contaba como caída. */
+    #[test]
+    fn rechazo_del_tpv_es_conflicto_con_su_mensaje() {
+        let error = error_llamar_camarero(BdpWeblinkError::Remote(
+            "[404602]-No se ha establecido una IP de Servidor de Mensajes".into(),
+        ));
+        assert!(matches!(error, AppError::Conflict(_)), "{error:?}");
+        assert!(
+            error.to_string().contains("404602"),
+            "el mensaje del TPV se conserva: {error}"
+        );
+    }
+
+    #[test]
+    fn error_de_transporte_sigue_siendo_interno() {
+        let error = error_llamar_camarero(BdpWeblinkError::Http("timeout".into()));
+        assert!(matches!(error, AppError::Internal(_)), "{error:?}");
     }
 }
