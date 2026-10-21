@@ -311,6 +311,57 @@ async fn estado_venta(pool: &PgPool, id: Uuid) -> (Option<String>, bool) {
         .expect("leer venta")
 }
 
+/// [D10] Anular en caja una comanda vinculada deja la venta anulada en la web.
+/// La anulación deja motivo y fecha, y un segundo aviso no los pisa.
+#[sqlx::test(migrations = "./migrations")]
+async fn comanda_anulada_en_caja_anula_la_venta_local(pool: PgPool) {
+    let mia = cuenta(&pool).await;
+    let venta = venta_con_bdp(&pool, mia, 43).await;
+    let id = aviso(&pool, mia, "cambiar-estado", payload_comanda("43"), 0).await;
+    let doble = DobleBdp::con(vec![(43, Consulta::Encontrado(json!({"Status": 2})))]);
+
+    procesar_lote(&pool, mia, &doble, 10).await.expect("lote");
+
+    let (estado, _, _, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "procesado");
+    let (estado_bdp, anulada, motivo, con_fecha) = anulacion(&pool, venta).await;
+    assert_eq!(estado_bdp.as_deref(), Some("cancelled"));
+    assert!(anulada, "la venta debe quedar anulada en la web");
+    assert!(con_fecha, "la anulación debe dejar fecha");
+    assert!(
+        motivo.as_deref().is_some_and(|m| m.contains("TPV")),
+        "el motivo debe decir de dónde viene: {motivo:?}"
+    );
+
+    /* Un segundo aviso de la misma comanda no reescribe la anulación original. */
+    sqlx::query("UPDATE ventas SET anulacion_motivo = 'motivo previo' WHERE id = $1")
+        .bind(venta)
+        .execute(&pool)
+        .await
+        .expect("fijar motivo");
+    let id2 = aviso(&pool, mia, "cambiar-estado", payload_comanda("43"), 0).await;
+    procesar_lote(&pool, mia, &doble, 10).await.expect("lote 2");
+    let (_, anulada2, motivo2, _) = anulacion(&pool, venta).await;
+    assert!(anulada2);
+    assert_eq!(
+        motivo2.as_deref(),
+        Some("motivo previo"),
+        "un aviso repetido no debe pisar la anulación ya registrada"
+    );
+}
+
+/// Lee la anulación de una venta: estado BDP, marca, motivo y si tiene fecha.
+async fn anulacion(pool: &PgPool, id: Uuid) -> (Option<String>, bool, Option<String>, bool) {
+    sqlx::query_as(
+        "SELECT bdp_order_status, anulada, anulacion_motivo, anulada_at IS NOT NULL \
+         FROM ventas WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .expect("leer anulación")
+}
+
 #[sqlx::test(migrations = "./migrations")]
 async fn pedido_facturado_actualiza_la_venta_de_su_comanda(pool: PgPool) {
     let mia = cuenta(&pool).await;

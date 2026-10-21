@@ -310,6 +310,12 @@ async fn aplicar(
 
 /// Copia el estado BDP del pedido a la venta con ese `bdp_order_id`. Sin venta local
 /// no es error (la comanda pudo crearse en otro TPV). Sin `Status` legible no toca la venta.
+///
+/// [D10] Si BDP dice `cancelled`, la venta queda anulada también aquí: es un hecho
+/// del TPV, no una acción de la web, así que no pasa por los guards de
+/// `VentaService::anular` (M9 impide anular una facturada). Se marca una sola vez
+/// —`anulada = false` en el WHERE— para que un aviso repetido no pise el motivo
+/// ni la fecha de la anulación original.
 async fn enlazar_venta(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     user_id: Uuid,
@@ -320,16 +326,23 @@ async fn enlazar_venta(
         return Ok(());
     };
     let estado = BdpOrderPollerService::map_status(codigo);
+    let anulada_remota = estado == "cancelled";
     sqlx::query(
         r"UPDATE ventas
              SET bdp_order_status = $3::text,
                  bdp_invoiced = ($3::text = 'invoiced'),
+                 anulada = CASE WHEN $4 AND NOT anulada THEN TRUE ELSE anulada END,
+                 anulada_at = CASE WHEN $4 AND NOT anulada THEN NOW() ELSE anulada_at END,
+                 anulacion_motivo = CASE WHEN $4 AND NOT anulada
+                                         THEN 'Anulada en el TPV (aviso de BDP)'
+                                         ELSE anulacion_motivo END,
                  updated_at = NOW()
            WHERE user_id = $1 AND bdp_order_id = $2",
     )
     .bind(user_id)
     .bind(comanda)
     .bind(estado)
+    .bind(anulada_remota)
     .execute(&mut **tx)
     .await
     .map_err(|error| format!("No se pudo actualizar la venta de la comanda: {error}"))?;
