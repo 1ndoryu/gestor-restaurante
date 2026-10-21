@@ -27,15 +27,37 @@ static HTTP_CLIENT: LazyLock<Result<Client, String>> =
 static HTTP_CLIENT_ESCRITURA: LazyLock<Result<Client, String>> =
     LazyLock::new(|| construir_cliente(TIMEOUT_ESCRITURA));
 
+/* [10AA-3] `reqwest` solo dice «error sending request for url (…)»; el motivo de verdad
+ * —conexión rechazada, cortada a media respuesta, timeout— va en los `source` encadenados.
+ * Sin recorrerlos, un fallo del BDP en producción no dice nada y no se puede diagnosticar
+ * (así se quedó el de D15 sin causa confirmada). */
+fn causa_completa(error: &(dyn std::error::Error + 'static)) -> String {
+    let mut texto = error.to_string();
+    let mut causa = error.source();
+    while let Some(actual) = causa {
+        texto.push_str(": ");
+        texto.push_str(&actual.to_string());
+        causa = actual.source();
+    }
+    texto
+}
+
 fn construir_cliente(timeout: Duration) -> Result<Client, String> {
-    Client::builder()
+    let builder = Client::builder()
         .timeout(timeout)
         /* [207A-1] S6-H1: Deshabilitar redirects automáticos para que
          * ensure_target_allowed() realmente controle el destino. Sin esto,
          * un 302 a un host arbitrario bypassa la allowlist. */
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .map_err(|error| error.to_string())
+        .redirect(reqwest::redirect::Policy::none());
+    /* [10AA-3] Las pruebas comparten este cliente (es un `LazyLock` de proceso), pero cada
+     * `#[tokio::test]` trae su propio runtime. Una conexión ociosa que creó un runtime ya
+     * cerrado rompe la petición del siguiente test con «dispatch task is gone: runtime
+     * dropped the dispatch task»: una de cada ocho corridas fallaba en un test distinto.
+     * Sin reutilizar conexiones ociosas ese cruce no puede ocurrir. Fuera de las pruebas
+     * no aplica: producción tiene un solo runtime y ahí sí conviene el keep-alive. */
+    #[cfg(test)]
+    let builder = builder.pool_max_idle_per_host(0);
+    builder.build().map_err(|error| error.to_string())
 }
 
 /* Cliente HTTP compartido de BDP. `build()` solo falla si el backend TLS no puede
@@ -108,7 +130,7 @@ impl BdpWeblinkClient<'_> {
             .json(payload)
             .send()
             .await
-            .map_err(|error| BdpWeblinkError::Http(error.to_string()))?;
+            .map_err(|error| BdpWeblinkError::Http(causa_completa(&error)))?;
         decode_response(response.status(), response.text().await)
     }
 
@@ -132,7 +154,7 @@ impl BdpWeblinkClient<'_> {
             .json(payload)
             .send()
             .await
-            .map_err(|error| BdpWeblinkError::Http(error.to_string()))?;
+            .map_err(|error| BdpWeblinkError::Http(causa_completa(&error)))?;
         decode_response(response.status(), response.text().await)
     }
 
@@ -211,7 +233,7 @@ fn decode_response<T>(
 where
     T: DeserializeOwned,
 {
-    let body = body.map_err(|error| BdpWeblinkError::Http(error.to_string()))?;
+    let body = body.map_err(|error| BdpWeblinkError::Http(causa_completa(&error)))?;
     if !status.is_success() {
         return Err(BdpWeblinkError::Api {
             status: status.as_u16(),
