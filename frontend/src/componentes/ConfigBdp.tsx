@@ -20,6 +20,7 @@ import BuzonAvisosCard from './config-bdp/BuzonAvisosCard';
 import ConexionBdpCard from './config-bdp/ConexionBdpCard';
 import FormasPagoBdpCard from './config-bdp/FormasPagoBdpCard';
 import FuncionesBdpCard from './config-bdp/FuncionesBdpCard';
+import LibroStockCard from './config-bdp/LibroStockCard';
 import OperacionesNoApiCard from './config-bdp/OperacionesNoApiCard';
 import ParametrosEscrituraBdpCard from './config-bdp/ParametrosEscrituraBdpCard';
 import type { BdpSyncDryRunResponse, CambiarCampo } from './config-bdp/tipos';
@@ -157,6 +158,9 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
 
     {/* [L9] Buzón de avisos del TPV: qué llegó desde caja y cómo se procesó. */}
     <BuzonAvisosCard />
+
+    {/* [D26g] Operaciones de stock ambiguas: el dictamen que destraba el artículo. */}
+    <LibroStockCard />
 
     {/* [167A-1] Botón guardar propio de la pestaña BDP */}
     {guardar && (
