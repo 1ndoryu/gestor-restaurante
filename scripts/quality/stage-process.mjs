@@ -5,6 +5,7 @@
  * core; este wrapper solo resuelve el adapter y produce una salida versionada. */
 import path from 'node:path';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { stageDefinitions } from './stage-definitions.mjs';
 import { preflight, projectRoot } from './preflight.mjs';
 import { detectScope, manifestToScope } from './scope.mjs';
@@ -27,6 +28,53 @@ function parseArgs(argv) {
   return parsed;
 }
 
+/* [10AA-3] Sentinel filtra el entorno al lanzar las etapas (su `toolRunner.ts` tiene su
+ * propia lista blanca y no incluye `CM_HEAVY_HELD`). Sin esa marca, el `cm-heavy` de la
+ * etapa cree que viene de fuera, espera 600 s un candado que ya tiene su propio abuelo y
+ * el gate sale rojo como si el código del proyecto fallara.
+ * Mirar el descriptor heredado no sirve: Node lo cierra y reutiliza el número; y preguntar
+ * quién tiene el candado tampoco, porque `/proc/locks` nombra al `flock(1)` que lo pidió, que
+ * ya ha muerto. Lo que sí vale es el buzón que deja `cm-heavy` con su PID: si ese PID está en
+ * nuestra cadena de padres, el candado es de un ancestro. Se pone la marca y `safeEnvironment`
+ * (que ya la permite) la propaga a los pasos.
+ * Solo Linux: sin `/proc` no hay nada que averiguar y se deja el entorno como venga. */
+function marcarSiElCandadoEsDeUnAncestro(rutaDueno = '/run/lock/cm-heavy.owner') {
+  if (process.platform !== 'linux' || process.env.CM_HEAVY_HELD) return false;
+  let dueno;
+  try {
+    dueno = Number(readFileSync(rutaDueno, 'utf8').trim());
+  } catch {
+    return false; // sin buzón: nadie ha pasado por cm-heavy
+  }
+  if (!Number.isInteger(dueno) || dueno <= 1) return false;
+  try {
+    /* El número solo vale si ese proceso sigue dentro de un scope transitorio: cm-heavy
+     * `exec`a el scope conservando el PID, así que el buzón lo delata. Si el número se
+     * recicló tras un build viejo, el nuevo dueño no estará en uno. */
+    if (!/\/run-r[0-9a-f]+\.scope/.test(readFileSync(`/proc/${dueno}/cgroup`, 'utf8'))) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+  let actual = process.pid;
+  for (let saltos = 0; saltos < 64 && actual > 1; saltos += 1) {
+    if (actual === dueno) {
+      process.env.CM_HEAVY_HELD = '1';
+      return true;
+    }
+    try {
+      /* En `/proc/<pid>/stat` el nombre va entre paréntesis y puede traer espacios:
+       * el ppid (campo 4) se busca detrás del último `)`. */
+      const stat = readFileSync(`/proc/${actual}/stat`, 'utf8');
+      actual = Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1]);
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.stage || !args.reportPath || !args.taskId) {
@@ -35,6 +83,8 @@ async function main() {
     return;
   }
   assertTaskId(args.taskId);
+  /* Antes de nada: recuperar la marca de `cm-heavy` que Sentinel filtra al lanzarnos. */
+  marcarSiElCandadoEsDeUnAncestro();
   const adapter = await readAdapterManifest(projectRoot);
   const profiles = args.profile ? args.profile.split(',').map(item => item.trim()).filter(Boolean) : [];
   const allowedStages = profiles.length > 0 || args.full || args.ci
