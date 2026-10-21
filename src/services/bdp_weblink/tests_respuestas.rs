@@ -64,6 +64,85 @@ fn embedded_errors_ok_when_list_empty_or_absent() {
     .is_ok());
 }
 
+/* [D26h] Stock masivo: HTTP 200, `ErrorMessage` vacío y el rechazo por artículo
+ * en `ErrorList`. Antes la cola lo marcaba `sincronizado` (falso positivo). */
+#[test]
+fn error_list_de_stock_con_mensaje_es_rechazo() {
+    let value = serde_json::json!({
+        "ErrorMessage": "",
+        "ErrorList": [
+            {"Article": 1002, "ErrorMessage": ""},
+            {"Article": 10002, "ErrorMessage": "EL ARTÍCULO 10002 NO ES DEL TIPO WEB"}
+        ]
+    });
+
+    let error = ensure_embedded_errors_empty(&value).unwrap_err();
+    match error {
+        BdpWeblinkError::Remote(message) => {
+            assert!(
+                message.contains("10002"),
+                "debe nombrar el artículo: {message}"
+            );
+            assert!(message.contains("NO ES DEL TIPO WEB"), "mensaje: {message}");
+        }
+        other => panic!("se esperaba Remote, got {other:?}"),
+    }
+}
+
+#[test]
+fn error_list_de_stock_toda_vacia_es_exito() {
+    assert!(ensure_embedded_errors_empty(&serde_json::json!({
+        "ErrorMessage": "",
+        "ErrorList": [
+            {"Article": 1001, "ErrorMessage": ""},
+            {"Article": 1002, "ErrorMessage": "  "}
+        ]
+    }))
+    .is_ok());
+}
+
+/* El mismo rechazo por la vía real del cliente: no debe devolver Ok. */
+#[tokio::test]
+async fn massive_inventory_detecta_error_list_embebida() {
+    use crate::services::bdp_weblink_catalog::BdpMassiveStockRequest;
+
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/Auth/Login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ErrorMessage": "",
+            "AuthSession": { "Token": "token-bdp", "ExpiresIn_InSecconds": 3540 }
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/API/Warehouse/UpdateMassiveInventory"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ErrorMessage": "",
+            "ErrorList": [
+                {"Article": 10002, "ErrorMessage": "EL ARTÍCULO 10002 NO ES DEL TIPO WEB"}
+            ]
+        })))
+        .mount(&server)
+        .await;
+
+    let config = config(server.uri());
+    let client = BdpWeblinkClient::new(&config);
+    let error = client
+        .update_massive_inventory(&BdpMassiveStockRequest {
+            cod_reg: 1,
+            store: 1,
+            date_reg: "2026-10-21".into(),
+            articles_list: Vec::new(),
+        })
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(&error, BdpWeblinkError::Remote(message) if message.contains("NO ES DEL TIPO WEB")),
+        "error esperado Remote con el mensaje del artículo, got {error:?}"
+    );
+}
+
 #[tokio::test]
 async fn create_article_detects_embedded_rejection() {
     let server = MockServer::start().await;

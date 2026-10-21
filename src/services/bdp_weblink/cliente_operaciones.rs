@@ -159,13 +159,20 @@ impl BdpWeblinkClient<'_> {
             .await
     }
 
+    /* [D26h] El stock masivo responde HTTP 200 con `ErrorMessage` vacío y el
+     * rechazo por artículo dentro de `ErrorList` («EL ARTÍCULO 10002 NO ES DEL
+     * TIPO WEB»). Sin validarla, la fila de la cola se marcaba `sincronizado` y
+     * el restaurante creía que su conteo había llegado a BDP. */
     pub async fn update_massive_stock(
         &self,
         request: &BdpMassiveStockRequest,
     ) -> Result<Value, BdpWeblinkError> {
         self.ensure_write_target_allowed()?;
-        self.post_authenticated_json(BDP_PATH_UPDATE_MASSIVE_STOCK, request)
-            .await
+        let response = self
+            .post_authenticated_json(BDP_PATH_UPDATE_MASSIVE_STOCK, request)
+            .await?;
+        ensure_embedded_errors_empty(&response)?;
+        Ok(response)
     }
 
     pub async fn update_stock(
@@ -173,8 +180,11 @@ impl BdpWeblinkClient<'_> {
         request: &BdpUpdateStockRequest,
     ) -> Result<Value, BdpWeblinkError> {
         self.ensure_write_target_allowed()?;
-        self.post_authenticated_json(BDP_PATH_UPDATE_STOCK, request)
-            .await
+        let response = self
+            .post_authenticated_json(BDP_PATH_UPDATE_STOCK, request)
+            .await?;
+        ensure_embedded_errors_empty(&response)?;
+        Ok(response)
     }
 
     pub async fn update_massive_inventory(
@@ -182,7 +192,10 @@ impl BdpWeblinkClient<'_> {
         request: &BdpMassiveStockRequest,
     ) -> Result<Value, BdpWeblinkError> {
         self.ensure_write_target_allowed()?;
-        self.post_authenticated_json(BDP_PATH_UPDATE_MASSIVE_INVENTORY, request)
-            .await
+        let response = self
+            .post_authenticated_json(BDP_PATH_UPDATE_MASSIVE_INVENTORY, request)
+            .await?;
+        ensure_embedded_errors_empty(&response)?;
+        Ok(response)
     }
 }

@@ -291,7 +291,30 @@ pub fn response_error_message(value: &Value) -> Option<String> {
 /// Listas de errores embebidos que el BDP devuelve con HTTP 200 y
 /// `ErrorMessage` vacío. Si alguna tiene entradas, la operación NO se aplicó
 /// (o se aplicó parcialmente) y debe tratarse como rechazo, no como éxito.
-const BDP_EMBEDDED_ERROR_LISTS: &[&str] = &["ListaErroresArticulo"];
+/// `ErrorList` (stock masivo) es una lista de objetos con `Article` y
+/// `ErrorMessage`: BDP deja la entrada aunque el artículo sí se aplicó, así que
+/// cuenta como reclamo solo si el `ErrorMessage` trae texto.
+const BDP_EMBEDDED_ERROR_LISTS: &[&str] = &["ListaErroresArticulo", "ErrorList"];
+
+/// Texto del error de una entrada de las listas embebidas: cadena suelta o
+/// objeto `{Article, ErrorMessage}` del stock masivo.
+fn mensaje_de_entrada(entrada: &Value) -> Option<String> {
+    let texto = match entrada {
+        Value::String(texto) => texto.as_str(),
+        Value::Object(_) => entrada.get("ErrorMessage").and_then(Value::as_str)?,
+        _ => return None,
+    };
+    let texto = texto.trim();
+    if texto.is_empty() {
+        return None;
+    }
+    /* Con artículo identificado, el mensaje solo («NO ES DEL TIPO WEB») no dice
+     * de qué línea es: sin el código, el operador no puede corregir el lote. */
+    match entrada.get("Article").and_then(Value::as_i64) {
+        Some(article) => Some(format!("artículo {article}: {texto}")),
+        None => Some(texto.to_string()),
+    }
+}
 
 /// [049A-1/H-W] Detecta errores embebidos del BDP en listas tipo
 /// `ListaErroresArticulo` (HTTP 200 + `ErrorMessage` vacío). Devuelve `Remote`
@@ -299,13 +322,7 @@ const BDP_EMBEDDED_ERROR_LISTS: &[&str] = &["ListaErroresArticulo"];
 pub fn ensure_embedded_errors_empty(value: &Value) -> Result<(), BdpWeblinkError> {
     for key in BDP_EMBEDDED_ERROR_LISTS {
         if let Some(list) = value.get(key).and_then(Value::as_array) {
-            let mensajes: Vec<String> = list
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::trim)
-                .filter(|message| !message.is_empty())
-                .map(ToOwned::to_owned)
-                .collect();
+            let mensajes: Vec<String> = list.iter().filter_map(mensaje_de_entrada).collect();
             if let Some(primero) = mensajes.first() {
                 let resumen = if mensajes.len() > 1 {
                     format!("{primero} (+{} más)", mensajes.len() - 1)
