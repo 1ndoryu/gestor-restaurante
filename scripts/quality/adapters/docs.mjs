@@ -37,7 +37,11 @@ export async function runDocs(context, taskId) {
     });
   }
 
-  if (!roadmap.includes(taskId)) {
+  /* [10AA-3] `AUTOGATE` es el id centinela de `gate-check` cuando nadie pasa
+   * tarea; no es una tarea y no puede estar en el roadmap. `preflight.mjs` ya lo
+   * admite; sin esta misma excepción, todo `gate --cierre` sin `--tarea` fallaba
+   * en la etapa docs por un id que no existe por diseño. */
+  if (taskId !== 'AUTOGATE' && !roadmap.includes(taskId)) {
     findings.push({ ruleId: 'docs-task-missing', severity: 'error', file: 'roadmap.md', message: `${taskId} no aparece en roadmap.md` });
   }
   if (/##\s+(?:tareas\s+)?completad/i.test(roadmap)) {

@@ -122,6 +122,16 @@ test('taskId ausente del roadmap falla con docs-task-missing', async () => {
   }
 });
 
+test('el id centinela AUTOGATE no exige aparecer en el roadmap', async () => {
+  const { root, context } = await makeRoot();
+  try {
+    const result = await runDocs(context, 'AUTOGATE');
+    assert.ok(!result.findings.some(finding => finding.ruleId === 'docs-task-missing'));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('un plan sin checklist en Agente/planes falla con docs-plan-no-checklist', async () => {
   const { root, context } = await makeRoot(30, {
     'Agente/planes/plan-sin-checklist-2026-08-05.md': '# Plan sin checklist\n\nTexto sin casillas.\n',
