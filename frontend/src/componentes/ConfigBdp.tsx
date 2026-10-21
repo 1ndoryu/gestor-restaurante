@@ -19,6 +19,7 @@ import { BotonModoAutomatico, ControlesTarjetaModo } from './config-bdp/Controle
 import ConexionBdpCard from './config-bdp/ConexionBdpCard';
 import FuncionesBdpCard from './config-bdp/FuncionesBdpCard';
 import OperacionesNoApiCard from './config-bdp/OperacionesNoApiCard';
+import ParametrosEscrituraBdpCard from './config-bdp/ParametrosEscrituraBdpCard';
 import type { BdpSyncDryRunResponse, CambiarCampo } from './config-bdp/tipos';
 
 interface BdpUiState {
@@ -140,6 +141,9 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
         </div>
       </CardContent>
     </Card>
+
+    {/* [10AA-3] Mapeo de IVA, modalidad de envío y códigos por defecto de escritura. */}
+    <ParametrosEscrituraBdpCard config={config} cambiarCampo={cambiarCampo} />
 
     <FuncionesBdpCard config={config} cambiarCampo={cambiarCampo} />
 

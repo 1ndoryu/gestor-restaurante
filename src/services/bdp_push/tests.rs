@@ -123,23 +123,43 @@ mod article_data_merge_tests {
         }
     }
 
+    /* [10AA-3] El alta necesita el mapeo IVA→TAVCode: sin él BDP rechaza con
+     * «el código de IVA de venta 0 no existe» y no dice qué falta. */
+    fn config_con_tav() -> ConfiguracionRestaurante {
+        ConfiguracionRestaurante {
+            bdp_tav_map: serde_json::json!({ "10": 1 }),
+            ..Default::default()
+        }
+    }
+
     /* [149A-2/W-Q2.2] Desactivar un map despublica el artículo en BDP. */
     #[test]
     fn map_inactivo_envia_web_article_false() {
-        let parcial =
-            article_data_desde_map(&ConfiguracionRestaurante::default(), &map_fixture(false))
-                .unwrap();
+        let parcial = article_data_desde_map(&config_con_tav(), &map_fixture(false)).unwrap();
         let v = serde_json::to_value(&parcial).unwrap();
         assert_eq!(v["WebArticle"], false);
     }
 
     #[test]
     fn map_activo_envia_web_article_true() {
-        let parcial =
-            article_data_desde_map(&ConfiguracionRestaurante::default(), &map_fixture(true))
-                .unwrap();
+        let parcial = article_data_desde_map(&config_con_tav(), &map_fixture(true)).unwrap();
         let v = serde_json::to_value(&parcial).unwrap();
         assert_eq!(v["WebArticle"], true);
+    }
+
+    #[test]
+    fn sin_mapeo_de_iva_falla_con_mensaje_accionable() {
+        let error = match article_data_desde_map(
+            &ConfiguracionRestaurante::default(),
+            &map_fixture(true),
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("sin mapeo de IVA no debe construirse el payload"),
+        };
+        assert!(
+            error.contains("mapeo de IVA"),
+            "mensaje inesperado: {error}"
+        );
     }
 
     #[test]

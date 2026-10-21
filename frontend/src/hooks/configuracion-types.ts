@@ -7,6 +7,12 @@ import type { ActualizarConfiguracionRequest } from '../api/generated/gestionRes
 export type CuerpoConfiguracionLocal = ActualizarConfiguracionRequest & {
   permisos_pagos_locales?: string;
   permisos_facturacion_local?: string;
+  /* [10AA-3] Parámetros de escritura BDP: el esquema generado aún no los trae. */
+  push_modalidad?: string;
+  bdp_tav_map?: Record<string, number>;
+  bdp_almacen_default?: number;
+  bdp_codreg_default?: number;
+  bdp_articulo_rango_inicial?: number;
 };
 
 export interface EstadoConfiguracion {
@@ -67,6 +73,12 @@ export interface EstadoConfiguracion {
   bdp_sync_mode: string;
   bdp_backup_retention_days: number;
   bdp_auto_backup_before_write: boolean;
+  /* [10AA-3] Parámetros de las escrituras a BDP (D1/D3/M13). */
+  push_modalidad: string;
+  bdp_tav_map: string;
+  bdp_almacen_default: number;
+  bdp_codreg_default: number;
+  bdp_articulo_rango_inicial: number;
   google_review_url: string;
   telefono_restaurante: string;
   url_reservas: string;
@@ -124,6 +136,11 @@ export const DEFAULTS: EstadoConfiguracion = {
   bdp_sync_mode: 'read_only',
   bdp_backup_retention_days: 30,
   bdp_auto_backup_before_write: true,
+  push_modalidad: 'automatico',
+  bdp_tav_map: '{}',
+  bdp_almacen_default: 1,
+  bdp_codreg_default: 1,
+  bdp_articulo_rango_inicial: 90000000,
   google_review_url: '',
   telefono_restaurante: '',
   url_reservas: '',

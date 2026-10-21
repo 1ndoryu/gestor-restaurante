@@ -18,10 +18,10 @@ use super::clasificacion::{clasificar_error, es_transitorio};
 use super::cola::{BdpPushPendiente, BdpPushService, MarcarResultado};
 use super::constantes::{
     DOMINIO_ARTICULO, DOMINIO_CLIENTE_PUNTOS, DOMINIO_DEPARTAMENTO, DOMINIO_FAMILIA,
-    DOMINIO_PROPINA, DOMINIO_STOCK, DOMINIO_VENTA, ESTADO_PENDIENTE_SUSCRIPCION, ESTADO_RECHAZADO,
-    ESTADO_SINCRONIZADO, OPERACION_CANCELAR, OPERACION_CREAR, OPERACION_INVENTARIO,
-    OPERACION_MODIFICAR, OPERACION_PRECIOS, OPERACION_PROPINA, OPERACION_PUNTOS,
-    OPERACION_REGULARIZAR, OPERACION_TRASPASAR, REINTENTOS_MAX,
+    DOMINIO_PROPINA, DOMINIO_STOCK, DOMINIO_VENTA, ESTADO_ERROR, ESTADO_PENDIENTE_SUSCRIPCION,
+    ESTADO_RECHAZADO, ESTADO_SINCRONIZADO, OPERACION_CANCELAR, OPERACION_CREAR,
+    OPERACION_INVENTARIO, OPERACION_MODIFICAR, OPERACION_PRECIOS, OPERACION_PROPINA,
+    OPERACION_PUNTOS, OPERACION_REGULARIZAR, OPERACION_TRASPASAR, REINTENTOS_MAX,
 };
 use super::enriquecimiento::enriquecer_payload_modificar_articulo;
 use super::reconciliacion_puntos::resolver_intento_previo;
@@ -113,10 +113,49 @@ impl BdpPushFlushService {
                 Ok(ESTADO_SINCRONIZADO) => resumen.sincronizados += 1,
                 Ok(ESTADO_PENDIENTE_SUSCRIPCION) => resumen.pendientes_suscripcion += 1,
                 Ok(ESTADO_RECHAZADO) => resumen.rechazados += 1,
-                Ok(_) | Err(_) => resumen.errores += 1,
+                Ok(_) => resumen.errores += 1,
+                Err(mensaje) => {
+                    Self::registrar_fallo_previo(pool, user_id, &pendiente, &mensaje).await;
+                    resumen.errores += 1;
+                }
             }
         }
         Ok(resumen)
+    }
+
+    /// [10AA-3] `procesar_uno` falla antes del HTTP en el armado, el snapshot o el
+    /// payload. Antes ese error solo sumaba a `errores`: la fila quedaba en
+    /// `pendiente` y sin `ultimo_error`, así que el panel no enseñaba nada y un
+    /// rechazo real (p. ej. «no hay mapeo de IVA») era invisible. Se persiste el
+    /// motivo y se cuenta el reintento; si la propia anotación falla, se sigue.
+    async fn registrar_fallo_previo(
+        pool: &PgPool,
+        user_id: Uuid,
+        pendiente: &BdpPushPendiente,
+        mensaje: &str,
+    ) {
+        tracing::warn!(
+            "flush BDP: {}/{} de {} sin enviar: {mensaje}",
+            pendiente.dominio,
+            pendiente.operacion,
+            pendiente.entidad_id
+        );
+        let resultado = BdpPushService::marcar_resultado(
+            pool,
+            user_id,
+            MarcarResultado {
+                dominio: &pendiente.dominio,
+                entidad_id: &pendiente.entidad_id,
+                operacion: &pendiente.operacion,
+                estado: ESTADO_ERROR,
+                error: Some(mensaje),
+                incrementar_reintento: true,
+            },
+        )
+        .await;
+        if let Err(error) = resultado {
+            tracing::warn!("flush BDP: no se pudo anotar el fallo: {error}");
+        }
     }
 
     /// [159A-2/F1] Predicado del filtro por dominio del flush.
@@ -159,7 +198,11 @@ impl BdpPushFlushService {
             Ok(ESTADO_SINCRONIZADO) => resumen.sincronizados += 1,
             Ok(ESTADO_PENDIENTE_SUSCRIPCION) => resumen.pendientes_suscripcion += 1,
             Ok(ESTADO_RECHAZADO) => resumen.rechazados += 1,
-            Ok(_) | Err(_) => resumen.errores += 1,
+            Ok(_) => resumen.errores += 1,
+            Err(mensaje) => {
+                Self::registrar_fallo_previo(pool, user_id, &pendiente, &mensaje).await;
+                resumen.errores += 1;
+            }
         }
         Ok(resumen)
     }

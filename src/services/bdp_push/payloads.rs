@@ -126,7 +126,16 @@ pub(super) fn article_data_desde_map(
         },
         dept_code: (map.departamento > 0).then_some(map.departamento),
         dept_description: None,
-        tav_code: lookup_tav(config, map.iva_pct),
+        /* [10AA-3] Sin mapeo se enviaba `TAVCode: 0` y el BDP lo rechazaba con
+         * «EL CÓDIGO DE IVA DE VENTA 0 NO EXISTE», que no dice qué falta ni
+         * dónde arreglarlo. Mejor parar aquí con un motivo accionable. */
+        tav_code: Some(lookup_tav(config, map.iva_pct).ok_or_else(|| {
+            format!(
+                "Falta el mapeo de IVA a BDP: no hay TAVCode para el {} % del artículo {}. \
+                 Configúralo en Configuración → BDP → Mapeo de IVA.",
+                map.iva_pct, map.articulo_glory_codigo
+            )
+        })?),
         tav_per: Some(map.iva_pct),
         price1: Some(map.precio_tarifa1),
         price2: None,

@@ -74,6 +74,15 @@ export function useConfiguracionSync(datos: ConfigServerData | undefined) {
       bdp_sync_mode: String(d.bdp_sync_mode ?? 'read_only'),
       bdp_backup_retention_days: Number(d.bdp_backup_retention_days ?? 30),
       bdp_auto_backup_before_write: Boolean(d.bdp_auto_backup_before_write ?? false),
+      /* [10AA-3] Parámetros de escritura BDP. El mapa de IVA llega como objeto
+       * JSONB y se edita como texto, igual que los mapas de tender y tipo. */
+      push_modalidad: String(d.push_modalidad ?? 'automatico'),
+      bdp_tav_map: typeof d.bdp_tav_map === 'object' && d.bdp_tav_map !== null
+        ? JSON.stringify(d.bdp_tav_map, null, 2)
+        : String(d.bdp_tav_map ?? '{}'),
+      bdp_almacen_default: Number(d.bdp_almacen_default ?? 1),
+      bdp_codreg_default: Number(d.bdp_codreg_default ?? 1),
+      bdp_articulo_rango_inicial: Number(d.bdp_articulo_rango_inicial ?? 90000000),
       google_review_url: String(d.google_review_url ?? ''),
       telefono_restaurante: String(d.telefono_restaurante ?? ''),
       url_reservas: String(d.url_reservas ?? ''),

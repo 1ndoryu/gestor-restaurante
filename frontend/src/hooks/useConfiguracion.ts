@@ -15,6 +15,21 @@ import type { CuerpoConfiguracionLocal, EstadoConfiguracion } from './configurac
 
 export type { EstadoConfiguracion };
 
+/* [10AA-3] El mapa de IVA se edita como texto: un JSON mal escrito no debe tumbar
+ * el guardado entero. Si no parsea se envía vacío y el backend conserva el suyo. */
+function mapaNumerico(texto: string): Record<string, number> {
+  try {
+    const valor: unknown = JSON.parse(texto);
+    if (typeof valor !== 'object' || valor === null) return {};
+    return Object.fromEntries(
+      Object.entries(valor as Record<string, unknown>)
+        .filter(([, codigo]) => typeof codigo === 'number'),
+    ) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
 export function useConfiguracion() {
   const queryClient = useQueryClient();
   const { data: datos, isLoading } = useObtenerConfiguracion();
@@ -90,6 +105,12 @@ export function useConfiguracion() {
       permisos_anulacion_ventas: config.permisos_anulacion_ventas,
       permisos_pagos_locales: config.permisos_pagos_locales,
       permisos_facturacion_local: config.permisos_facturacion_local,
+      /* [10AA-3] Parámetros de las escrituras a BDP (D1/D3/M13). */
+      push_modalidad: config.push_modalidad,
+      bdp_tav_map: mapaNumerico(config.bdp_tav_map),
+      bdp_almacen_default: config.bdp_almacen_default,
+      bdp_codreg_default: config.bdp_codreg_default,
+      bdp_articulo_rango_inicial: config.bdp_articulo_rango_inicial,
       google_review_url: config.google_review_url || undefined,
       telefono_restaurante: config.telefono_restaurante || undefined,
       url_reservas: config.url_reservas || undefined,

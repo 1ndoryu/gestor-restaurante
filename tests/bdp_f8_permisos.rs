@@ -366,8 +366,11 @@ async fn permisos_catalogo_edicion_admin_trabajador_permite_trabajador(pool: PgP
         barcode: None,
     };
     let result = crear_article_map(State(state), auth, Json(req)).await;
+    /* [10AA-3] Lo que se prueba es el permiso, no el payload: el artículo de
+     * prueba no trae IVA y sin mapeo TAV el alta falla más adelante con un
+     * error interno. Lo que no puede pasar es un 403. */
     assert!(
-        result.is_ok(),
+        !matches!(result, Err(AppError::Forbidden(_))),
         "con 'admin_trabajador' el trabajador puede crear mapeos: {result:?}"
     );
 }
