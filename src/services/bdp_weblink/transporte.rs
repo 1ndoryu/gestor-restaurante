@@ -131,7 +131,7 @@ impl BdpWeblinkClient<'_> {
             .send()
             .await
             .map_err(|error| BdpWeblinkError::Http(causa_completa(&error)))?;
-        decode_response(response.status(), response.text().await)
+        decode_escritura(response.status(), response.text().await)
     }
 
     pub(super) async fn post_public<T, P>(
@@ -224,6 +224,34 @@ impl BdpWeblinkClient<'_> {
         reqwest::Url::parse(&url).map_err(|_| BdpWeblinkError::InvalidBaseUrl(url.clone()))?;
         Ok(url)
     }
+}
+
+/* [D26g] Toda escritura autenticada pasa por aquí. Si la respuesta llegó con un
+ * estado pero su cuerpo no se pudo leer (corte a media respuesta), la escritura
+ * puede estar aplicada: `RespuestaPerdida` lo dice, y el libro de stock decide
+ * con una lectura posterior. Un rechazo de negocio llega con cuerpo y sigue
+ * leyéndose como `Remote`. */
+fn decode_escritura<T>(
+    status: StatusCode,
+    body: Result<String, reqwest::Error>,
+) -> Result<T, BdpWeblinkError>
+where
+    T: DeserializeOwned,
+{
+    let body = match body {
+        Ok(body) => body,
+        Err(error) => {
+            let motivo = causa_completa(&error);
+            if status.is_success() {
+                return Err(BdpWeblinkError::RespuestaPerdida(motivo));
+            }
+            return Err(BdpWeblinkError::Api {
+                status: status.as_u16(),
+                body: motivo,
+            });
+        }
+    };
+    decode_response(status, Ok(body))
 }
 
 fn decode_response<T>(

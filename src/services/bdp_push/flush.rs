@@ -24,6 +24,7 @@ use super::constantes::{
     OPERACION_PUNTOS, OPERACION_REGULARIZAR, OPERACION_TRASPASAR, REINTENTOS_MAX,
 };
 use super::enriquecimiento::enriquecer_payload_modificar_articulo;
+use super::ledger::{self, AccionLibro, LibroAbierto};
 use super::reconciliacion_puntos::resolver_intento_previo;
 
 /* ===== [198A-1/F1] Worker de flush ===== */
@@ -268,11 +269,57 @@ impl BdpPushFlushService {
         )
         .await?;
 
+        /* 4b. [D26g] Libro de stock: S antes de escribir y bloqueo por artículo
+         * y almacén. Si el par ya tiene una operación pendiente, `abrir` falla y
+         * no se envía nada; el armado se compensa para que ese error no deje una
+         * escritura autorizada colgando del siguiente intento. */
+        let libro = match ledger::preparar(config, client, pendiente, &payload).await {
+            Ok(preparado) => preparado,
+            Err(error) => return Err(error),
+        };
+        let libro = match libro {
+            None => None,
+            Some(preparado) => match preparado.abrir(pool, user_id, &pendiente.operacion).await {
+                Ok(libro) => Some(libro),
+                Err(error) => {
+                    let error = format!("{error} (fila de la cola {})", pendiente.id);
+                    return Err(compensar_armado(
+                        pool,
+                        user_id,
+                        config,
+                        scope,
+                        pendiente,
+                        entity_uuid,
+                        error,
+                    )
+                    .await);
+                }
+            },
+        };
+
         /* 5. Dispatcher -> HTTP de escritura (el cliente valida la allowlist).
          * `payload` es deliberadamente el mismo valor que se auditó arriba. */
         match Self::dispatch(client, &pendiente.dominio, &pendiente.operacion, &payload).await {
-            Ok(respuesta) => registrar_exito(pool, pendiente, audit_id, &respuesta).await,
-            Err(error) => registrar_fallo(pool, pendiente, audit_id, &error).await,
+            Ok(respuesta) => {
+                /* El libro se cierra antes de dar la fila por buena: si se cae el
+                 * proceso entre ambos, la huérfana se libera sola en 2 h. */
+                if let Some(libro) = &libro {
+                    ledger::tras_exito(pool, user_id, libro).await?;
+                }
+                registrar_exito(pool, pendiente, audit_id, &respuesta).await
+            }
+            Err(error) => {
+                registrar_fallo(
+                    pool,
+                    user_id,
+                    client,
+                    pendiente,
+                    audit_id,
+                    &error,
+                    libro.as_ref(),
+                )
+                .await
+            }
         }
     }
 
@@ -413,12 +460,24 @@ async fn registrar_exito(
 
 /// Paso 5 (error): clasifica el fallo, cierra la auditoría (`ambiguo` si es
 /// transitorio, `error` si no) y registra el estado y reintentos de la fila.
+///
+/// [D26g] En stock el libro manda: relee `GetStock` y decide entre «ya está
+/// aplicado» (se cierra como sincronizado sin reenviar), «no llegó» (un único
+/// reintento) y «no se sabe» (rechazado, sin reintento, a revisión manual).
+#[allow(clippy::too_many_arguments)]
 async fn registrar_fallo(
     pool: &PgPool,
+    user_id: Uuid,
+    client: &BdpWeblinkClient<'_>,
     pendiente: &BdpPushPendiente,
     audit_id: Uuid,
     error: &BdpWeblinkError,
+    libro: Option<&LibroAbierto>,
 ) -> Result<&'static str, String> {
+    if let Some(libro) = libro {
+        return registrar_fallo_de_stock(pool, user_id, client, pendiente, audit_id, error, libro)
+            .await;
+    }
     let (estado, incrementar) = clasificar_error(error);
     let mensaje = error.to_string();
     let resultado_audit = if es_transitorio(error) {
@@ -440,6 +499,79 @@ async fn registrar_fallo(
     )
     .await?;
     Ok(estado)
+}
+
+/// [D26g] Cierre de un envío de stock fallido según el dictamen del libro.
+/// La auditoría guarda la lectura que lo justifica en `datos_respuesta` para
+/// que el aviso se pueda revisar sin abrir la base.
+async fn registrar_fallo_de_stock(
+    pool: &PgPool,
+    user_id: Uuid,
+    client: &BdpWeblinkClient<'_>,
+    pendiente: &BdpPushPendiente,
+    audit_id: Uuid,
+    error: &BdpWeblinkError,
+    libro: &LibroAbierto,
+) -> Result<&'static str, String> {
+    let (accion, nota) =
+        ledger::tras_error(pool, user_id, client, libro, &error.to_string()).await?;
+    let (resultado_audit, estado, incrementar) = match accion {
+        /* Aplicado: el rechazo no ocurrió, la escritura sí. */
+        AccionLibro::Aplicado => ("exito", ESTADO_SINCRONIZADO, false),
+        /* La relectura dice que no se aplicó: queda deja de ser ambigua y el
+         * guard de escritura deja pasar el reintento único. */
+        AccionLibro::Reintentar => ("error", ESTADO_ERROR, true),
+        /* No se puede atribuir: la auditoría sigue ambigua y el guard bloquea
+         * cualquier escritura nueva de esa entidad hasta la revisión manual.
+         * Un rechazo de negocio conserva su estado definitivo. */
+        AccionLibro::Revisar => {
+            let estado = match clasificar_error(error).0 {
+                ESTADO_RECHAZADO => ESTADO_RECHAZADO,
+                _ => ESTADO_ERROR,
+            };
+            ("ambiguo", estado, false)
+        }
+    };
+    BdpBackupService::actualizar_resultado(pool, audit_id, resultado_audit, None, Some(&nota))
+        .await?;
+    BdpPushService::marcar_resultado(
+        pool,
+        MarcarResultado {
+            fila_id: pendiente.id,
+            marca: pendiente.updated_at,
+            estado,
+            error: Some(&nota),
+            incrementar_reintento: incrementar,
+        },
+    )
+    .await?;
+    Ok(estado)
+}
+
+/// [10AA-3] Falla antes del HTTP con el armado ya concedido: se cancela para no
+/// dejar una autorización pendiente que el siguiente intento reutilizaría.
+async fn compensar_armado(
+    pool: &PgPool,
+    user_id: Uuid,
+    config: &ConfiguracionRestaurante,
+    scope: &str,
+    pendiente: &BdpPushPendiente,
+    entity_uuid: Uuid,
+    error: String,
+) -> String {
+    if let Err(cleanup) = BdpWriteGuard::cancelar_armado_push(
+        pool,
+        user_id,
+        config,
+        scope,
+        &pendiente.dominio,
+        entity_uuid,
+    )
+    .await
+    {
+        return format!("{error}; además no se pudo cancelar el armado BDP: {cleanup}");
+    }
+    error
 }
 
 fn scope_para(dominio: &str, operacion: &str) -> Option<&'static str> {

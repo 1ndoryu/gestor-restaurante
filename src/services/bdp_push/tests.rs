@@ -7,6 +7,7 @@ use crate::services::bdp_weblink::BdpWeblinkError;
 use super::clasificacion::{clasificar_error, es_transitorio};
 use super::constantes::{ESTADO_ERROR, ESTADO_PENDIENTE_SUSCRIPCION, ESTADO_RECHAZADO};
 use super::enriquecimiento::fusionar_article_data;
+use super::ledger::{clasificar as clasificar_stock, ReconciliacionStock};
 use super::payloads::{article_data_desde_map, lookup_tav};
 
 mod clasificacion_error_tests {
@@ -293,5 +294,45 @@ mod regularizacion_tests {
         assert_eq!(payload["Store"], 2);
         assert!(payload.get("Units").is_some());
         assert!(payload.get("DateReg").is_some());
+    }
+}
+
+mod d26g_lectura_perdida_tests {
+    use super::*;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    fn d(texto: &str) -> Decimal {
+        Decimal::from_str(texto).expect("decimal de prueba")
+    }
+
+    /* S+V, S y cualquier otro valor: las tres ramas que separa D26g. */
+    #[test]
+    fn d26g_las_tres_ramas_de_la_relectura() {
+        assert_eq!(
+            clasificar_stock(Some(d("10")), d("2"), d("12")),
+            ReconciliacionStock::Aplicado
+        );
+        assert_eq!(
+            clasificar_stock(Some(d("10")), d("2"), d("10")),
+            ReconciliacionStock::Pendiente
+        );
+        assert_eq!(
+            clasificar_stock(Some(d("10")), d("2"), d("55")),
+            ReconciliacionStock::Discordante
+        );
+    }
+
+    /* Una escritura sin respuesta no se clasifica como reintentable a mano: la
+     * auditoría queda `ambiguo` y decide el libro. Un rechazo de negocio con
+     * cuerpo no cambia de semántica. */
+    #[test]
+    fn d26g_respuesta_perdida_es_ambiguo_y_no_se_confunde_con_rechazo() {
+        let perdida = BdpWeblinkError::RespuestaPerdida("corte a media respuesta".into());
+        assert_eq!(clasificar_error(&perdida), (ESTADO_ERROR, true));
+        assert!(es_transitorio(&perdida));
+        let rechazo = BdpWeblinkError::Remote("EL ARTÍCULO 9 NO ES DEL TIPO WEB".into());
+        assert_eq!(clasificar_error(&rechazo), (ESTADO_ERROR, false));
+        assert!(!es_transitorio(&rechazo));
     }
 }

@@ -20,6 +20,11 @@ pub enum BdpWeblinkError {
     WriteTargetDenied(String),
     #[error("BDP throttled: {0}")]
     Throttled(String),
+    /// [D26g] La escritura salió y se cortó antes de leer la respuesta: puede
+    /// estar aplicada. No se confunde con un timeout de lectura, donde la
+    /// escritura no llegó a enviarse.
+    #[error("Sin respuesta del BDP tras enviar (pudo aplicarse): {0}")]
+    RespuestaPerdida(String),
 }
 
 #[derive(Debug, Deserialize)]

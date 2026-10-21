@@ -9,7 +9,9 @@ pub(super) fn es_transitorio(error: &BdpWeblinkError) -> bool {
     matches!(
         error,
         BdpWeblinkError::Http(_) | BdpWeblinkError::Throttled(_)
-    ) || matches!(
+    ) /* [D26g] Escritura sin respuesta: no se sabe si llegó, así que la
+       * auditoría queda `ambiguo`; quien decide si reintentar es el libro. */
+    || matches!(error, BdpWeblinkError::RespuestaPerdida(_)) || matches!(
         error,
         /* [049A-1/S5] 4xx es rechazo definitivo del BDP (payload inválido,
          * conflicto de negocio): reintentarlo en bucle es inútil y puede

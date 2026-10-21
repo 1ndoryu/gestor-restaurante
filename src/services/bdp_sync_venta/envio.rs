@@ -108,6 +108,14 @@ impl BdpSyncService {
                 crate::services::bdp_weblink::BdpWeblinkError::Api { status, body } => {
                     BdpSyncError::AmbiguousTransport(format!("BDP respondió HTTP {status}: {body}"))
                 }
+                crate::services::bdp_weblink::BdpWeblinkError::RespuestaPerdida(message) => {
+                    /* [D26g] La comanda salió y no se leyó la respuesta: es el
+                     * ambiguo de siempre, pero ahora se distingue de un corte
+                     * antes de enviar. */
+                    BdpSyncError::AmbiguousTransport(format!(
+                        "BDP no respondió tras recibir la comanda: {message}"
+                    ))
+                }
                 crate::services::bdp_weblink::BdpWeblinkError::Throttled(message) => {
                     /* [R3] Throttling es un rechazo temporal del TPV local; si lo
                      * tratamos como permanente perdemos comandas. Lo marcamos
