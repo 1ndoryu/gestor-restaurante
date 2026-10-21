@@ -331,3 +331,75 @@ async fn si_bdp_contesta_sin_comanda_no_se_da_por_recuperada(pool: PgPool) {
     assert!(!venta.bdp_synced);
     assert_eq!(venta.bdp_order_id, None);
 }
+
+/// [D10] El sondeo ve la misma anulación que el aviso: si BDP dice `cancelled`,
+/// la venta queda anulada también por esta vía. Sin esto, la vía de los avisos y
+/// la del polling contarían cosas distintas de la misma comanda.
+#[sqlx::test(migrations = "./migrations")]
+async fn el_sondeo_anula_la_venta_que_bdp_da_por_cancelada(pool: PgPool) {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(|request: &wiremock::Request| {
+            let cuerpo: serde_json::Value =
+                serde_json::from_slice(&request.body).unwrap_or_default();
+            match request.url.path() {
+                "/Auth/Login" => ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "ErrorMessage": "",
+                    "AuthSession": { "Token": "token-bdp", "ExpiresIn_InSecconds": 3540 }
+                })),
+                "/API/Orders/Get" => {
+                    let pedido = cuerpo
+                        .get("OrderIdentifier")
+                        .and_then(|i| i.get("MarketplaceOrderId"))
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or_default()
+                        .to_string();
+                    ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                        "Order": {
+                            "OrderId": 4343,
+                            "MarketplaceOrderId": pedido,
+                            "Status": 2,
+                            "Payments": []
+                        },
+                        "Status": 2,
+                        "ErrorMessage": ""
+                    }))
+                }
+                _ => ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "ErrorMessage": "" })),
+            }
+        })
+        .mount(&server)
+        .await;
+
+    let (user_id, _) = usuario_con_bdp_roto(&pool).await;
+    sqlx::query("UPDATE configuracion_restaurante SET bdp_base_url = $2 WHERE user_id = $1")
+        .bind(user_id)
+        .bind(server.uri())
+        .execute(&pool)
+        .await
+        .expect("apuntar al BDP disponible");
+    let config = ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("releer configuración");
+
+    let venta_id = venta_con_acuse_perdido(&pool, user_id).await;
+    let recuperadas =
+        BdpOrderPollerService::poll_pending(&pool, user_id, &config, &ServicioModoOperacion::new())
+            .await
+            .expect("el polling no revienta");
+
+    /* Se recupera y se cuenta: la auditoría cierra como éxito. */
+    assert_eq!(recuperadas, 1);
+    let venta = VentaRepository::find_by_id(&pool, venta_id, user_id)
+        .await
+        .expect("leer venta")
+        .expect("la venta existe");
+    assert_eq!(venta.bdp_order_status.as_deref(), Some("cancelled"));
+    assert!(venta.anulada, "cancelada en BDP es anulada en la web");
+    assert!(venta.anulada_at.is_some(), "la anulación deja fecha");
+    assert!(
+        venta.anulacion_motivo.is_some(),
+        "la anulación deja motivo legible"
+    );
+}

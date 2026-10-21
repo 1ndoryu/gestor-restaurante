@@ -194,6 +194,19 @@ impl BdpOrderPollerService {
                     .execute(&mut *tx)
                     .await
                     .map_err(|e| e.to_string())?;
+                    /* [D10] La comanda se recuperó con su estado delante: si BDP
+                     * la da por cancelada, la venta queda anulada en la web en la
+                     * misma transacción. Antes se recuperaba el `OrderId` y el
+                     * estado se quedaba sin leer. */
+                    if let Ok(status) = Self::parse_status(&response) {
+                        crate::repositories::VentaRepository::update_bdp_order_status(
+                            &mut *tx,
+                            venta_id,
+                            &Self::map_status(status),
+                        )
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    }
                     sqlx::query(
                         r"UPDATE bdp_audit_log
                         SET resultado = 'exito', datos_respuesta = $2, error_mensaje = NULL, updated_at = NOW()

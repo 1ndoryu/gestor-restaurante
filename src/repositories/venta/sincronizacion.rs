@@ -54,20 +54,36 @@ impl VentaRepository {
     }
 
     /* [276A-4.2] Actualiza bdp_order_status de una venta — polling/endpoint manual.
-     * [F8.4] Si el status es "invoiced", también marca bdp_invoiced = true. */
-    pub async fn update_bdp_order_status(
-        pool: &PgPool,
+     * [F8.4] Si el status es "invoiced", también marca bdp_invoiced = true.
+     * [D10] Si BDP dice `cancelled`, la venta queda anulada aquí también: el
+     * polling ve el mismo hecho que el aviso y las dos vías no pueden contar
+     * cosas distintas. La marca es única (`NOT anulada`) para no pisar un motivo
+     * ya registrado. */
+    pub async fn update_bdp_order_status<'e, E>(
+        executor: E,
         id: Uuid,
         status: &str,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<(), sqlx::Error>
+    where
+        E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+    {
         let invoiced = status == "invoiced";
+        let cancelada = status == "cancelled";
         sqlx::query(
-            "UPDATE ventas SET bdp_order_status = $2, bdp_invoiced = $3, updated_at = NOW() WHERE id = $1",
+            "UPDATE ventas SET bdp_order_status = $2, bdp_invoiced = $3,
+                 anulada = CASE WHEN $4 AND NOT anulada THEN TRUE ELSE anulada END,
+                 anulada_at = CASE WHEN $4 AND NOT anulada THEN NOW() ELSE anulada_at END,
+                 anulacion_motivo = CASE WHEN $4 AND NOT anulada
+                                         THEN 'Anulada en el TPV (sondeo de BDP)'
+                                         ELSE anulacion_motivo END,
+                 updated_at = NOW()
+               WHERE id = $1",
         )
         .bind(id)
         .bind(status)
         .bind(invoiced)
-        .execute(pool)
+        .bind(cancelada)
+        .execute(executor)
         .await?;
         Ok(())
     }
