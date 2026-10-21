@@ -12,6 +12,7 @@ mod bdp_guard;
 mod bdp_menu_local;
 mod bdp_purchase_note;
 mod bdp_push;
+mod bdp_stock_revision;
 
 /* Visible para los submódulos como `crate::handlers::AppState`. */
 use crate::AppState;

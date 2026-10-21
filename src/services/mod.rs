@@ -67,6 +67,10 @@ pub use bdp_push::{
     payload_regularizacion, BdpPushFila, BdpPushFlushResumen, BdpPushFlushService,
     BdpPushPendiente, BdpPushService,
 };
+/* [D26g] Revisión manual del libro de stock: el endpoint que destraba una
+ * operación ambigua (el guard la bloqueaba sin salida). */
+pub use bdp_push::{listar_revisiones_stock, resolver_revision_stock};
+pub use bdp_push::{DecisionRevisionStock, FilaRevisionStock, ResolucionStock};
 pub use bdp_sync::BdpSyncService;
 pub use bdp_sync_catalogo::SyncTablesResult;
 pub use bdp_sync_preflight::{BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncPreflightService};

@@ -19,6 +19,7 @@ mod cola;
 mod constantes;
 mod enriquecimiento;
 mod flush;
+mod ledger;
 mod payloads;
 mod reconciliacion_puntos;
 #[cfg(test)]
@@ -37,6 +38,13 @@ pub use constantes::{
     OPERACION_TRASPASAR, REINTENTOS_MAX,
 };
 pub use flush::{BdpPushFlushResumen, BdpPushFlushService};
+pub use ledger::cerrar_libro;
+/* [D26g] Revisión manual del libro de stock (endpoints de Configuración → BDP). */
+pub use ledger::{
+    listar_revisiones as listar_revisiones_stock, resolver as resolver_revision_stock,
+    Decision as DecisionRevisionStock, FilaRevision as FilaRevisionStock,
+    Resolucion as ResolucionStock,
+};
 pub use payloads::{
     payload_cancelar, payload_crear_articulo, payload_crear_departamento, payload_crear_familia,
     payload_inventario, payload_modificar_articulo, payload_propina, payload_puntos,
