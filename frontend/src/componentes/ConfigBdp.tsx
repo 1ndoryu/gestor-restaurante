@@ -18,6 +18,7 @@ import type { BdpDiagnosticoResponse } from '../api/generated/gestionRestaurante
 import { BotonModoAutomatico, ControlesTarjetaModo } from './config-bdp/ControlesModoBdp';
 import BuzonAvisosCard from './config-bdp/BuzonAvisosCard';
 import ConexionBdpCard from './config-bdp/ConexionBdpCard';
+import FormasPagoBdpCard from './config-bdp/FormasPagoBdpCard';
 import FuncionesBdpCard from './config-bdp/FuncionesBdpCard';
 import OperacionesNoApiCard from './config-bdp/OperacionesNoApiCard';
 import ParametrosEscrituraBdpCard from './config-bdp/ParametrosEscrituraBdpCard';
@@ -147,6 +148,9 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
     <ParametrosEscrituraBdpCard config={config} cambiarCampo={cambiarCampo} />
 
     <FuncionesBdpCard config={config} cambiarCampo={cambiarCampo} />
+
+    {/* [D24-m] Formas de pago reales del BDP frente al mapeo configurado. */}
+    <FormasPagoBdpCard mapa={config.bdp_tender_map} />
 
     {/* [D32] Responsable y procedimiento de lo que BDP no expone por API. */}
     <OperacionesNoApiCard />
