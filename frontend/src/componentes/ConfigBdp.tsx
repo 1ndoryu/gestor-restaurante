@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import type { EstadoConfiguracion } from '../hooks/useConfiguracion';
 import type { BdpDiagnosticoResponse } from '../api/generated/gestionRestauranteAPI.schemas';
 import { BotonModoAutomatico, ControlesTarjetaModo } from './config-bdp/ControlesModoBdp';
+import BuzonAvisosCard from './config-bdp/BuzonAvisosCard';
 import ConexionBdpCard from './config-bdp/ConexionBdpCard';
 import FuncionesBdpCard from './config-bdp/FuncionesBdpCard';
 import OperacionesNoApiCard from './config-bdp/OperacionesNoApiCard';
@@ -149,6 +150,9 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
 
     {/* [D32] Responsable y procedimiento de lo que BDP no expone por API. */}
     <OperacionesNoApiCard />
+
+    {/* [L9] Buzón de avisos del TPV: qué llegó desde caja y cómo se procesó. */}
+    <BuzonAvisosCard />
 
     {/* [167A-1] Botón guardar propio de la pestaña BDP */}
     {guardar && (
