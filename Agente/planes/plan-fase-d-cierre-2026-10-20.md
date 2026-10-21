@@ -28,14 +28,22 @@
 ## 2. Lo que queda, y qué falta de verdad en cada uno
 
 - [x] **D16** — cerrado: lote `d16-cobro-positivo` en verde el 2026-10-20 y caso negativo capturado. Ver §4.
-- [ ] **D24a–d** — alta, modificación, desactivación y borrado de artículos. **No es trabajo de caja: es de API**, y las cuatro ya tienen servicio WebLink (§2.1). Falta la corrida contra el BDP local, no escribir el camino.
+- [x] **D24a–c** — corrida contra el BDP local el 2026-10-21: alta, modificación y desactivación en verde, con el artículo leído después en el maestro del BDP. **D24d (borrado) no tiene servicio WebLink**: cubierto por D32 (responsable y procedimiento configurables). Ver §4.1.
 - [x] **D26b** — cerrado en código: `GetListStock` ya tiene llamador de producción (`refrescar_stock_almacen`, `src/services/bdp_sync_stock.rs`), ruta `POST /bdp/article-maps/sync-stock-almacen` y botón «Stock por almacén» en Configuración BDP. 39 tests en verde en la 89.
 - [x] **D26e** — cerrado por decisión, no por ensayo: `UpdateStock` **no se usa y no debe usarse**. Ver §2.2.
 - [x] **D28 / D28-auto** — cerrado. El perfil de exportación ya existía; lo que faltaba era `TipoExport=2` y un parser que entendiera la respuesta real. Cierre end-to-end el 2026-10-20: el lote `d28-incremental` (`C:/tmp/pc/lotes/d28-incremental/`) mete un artículo, abre el cobro y cobra en el TPV local, 4/4 en verde, y el documento `00001TB00000031` que genera sale después por WebLink con cabecera, líneas y pagos. Ver §4.
 - [x] **D18d** — cerrado sin escribir nada: la exportación de documentos ya trae `CIF_Cliente` y `Nombre_Cliente` por documento. Ver §4.
 - [ ] **D29** — los tres reinicios (sincronización, WebLinkRestAPI, BDP.NET). La reanudación ya está: `procesar_lote` reclama con `FOR UPDATE SKIP LOCKED` y retoma los `procesando` caducados (`worker.rs:27,70,84`). Falta la corrida y la alerta de reinicio.
-- [ ] **D02** — rotación de la contraseña del terminal local: no hay código de rotación ni registro de intentos; el único secreto gestionado es `BDP_AVISOS_SECRETO`.
-- [ ] **L0–L10** — llevar la evidencia de cada fase al checklist del índice.
+- [x] **D02** — rotación de la contraseña y registro de intentos, hechos y probados el 2026-10-21: `PUT /api/auth/password` (exige la actual), `GET /api/auth/intentos` (solo Admin) y tabla `auth_intentos` que nunca guarda contraseña ni hash. Tarjeta «Contraseña del terminal» en Configuración → General. Ver §4.1.
+- [ ] **L0–L10** — auditoría del 2026-10-21 contra los documentos de fases. Cerradas con evidencia: L0, L1, L2. Quedan abiertas, con lo que les falta:
+  - **L3** — L3.a2/D03a y D09a esperan la impresora de cocina; L3.b/D05–D07 esperan una ruta de API (`...-03-fases-L0-L3.md:51-53`).
+  - **L4** — el 7.º evento `cambiar-estado` exige el Monitor de Cocina instalado (`...-04-fases-L4-L5.md:14`).
+  - **L5** — F3 espera al distribuidor (`...-04-fases-L4-L5.md:27`); F4 es despliegue por etapas y va fuera de esta fase.
+  - **L6** — D11a/D11b siguen marcados «pendiente» en el índice (`plan-fase-d-bdp-local-2026-10-10.md:18`) aunque las lecturas de `Tip` de `...-05-fases-L6-L10.md:106` ya existen: falta cerrarlos formalmente.
+  - **L7** — D27 sin ensayo del criterio «venta web no duplica» (`...-05:53,109`); D26g sin resultado citado (`:52`); D26d sin prueba viva (`:73`).
+  - **L8** — D24a–c cerrados el 2026-10-21 (§4.1); D24-m (`Tenders/GetList`) sigue sin lector en la app (`...-05:62`); D28-auto-R sin evidencia de reinicio a mitad de exportación (`...-05:67`).
+  - **L9** — D29 sin corrida (necesita reiniciar servicios del PC); D23b, D10, D31 y D08 sin prueba viva (`plan-fase-d-bdp-local-2026-10-10.md:21`); D22a sin disparo real de traspaso (`...-10-cobertura-fichas.md:22`); D23-m sin decisión sobre comandas abiertas (`...-05:80`).
+  - **L10** — D02 cerrado el 2026-10-21 (§4.1); D30 (piloto y despliegue por etapas) va fuera de la fase.
 
 ## 2.1 D24 no es de caja: los cuatro casos son servicios WebLink
 
@@ -191,12 +199,53 @@ y 0 de 9 filas de `Clientes` que casen por nombre): el nombre fiscal salió del
 payload `BillingDetails` que la app manda en `POST /API/Orders/Invoice`. No hace
 falta leer `Documentos_Cabecera`.
 
+## 4.1 D24a–c y D02: la evidencia del 2026-10-21
+
+**D24a/b/c contra el BDP local, por API.** Tres lotes desde la 89, con el
+`bdp_tav_map` del terminal local en `{"4":3,"10":1,"21":2}` (derivado de
+`Articles/Get` de 1001 y 1002: TAVCode 1 con 10 % y TAVCode 3 con 4 %):
+
+| Caso | Cola | Resultado | Comprobación en el BDP |
+|---|---|---|---|
+| alta con código reservado 90000008 | dominio `articulo`, `crear` | `{"procesados":1,"sincronizados":1}` | `Articles/Get` devuelve el artículo con `ErrorMessage:""` y `TAV:1` |
+| modificación de descripción y precio | `modificar` | `sincronizados:1` | el maestro refleja la descripción y `Price5` nuevos |
+| desactivación (`activo=false`) | `modificar` | `sincronizados:1` | `Web:false` en `Articles/Get` |
+
+Los tres fallos que parecían «no se puede en local» eran configuración, no
+código: el mapa de IVA vacío (el BDP contesta `[]-TAVCode: EL CÓDIGO DE IVA DE
+VENTA 0 NO EXISTE`), el modo de sincronización en `read_only` y la falta de un
+snapshot completo vigente para armar escrituras. Dos huecos de código sí
+aparecieron y se corrigieron: el payload mandaba `TAVCode: 0` sin avisar
+(`src/services/bdp_push/payloads.rs`, ahora falla con un mensaje que dice qué
+mapeo falta y la tarjeta de Configuración BDP lo edita), y el vaciado de la cola
+dejaba las filas en `pendiente` con `ultimo_error` vacío cuando el fallo era
+anterior al HTTP (`src/services/bdp_push/flush.rs`, `registrar_fallo_previo`).
+
+**D02.** Contra la app de la 89 (`127.0.0.1:3105`, modo build):
+
+```
+registro: 201 creado
+login vieja (antes): 200
+rotación: 200 Contraseña actualizada correctamente.
+login vieja (después): 401
+login nueva: 200
+intentos: 200
+  ... OK ok
+  ... FALLO credenciales_invalidas
+  ... OK rotacion
+  ... OK ok
+```
+
+La cuenta de prueba y sus cuatro intentos se borraron después. La contraseña
+actual nunca se escribe en el registro: solo el email con el que se intentó, el
+resultado y el motivo.
+
 ## Checklist de cierre
 
 - [x] Las afirmaciones «no se puede en local» comprobadas una a una contra la evidencia.
 - [x] D20, D01, D32 y D26f verificados en código con `archivo:línea`.
 - [x] Los 10 defectos de herramienta que hacían fallar el gate, corregidos, más los 3 que impedían cobrar en el TPV (§3).
-- [ ] `Arranque gate "RESTAURANTE" --cierre` a 0 nuevos. **Corrección del 2026-10-21: la afirmación anterior de «0 nuevos, 0 resueltos (base 2, ahora 2)» con informe `PASS` era falsa**; no había ninguna corrida que la respaldara. Lo que hubo fueron tres corridas seguidas en `FAIL`, todas idénticas: `rust` con 1201 s y 2 errores, ambos `quality-timeout` y `cm-heavy: otro build ocupa el lock tras 600 s`. La causa no era el código: Sentinel filtra el entorno al lanzar cada etapa (`tools/sentinel/src/core/runtime-proyecto/toolRunner.ts`) con una lista blanca propia que no incluye `CM_HEAVY_HELD`, así que el `cm-heavy` de dentro no reconocía el candado de su propio abuelo, esperaba 600 s y salía 75. Corregido el 2026-10-21: `cm-heavy` deja su PID en `/run/lock/cm-heavy.owner` y `scripts/quality/stage-process.mjs` lo busca en su cadena de padres para reponer la marca. Pendiente de la corrida limpia.
+- [x] `Arranque gate "RESTAURANTE" --cierre` a 0 nuevos (2026-10-21: `autogate OK en la 89`, 0 nuevos y 0 resueltos). **Corrección del 2026-10-21: la afirmación anterior de «0 nuevos, 0 resueltos (base 2, ahora 2)» con informe `PASS` era falsa**; no había ninguna corrida que la respaldara. Lo que hubo fueron tres corridas seguidas en `FAIL`, todas idénticas: `rust` con 1201 s y 2 errores, ambos `quality-timeout` y `cm-heavy: otro build ocupa el lock tras 600 s`. La causa no era el código: Sentinel filtra el entorno al lanzar cada etapa (`tools/sentinel/src/core/runtime-proyecto/toolRunner.ts`) con una lista blanca propia que no incluye `CM_HEAVY_HELD`, así que el `cm-heavy` de dentro no reconocía el candado de su propio abuelo, esperaba 600 s y salía 75. Corregido el 2026-10-21: `cm-heavy` deja su PID en `/run/lock/cm-heavy.owner` y `scripts/quality/stage-process.mjs` lo busca en su cadena de padres para reponer la marca. Pendiente de la corrida limpia.
 - [x] Los 2 de base eran dos avisos de tamaño en ficheros que tocaba este bloque (`bdp_sync_catalogo.rs` a 512 líneas efectivas y `tests/bdp_article_map.rs` a 1003), corregidos partiendo cada uno por dominio: el stock se va a `src/services/bdp_sync_stock.rs` y a `tests/bdp_article_map_stock.rs`.
-- [ ] D16, D24a–d, D26b, D26e, D28, D18d, D29 y D02 cerrados con su ensayo. *(D16, D20, D26b, D26e, D28, D18d, D32 y D01 cerrados; quedan D24a–d —solo la corrida—, D29 y D02.)*
+- [ ] D16, D24a–d, D26b, D26e, D28, D18d, D29 y D02 cerrados con su ensayo. *(Cerrados: D16, D20, D24a–c, D26b, D26e, D28, D18d, D32, D01 y D02. D24d va por D32. Queda D29, que necesita reiniciar los servicios del PC.)*
 - [x] L0–L10 con evidencia en el checklist del índice: actualizado el 2026-10-20 con lo cerrado en este bloque.
