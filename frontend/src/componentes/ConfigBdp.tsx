@@ -10,18 +10,14 @@ import { useState } from 'react';
 import { Shield } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import axios from '@/api/axios-instance';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import type { EstadoConfiguracion } from '../hooks/useConfiguracion';
 import type { BdpDiagnosticoResponse } from '../api/generated/gestionRestauranteAPI.schemas';
 import { BotonModoAutomatico, ControlesTarjetaModo } from './config-bdp/ControlesModoBdp';
-import BuzonAvisosCard from './config-bdp/BuzonAvisosCard';
 import ConexionBdpCard from './config-bdp/ConexionBdpCard';
 import FormasPagoBdpCard from './config-bdp/FormasPagoBdpCard';
 import FuncionesBdpCard from './config-bdp/FuncionesBdpCard';
-import LibroStockCard from './config-bdp/LibroStockCard';
-import OperacionesNoApiCard from './config-bdp/OperacionesNoApiCard';
 import ParametrosEscrituraBdpCard from './config-bdp/ParametrosEscrituraBdpCard';
 import type { BdpSyncDryRunResponse, CambiarCampo } from './config-bdp/tipos';
 
@@ -35,12 +31,9 @@ interface BdpUiState {
 interface ConfigBdpProps {
   config: EstadoConfiguracion;
   cambiarCampo: CambiarCampo;
-  guardar?: () => void;
-  guardando?: boolean;
-  mensaje?: string;
 }
 
-function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: ConfigBdpProps) {
+function ConfigBdp({ config, cambiarCampo }: ConfigBdpProps) {
   const [estadoBdp, setEstadoBdp] = useState<BdpUiState>({
     diagnostico: null,
     dryRun: null,
@@ -153,28 +146,6 @@ function ConfigBdp({ config, cambiarCampo, guardar, guardando, mensaje }: Config
     {/* [D24-m] Formas de pago reales del BDP frente al mapeo configurado. */}
     <FormasPagoBdpCard mapa={config.bdp_tender_map} />
 
-    {/* [D32] Responsable y procedimiento de lo que BDP no expone por API. */}
-    <OperacionesNoApiCard />
-
-    {/* [L9] Buzón de avisos del TPV: qué llegó desde caja y cómo se procesó. */}
-    <BuzonAvisosCard />
-
-    {/* [D26g] Operaciones de stock ambiguas: el dictamen que destraba el artículo. */}
-    <LibroStockCard />
-
-    {/* [167A-1] Botón guardar propio de la pestaña BDP */}
-    {guardar && (
-      <div className="flex items-center gap-4 mt-4">
-        <Button onClick={guardar} disabled={guardando}>
-          {guardando ? 'Guardando...' : 'Guardar conexión BDP'}
-        </Button>
-        {mensaje && (
-          <span className={`text-sm ${mensaje.includes('Error') ? 'text-destructive' : 'text-green-600'}`}>
-            {mensaje}
-          </span>
-        )}
-      </div>
-    )}
     </>
   );
 }

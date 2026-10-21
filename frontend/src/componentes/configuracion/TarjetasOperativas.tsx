@@ -1,9 +1,9 @@
-/* Tarjetas operativas de la pestaña General: datos de prueba y venta automática
- * al completar reservas. La operación de datos de prueba la ejecuta Configuracion. */
+/* [D33] Tarjetas operativas: venta automática al completar reservas. Los datos
+ * de prueba salieron de aquí a su propia sección (tocan datos, no ajustes). */
 
-import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { EstadoConfiguracion } from '../../hooks/useConfiguracion';
 import type { CambiarCampo } from '../config-bdp/tipos';
@@ -11,46 +11,16 @@ import type { CambiarCampo } from '../config-bdp/tipos';
 interface TarjetasOperativasProps {
   config: EstadoConfiguracion;
   cambiarCampo: CambiarCampo;
-  operandoSeed: boolean;
-  ejecutarOperacion: (endpoint: string, descripcion: string) => Promise<void>;
 }
 
-export function TarjetasOperativas({ config, cambiarCampo, operandoSeed, ejecutarOperacion }: TarjetasOperativasProps) {
+export function TarjetasOperativas({ config, cambiarCampo }: TarjetasOperativasProps) {
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Datos de prueba</CardTitle>
-          <CardDescription>Cargar o eliminar los datos de demostración del sistema</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <div className="flex gap-3 flex-wrap">
-            <Button
-              variant="outline"
-              disabled={operandoSeed}
-              onClick={() => ejecutarOperacion('admin/seed', 'Datos de prueba cargados')}
-            >
-              {operandoSeed ? 'Procesando...' : 'Recargar datos de prueba'}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={operandoSeed}
-              onClick={() => ejecutarOperacion('admin/reset', 'Datos eliminados')}
-            >
-              Eliminar datos de prueba
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            "Recargar" restablece todos los datos demo. "Eliminar" borra todos los datos pero mantiene la cuenta.
-          </p>
-        </CardContent>
-      </Card>
-
       {/* [014A-1] Toggle auto-venta al completar reserva */}
       <Card>
         <CardHeader>
-          <CardTitle>Ventas automáticas</CardTitle>
-          <CardDescription>Crear una venta automáticamente cuando una reserva se marca como completada</CardDescription>
+          <CardTitle>Una venta al completar cada reserva</CardTitle>
+          <CardDescription>Al marcar una reserva como completada se crea la venta sola, sin que nadie la teclee</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between">
@@ -60,6 +30,30 @@ export function TarjetasOperativas({ config, cambiarCampo, operandoSeed, ejecuta
               checked={config.auto_venta_reserva}
               onCheckedChange={(checked) => cambiarCampo('auto_venta_reserva', checked)}
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Cómo se anula una venta</CardTitle>
+          <CardDescription>«Crédito completo» exige motivo y revierte la venta en el resumen diario; «Solo estado» la marca como anulada sin pedir motivo</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="anulacion-modalidad">Modalidad de anulación</Label>
+            <Select
+              value={config.anulacion_modalidad}
+              onValueChange={(v) => cambiarCampo('anulacion_modalidad', v)}
+            >
+              <SelectTrigger id="anulacion-modalidad" className="w-52">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="credito_completo">Crédito completo</SelectItem>
+                <SelectItem value="estado_solo">Solo estado</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>

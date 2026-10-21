@@ -9,13 +9,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { EstadoConfiguracion } from '@/hooks/useConfiguracion';
 import type { CambiarCampo } from './tipos';
+import { MapaJsonCrudo, MapaParejas } from '../configuracion/MapaParejas';
 
 interface ParametrosEscrituraBdpCardProps {
   config: EstadoConfiguracion;
   cambiarCampo: CambiarCampo;
 }
-
-const EJEMPLO_MAPA = '{"10": 1, "4": 3, "21": 2}';
 
 /** Cuenta las parejas válidas del mapa; -1 si el texto no es un JSON de objetos. */
 function contarParejas(texto: string): number {
@@ -39,10 +38,9 @@ export default function ParametrosEscrituraBdpCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Parámetros de escritura</CardTitle>
+        <CardTitle>Lo que hace falta para crear artículos y mover stock en el TPV</CardTitle>
         <CardDescription>
-          Lo que la Aplicación Web necesita para dar de alta y modificar artículos y stock en BDP.
-          Se guardan con el botón de abajo.
+          Qué IVA corresponde a cada tipo, cuándo se envía la cola y qué códigos se usan por defecto.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -56,22 +54,21 @@ export default function ParametrosEscrituraBdpCard({
           </div>
         )}
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="bdp-tav-map">Mapeo de IVA (%). A la izquierda el IVA de la web; a la derecha el código de IVA de venta del BDP</Label>
-          <textarea
-            id="bdp-tav-map"
-            value={config.bdp_tav_map}
-            onChange={(evento) => cambiarCampo('bdp_tav_map', evento.target.value)}
-            rows={4}
-            spellCheck={false}
-            className="w-full max-w-md rounded-md border border-input bg-background px-3 py-2 font-mono text-sm"
-            placeholder={EJEMPLO_MAPA}
-          />
-          <p className="text-xs text-muted-foreground">
-            Ejemplo: <code>{EJEMPLO_MAPA}</code>. Los códigos se ven en el TPV, en la ficha de
-            cualquier artículo ya creado (IVA de venta), o preguntando al instalador de BDP.
-          </p>
-        </div>
+        <MapaParejas
+          id="bdp-tav-map"
+          etiqueta="IVA de la web → código de IVA de venta del BDP"
+          ayuda="Ejemplo: 10 → 1, 4 → 3, 21 → 2. Los códigos se ven en el TPV, en la ficha de cualquier artículo ya creado (IVA de venta)."
+          columnaClave="IVA %"
+          columnaValor="Código TPV"
+          valor={config.bdp_tav_map}
+          onCambiar={(json) => cambiarCampo('bdp_tav_map', json)}
+        />
+        <MapaJsonCrudo
+          id="bdp-tav-map-json"
+          etiqueta="Editar el mapeo de IVA como JSON (para copiarlo de otro restaurante)"
+          valor={config.bdp_tav_map}
+          onCambiar={(json) => cambiarCampo('bdp_tav_map', json)}
+        />
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="flex flex-col gap-2">

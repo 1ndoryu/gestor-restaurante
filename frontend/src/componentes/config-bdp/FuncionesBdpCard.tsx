@@ -1,13 +1,13 @@
-/* [267A-4] Funcionalidades BDP: interruptores de funciones avanzadas (feature flags),
- * modalidad de anulación, permisos operativos y permisos de albaranes. Los cambios
- * se aplican al instante, sin redeploy. */
+/* [267A-4] Funcionalidades avanzadas del TPV: interruptores de funciones (feature
+ * flags) y compras. Los cambios se aplican al instante, sin redeploy.
+ * [D33] La modalidad de anulación y los permisos operativos salieron a sus propias
+ * secciones: no son ajustes de la conexión BDP. */
 
 import { Info, ToggleLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { EstadoConfiguracion } from '@/hooks/useConfiguracion';
 import type { CambiarCampo } from './tipos';
@@ -23,10 +23,11 @@ export default function FuncionesBdpCard({ config, cambiarCampo }: FuncionesBdpC
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <ToggleLeft className="size-4" />
-          Funcionalidades BDP
+          Qué funciones avanzadas del TPV se usan
         </CardTitle>
         <CardDescription>
-          Activa o desactiva funcionalidades avanzadas de la integración BDP. Los cambios se aplican inmediatamente sin necesidad de redeploy. Todos están desactivados por defecto por seguridad.
+          Cada interruptor abre una capacidad de la integración con BDP (pagos parciales, cancelar
+          comandas, compras). Todos están apagados por defecto por seguridad.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -73,152 +74,6 @@ export default function FuncionesBdpCard({ config, cambiarCampo }: FuncionesBdpC
             checked={config.ff_bdp_cancel_order}
             onCheckedChange={(checked: boolean) => cambiarCampo('ff_bdp_cancel_order', checked)}
           />
-        </div>
-        {/* [128A-1/F4] Modalidad de anulación local de ventas */}
-        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-          <div>
-            <Label htmlFor="anulacion-modalidad">Modalidad de anulación</Label>
-            <p className="text-xs text-muted-foreground">
-              «Crédito completo» exige motivo y revierte la venta en el resumen diario;
-              «Solo estado» marca la venta como anulada sin exigir motivo.
-            </p>
-          </div>
-          <Select
-            value={config.anulacion_modalidad}
-            onValueChange={(v) => cambiarCampo('anulacion_modalidad', v)}
-          >
-            <SelectTrigger id="anulacion-modalidad" className="w-52">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="credito_completo">Crédito completo</SelectItem>
-              <SelectItem value="estado_solo">Solo estado</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {/* [128A-1/F8] Permisos operativos por acción (D8/M17) */}
-        <div className="border-t pt-3">
-          <p className="text-xs font-medium text-muted-foreground mb-3">Permisos operativos</p>
-          <p className="text-xs text-muted-foreground mb-3">
-            Quién puede ejecutar cada acción sensible. El backend aplica el permiso en cada
-            operación; la UI solo refleja la configuración.
-          </p>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-              <div>
-                <Label htmlFor="permisos-catalogo-edicion">Catálogo</Label>
-                <p className="text-xs text-muted-foreground">Crear/editar/eliminar artículos y mapeos.</p>
-              </div>
-              <Select
-                value={config.permisos_catalogo_edicion}
-                onValueChange={(v) => cambiarCampo('permisos_catalogo_edicion', v)}
-              >
-                <SelectTrigger id="permisos-catalogo-edicion" className="w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Solo admin</SelectItem>
-                  <SelectItem value="admin_trabajador">Admin y trabajadores</SelectItem>
-                  <SelectItem value="todos">Todos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-              <div>
-                <Label htmlFor="permisos-stock-ajuste">Ajuste de stock</Label>
-                <p className="text-xs text-muted-foreground">Ajustes manuales de stock local.</p>
-              </div>
-              <Select
-                value={config.permisos_stock_ajuste}
-                onValueChange={(v) => cambiarCampo('permisos_stock_ajuste', v)}
-              >
-                <SelectTrigger id="permisos-stock-ajuste" className="w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Solo admin</SelectItem>
-                  <SelectItem value="admin_trabajador">Admin y trabajadores</SelectItem>
-                  <SelectItem value="todos">Todos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-              <div>
-                <Label htmlFor="permisos-albaranes-gestion">Albaranes de compra</Label>
-                <p className="text-xs text-muted-foreground">Crear, editar, borrar, borrador y conciliar.</p>
-              </div>
-              <Select
-                value={config.permisos_albaranes_gestion}
-                onValueChange={(v) => cambiarCampo('permisos_albaranes_gestion', v)}
-              >
-                <SelectTrigger id="permisos-albaranes-gestion" className="w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Solo admin</SelectItem>
-                  <SelectItem value="admin_trabajador">Admin y trabajadores</SelectItem>
-                  <SelectItem value="todos">Todos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-              <div>
-                <Label htmlFor="permisos-anulacion-ventas">Anulación de ventas</Label>
-                <p className="text-xs text-muted-foreground">Anular ventas locales.</p>
-              </div>
-              <Select
-                value={config.permisos_anulacion_ventas}
-                onValueChange={(v) => cambiarCampo('permisos_anulacion_ventas', v)}
-              >
-                <SelectTrigger id="permisos-anulacion-ventas" className="w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Solo admin</SelectItem>
-                  <SelectItem value="admin_trabajador">Admin y trabajadores</SelectItem>
-                  <SelectItem value="todos">Todos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-              <div>
-                <Label htmlFor="permisos-pagos-locales">Pagos parciales locales</Label>
-                <p className="text-xs text-muted-foreground">Registrar pagos parciales en el ledger local.</p>
-              </div>
-              <Select
-                value={config.permisos_pagos_locales}
-                onValueChange={(v) => cambiarCampo('permisos_pagos_locales', v)}
-              >
-                <SelectTrigger id="permisos-pagos-locales" className="w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Solo admin</SelectItem>
-                  <SelectItem value="admin_trabajador">Admin y trabajadores</SelectItem>
-                  <SelectItem value="todos">Todos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-              <div>
-                <Label htmlFor="permisos-facturacion-local">Facturación local</Label>
-                <p className="text-xs text-muted-foreground">Emitir facturas locales de ventas.</p>
-              </div>
-              <Select
-                value={config.permisos_facturacion_local}
-                onValueChange={(v) => cambiarCampo('permisos_facturacion_local', v)}
-              >
-                <SelectTrigger id="permisos-facturacion-local" className="w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Solo admin</SelectItem>
-                  <SelectItem value="admin_trabajador">Admin y trabajadores</SelectItem>
-                  <SelectItem value="todos">Todos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
         </div>
         <div className="border-t pt-3">
           <p className="text-xs font-medium text-muted-foreground mb-3">Compras (albaranes de proveedores BDP)</p>

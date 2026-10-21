@@ -1,4 +1,5 @@
-/* Tarjetas de datos del negocio de la pestaña General: nombre, reservas, impuestos e IA.
+/* [D33] Tarjetas del grupo «Mi restaurante»: nombre, reservas e impuestos. La clave de Groq
+ * pasó a «A qué se conecta»: es una conexión a un servicio externo.
  * Sin estado propio: todo llega por props desde Configuracion. */
 
 import { Input } from '@/components/ui/input';
@@ -18,8 +19,8 @@ export function TarjetasNegocio({ config, cambiarCampo }: TarjetasNegocioProps) 
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Datos del restaurante</CardTitle>
-          <CardDescription>Información general del establecimiento</CardDescription>
+          <CardTitle>El nombre que sale en los tickets y en la web</CardTitle>
+          <CardDescription>Cómo aparece el restaurante para quien lo busca y para quien recibe una factura</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-2">
@@ -36,8 +37,8 @@ export function TarjetasNegocio({ config, cambiarCampo }: TarjetasNegocioProps) 
 
       <Card>
         <CardHeader>
-          <CardTitle>Campos obligatorios al reservar</CardTitle>
-          <CardDescription>Define qué datos se requieren para crear una reserva</CardDescription>
+          <CardTitle>Qué datos se piden al reservar</CardTitle>
+          <CardDescription>Lo que el cliente no puede dejar en blanco al reservar una mesa</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {/* [303A-16] Fecha y hora siempre obligatorios — switches deshabilitados para
@@ -88,8 +89,8 @@ export function TarjetasNegocio({ config, cambiarCampo }: TarjetasNegocioProps) 
 
       <Card>
         <CardHeader>
-          <CardTitle>Impuestos</CardTitle>
-          <CardDescription>Configuración fiscal por defecto</CardDescription>
+          <CardTitle>El IVA que se aplica por defecto</CardTitle>
+          <CardDescription>El impuesto que llevan los artículos nuevos si nadie lo cambia</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-2">
@@ -108,27 +109,6 @@ export function TarjetasNegocio({ config, cambiarCampo }: TarjetasNegocioProps) 
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Digitalización con IA</CardTitle>
-          <CardDescription>Configura tu API key de Groq para digitalizar facturas, albaranes y tickets automáticamente</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="groq-api-key">API Key de Groq</Label>
-            <Input
-              id="groq-api-key"
-              type="password"
-              value={config.groq_api_key}
-              onChange={(e) => cambiarCampo('groq_api_key', e.target.value)}
-              placeholder="gsk_..."
-            />
-            <p className="text-xs text-muted-foreground">
-              Obtén tu API key en <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="underline">console.groq.com/keys</a>. Es gratuita.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
     </>
   );
 }

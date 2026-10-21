@@ -1,4 +1,4 @@
-/* Tarjetas de integraciones de la pestaña General: Haddock y reseñas/WhatsApp.
+/* [D33] Tarjetas de integraciones: Haddock y reseñas/WhatsApp.
  * Sin estado propio: todo llega por props desde Configuracion. */
 
 import { Input } from '@/components/ui/input';
@@ -20,8 +20,8 @@ export function TarjetasIntegraciones({ config, cambiarCampo }: TarjetasIntegrac
         * [064A-5] Token API y toggle de sincronización con Haddock POS API */}
       <Card>
         <CardHeader>
-          <CardTitle>Plataforma Haddock</CardTitle>
-          <CardDescription>Enlace a Haddock y sincronización automática de ventas vía POS API</CardDescription>
+          <CardTitle>Enlace a Haddock</CardTitle>
+          <CardDescription>Sincronizar al día las ventas con Haddock por su POS API</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
@@ -64,8 +64,8 @@ export function TarjetasIntegraciones({ config, cambiarCampo }: TarjetasIntegrac
       {/* [134A-4] Reseñas y CTA WhatsApp — configuración para review gating y botones CTA */}
       <Card>
         <CardHeader>
-          <CardTitle>Reseñas y WhatsApp</CardTitle>
-          <CardDescription>Configura el review gating para Google y los botones CTA en mensajes de WhatsApp</CardDescription>
+          <CardTitle>Pedir reseñas y enlazar WhatsApp</CardTitle>
+          <CardDescription>A dónde va quien puntúa bien, y qué botones llevan los mensajes de WhatsApp</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
