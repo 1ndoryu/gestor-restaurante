@@ -40,7 +40,7 @@
   - **L4** — el 7.º evento `cambiar-estado` exige el Monitor de Cocina instalado (`...-04-fases-L4-L5.md:14`).
   - **L5** — F3 espera al distribuidor (`...-04-fases-L4-L5.md:27`); F4 es despliegue por etapas y va fuera de esta fase.
   - **L6** — D11a/D11b siguen marcados «pendiente» en el índice (`plan-fase-d-bdp-local-2026-10-10.md:18`) aunque las lecturas de `Tip` de `...-05-fases-L6-L10.md:106` ya existen: falta cerrarlos formalmente.
-  - **L7** — D27 sin ensayo del criterio «venta web no duplica» (`...-05:53,109`); D26g sin resultado citado (`:52`); D26d sin prueba viva (`:73`).
+  - **L7** — D27 sin ensayo del criterio «venta web no duplica» (`...-05:53,109`); D26g cerrado el 2026-10-21 (relectura S/S+V y revisión manual con pantalla; `:52`); D26d sin prueba viva (`:73`).
   - **L8** — D24a–c cerrados el 2026-10-21 (§4.1); D24-m (`Tenders/GetList`) sigue sin lector en la app (`...-05:62`); D28-auto-R sin evidencia de reinicio a mitad de exportación (`...-05:67`).
   - **L9** — D29 sin corrida (necesita reiniciar servicios del PC); D23b, D10, D31 y D08 sin prueba viva (`plan-fase-d-bdp-local-2026-10-10.md:21`); D22a sin disparo real de traspaso (`...-10-cobertura-fichas.md:22`); D23-m sin decisión sobre comandas abiertas (`...-05:80`).
   - **L10** — D02 cerrado el 2026-10-21 (§4.1); D30 (piloto y despliegue por etapas) va fuera de la fase.
