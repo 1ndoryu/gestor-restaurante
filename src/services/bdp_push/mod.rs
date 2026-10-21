@@ -24,7 +24,10 @@ mod reconciliacion_puntos;
 #[cfg(test)]
 mod tests;
 
-pub use cola::{BdpPushFila, BdpPushPendiente, BdpPushService, MarcarResultado};
+pub use cola::{
+    BdpPushFila, BdpPushPendiente, BdpPushService, ClavePendiente, MarcarResultado,
+    ResultadoPendiente,
+};
 pub use constantes::{
     DOMINIO_ARTICULO, DOMINIO_CLIENTE_PUNTOS, DOMINIO_DEPARTAMENTO, DOMINIO_FAMILIA,
     DOMINIO_PROPINA, DOMINIO_STOCK, DOMINIO_VENTA, ESTADO_DESCARTADO, ESTADO_ERROR,

@@ -6,8 +6,8 @@
 use glory_backend::models::{ActualizarConfiguracionRequest, ConfiguracionRestaurante};
 use glory_backend::services::bdp_push::{
     payload_cancelar, payload_crear_departamento, payload_crear_familia, payload_inventario,
-    payload_propina, payload_puntos, payload_regularizacion, BdpPushService, MarcarResultado,
-    DOMINIO_ARTICULO, DOMINIO_DEPARTAMENTO, ESTADO_ERROR, ESTADO_PENDIENTE,
+    payload_propina, payload_puntos, payload_regularizacion, BdpPushService, ClavePendiente,
+    ResultadoPendiente, DOMINIO_ARTICULO, DOMINIO_DEPARTAMENTO, ESTADO_ERROR, ESTADO_PENDIENTE,
     ESTADO_PENDIENTE_SUSCRIPCION, ESTADO_RECHAZADO, ESTADO_SINCRONIZADO, OPERACION_CREAR,
 };
 use glory_backend::services::bdp_weblink_catalog::BdpStockInfoEntry;
@@ -76,13 +76,15 @@ async fn suscripcion_no_consume_reintentos(pool: PgPool) {
     .unwrap();
 
     /* Error transitorio: incrementa reintentos. */
-    BdpPushService::marcar_resultado(
+    BdpPushService::marcar_resultado_por_clave(
         &pool,
-        user,
-        MarcarResultado {
+        ClavePendiente {
+            user_id: user,
             dominio: DOMINIO_ARTICULO,
             entidad_id: "90000123",
             operacion: OPERACION_CREAR,
+        },
+        ResultadoPendiente {
             estado: ESTADO_ERROR,
             error: Some("timeout"),
             incrementar_reintento: true,
@@ -96,13 +98,15 @@ async fn suscripcion_no_consume_reintentos(pool: PgPool) {
     assert_eq!(pendientes[0].reintentos, 1);
 
     /* Bloqueo por suscripción: NO incrementa (D2 resuelta). */
-    BdpPushService::marcar_resultado(
+    BdpPushService::marcar_resultado_por_clave(
         &pool,
-        user,
-        MarcarResultado {
+        ClavePendiente {
+            user_id: user,
             dominio: DOMINIO_ARTICULO,
             entidad_id: "90000123",
             operacion: OPERACION_CREAR,
+        },
+        ResultadoPendiente {
             estado: ESTADO_PENDIENTE_SUSCRIPCION,
             error: Some("Subscripción no activada"),
             incrementar_reintento: false,
@@ -265,13 +269,15 @@ async fn sincronizado_sale_de_la_cola_activa(pool: PgPool) {
     )
     .await
     .unwrap();
-    BdpPushService::marcar_resultado(
+    BdpPushService::marcar_resultado_por_clave(
         &pool,
-        user,
-        MarcarResultado {
+        ClavePendiente {
+            user_id: user,
             dominio: DOMINIO_ARTICULO,
             entidad_id: "a1",
             operacion: OPERACION_CREAR,
+        },
+        ResultadoPendiente {
             estado: ESTADO_SINCRONIZADO,
             error: None,
             incrementar_reintento: false,

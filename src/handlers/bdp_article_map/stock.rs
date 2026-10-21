@@ -270,14 +270,13 @@ pub async fn registrar_inventario(
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     let almacen = almacen_bdp(req.warehouse_id.as_deref(), config.bdp_almacen_default)?;
     let payload = payload_inventario(&config, almacen, lineas).map_err(AppError::Internal)?;
-    /* La cola de conteos se agrupa por almacén: un conteo de otro almacén no
-     * debe reemplazar el pendiente del almacén por defecto. */
-    BdpPushService::encolar(
+    /* La cola de conteos se agrupa por almacén y se fusiona por artículo: un
+     * conteo de otro almacén no toca este pendiente, y un conteo parcial del
+     * mismo almacén no borra las líneas que aún no se habían enviado. */
+    BdpPushService::fusionar_inventario(
         &state.pool,
         auth.user_id,
-        crate::services::bdp_push::DOMINIO_STOCK,
         &format!("conteo:{almacen}"),
-        crate::services::bdp_push::OPERACION_INVENTARIO,
         &payload,
     )
     .await
@@ -378,12 +377,10 @@ pub async fn crear_conteo_inventario(
         /* Los conteos guardados se aplican al almacén local "0": van al almacén por defecto. */
         let almacen = config.bdp_almacen_default;
         let payload = payload_inventario(&config, almacen, lotes).map_err(AppError::Internal)?;
-        BdpPushService::encolar(
+        BdpPushService::fusionar_inventario(
             &state.pool,
             auth.user_id,
-            crate::services::bdp_push::DOMINIO_STOCK,
             &format!("conteo:{almacen}"),
-            crate::services::bdp_push::OPERACION_INVENTARIO,
             &payload,
         )
         .await

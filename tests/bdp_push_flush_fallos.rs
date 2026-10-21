@@ -3,8 +3,8 @@
  * (estado ambiguo, reintento acotado) y payload inválido (rechazo sin reintento). */
 use glory_backend::models::ActualizarConfiguracionRequest;
 use glory_backend::services::bdp_push::{
-    BdpPushService, MarcarResultado, DOMINIO_ARTICULO, ESTADO_ERROR, ESTADO_PENDIENTE,
-    ESTADO_RECHAZADO, OPERACION_CREAR, REINTENTOS_MAX,
+    BdpPushService, ClavePendiente, ResultadoPendiente, DOMINIO_ARTICULO, ESTADO_ERROR,
+    ESTADO_PENDIENTE, ESTADO_RECHAZADO, OPERACION_CREAR, REINTENTOS_MAX,
 };
 use glory_backend::services::{BdpBackupService, BdpPushFlushService, ConfiguracionService};
 use sqlx::PgPool;
@@ -160,13 +160,15 @@ async fn flush_timeout_mid_write_estado_ambiguo_y_reintento_acotado(pool: PgPool
     /* Reintento acotado: agotar REINTENTOS_MAX vía `marcar_resultado` (sin
      * HTTP) y verificar que el siguiente flush no vuelve a enviar. */
     for _ in 0..(REINTENTOS_MAX - 1) {
-        BdpPushService::marcar_resultado(
+        BdpPushService::marcar_resultado_por_clave(
             &pool,
-            user,
-            MarcarResultado {
+            ClavePendiente {
+                user_id: user,
                 dominio: DOMINIO_ARTICULO,
                 entidad_id: "90000123",
                 operacion: OPERACION_CREAR,
+            },
+            ResultadoPendiente {
                 estado: ESTADO_ERROR,
                 error: Some("timeout simulado"),
                 incrementar_reintento: true,

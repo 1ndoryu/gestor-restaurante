@@ -115,7 +115,7 @@ impl BdpPushFlushService {
                 Ok(ESTADO_RECHAZADO) => resumen.rechazados += 1,
                 Ok(_) => resumen.errores += 1,
                 Err(mensaje) => {
-                    Self::registrar_fallo_previo(pool, user_id, &pendiente, &mensaje).await;
+                    Self::registrar_fallo_previo(pool, &pendiente, &mensaje).await;
                     resumen.errores += 1;
                 }
             }
@@ -128,12 +128,7 @@ impl BdpPushFlushService {
     /// `pendiente` y sin `ultimo_error`, así que el panel no enseñaba nada y un
     /// rechazo real (p. ej. «no hay mapeo de IVA») era invisible. Se persiste el
     /// motivo y se cuenta el reintento; si la propia anotación falla, se sigue.
-    async fn registrar_fallo_previo(
-        pool: &PgPool,
-        user_id: Uuid,
-        pendiente: &BdpPushPendiente,
-        mensaje: &str,
-    ) {
+    async fn registrar_fallo_previo(pool: &PgPool, pendiente: &BdpPushPendiente, mensaje: &str) {
         tracing::warn!(
             "flush BDP: {}/{} de {} sin enviar: {mensaje}",
             pendiente.dominio,
@@ -142,11 +137,9 @@ impl BdpPushFlushService {
         );
         let resultado = BdpPushService::marcar_resultado(
             pool,
-            user_id,
             MarcarResultado {
-                dominio: &pendiente.dominio,
-                entidad_id: &pendiente.entidad_id,
-                operacion: &pendiente.operacion,
+                fila_id: pendiente.id,
+                marca: pendiente.updated_at,
                 estado: ESTADO_ERROR,
                 error: Some(mensaje),
                 incrementar_reintento: true,
@@ -200,7 +193,7 @@ impl BdpPushFlushService {
             Ok(ESTADO_RECHAZADO) => resumen.rechazados += 1,
             Ok(_) => resumen.errores += 1,
             Err(mensaje) => {
-                Self::registrar_fallo_previo(pool, user_id, &pendiente, &mensaje).await;
+                Self::registrar_fallo_previo(pool, &pendiente, &mensaje).await;
                 resumen.errores += 1;
             }
         }
@@ -278,8 +271,8 @@ impl BdpPushFlushService {
         /* 5. Dispatcher -> HTTP de escritura (el cliente valida la allowlist).
          * `payload` es deliberadamente el mismo valor que se auditó arriba. */
         match Self::dispatch(client, &pendiente.dominio, &pendiente.operacion, &payload).await {
-            Ok(respuesta) => registrar_exito(pool, user_id, pendiente, audit_id, &respuesta).await,
-            Err(error) => registrar_fallo(pool, user_id, pendiente, audit_id, &error).await,
+            Ok(respuesta) => registrar_exito(pool, pendiente, audit_id, &respuesta).await,
+            Err(error) => registrar_fallo(pool, pendiente, audit_id, &error).await,
         }
     }
 
@@ -399,7 +392,6 @@ async fn payload_final(
 /// Paso 5 (éxito): cierra la auditoría y marca la fila como sincronizada.
 async fn registrar_exito(
     pool: &PgPool,
-    user_id: Uuid,
     pendiente: &BdpPushPendiente,
     audit_id: Uuid,
     respuesta: &Value,
@@ -407,11 +399,9 @@ async fn registrar_exito(
     BdpBackupService::actualizar_resultado(pool, audit_id, "exito", Some(respuesta), None).await?;
     BdpPushService::marcar_resultado(
         pool,
-        user_id,
         MarcarResultado {
-            dominio: &pendiente.dominio,
-            entidad_id: &pendiente.entidad_id,
-            operacion: &pendiente.operacion,
+            fila_id: pendiente.id,
+            marca: pendiente.updated_at,
             estado: ESTADO_SINCRONIZADO,
             error: None,
             incrementar_reintento: false,
@@ -425,7 +415,6 @@ async fn registrar_exito(
 /// transitorio, `error` si no) y registra el estado y reintentos de la fila.
 async fn registrar_fallo(
     pool: &PgPool,
-    user_id: Uuid,
     pendiente: &BdpPushPendiente,
     audit_id: Uuid,
     error: &BdpWeblinkError,
@@ -441,11 +430,9 @@ async fn registrar_fallo(
         .await?;
     BdpPushService::marcar_resultado(
         pool,
-        user_id,
         MarcarResultado {
-            dominio: &pendiente.dominio,
-            entidad_id: &pendiente.entidad_id,
-            operacion: &pendiente.operacion,
+            fila_id: pendiente.id,
+            marca: pendiente.updated_at,
             estado,
             error: Some(&mensaje),
             incrementar_reintento: incrementar,

@@ -15,7 +15,7 @@ use crate::services::bdp_weblink::BdpWeblinkClient;
 use crate::services::bdp_weblink_catalog::{BdpAddPointsRequest, BdpGetPointsRequest};
 use crate::services::{entidad_uuid, BdpBackupService};
 
-use super::cola::{BdpPushPendiente, BdpPushService, MarcarResultado};
+use super::cola::{BdpPushPendiente, BdpPushService, ClavePendiente, ResultadoPendiente};
 use super::constantes::{ESTADO_ERROR, ESTADO_SINCRONIZADO};
 
 /// Resultado de comparar el saldo de BDP con el ledger local hasta la operación.
@@ -170,13 +170,15 @@ async fn marcar(
     error: Option<&str>,
     incrementar_reintento: bool,
 ) -> Result<&'static str, String> {
-    BdpPushService::marcar_resultado(
+    BdpPushService::marcar_resultado_por_clave(
         pool,
-        user_id,
-        MarcarResultado {
+        ClavePendiente {
+            user_id,
             dominio: &pendiente.dominio,
             entidad_id: &pendiente.entidad_id,
             operacion: &pendiente.operacion,
+        },
+        ResultadoPendiente {
             estado,
             error,
             incrementar_reintento,
