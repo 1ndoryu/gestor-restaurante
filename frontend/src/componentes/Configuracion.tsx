@@ -129,10 +129,12 @@ function Configuracion() {
 
   return (
     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as IdSeccion)} className="max-w-5xl">
-      {/* En móvil las seis pestañas caen en dos filas: sin `h-auto!` la lista
-          conserva los 2 rem del diseño de origen y la segunda fila se monta
-          encima del texto de la sección. */}
-      <TabsList className="flex h-auto! flex-wrap justify-start">
+      {/* Seis pestañas no caben en el móvil. No se parte en filas: el trigger
+          compartido mide `h-[calc(100%-1px)]`, así que con varias filas la lista
+          no crece a su contenido y la última fila se monta encima de la sección.
+          En una sola fila con scroll horizontal cada pestaña conserva su altura
+          y el panel queda siempre debajo. */}
+      <TabsList className="flex h-auto! max-w-full justify-start overflow-x-auto">
         {SECCIONES.map((s) => (
           <TabsTrigger key={s.id} value={s.id} className="gap-2">
             {s.titulo}
