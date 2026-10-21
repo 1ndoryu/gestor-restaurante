@@ -170,6 +170,9 @@ pub struct BdpConteoInventario {
     pub fecha: chrono::NaiveDate,
     pub observaciones: String,
     pub estado: String,
+    /// [L7] Almacén al que se aplicó el conteo: "0" es el agregado local
+    /// «General»; cualquier otro id es un almacén con desglose.
+    pub warehouse_id: String,
     pub creado_el: DateTime<Utc>,
     pub total_lineas: i64,
 }
@@ -196,6 +199,11 @@ pub struct CrearConteoInventarioRequest {
     pub idempotency_key: Option<String>,
     #[validate(length(min = 1, message = "El conteo requiere al menos un artículo"))]
     pub articulos: Vec<InventarioLineaRequest>,
+    /// [L7] Almacén del conteo. Ausente, vacío o "0" es el agregado local
+    /// «General»; el resto se valida contra BDP al encolar el envío.
+    #[serde(default)]
+    #[validate(length(max = 20, message = "warehouse_id máx 20"))]
+    pub warehouse_id: Option<String>,
 }
 
 /// Resultado de guardar un conteo: persistido + aplicado + (si hay códigos

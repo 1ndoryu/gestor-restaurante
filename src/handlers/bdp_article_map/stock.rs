@@ -9,6 +9,7 @@ use super::{
     Decimal, HeaderMap, Json, Path, RegistrarInventarioRequest, Response, State,
     TraspasoStockRequest, Uuid, Validate, VisibilidadCache,
 };
+use axum::extract::Query;
 
 /// Listar stock de artículos por almacén. Por defecto devuelve el almacén
 /// "General" (`warehouse_id` = "0") mientras BDP no exponga desglose por almacén.
@@ -297,9 +298,22 @@ pub async fn registrar_inventario(
 pub async fn listar_conteos_inventario(
     State(state): State<AppState>,
     auth: AuthUser,
+    Query(filtro): Query<FiltroConteos>,
 ) -> Result<Json<Vec<BdpConteoInventario>>, AppError> {
-    let conteos = BdpArticleMapRepository::listar_conteos(&state.pool, auth.user_id, 50).await?;
+    let conteos = BdpArticleMapRepository::listar_conteos(
+        &state.pool,
+        auth.user_id,
+        filtro.warehouse_id.as_deref(),
+        50,
+    )
+    .await?;
     Ok(Json(conteos))
+}
+
+/// [L7] Filtro opcional del historial por almacén (`?warehouse_id=2`).
+#[derive(Debug, serde::Deserialize)]
+pub struct FiltroConteos {
+    pub warehouse_id: Option<String>,
 }
 
 pub async fn obtener_conteo_inventario(
@@ -339,6 +353,7 @@ pub async fn crear_conteo_inventario(
         req.observaciones.as_deref().unwrap_or(""),
         req.idempotency_key.as_deref(),
         &articulos,
+        req.warehouse_id.as_deref(),
     )
     .await
     .map_err(|e| match e {
@@ -374,8 +389,14 @@ pub async fn crear_conteo_inventario(
     let mut encolados = 0usize;
     if !lotes.is_empty() {
         let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
-        /* Los conteos guardados se aplican al almacén local "0": van al almacén por defecto. */
-        let almacen = config.bdp_almacen_default;
+        /* [L7] El conteo va al mismo almacén en el que se aplicó el stock
+         * local: antes se guardaba siempre en "0" y se enviaba al almacén por
+         * defecto, así que contar el almacén 2 ajustaba el 1 aquí y mandaba
+         * el 1 al terminal. "0"/ausente siguen siendo el almacén por defecto. */
+        let almacen = almacen_bdp(
+            Some(conteo.warehouse_id.as_str()),
+            config.bdp_almacen_default,
+        )?;
         let payload = payload_inventario(&config, almacen, lotes).map_err(AppError::Internal)?;
         BdpPushService::fusionar_inventario(
             &state.pool,

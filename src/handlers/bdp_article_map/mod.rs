@@ -95,6 +95,8 @@ pub fn routes() -> Router<AppState> {
         /* [208A-2/C3] Conteos persistidos (D3/D4): listar, guardar+aplicar, retomar. */
         .route(
             "/bdp/inventario/conteos",
+            /* [L7] Listar admite `?warehouse_id=` para que el front pida solo
+             * los conteos del almacén que tiene seleccionado. */
             get(listar_conteos_inventario).post(crear_conteo_inventario),
         )
         .route(

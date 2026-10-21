@@ -126,6 +126,7 @@ async fn conteo_persiste_aplica_y_encola(pool: PgPool) {
                 unidades_contadas: Decimal::from_str("5").unwrap(), // esperado 0 -> +5
             },
         ],
+        warehouse_id: None,
     };
 
     let result = crear_conteo_inventario(State(state), auth, Json(req)).await;
@@ -201,6 +202,7 @@ async fn conteo_misma_clave_no_aplica_dos_veces(pool: PgPool) {
             articulo_glory_codigo: "ART-1".to_string(),
             unidades_contadas: Decimal::from_str("4").unwrap(), // -6
         }],
+        warehouse_id: None,
     };
 
     let auth2 = AuthUser {
@@ -261,6 +263,7 @@ async fn conteo_stock_negativo_rechaza_y_revierte(pool: PgPool) {
             articulo_glory_codigo: "ART-1".to_string(),
             unidades_contadas: Decimal::from_str("-5").unwrap(), // 10 + (-15) = -5
         }],
+        warehouse_id: None,
     };
     let result = crear_conteo_inventario(State(state), auth, Json(req)).await;
     match result {
@@ -301,6 +304,7 @@ async fn conteo_vacio_devuelve_validacion(pool: PgPool) {
         observaciones: None,
         idempotency_key: None,
         articulos: vec![],
+        warehouse_id: None,
     };
     let result = crear_conteo_inventario(State(state), auth, Json(req)).await;
     match result {
@@ -309,4 +313,86 @@ async fn conteo_vacio_devuelve_validacion(pool: PgPool) {
         }
         other => panic!("se esperaba AppError::Validation, se obtuvo {other:?}"),
     }
+}
+
+/* [L7] El conteo ya no es siempre del almacén "0". Antes leía, aplicaba y
+ * enviaba el almacén por defecto aunque se estuviera contando otro: contar el
+ * almacén 2 ajustaba el 1 en la web y mandaba otro número al terminal. */
+#[sqlx::test(migrations = "./migrations")]
+async fn conteo_de_otro_almacen_no_toca_el_cero(pool: PgPool) {
+    let user_id = crear_usuario_y_config(&pool).await;
+    insertar_mapeo(&pool, user_id, "ART-1", "90000123").await;
+    /* Esperado distinto por almacén: el "0" tiene 10 y el 2 tiene 4. Si el
+     * conteo del 2 leyera el "0" contaría una diferencia que no existe. */
+    sqlx::query(
+        "INSERT INTO bdp_article_stock \
+            (id, user_id, articulo_glory_codigo, warehouse_id, warehouse_name, stock, ajustado_local) \
+         VALUES ($1, $2, 'ART-1', '0', 'General', 10, true), \
+                ($3, $2, 'ART-1', '2', '2', 4, false)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(user_id)
+    .bind(Uuid::new_v4())
+    .execute(&pool)
+    .await
+    .expect("insertar stock de dos almacenes");
+
+    let state = make_app_state(pool.clone());
+    let req = CrearConteoInventarioRequest {
+        observaciones: Some("recuento almacén 2".to_string()),
+        idempotency_key: Some("conteo-almacen-2".to_string()),
+        articulos: vec![InventarioLineaRequest {
+            articulo_glory_codigo: "ART-1".to_string(),
+            unidades_contadas: Decimal::from_str("6").unwrap(), // 4 -> 6 (+2)
+        }],
+        warehouse_id: Some("2".to_string()),
+    };
+    let body = crear_conteo_inventario(State(state), auth_admin(user_id), Json(req))
+        .await
+        .expect("conteo del almacén 2")
+        .0;
+
+    assert_eq!(body.conteo.warehouse_id, "2", "el conteo guarda su almacén");
+    assert_eq!(body.aplicadas, 1);
+
+    /* Esperado leído del almacén 2 (4), no del 0 (10). */
+    assert_eq!(body.lineas[0].esperado, Decimal::from_str("4").unwrap());
+    assert_eq!(body.lineas[0].diferencia, Decimal::from_str("2").unwrap());
+
+    let stock: Vec<(String, Decimal)> = sqlx::query_as(
+        "SELECT warehouse_id, stock FROM bdp_article_stock \
+         WHERE user_id = $1 ORDER BY warehouse_id",
+    )
+    .bind(user_id)
+    .fetch_all(&pool)
+    .await
+    .expect("leer stock");
+    assert_eq!(
+        stock,
+        vec![
+            ("0".to_string(), Decimal::from_str("10").unwrap()),
+            ("2".to_string(), Decimal::from_str("6").unwrap()),
+        ],
+        "el almacén 0 queda intacto y el 2 queda contado"
+    );
+
+    /* La auditoría dice de qué almacén es el ajuste: sin eso la traza miente. */
+    let (audit_almacen,): (String,) = sqlx::query_as(
+        "SELECT datos_enviados->>'warehouse_id' FROM bdp_audit_log \
+         WHERE user_id = $1 AND datos_enviados->>'motivo' = 'conteo'",
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .expect("auditoría del conteo");
+    assert_eq!(audit_almacen, "2");
+
+    /* El envío a BDP sale por el mismo almacén que se contó. */
+    let (payload,): (serde_json::Value,) =
+        sqlx::query_as("SELECT payload_json FROM bdp_push_pendientes WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fila encolada");
+    assert_eq!(payload["Store"], 2, "payload: {payload}");
 }

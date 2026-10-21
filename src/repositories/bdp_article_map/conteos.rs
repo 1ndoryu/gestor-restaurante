@@ -15,18 +15,23 @@ impl BdpArticleMapRepository {
     pub async fn listar_conteos(
         pool: &PgPool,
         user_id: Uuid,
+        warehouse_id: Option<&str>,
         limite: i64,
     ) -> Result<Vec<crate::models::BdpConteoInventario>, sqlx::Error> {
+        /* [L7] `warehouse_id` nulo lista todos (el historial histórico de "0"
+         * incluido); con valor, solo ese almacén. */
         sqlx::query_as::<_, crate::models::BdpConteoInventario>(
-            r"SELECT c.id, c.fecha, c.observaciones, c.estado, c.creado_el,
+            r"SELECT c.id, c.fecha, c.observaciones, c.estado, c.warehouse_id, c.creado_el,
                       (SELECT COUNT(*)::bigint FROM bdp_conteos_inventario_lineas l
                         WHERE l.conteo_id = c.id) AS total_lineas
                FROM bdp_conteos_inventario c
                WHERE c.user_id = $1
+                 AND ($2::text IS NULL OR c.warehouse_id = $2)
                ORDER BY c.creado_el DESC
-               LIMIT $2",
+               LIMIT $3",
         )
         .bind(user_id)
+        .bind(warehouse_id)
         .bind(limite)
         .fetch_all(pool)
         .await
@@ -45,7 +50,7 @@ impl BdpArticleMapRepository {
         sqlx::Error,
     > {
         let conteo = sqlx::query_as::<_, crate::models::BdpConteoInventario>(
-            r"SELECT c.id, c.fecha, c.observaciones, c.estado, c.creado_el,
+            r"SELECT c.id, c.fecha, c.observaciones, c.estado, c.warehouse_id, c.creado_el,
                       (SELECT COUNT(*)::bigint FROM bdp_conteos_inventario_lineas l
                         WHERE l.conteo_id = c.id) AS total_lineas
                FROM bdp_conteos_inventario c
@@ -82,6 +87,7 @@ impl BdpArticleMapRepository {
         observaciones: &str,
         idempotency_key: Option<&str>,
         articulos: &[(String, Decimal)],
+        warehouse_id: Option<&str>,
     ) -> Result<
         (
             crate::models::BdpConteoInventario,
@@ -93,19 +99,29 @@ impl BdpArticleMapRepository {
     > {
         let mut tx = pool.begin().await?;
         let conteo_id = Uuid::new_v4();
+        /* [L7] El almacén es parte del conteo, no un global: se guarda con la
+         * cabecera y manda en las tres cosas que antes eran fijas — el esperado
+         * que se lee, el payload de auditoría y la fila de stock que se ajusta. */
+        let almacen = warehouse_id.map_or("", str::trim);
+        let almacen = if almacen.is_empty() { "0" } else { almacen };
+        /* Nombre coherente con el id, igual que en el ajuste manual: 'General'
+         * solo para el agregado local "0"; el resto usa su id como nombre. */
+        let nombre_almacen = if almacen == "0" { "General" } else { almacen };
         /* Idempotencia (D4): con la misma clave, la inserción no hace nada y
          * devolvemos el conteo ya existente sin volver a aplicar. Atómico: el
          * índice único parcial + ON CONFLICT evita la doble aplicación incluso
          * con dos POSTs concurrentes de la misma clave. */
         let insertadas = sqlx::query(
-            r"INSERT INTO bdp_conteos_inventario (id, user_id, observaciones, idempotency_key)
-              VALUES ($1, $2, $3, $4)
+            r"INSERT INTO bdp_conteos_inventario
+                (id, user_id, observaciones, idempotency_key, warehouse_id)
+              VALUES ($1, $2, $3, $4, $5)
               ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING",
         )
         .bind(conteo_id)
         .bind(user_id)
         .bind(observaciones)
         .bind(idempotency_key)
+        .bind(almacen)
         .execute(&mut *tx)
         .await?
         .rows_affected();
@@ -128,7 +144,7 @@ impl BdpArticleMapRepository {
         let mut lineas = Vec::new();
         let mut aplicadas = 0usize;
         for (codigo, contado) in articulos {
-            let esperado = esperado_conteo(&mut tx, user_id, codigo).await?;
+            let esperado = esperado_conteo(&mut tx, user_id, codigo, almacen).await?;
             let diferencia = contado - esperado;
             let linea_id = Uuid::new_v4();
             registrar_linea_conteo(
@@ -137,9 +153,16 @@ impl BdpArticleMapRepository {
             .await?;
 
             if diferencia != Decimal::ZERO {
-                let stock_resultante =
-                    ajustar_stock_conteo(&mut tx, user_id, conteo_id, codigo, esperado, diferencia)
-                        .await?;
+                let stock_resultante = ajustar_stock_conteo(
+                    &mut tx,
+                    user_id,
+                    conteo_id,
+                    codigo,
+                    esperado,
+                    diferencia,
+                    (almacen, nombre_almacen),
+                )
+                .await?;
                 if stock_resultante < Decimal::ZERO {
                     let _ = tx.rollback().await;
                     return Err(AjusteStockError::StockNegativo(format!(
@@ -164,6 +187,7 @@ impl BdpArticleMapRepository {
             fecha: chrono::Utc::now().date_naive(),
             observaciones: observaciones.to_string(),
             estado: "aplicado".to_string(),
+            warehouse_id: almacen.to_string(),
             creado_el: chrono::Utc::now(),
             total_lineas: lineas.len() as i64,
         };
@@ -178,17 +202,19 @@ async fn esperado_conteo(
     tx: &mut Transaction<'_, Postgres>,
     user_id: Uuid,
     codigo: &str,
+    warehouse_id: &str,
 ) -> Result<Decimal, sqlx::Error> {
     sqlx::query_scalar(
         r"SELECT COALESCE(
                 (SELECT stock FROM bdp_article_stock
-                  WHERE user_id = $1 AND articulo_glory_codigo = $2 AND warehouse_id = '0'),
+                  WHERE user_id = $1 AND articulo_glory_codigo = $2 AND warehouse_id = $3),
                 (SELECT stock_actual FROM bdp_article_map
                   WHERE user_id = $1 AND articulo_glory_codigo = $2),
                 0)::numeric",
     )
     .bind(user_id)
     .bind(codigo)
+    .bind(warehouse_id)
     .fetch_one(&mut **tx)
     .await
 }
@@ -227,13 +253,14 @@ async fn registrar_auditoria_conteo(
     conteo_id: Uuid,
     codigo: &str,
     diferencia: Decimal,
+    warehouse_id: &str,
 ) -> Result<(), sqlx::Error> {
     /* Auditoría idempotente por conteo+línea. */
     let audit_payload = serde_json::json!({
         "articulo_glory_codigo": codigo,
         "delta": diferencia,
         "motivo": "conteo",
-        "warehouse_id": "0",
+        "warehouse_id": warehouse_id,
     });
     let idem = format!("conteo:{conteo_id}:{codigo}");
     sqlx::query(
@@ -255,6 +282,7 @@ async fn registrar_auditoria_conteo(
 
 /// Aplica la diferencia de una línea al stock local con auditoría idempotente.
 /// Devuelve el stock resultante; el caller decide si revierte.
+/// El almacén viaja como par (id, nombre) para no arrastrar ocho parámetros.
 async fn ajustar_stock_conteo(
     tx: &mut Transaction<'_, Postgres>,
     user_id: Uuid,
@@ -262,9 +290,10 @@ async fn ajustar_stock_conteo(
     codigo: &str,
     esperado: Decimal,
     diferencia: Decimal,
+    almacen: (&str, &str),
 ) -> Result<Decimal, sqlx::Error> {
-    registrar_auditoria_conteo(tx, user_id, conteo_id, codigo, diferencia).await?;
-    aplicar_delta_stock(tx, user_id, codigo, esperado, diferencia).await
+    registrar_auditoria_conteo(tx, user_id, conteo_id, codigo, diferencia, almacen.0).await?;
+    aplicar_delta_stock(tx, user_id, codigo, esperado, diferencia, almacen).await
 }
 
 /// Crea la fila base si falta y suma el delta. Las dos escrituras van en orden
@@ -275,19 +304,23 @@ async fn aplicar_delta_stock(
     codigo: &str,
     esperado: Decimal,
     diferencia: Decimal,
+    almacen: (&str, &str),
 ) -> Result<Decimal, sqlx::Error> {
+    let (warehouse_id, warehouse_name) = almacen;
     /* Base: si no hay fila local, se crea con el esperado para que
      * el delta deje el stock = contado (no un valor derivado). */
     sqlx::query(
         r"INSERT INTO bdp_article_stock
             (id, user_id, articulo_glory_codigo, warehouse_id, warehouse_name, stock,
              ajustado_local, created_at, updated_at)
-          VALUES ($1, $2, $3, '0', 'General', $4, true, NOW(), NOW())
+          VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
           ON CONFLICT (user_id, articulo_glory_codigo, warehouse_id) DO NOTHING",
     )
     .bind(Uuid::new_v4())
     .bind(user_id)
     .bind(codigo)
+    .bind(warehouse_id)
+    .bind(warehouse_name)
     .bind(esperado)
     .execute(&mut **tx)
     .await?;
@@ -296,7 +329,7 @@ async fn aplicar_delta_stock(
         r"INSERT INTO bdp_article_stock
             (id, user_id, articulo_glory_codigo, warehouse_id, warehouse_name, stock,
              ajustado_local, created_at, updated_at)
-          VALUES ($1, $2, $3, '0', 'General', $4, true, NOW(), NOW())
+          VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
           ON CONFLICT (user_id, articulo_glory_codigo, warehouse_id) DO UPDATE SET
             stock = bdp_article_stock.stock + EXCLUDED.stock,
             warehouse_name = EXCLUDED.warehouse_name,
@@ -307,6 +340,8 @@ async fn aplicar_delta_stock(
     .bind(Uuid::new_v4())
     .bind(user_id)
     .bind(codigo)
+    .bind(warehouse_id)
+    .bind(warehouse_name)
     .bind(diferencia)
     .fetch_one(&mut **tx)
     .await?;
