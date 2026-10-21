@@ -6,7 +6,7 @@ import type { QueryClient, UseMutationOptions } from '@tanstack/react-query';
 import { useReintentarSyncBdp } from '../generated/ventas/ventas';
 import type { ActualizarBdpMenuLocalRequest, ActualizarBdpPurchaseNoteRequest, AgregarPropinaRequest, AnularVentaResponse, BdpCatalogoTipo, BdpMenuLocalFilters, BdpPurchaseNoteFilters, BdpPurchaseNoteReconcileRequest, SumarPuntosRequest } from './tipos';
 import { agregarPropinaVenta, anularVenta, fetchBdpPoll, fetchBdpStatus, fetchPuntosCliente, llamarCamarero, sumarPuntosCliente } from './requests-ventas';
-import { ajustarBdpArticleStock, crearBdpClasificacion, fetchBdpArticleMaps, fetchBdpArticleStock, fetchBdpCatalogo, importarDepartamentosBdp } from './requests-articulos';
+import { ajustarBdpArticleStock, crearBdpClasificacion, fetchBdpArticleMaps, fetchBdpArticleStock, fetchBdpCatalogo, importarDepartamentosBdp, traspasarBdpArticleStock } from './requests-articulos';
 import { crearConteoInventario, listarConteosInventario, registrarInventario } from './requests-inventario';
 import { actualizarBdpPurchaseNote, crearBdpPurchaseNote, draftBdpPurchaseNote, eliminarBdpPurchaseNote, fetchBdpPurchaseNotes, reconcileBdpPurchaseNote, syncBdpPurchaseNotes } from './requests-albaranes';
 import { actualizarBdpMenuLocal, crearBdpMenuLocal, eliminarBdpMenuLocal, fetchBdpMenuLocal, fetchBdpMenusLocales } from './requests-menus';
@@ -57,6 +57,18 @@ export function useBdpArticleStock(enabled = true) {
 export function useAjustarBdpArticleStock(queryClient?: QueryClient) {
   return useMutation({
     mutationFn: ajustarBdpArticleStock,
+    onSuccess: () => {
+      queryClient?.invalidateQueries({ queryKey: ['bdp-article-stock'] });
+      queryClient?.invalidateQueries({ queryKey: ['/api/bdp/article-maps'] });
+    },
+  });
+}
+
+/** Mutation hook: traspasar stock entre almacenes de BDP. Invalida el stock
+ * local porque el flush puede mover filas de ambos almacenes. */
+export function useTraspasarBdpArticleStock(queryClient?: QueryClient) {
+  return useMutation({
+    mutationFn: traspasarBdpArticleStock,
     onSuccess: () => {
       queryClient?.invalidateQueries({ queryKey: ['bdp-article-stock'] });
       queryClient?.invalidateQueries({ queryKey: ['/api/bdp/article-maps'] });

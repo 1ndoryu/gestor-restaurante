@@ -1,7 +1,7 @@
 /* Peticiones BDP de mapeos y stock de artículos, catálogo y departamentos. */
 
 import { customInstance } from '../axios-instance';
-import type { AjustarBdpArticleStockRequest, BdpArticleMapItem, BdpArticleStockItem, BdpCatalogoClasificacion, BdpCatalogoTipo, BdpImportDepartamentosResultado, CrearBdpClasificacionRequest } from './tipos';
+import type { AjustarBdpArticleStockRequest, BdpArticleMapItem, BdpArticleStockItem, BdpCatalogoClasificacion, BdpCatalogoTipo, BdpImportDepartamentosResultado, CrearBdpClasificacionRequest, TraspasarBdpArticleStockRequest } from './tipos';
 
 /** Listar todos los mapeos de artículos Glory → BDP. */
 export async function fetchBdpArticleMaps(): Promise<BdpArticleMapItem[]> {
@@ -27,6 +27,18 @@ export async function ajustarBdpArticleStock(
     method: 'POST',
     body: JSON.stringify(req),
   }) as { data: BdpArticleStockItem };
+  return resp.data;
+}
+
+/** Traspasa stock entre almacenes de BDP (POST /api/bdp/article-stock/traspasar).
+ * Encola el movimiento: no se envía hasta el próximo flush autorizado. */
+export async function traspasarBdpArticleStock(
+  req: TraspasarBdpArticleStockRequest,
+): Promise<{ encolado: boolean; entidad: string }> {
+  const resp = await customInstance('/api/bdp/article-stock/traspasar', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  }) as { data: { encolado: boolean; entidad: string } };
   return resp.data;
 }
 

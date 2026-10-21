@@ -81,6 +81,16 @@ export interface AjustarBdpArticleStockRequest {
   idempotency_key?: string;
 }
 
+/** Request para traspasar stock entre almacenes de BDP (POST /api/bdp/article-stock/traspasar).
+ * `cod_traspaso` lo fija el TPV: identifica el motivo del movimiento en BDP. */
+export interface TraspasarBdpArticleStockRequest {
+  articulo_glory_codigo: string;
+  unidades: string;
+  cod_traspaso: number;
+  almacen_origen: number;
+  almacen_destino: number;
+}
+
 /** Albarán de compra BDP importado. */
 export interface BdpPurchaseNote {
   id: string;
