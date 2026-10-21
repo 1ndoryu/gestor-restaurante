@@ -3,7 +3,8 @@
  * Ningún endpoint de este módulo modifica datos en BDP (excepto restaurar Glory). */
 
 use axum::{extract::Path, extract::State, routing::get, Json, Router};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::errors::AppError;
@@ -25,6 +26,10 @@ pub fn routes() -> Router<crate::handlers::AppState> {
          * del perfil BDP (ExportFromProfile). No modifica nada en BDP; sirve
          * para conocer los DeptCode válidos antes de un alta de artículo. */
         .route("/bdp/departamentos/perfil", get(departamentos_del_perfil))
+        /* [D24-m] Formas de pago reales del BDP: sin esta lista el mapeo
+         * método de pago → tender se rellena a ciegas y un id inventado solo
+         * se descubre al cobrar. */
+        .route("/bdp/tenders", get(formas_pago_bdp))
         .route(
             "/bdp/backup/completo",
             axum::routing::post(snapshot_completo),
@@ -113,6 +118,82 @@ pub async fn departamentos_del_perfil(
         .await
         .map_err(|error| AppError::Internal(error.to_string()))?;
     Ok(Json(valor))
+}
+
+/* [D24-m] Forma de pago tal como la devuelve `Tenders/GetList`. */
+#[derive(Debug, Clone, PartialEq, Serialize, utoipa::ToSchema)]
+pub struct FormaPagoBdp {
+    pub id: i64,
+    pub nombre: String,
+    /* `Type` de BDP (1 efectivo, 0 resto). Se conserva tal cual: el reparto
+     * exacto de tipos lo fija BDP y no queremos inventarlo aquí. */
+    pub tipo: Option<i64>,
+}
+
+/* La forma cambió entre versiones del manual: se aceptan `TenderList` y
+ * `Tenders`, y los nombres en inglés o español, sin fallar si falta `Type`. */
+fn formas_pago_desde(valor: &Value) -> Result<Vec<FormaPagoBdp>, String> {
+    if let Some(mensaje) = valor
+        .get("ErrorMessage")
+        .and_then(Value::as_str)
+        .filter(|m| !m.trim().is_empty())
+    {
+        return Err(format!("BDP respondió: {mensaje}"));
+    }
+    let items = ["TenderList", "Tenders"]
+        .iter()
+        .find_map(|clave| valor.get(*clave).and_then(Value::as_array))
+        .ok_or_else(|| "La respuesta del BDP no trae la lista de formas de pago".to_string())?;
+    Ok(items
+        .iter()
+        .filter_map(|item| {
+            let id = item
+                .get("Id")
+                .or_else(|| item.get("TenderId"))
+                .and_then(Value::as_i64)?;
+            let nombre = ["Name", "Nombre", "Description"]
+                .iter()
+                .find_map(|clave| item.get(*clave).and_then(Value::as_str))
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            let tipo = item.get("Type").and_then(Value::as_i64);
+            Some(FormaPagoBdp { id, nombre, tipo })
+        })
+        .collect())
+}
+
+/// Lee las formas de pago dadas de alta en BDP (solo lectura).
+/// [D24-m] Sirve para mapear método de pago local → `TenderId` sin adivinar.
+#[utoipa::path(
+    get,
+    path = "/api/bdp/tenders",
+    tag = "BDP Backup",
+    responses(
+        (status = 200, description = "Formas de pago del BDP", body = Vec<FormaPagoBdp>),
+        (status = 400, description = "BDP no configurado"),
+        (status = 500, description = "Error interno"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn formas_pago_bdp(
+    State(state): State<crate::handlers::AppState>,
+    auth: AuthUser,
+) -> Result<Json<Vec<FormaPagoBdp>>, AppError> {
+    exigir_modo_bdp(&state, auth.user_id).await?;
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+
+    if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
+        return Err(AppError::Validation("BDP no está configurado.".into()));
+    }
+
+    let client = BdpWeblinkClient::new(&config);
+    let valor = client
+        .get_tenders()
+        .await
+        .map_err(|error| AppError::Internal(error.to_string()))?;
+    let formas = formas_pago_desde(&valor).map_err(AppError::Internal)?;
+    Ok(Json(formas))
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -419,4 +500,65 @@ pub async fn listar_audit(
         .map_err(AppError::Internal)?;
 
     Ok(Json(entries))
+}
+
+#[cfg(test)]
+mod tests_formas_pago {
+    use super::{formas_pago_desde, FormaPagoBdp};
+    use serde_json::json;
+
+    #[test]
+    fn lee_tender_list_del_manual() {
+        let valor = json!({
+            "ErrorMessage": "",
+            "TenderList": [
+                {"Id": 1, "Name": "Efectivo", "Type": 1},
+                {"Id": 4, "Name": "A 30 - 60 - 90", "Type": 0}
+            ]
+        });
+        let formas = formas_pago_desde(&valor).expect("debe leer");
+        assert_eq!(
+            formas,
+            vec![
+                FormaPagoBdp {
+                    id: 1,
+                    nombre: "Efectivo".into(),
+                    tipo: Some(1)
+                },
+                FormaPagoBdp {
+                    id: 4,
+                    nombre: "A 30 - 60 - 90".into(),
+                    tipo: Some(0)
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn acepta_la_variante_tenders_y_nombre_en_espanol() {
+        let valor = json!({"Tenders": [{"TenderId": 2, "Nombre": "Tarjeta"}]});
+        let formas = formas_pago_desde(&valor).expect("debe leer");
+        assert_eq!(
+            formas,
+            vec![FormaPagoBdp {
+                id: 2,
+                nombre: "Tarjeta".into(),
+                tipo: None
+            }]
+        );
+    }
+
+    #[test]
+    fn un_error_remoto_no_se_disfraza_de_lista_vacia() {
+        let valor = json!({"ErrorMessage": "[201701]-EL ALMACÉN DE SALIDA 0 NO EXISTE"});
+        let error = formas_pago_desde(&valor).expect_err("debe fallar");
+        assert!(error.contains("201701"), "{error}");
+    }
+
+    #[test]
+    fn una_respuesta_sin_lista_es_un_error_explicito() {
+        let valor = json!({"ErrorMessage": ""});
+        let error = formas_pago_desde(&valor).expect_err("debe fallar");
+        assert!(error.contains("no trae la lista"), "{error}");
+    }
 }
