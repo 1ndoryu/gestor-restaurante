@@ -12,11 +12,16 @@ import {
 } from '../api/generated/configuracion/configuracion';
 import { useConfiguracionSync } from './useConfiguracionSync';
 import type { CuerpoConfiguracionLocal, EstadoConfiguracion } from './configuracion-types';
+import type { IdSeccion } from '../componentes/configuracion/secciones';
 
 export type { EstadoConfiguracion };
 
 /* [10AA-3] El mapa de IVA se edita como texto: un JSON mal escrito no debe tumbar
  * el guardado entero. Si no parsea se envía vacío y el backend conserva el suyo. */
+const MENSAJES_VACIOS: Record<IdSeccion, string> = {
+  restaurante: '', operacion: '', conexiones: '', chatbot: '', acceso: '', avanzado: '',
+};
+
 function mapaNumerico(texto: string): Record<string, number> {
   try {
     const valor: unknown = JSON.parse(texto);
@@ -34,7 +39,10 @@ export function useConfiguracion() {
   const queryClient = useQueryClient();
   const { data: datos, isLoading } = useObtenerConfiguracion();
   const mutacion = useActualizarConfiguracion();
-  const [mensaje, setMensaje] = useState('');
+  /* [D33] Un mensaje por grupo: el «Configuración guardada» único aparecía en
+   * todas las pestañas a la vez y no decía qué se había guardado. */
+  const [mensajes, setMensajes] = useState<Record<IdSeccion, string>>(MENSAJES_VACIOS);
+  const [guardandoEn, setGuardandoEn] = useState<IdSeccion | null>(null);
 
   /* [BKP-008c] Memoize server data to prevent infinite re-render loop.
    * The object literal { status: 200, data: datos.data } was creating a new
@@ -44,7 +52,7 @@ export function useConfiguracion() {
     () => (datos?.status === 200 ? { status: 200, data: datos.data as unknown as Record<string, string | number | boolean> } : undefined),
     [datos],
   );
-  const { config, setConfig } = useConfiguracionSync(serverData);
+  const { config, setConfig, referencia } = useConfiguracionSync(serverData);
 
   const cambiarCampo = useCallback(
     <K extends keyof EstadoConfiguracion>(campo: K, valor: EstadoConfiguracion[K]) => {
@@ -53,8 +61,9 @@ export function useConfiguracion() {
     [setConfig],
   );
 
-  const guardar = useCallback(async () => {
-    setMensaje('');
+  const guardar = useCallback(async (seccion: IdSeccion = 'restaurante') => {
+    setMensajes((previos) => ({ ...previos, [seccion]: '' }));
+    setGuardandoEn(seccion);
     const body: CuerpoConfiguracionLocal = {
       reserva_email_obligatorio: config.reserva_email_obligatorio,
       reserva_telefono_obligatorio: config.reserva_telefono_obligatorio,
@@ -83,8 +92,8 @@ export function useConfiguracion() {
       bdp_items_profile_id: config.bdp_items_profile_id,
       bdp_default_article_code: config.bdp_default_article_code || undefined,
       bdp_default_article_name: config.bdp_default_article_name || undefined,
-      bdp_tender_map: JSON.parse(config.bdp_tender_map || '{}'),
-      bdp_order_type_map: JSON.parse(config.bdp_order_type_map || '{}'),
+      bdp_tender_map: mapaNumerico(config.bdp_tender_map),
+      bdp_order_type_map: mapaNumerico(config.bdp_order_type_map),
       bdp_default_customer_code: config.bdp_default_customer_code || undefined,
       bdp_poll_interval_secs: config.bdp_poll_interval_secs,
       bdp_poll_enabled: config.bdp_poll_enabled,
@@ -122,11 +131,16 @@ export function useConfiguracion() {
        * (p. ej. bdp_sync_enabled): sin invalidar la query de modo, el badge quedaba
        * desfasado hasta recargar. Mismo patrón que site-header en sus cambios. */
       await queryClient.invalidateQueries({ queryKey: getObtenerModoOperacionQueryKey() });
-      setMensaje('Configuración guardada');
+      setMensajes((previos) => ({ ...previos, [seccion]: 'Guardado' }));
     } catch {
-      setMensaje('Error al guardar');
+      setMensajes((previos) => ({ ...previos, [seccion]: 'Error al guardar' }));
+    } finally {
+      setGuardandoEn(null);
     }
   }, [config, mutacion, queryClient]);
 
-  return { config, cambiarCampo, guardar, mensaje, cargando: isLoading, guardando: mutacion.isPending };
+  return {
+    config, referencia, cambiarCampo, guardar, mensajes,
+    cargando: isLoading, guardandoEn,
+  };
 }

@@ -6,11 +6,10 @@
  *          página Catálogo: este componente queda solo con mapeos técnicos
  *          (sin BdpArticleMapTable), porque Configuración ya no tiene CRUD. */
 
-import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { MapaJsonCrudo, MapaParejas } from '../componentes/configuracion/MapaParejas';
 import type { EstadoConfiguracion } from '../hooks/useConfiguracion';
 
 interface ConfigBdpMapeosProps {
@@ -19,49 +18,37 @@ interface ConfigBdpMapeosProps {
 }
 
 function ConfigBdpMapeos({ config, cambiarCampo }: ConfigBdpMapeosProps) {
-  const [mapeoError, setMapeoError] = useState<string | null>(null);
-
-  const handleJsonChange = (campo: 'bdp_tender_map' | 'bdp_order_type_map', value: string) => {
-    try {
-      JSON.parse(value || '{}');
-      setMapeoError(null);
-    } catch {
-      setMapeoError(`JSON inválido en ${campo === 'bdp_tender_map' ? 'mapeo de formas de pago' : 'mapeo de canales'}`);
-    }
-    cambiarCampo(campo, value);
-  };
 
   return (
     <div className="flex flex-col gap-4">
-      {mapeoError && (
-        <p className="text-xs text-destructive">{mapeoError}</p>
-      )}
+      {/* [D33] Los mapas se editan como parejas, no como JSON: un carácter mal
+          puesto antes dejaba el ajuste inservible y el aviso era una línea roja. */}
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="bdp-tender-map">Formas de pago de la Aplicación Web → códigos BDP</Label>
-          <Textarea
-            id="bdp-tender-map"
-            className="font-mono text-xs"
-            rows={4}
-            value={config.bdp_tender_map}
-            onChange={(e) => handleJsonChange('bdp_tender_map', e.target.value)}
-            placeholder='{"efectivo": 1, "tarjeta": 2}'
-          />
-          <p className="text-xs text-muted-foreground">Relaciona cada nombre de método de pago en la Aplicación Web con el identificador numérico en BDP.</p>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="bdp-order-type-map">Canales de la Aplicación Web → tipos de pedido BDP</Label>
-          <Textarea
-            id="bdp-order-type-map"
-            className="font-mono text-xs"
-            rows={4}
-            value={config.bdp_order_type_map}
-            onChange={(e) => handleJsonChange('bdp_order_type_map', e.target.value)}
-            placeholder='{"comedor": 1, "barra": 0, "delivery": 2}'
-          />
-          <p className="text-xs text-muted-foreground">0=Barra, 1=Mesa, 2=Domicilio. Debe coincidir con la operación real del restaurante.</p>
-        </div>
+        <MapaParejas
+          id="bdp-tender-map"
+          etiqueta="Forma de pago de la web → código BDP"
+          ayuda="Cada método de pago de la app con su identificador numérico en el TPV."
+          columnaClave="Efectivo, tarjeta, bizum…"
+          columnaValor="Código"
+          valor={config.bdp_tender_map}
+          onCambiar={(json) => cambiarCampo('bdp_tender_map', json)}
+        />
+        <MapaParejas
+          id="bdp-order-type-map"
+          etiqueta="Canal de pedido de la web → tipo de pedido BDP"
+          ayuda="0 = barra, 1 = mesa, 2 = domicilio, según la operación real del restaurante."
+          columnaClave="Comedor, barra, delivery…"
+          columnaValor="Tipo"
+          valor={config.bdp_order_type_map}
+          onCambiar={(json) => cambiarCampo('bdp_order_type_map', json)}
+        />
       </div>
+      <MapaJsonCrudo
+        id="bdp-tender-map-json"
+        etiqueta="Editar los mapas como JSON (para copiar de otro restaurante)"
+        valor={config.bdp_tender_map}
+        onCambiar={(json) => cambiarCampo('bdp_tender_map', json)}
+      />
       <div className="grid gap-4 md:grid-cols-2">
         <div className="flex flex-col gap-2">
           <Label htmlFor="bdp-default-article-code">Artículo BDP usado si no hay equivalencia</Label>

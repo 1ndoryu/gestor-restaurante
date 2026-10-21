@@ -12,11 +12,14 @@ interface ConfigServerData {
 
 export function useConfiguracionSync(datos: ConfigServerData | undefined) {
   const [config, setConfig] = useState<EstadoConfiguracion>(DEFAULTS);
+  /* [D33] Última copia que llegó del servidor: sin ella no se puede saber qué
+   * campos están cambiados y el aviso «sin guardar» sería inventado. */
+  const [referencia, setReferencia] = useState<EstadoConfiguracion | undefined>(undefined);
 
   useEffect(() => {
     if (!datos || datos.status !== 200) return;
     const d = datos.data;
-    setConfig({
+    const siguiente: EstadoConfiguracion = {
       reserva_email_obligatorio: Boolean(d.reserva_email_obligatorio),
       reserva_telefono_obligatorio: Boolean(d.reserva_telefono_obligatorio),
       reserva_nombre_obligatorio: Boolean(d.reserva_nombre_obligatorio),
@@ -86,9 +89,11 @@ export function useConfiguracionSync(datos: ConfigServerData | undefined) {
       google_review_url: String(d.google_review_url ?? ''),
       telefono_restaurante: String(d.telefono_restaurante ?? ''),
       url_reservas: String(d.url_reservas ?? ''),
-    });
+    };
+    setConfig(siguiente);
+    setReferencia(siguiente);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datos]);
 
-  return { config, setConfig };
+  return { config, setConfig, referencia };
 }
