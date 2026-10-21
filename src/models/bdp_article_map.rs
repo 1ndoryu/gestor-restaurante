@@ -123,6 +123,26 @@ pub struct TraspasoStockRequest {
     pub almacen_destino: i32,
 }
 
+impl TraspasoStockRequest {
+    /* BDP numera los almacenes de 1 a 999999: el 0 no existe allí (lo rechaza
+     * con `[201701]-EL ALMACÉN DE SALIDA 0 NO EXISTE`). El 0 es solo la marca
+     * local de «sin desglose por almacén», así que se corta aquí con un mensaje
+     * que dice qué número sí vale. */
+    pub fn validar_almacenes(&self) -> Result<(), String> {
+        for (campo, valor) in [
+            ("origen", self.almacen_origen),
+            ("destino", self.almacen_destino),
+        ] {
+            if valor < 1 {
+                return Err(format!(
+                    "El almacén de {campo} debe ser un número de BDP desde 1 (llegó {valor}): el 0 es la marca local de «sin desglose» y BDP no lo conoce"
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// [198A-1/D6] Línea de conteo físico de inventario: artículo + unidades contadas.
 #[derive(Debug, Clone, Deserialize, Serialize, Validate)]
 pub struct InventarioLineaRequest {
@@ -216,4 +236,34 @@ pub struct ActualizarBdpArticleMapRequest {
     pub activo: Option<bool>,
     #[validate(length(max = 100))]
     pub barcode: Option<String>,
+}
+
+#[cfg(test)]
+mod tests_traspaso {
+    use super::*;
+    use rust_decimal::Decimal;
+
+    fn peticion(origen: i32, destino: i32) -> TraspasoStockRequest {
+        TraspasoStockRequest {
+            articulo_glory_codigo: "10001".into(),
+            unidades: Decimal::ONE,
+            cod_traspaso: 1,
+            almacen_origen: origen,
+            almacen_destino: destino,
+        }
+    }
+
+    /* El 0 es la marca local de «sin desglose»; BDP solo conoce almacenes desde 1. */
+    #[test]
+    fn rechaza_almacen_cero() {
+        assert!(peticion(0, 1).validar_almacenes().is_err());
+        assert!(peticion(1, 0).validar_almacenes().is_err());
+        assert!(peticion(-1, 2).validar_almacenes().is_err());
+    }
+
+    #[test]
+    fn acepta_almacenes_de_bdp() {
+        assert!(peticion(1, 2).validar_almacenes().is_ok());
+        assert!(peticion(3, 999999).validar_almacenes().is_ok());
+    }
 }

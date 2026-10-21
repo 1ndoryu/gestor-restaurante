@@ -150,6 +150,7 @@ pub async fn traspasar_stock(
             "unidades debe ser mayor que cero".into(),
         ));
     }
+    req.validar_almacenes().map_err(AppError::Validation)?;
     if req.almacen_origen == req.almacen_destino {
         return Err(AppError::Validation(
             "el almacén de origen y de destino no pueden ser el mismo".into(),
