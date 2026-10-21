@@ -21,6 +21,8 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 - [ ] `10AA-3-D33` — **Reorganizar la configuración: cuatro pestañas, dos formularios y un «Guardar» que no se ve.** Pedido de la usuaria (2026-10-21): «todas las configuraciones están muy desorganizadas y son complicadas de entender». Diagnóstico del código actual: `Configuracion.tsx` tiene cuatro pestañas (General, Integraciones, Chatbot, BDP) y la pestaña General mezcla en una sola columna negocio, operativa, integraciones de marketing, turnos, datos de prueba y seguridad del terminal; el botón «Guardar configuración» vive dentro de una `<div>` de esa columna, a media página y fuera de la vista, mientras media docena de tarjetas guardan por su cuenta. BDP tiene 182 líneas propias más el backup, y «Modo demo» está en su cabecera como si fuera ajuste del terminal. Plan: agrupar por pregunta del usuario («mi restaurante», «cómo cobro y opero», «a qué se conecta», «quién entra»), un único punto de guardado por grupo con estado sucio visible, los ajustes que se guardan solos separados y rotulados como tales, y nombres de tarjeta que digan qué cambia. Criterio de hecho: ninguna tarjeta sin saber a qué grupo pertenece y si su cambio es automático o con botón; revisión real en la app de la 89 (responsive, vacío, error, teclado, contraste).
 
+  Plan: `Agente/planes/plan-configuracion-2026-10-21.md` (inventario → contenedor de cinco grupos → un solo guardado por grupo).
+
 ## Pendientes
 
 - [ ] `199A-1` — **Fase D — Receptor Avisos de Acciones BDP→web.**
