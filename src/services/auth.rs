@@ -72,6 +72,21 @@ impl AuthService {
         req: LoginRequest,
         jwt_secret: &str,
     ) -> Result<AuthResponse, AppError> {
+        /* [D02] Cada intento queda registrado antes de devolver el resultado: sin
+         * ese rastro, un intento fallido (o una contraseña rotada) no se puede
+         * demostrar después. El registro no altera la respuesta. */
+        let resultado = Self::verificar_credenciales(pool, &req, jwt_secret).await;
+        let motivo = Self::motivo_intento(&resultado);
+        let user_id = resultado.as_ref().ok().map(|respuesta| respuesta.user_id);
+        Self::anotar_intento(pool, &req.email, user_id, motivo).await;
+        resultado
+    }
+
+    async fn verificar_credenciales(
+        pool: &PgPool,
+        req: &LoginRequest,
+        jwt_secret: &str,
+    ) -> Result<AuthResponse, AppError> {
         let user = UserRepository::find_by_email(pool, &req.email)
             .await?
             .ok_or(AppError::Unauthorized)?;
@@ -89,6 +104,30 @@ impl AuthService {
             token,
             user_id: user.id,
         })
+    }
+
+    /// Motivo corto del intento para el registro: `ok` o el fallo observado.
+    fn motivo_intento(resultado: &Result<AuthResponse, AppError>) -> &'static str {
+        match resultado {
+            Ok(_) => "ok",
+            Err(AppError::Unauthorized) => "credenciales_invalidas",
+            Err(AppError::Internal(_)) => "hash_invalido",
+            Err(_) => "error",
+        }
+    }
+
+    /// Anota el intento sin guardar nunca la contraseña ni su hash. Un fallo al
+    /// anotar no puede tumbar el acceso: se avisa y se sigue.
+    async fn anotar_intento(pool: &PgPool, email: &str, user_id: Option<Uuid>, motivo: &str) {
+        let email = email.trim().to_lowercase();
+        let email = email.chars().take(320).collect::<String>();
+        /* `rotacion` no es un acceso, pero sí un intento que salió bien. */
+        let exito = matches!(motivo, "ok" | "rotacion");
+        let resultado =
+            UserRepository::registrar_intento_acceso(pool, user_id, &email, exito, motivo).await;
+        if let Err(error) = resultado {
+            tracing::warn!("No se pudo registrar el intento de acceso: {error}");
+        }
     }
 
     /// Genera un JWT con expiración de 24 horas
@@ -202,6 +241,36 @@ impl AuthService {
 
         UserRepository::update_password(pool, user.id, &new_hash).await?;
 
+        Ok(())
+    }
+
+    /// [D02] Rotación de la contraseña del terminal desde dentro de la sesión:
+    /// exige la actual, de modo que un token robado no basta para cambiarla.
+    pub async fn cambiar_password(
+        pool: &PgPool,
+        user_id: Uuid,
+        actual: &str,
+        nueva: &str,
+    ) -> Result<(), AppError> {
+        let user = UserRepository::find_by_id(pool, user_id)
+            .await?
+            .ok_or(AppError::Unauthorized)?;
+        let parsed_hash = PasswordHash::new(&user.password_hash)
+            .map_err(|e| AppError::Internal(format!("Hash almacenado inválido: {e}")))?;
+        Argon2::default()
+            .verify_password(actual.as_bytes(), &parsed_hash)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        let salt = SaltString::generate(&mut OsRng);
+        let nuevo_hash = Argon2::default()
+            .hash_password(nueva.as_bytes(), &salt)
+            .map_err(|e| AppError::Internal(format!("Error al hashear contraseña: {e}")))?
+            .to_string();
+        UserRepository::update_password(pool, user.id, &nuevo_hash).await?;
+
+        /* La rotación queda en el mismo rastro que los accesos: así la evidencia
+         * de «la vieja no entra, la nueva sí» se puede leer de una sola tabla. */
+        Self::anotar_intento(pool, &user.email, Some(user.id), "rotacion").await;
         Ok(())
     }
 

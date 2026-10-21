@@ -17,6 +17,7 @@ import { TarjetasNegocio } from './configuracion/TarjetasNegocio';
 import { TarjetasOperativas } from './configuracion/TarjetasOperativas';
 import { TarjetasIntegraciones } from './configuracion/TarjetasIntegraciones';
 import { TarjetaTurnos } from './configuracion/TarjetaTurnos';
+import { TarjetaSeguridadTerminal } from './configuracion/TarjetaSeguridadTerminal';
 import axios from '@/api/axios-instance';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -90,6 +91,9 @@ function Configuracion() {
           </span>
         )}
       </div>
+
+      {/* [D02] Fuera del formulario: guarda al pulsar su propio botón, no con «Guardar configuración». */}
+      <TarjetaSeguridadTerminal />
       </TabsContent>
 
       <TabsContent value="integraciones" className="mt-4">

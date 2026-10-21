@@ -1,14 +1,17 @@
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use axum::routing::post;
+use axum::routing::{get, post};
 use axum::{Json, Router};
+use serde::Serialize;
 use validator::Validate;
 
 use crate::errors::AppError;
+use crate::middleware::AuthUser;
 use crate::models::{
     AuthResponse, ForgotPasswordRequest, LoginRequest, MessageResponse, RegisterRequest,
-    ResetPasswordRequest,
+    ResetPasswordRequest, UserRole,
 };
+use crate::repositories::UserRepository;
 use crate::services::AuthService;
 use crate::AppState;
 
@@ -70,9 +73,107 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/auth/register", post(register))
         .route("/auth/login", post(login))
+        .route("/auth/intentos", get(listar_intentos))
+        .route("/auth/password", axum::routing::put(cambiar_password))
         .route("/auth/forgot-password", post(forgot_password))
         .route("/auth/reset-password", post(reset_password))
         .layer(axum::middleware::from_fn_with_state(limitador, limitar))
+}
+
+/* [D02] Intentos de acceso: evidencia de «la contraseña vieja no entra, la nueva
+ * sí, con registro de intentos». Solo el propietario los consulta, y nunca
+ * devuelve contraseñas ni hashes. */
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct IntentoAcceso {
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub email: String,
+    pub exito: bool,
+    pub motivo: String,
+}
+
+/// Lista los intentos de acceso más recientes.
+#[utoipa::path(
+    get,
+    path = "/api/auth/intentos",
+    tag = "Auth",
+    params(("limite" = Option<i64>, Query, description = "Máximo de intentos (1-500, por defecto 50)")),
+    responses(
+        (status = 200, description = "Intentos recientes", body = Vec<IntentoAcceso>),
+        (status = 403, description = "Solo el propietario", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn listar_intentos(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<Vec<IntentoAcceso>>, AppError> {
+    auth.require_role(&[UserRole::Admin])?;
+    let limite = params
+        .get("limite")
+        .and_then(|valor| valor.parse::<i64>().ok())
+        .unwrap_or(50)
+        .clamp(1, 500);
+    let intentos = UserRepository::listar_intentos_acceso(&state.pool, limite)
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!("No se pudieron leer los intentos: {error}"))
+        })?;
+    Ok(Json(
+        intentos
+            .into_iter()
+            .map(|fila| IntentoAcceso {
+                created_at: fila.created_at,
+                email: fila.email,
+                exito: fila.exito,
+                motivo: fila.motivo,
+            })
+            .collect(),
+    ))
+}
+
+/* [D02] Rotación de la contraseña del terminal. */
+
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct CambiarPasswordRequest {
+    pub actual: String,
+    pub nueva: String,
+}
+
+/// Cambia la contraseña del usuario en sesión.
+#[utoipa::path(
+    put,
+    path = "/api/auth/password",
+    tag = "Auth",
+    request_body = CambiarPasswordRequest,
+    responses(
+        (status = 200, description = "Contraseña cambiada", body = MessageResponse),
+        (status = 401, description = "La contraseña actual no es correcta", body = ErrorResponse),
+        (status = 422, description = "La nueva no cumple los requisitos", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn cambiar_password(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(req): Json<CambiarPasswordRequest>,
+) -> Result<Json<MessageResponse>, AppError> {
+    /* Misma regla que el registro y la recuperación: mínimo 8 caracteres. */
+    if req.nueva.chars().count() < 8 {
+        return Err(AppError::Validation(
+            "La contraseña nueva debe tener al menos 8 caracteres.".into(),
+        ));
+    }
+    if req.nueva == req.actual {
+        return Err(AppError::Validation(
+            "La contraseña nueva debe ser distinta de la actual.".into(),
+        ));
+    }
+    AuthService::cambiar_password(&state.pool, auth.user_id, &req.actual, &req.nueva).await?;
+    Ok(Json(MessageResponse {
+        message: "Contraseña actualizada correctamente.".into(),
+    }))
 }
 
 /* [263A-15] Endpoints de recuperación de contraseña */

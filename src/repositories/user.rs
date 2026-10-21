@@ -99,4 +99,59 @@ impl UserRepository {
         .await?;
         Ok(result.rows_affected() > 0)
     }
+
+    /* [D02] Rastro de accesos al terminal: sin contraseña ni hash, solo quién,
+     * cuándo, si entró y por qué no. */
+
+    /// Anota un intento de acceso (o una rotación de contraseña).
+    pub async fn registrar_intento_acceso(
+        pool: &PgPool,
+        user_id: Option<Uuid>,
+        email: &str,
+        exito: bool,
+        motivo: &str,
+    ) -> Result<(), sqlx::Error> {
+        /* [D02] Consulta en runtime contra la tabla nueva: la macro exige la
+         * cache offline `.sqlx`, que necesita `cargo sqlx prepare` contra una
+         * base migrada. El proyecto ya usa runtime queries para tablas recién
+         * añadidas (ver Agente/documentacion/api/bdp-integration-status). */
+        // sentinel-disable-next-line sqlx-query-sin-macro: tabla nueva `auth_intentos`; la macro exigiría regenerar la cache offline y rompería el build de Docker.
+        sqlx::query(
+            "INSERT INTO auth_intentos (user_id, email, exito, motivo)
+             VALUES ($1, $2, $3, $4)",
+        )
+        .bind(user_id)
+        .bind(email)
+        .bind(exito)
+        .bind(motivo)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Los intentos más recientes, del más nuevo al más viejo.
+    pub async fn listar_intentos_acceso(
+        pool: &PgPool,
+        limite: i64,
+    ) -> Result<Vec<IntentoAcceso>, sqlx::Error> {
+        // sentinel-disable-next-line sqlx-query-as-sin-macro: misma tabla nueva `auth_intentos`; con la cache offline sin regenerar, el build de Docker (SQLX_OFFLINE=true) no compila.
+        sqlx::query_as::<_, IntentoAcceso>(
+            "SELECT created_at, email, exito, motivo
+             FROM auth_intentos
+             ORDER BY created_at DESC
+             LIMIT $1",
+        )
+        .bind(limite)
+        .fetch_all(pool)
+        .await
+    }
+}
+
+/// Una fila del registro de intentos de acceso.
+#[derive(Debug, sqlx::FromRow)]
+pub struct IntentoAcceso {
+    pub created_at: DateTime<Utc>,
+    pub email: String,
+    pub exito: bool,
+    pub motivo: String,
 }

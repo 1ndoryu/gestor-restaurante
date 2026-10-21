@@ -226,6 +226,8 @@ impl utoipa::Modify for SecurityAddon {
         crate::models::ForgotPasswordRequest,
         crate::models::ResetPasswordRequest,
         crate::models::MessageResponse,
+        crate::handlers::auth::IntentoAcceso,
+        crate::handlers::auth::CambiarPasswordRequest,
         crate::models::Venta,
         crate::models::CrearVentaRequest,
         crate::models::ActualizarVentaRequest,
