@@ -296,8 +296,13 @@ export function useRegistrarInventario() {
   return useMutation({ mutationFn: registrarInventario });
 }
 
-export function useListarConteosInventario() {
-  return useQuery({ queryKey: ['/api/bdp/inventario/conteos'], queryFn: listarConteosInventario });
+/** [L7] El historial se pide por almacén; la clave de caché lleva el id para
+ * que cambiar de almacén no muestre conteos de otro. */
+export function useListarConteosInventario(warehouseId?: string) {
+  return useQuery({
+    queryKey: ['/api/bdp/inventario/conteos', warehouseId ?? 'todos'],
+    queryFn: () => listarConteosInventario(warehouseId),
+  });
 }
 
 export function useCrearConteoInventario() {

@@ -309,6 +309,8 @@ export interface BdpConteoInventario {
   fecha: string;
   observaciones: string;
   estado: string;
+  /** [L7] Almacén al que se aplicó: «0» es el agregado local «General». */
+  warehouse_id: string;
   creado_el: string;
   total_lineas: number;
 }

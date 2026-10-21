@@ -13,8 +13,12 @@ export async function registrarInventario(
   return resp.data;
 }
 
-export async function listarConteosInventario(): Promise<BdpConteoInventario[]> {
-  const resp = await customInstance('/api/bdp/inventario/conteos', {
+/** [L7] `warehouse_id` filtra el historial: sin él, todos los almacenes. */
+export async function listarConteosInventario(
+  warehouseId?: string,
+): Promise<BdpConteoInventario[]> {
+  const consulta = warehouseId ? `?warehouse_id=${encodeURIComponent(warehouseId)}` : '';
+  const resp = await customInstance(`/api/bdp/inventario/conteos${consulta}`, {
     method: 'GET',
   }) as { data: BdpConteoInventario[] };
   return resp.data;
@@ -24,6 +28,8 @@ export async function crearConteoInventario(req: {
   observaciones?: string;
   idempotency_key?: string;
   articulos: InventarioLineaRequest[];
+  /** [L7] Almacén del conteo; ausente es el agregado local «General» (0). */
+  warehouse_id?: string;
 }): Promise<ConteoInventarioCreado> {
   const resp = await customInstance('/api/bdp/inventario/conteos', {
     method: 'POST',

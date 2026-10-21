@@ -16,6 +16,9 @@ export function useConteoInventario() {
    * montar y se regenera tras guardar con éxito; en un reintento tras un
    * fallo ambiguo se reenvía la misma clave. */
   const [conteoKey, setConteoKey] = useState(() => crypto.randomUUID());
+  /* [L7] Almacén del conteo: «0» es el agregado local «General» y es el que
+   * trae todo lo que existía antes de que el conteo tuviera almacén propio. */
+  const [almacen, setAlmacen] = useState('0');
 
   function setContada(articuloGloryCodigo: string, valor: string) {
     setContadas((p) => ({ ...p, [articuloGloryCodigo]: valor }));
@@ -28,6 +31,9 @@ export function useConteoInventario() {
       const mapa: Record<string, string> = {};
       for (const l of detalle.lineas) mapa[l.articulo_glory_codigo] = String(l.contado);
       setContadas(mapa);
+      /* [L7] Retomar un conteo de otro almacén cambia la selección: si no, el
+       * recuento se aplicaría al almacén que estuviera puesto y no al suyo. */
+      setAlmacen(detalle.conteo.warehouse_id || '0');
       return true;
     } catch {
       return false;
@@ -48,6 +54,8 @@ export function useConteoInventario() {
     setObservaciones,
     retomando,
     conteoKey,
+    almacen,
+    setAlmacen,
     setContada,
     retomarConteo: retomar,
     limpiar,

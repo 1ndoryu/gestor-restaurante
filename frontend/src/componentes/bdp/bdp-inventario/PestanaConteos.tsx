@@ -41,6 +41,9 @@ export function PestanaConteos({
             <TableHeader>
               <TableRow>
                 <TableHead>Fecha</TableHead>
+                {/* [L7] Sin el almacén, un historial de varios almacenes es
+                    indistinguible: dos conteos del mismo día serían iguales. */}
+                <TableHead>Almacén</TableHead>
                 <TableHead>Observaciones</TableHead>
                 <TableHead className="text-right">Líneas</TableHead>
                 <TableHead>Estado</TableHead>
@@ -51,6 +54,9 @@ export function PestanaConteos({
               {conteosPagina.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="text-xs tabular-nums">{formatFecha(c.fecha)}</TableCell>
+                  <TableCell className="text-xs tabular-nums">
+                    {c.warehouse_id === '0' ? 'General (0)' : c.warehouse_id}
+                  </TableCell>
                   <TableCell className="max-w-64 truncate text-xs" title={c.observaciones || undefined}>
                     {c.observaciones || '—'}
                   </TableCell>

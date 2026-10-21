@@ -11,6 +11,8 @@ interface DialogoConfirmarConteoProps {
   onAbiertoChange: (abierto: boolean) => void;
   numContados: number;
   conDiferencia: number;
+  /** [L7] Almacén al que se aplicará el conteo («0» = «General»). */
+  almacen: string;
   observaciones: string;
   onObservacionesChange: (valor: string) => void;
   modoEfectivoBdp: boolean;
@@ -23,6 +25,7 @@ export function DialogoConfirmarConteo({
   onAbiertoChange,
   numContados,
   conDiferencia,
+  almacen,
   observaciones,
   onObservacionesChange,
   modoEfectivoBdp,
@@ -42,6 +45,14 @@ export function DialogoConfirmarConteo({
           <p>
             <span className="font-medium">{numContados}</span> artículo(s) contados ·{' '}
             <span className="font-medium">{conDiferencia}</span> con diferencia
+          </p>
+          {/* [L7] Se dice antes de confirmar: el ajuste y el envío van a este
+              almacén, no al «General» de siempre. */}
+          <p>
+            Almacén:{' '}
+            <span className="font-medium">
+              {almacen === '0' ? 'General (0)' : almacen}
+            </span>
           </p>
           <div className="flex flex-col gap-1">
             <Label htmlFor="inventario-observaciones" className="text-xs">Observaciones (opcional)</Label>

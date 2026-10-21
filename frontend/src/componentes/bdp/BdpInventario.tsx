@@ -11,6 +11,7 @@
 import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Warehouse, Save, History, Loader2 } from 'lucide-react';
@@ -22,6 +23,7 @@ import { useObtenerConfiguracion } from '@/api/generated/configuracion/configura
 import type { BdpArticleMap } from '@/api/generated/gestionRestauranteAPI.schemas';
 import { useConteoInventario } from '@/hooks/useConteoInventario';
 import { useVistaInventario } from './bdp-inventario/useVistaInventario';
+import type { AlmacenBdp } from './bdp-stock/TraspasarStockDialog';
 import { DialogoConfirmarConteo } from './bdp-inventario/DialogoConfirmarConteo';
 import { PestanaConteos } from './bdp-inventario/PestanaConteos';
 import { toNumber } from './bdp-inventario/formato';
@@ -31,7 +33,21 @@ function BdpInventario() {
   const { data, isLoading } = useListarArticleMaps();
   const stockLocalQuery = useBdpArticleStock();
   const guardarMutation = useCrearConteoInventario();
-  const { data: conteos, refetch: refetchConteos } = useListarConteosInventario();
+  /* [L7] El almacén vive en el hook del conteo porque «Retomar» lo cambia al
+   * del conteo cargado; se lee antes del historial para pedirlo filtrado. */
+  const {
+    contadas,
+    observaciones,
+    setObservaciones,
+    retomando,
+    conteoKey,
+    almacen,
+    setAlmacen,
+    setContada,
+    retomarConteo,
+    limpiar,
+  } = useConteoInventario();
+  const { data: conteos, refetch: refetchConteos } = useListarConteosInventario(almacen);
   const { data: configResponse } = useObtenerConfiguracion();
 
   const configData = configResponse?.status === 200 ? configResponse.data : undefined;
@@ -45,22 +61,33 @@ function BdpInventario() {
   const mapeos: BdpArticleMap[] = data?.status === 200 ? data.data : [];
   const stockLocal = stockLocalQuery.data ?? [];
 
+  /* [L7] Primero el stock del almacén elegido; si ese almacén aún no tiene
+   * fila para el artículo, la del agregado «General» (0), que es de donde
+   * salía el esperado antes de que el conteo tuviera almacén propio. */
   const stockPorCodigo = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const s of stockLocal) map.set(s.articulo_glory_codigo, s.stock);
-    return map;
-  }, [stockLocal]);
+    const delAlmacen = new Map<string, string>();
+    const general = new Map<string, string>();
+    for (const s of stockLocal) {
+      if (s.warehouse_id === almacen) delAlmacen.set(s.articulo_glory_codigo, s.stock);
+      if (s.warehouse_id === '0') general.set(s.articulo_glory_codigo, s.stock);
+    }
+    for (const [codigo, stock] of general) {
+      if (!delAlmacen.has(codigo)) delAlmacen.set(codigo, stock);
+    }
+    return delAlmacen;
+  }, [stockLocal, almacen]);
 
-  const {
-    contadas,
-    observaciones,
-    setObservaciones,
-    retomando,
-    conteoKey,
-    setContada,
-    retomarConteo,
-    limpiar,
-  } = useConteoInventario();
+  /* Almacenes que ya conocemos por el stock local: BDP no los expone por API
+   * (mismo criterio que el traspaso). */
+  const almacenes = useMemo<AlmacenBdp[]>(() => {
+    const vistos = new Map<number, string>();
+    for (const fila of stockLocal) {
+      const id = Number(fila.warehouse_id);
+      if (!Number.isInteger(id) || vistos.has(id)) continue;
+      vistos.set(id, fila.warehouse_name || `Almacén ${id}`);
+    }
+    return [...vistos].map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.id - b.id);
+  }, [stockLocal]);
 
   const esperada = (m: BdpArticleMap): number => toNumber(stockPorCodigo.get(m.articulo_glory_codigo) ?? m.stock_actual);
 
@@ -113,6 +140,7 @@ function BdpInventario() {
       {
         observaciones: observaciones.trim() || undefined,
         idempotency_key: conteoKey,
+        warehouse_id: almacen,
         articulos: contados.map((f) => ({
           articulo_glory_codigo: f.m.articulo_glory_codigo,
           unidades_contadas: String(f.contada),
@@ -183,14 +211,43 @@ function BdpInventario() {
         </TabsList>
 
         <TabsContent value="inventario" className="flex flex-col gap-4">
+          {/* [L7] El conteo es de un almacén concreto: el esperado, el ajuste
+              local y el envío a BDP salen de aquí. «General» (0) es el stock
+              sin desglose, el que había antes de este selector. */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
               {contados.length} artículos contados · {filas.length} en catálogo
             </p>
-            <Button onClick={() => setConfirmar(true)} disabled={guardarMutation.isPending || contados.length === 0}>
-              {guardarMutation.isPending ? <Loader2 className="size-4 animate-spin mr-1" /> : <Save className="size-4 mr-1" />}
-              Guardar conteo
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setConfirmar(true)} disabled={guardarMutation.isPending || contados.length === 0}>
+                {guardarMutation.isPending ? <Loader2 className="size-4 animate-spin mr-1" /> : <Save className="size-4 mr-1" />}
+                Guardar conteo
+              </Button>
+              <Label htmlFor="inventario-almacen" className="text-xs text-muted-foreground">Almacén</Label>
+              <Input
+                id="inventario-almacen"
+                type="number"
+                min={0}
+                list="inventario-almacenes"
+                className="w-24"
+                value={almacen}
+                onChange={(e) => { setAlmacen(e.target.value.trim() === '' ? '0' : e.target.value); setPagina(1); }}
+              />
+              <datalist id="inventario-almacenes">
+                {almacenes.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nombre}
+                  </option>
+                ))}
+              </datalist>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-muted-foreground">
+              {almacen === '0'
+                ? 'Almacén «General» (0): stock sin desglose, el que no se ha contado por almacén.'
+                : `Conteo del almacén ${almacen}: el ajuste local y el envío a BDP usan este almacén.`}
+            </p>
           </div>
 
           <Input
@@ -295,6 +352,7 @@ function BdpInventario() {
         onAbiertoChange={setConfirmar}
         numContados={contados.length}
         conDiferencia={conDiferencia}
+        almacen={almacen}
         observaciones={observaciones}
         onObservacionesChange={setObservaciones}
         modoEfectivoBdp={modoEfectivoBdp}
