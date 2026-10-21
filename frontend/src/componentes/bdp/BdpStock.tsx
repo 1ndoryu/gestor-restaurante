@@ -6,23 +6,24 @@
  * verdad editable). Botón "Ajustar" por fila → modal delta/motivo. */
 
 import { useMemo, useState } from 'react';
-import { Package, ChevronDown, ChevronUp, SlidersHorizontal, Plus, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { useListarArticleMaps } from '@/api/generated/bdp-mapeos/bdp-mapeos';
 import { useBdpStockFilters } from '@/hooks/useBdpStockFilters';
 import { useBdpDemoMode } from '@/hooks/useBdpDemoMode';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { useBdpArticleStock, useAjustarBdpArticleStock } from '@/api/bdp';
-import { formatPrice, formatStock, formatDate, exportToCsv, type SortKey } from './bdp-stock-utils';
+import { useBdpArticleStock, useAjustarBdpArticleStock, useTraspasarBdpArticleStock } from '@/api/bdp';
+import type { TraspasarBdpArticleStockRequest } from '@/api/bdp/tipos';
+import { formatDate, exportToCsv, type SortKey } from './bdp-stock-utils';
 import { mockArticleMaps } from './bdp-mocks';
 import { BdpStockActions } from './BdpStockActions';
 import NuevoArticuloDialog from './NuevoArticuloDialog';
 import { useObtenerConfiguracion } from '@/api/generated/configuracion/configuracion';
 import type { BdpArticleMap } from '@/api/generated/gestionRestauranteAPI.schemas';
 import { AjustarStockDialog } from './bdp-stock/AjustarStockDialog';
+import { TablaStock } from './bdp-stock/TablaStock';
+import { TraspasarStockDialog, type AlmacenBdp } from './bdp-stock/TraspasarStockDialog';
 import { FiltrosStock } from './bdp-stock/FiltrosStock';
 import { PaginacionStock } from './bdp-stock/PaginacionStock';
 import { TableSkeleton } from './bdp-stock/TableSkeleton';
@@ -46,6 +47,7 @@ function BdpStock() {
   });
   const stockLocalQuery = useBdpArticleStock(!demoMode);
   const ajustarMutation = useAjustarBdpArticleStock(queryClient);
+  const traspasarMutation = useTraspasarBdpArticleStock(queryClient);
   const apiRows = data?.status === 200 ? data.data : [];
   const mapeos = demoMode ? mockArticleMaps : apiRows;
   const stockLocal = stockLocalQuery.data ?? [];
@@ -75,28 +77,59 @@ function BdpStock() {
     [mapeos, stockPorCodigo],
   );
 
-  const [ajustarArticulo, setAjustarArticulo] = useState<BdpArticleMap | null>(null);
-  const [ajusteOpen, setAjusteOpen] = useState(false);
+  /* Un solo diálogo abierto a la vez: ajuste local o traspaso entre almacenes.
+   * Así el estado del modal no se duplica ni puede quedar desincronizado. */
+  const [dialogo, setDialogo] = useState<{ tipo: 'ajuste' | 'traspaso'; articulo: BdpArticleMap } | null>(null);
   const [nuevoOpen, setNuevoOpen] = useState(false);
+  const articuloDialogo = dialogo?.articulo ?? null;
+  function cerrarDialogo() {
+    setDialogo(null);
+  }
+
+  /* Almacenes que ya conocemos por el stock local: BDP no los expone por API. */
+  const almacenes = useMemo<AlmacenBdp[]>(() => {
+    const vistos = new Map<number, string>();
+    for (const fila of stockLocal) {
+      const id = Number(fila.warehouse_id);
+      if (!Number.isInteger(id) || vistos.has(id)) continue;
+      vistos.set(id, fila.warehouse_name || `Almacén ${id}`);
+    }
+    return [...vistos].map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.id - b.id);
+  }, [stockLocal]);
 
   function guardarAjuste(delta: string, motivo: string) {
-    if (!ajustarArticulo) return;
+    if (!dialogo) return;
+    const articulo = dialogo.articulo;
     ajustarMutation.mutate(
       {
-        articulo_glory_codigo: ajustarArticulo.articulo_glory_codigo,
+        articulo_glory_codigo: articulo.articulo_glory_codigo,
         delta,
         motivo,
-        idempotency_key: `ajuste-${ajustarArticulo.id}-${Date.now()}`,
+        idempotency_key: `ajuste-${articulo.id}-${Date.now()}`,
       },
       {
         onSuccess: () => {
-          toast.success(`Stock ajustado para ${ajustarArticulo.articulo_glory_codigo}`);
-          setAjusteOpen(false);
-          setAjustarArticulo(null);
+          toast.success(`Stock ajustado para ${articulo.articulo_glory_codigo}`);
+          cerrarDialogo();
         },
         onError: () => toast.error('Error al ajustar el stock'),
       },
     );
+  }
+
+  function guardarTraspaso(req: TraspasarBdpArticleStockRequest) {
+    traspasarMutation.mutate(req, {
+      onSuccess: (resp) => {
+        toast.success('Traspaso encolado', {
+          description: `Se enviará a BDP en el próximo envío autorizado (${resp.entidad}).`,
+        });
+        cerrarDialogo();
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        toast.error('No se pudo traspasar', { description: msg ?? 'Revisa los almacenes y las unidades.' });
+      },
+    });
   }
 
   const lastSync = useMemo(() => {
@@ -138,11 +171,6 @@ function BdpStock() {
     setPage(1);
   }
 
-  function SortIcon({ column }: { column: SortKey }) {
-    if (sortKey !== column) return <span className="inline-block w-3" />;
-    return sortDir === 'asc' ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />;
-  }
-
   function handleExport() {
     exportToCsv(mapeosConStockEfectivo, sorted, {
       allRows: false,
@@ -177,14 +205,20 @@ function BdpStock() {
       <NuevoArticuloDialog open={nuevoOpen} onOpenChange={setNuevoOpen} />
 
       <AjustarStockDialog
-        articulo={ajustarArticulo}
-        open={ajusteOpen}
-        onOpenChange={(open) => {
-          setAjusteOpen(open);
-          if (!open) setAjustarArticulo(null);
-        }}
+        articulo={articuloDialogo}
+        open={dialogo?.tipo === 'ajuste'}
+        onOpenChange={(open) => { if (!open) cerrarDialogo(); }}
         onGuardar={guardarAjuste}
         pending={ajustarMutation.isPending}
+      />
+
+      <TraspasarStockDialog
+        articulo={articuloDialogo}
+        almacenes={almacenes}
+        open={dialogo?.tipo === 'traspaso'}
+        onOpenChange={(open) => { if (!open) cerrarDialogo(); }}
+        onGuardar={guardarTraspaso}
+        pending={traspasarMutation.isPending}
       />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -230,75 +264,16 @@ function BdpStock() {
         )
       ) : (
         <>
-          <div className="rounded-md border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort('articulo_glory_codigo')}>
-                    <span className="flex items-center gap-1">Código Aplicación Web <SortIcon column="articulo_glory_codigo" /></span>
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort('articulo_bdp_codigo')}>
-                    <span className="flex items-center gap-1">Código BDP <SortIcon column="articulo_bdp_codigo" /></span>
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort('articulo_bdp_nombre')}>
-                    <span className="flex items-center gap-1">Nombre BDP <SortIcon column="articulo_bdp_nombre" /></span>
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort('precio_tarifa1')}>
-                    <span className="flex items-center gap-1">Precio <SortIcon column="precio_tarifa1" /></span>
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort('stock_actual')}>
-                    <span className="flex items-center gap-1">Stock <SortIcon column="stock_actual" /></span>
-                  </TableHead>
-                  <TableHead className="text-center">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginated.map((m) => {
-                  const stockLocalVal = stockPorCodigo.get(m.articulo_glory_codigo);
-                  const origen = codigosStockLocal.has(m.articulo_glory_codigo) ? 'local' : 'bdp';
-                  const stock = formatStock(stockLocalVal ?? m.stock_actual);
-                  return (
-                    <TableRow key={m.id}>
-                      <TableCell className="font-mono text-xs">{m.articulo_glory_codigo || '—'}</TableCell>
-                      <TableCell className="font-mono text-xs">{m.articulo_bdp_codigo || '—'}</TableCell>
-                      <TableCell className="text-xs">{m.articulo_bdp_nombre || '—'}</TableCell>
-                      <TableCell className="text-xs tabular-nums">{formatPrice(m.precio_tarifa1)}</TableCell>
-                      <TableCell>
-                        {stock.hasStock ? (
-                          <span className="inline-flex items-center gap-1">
-                            <Badge variant={origen === 'local' ? 'secondary' : 'outline'} className="gap-1">
-                              <Package className="size-3" />
-                              {stock.text}
-                            </Badge>
-                            <Badge variant={origen === 'local' ? 'secondary' : 'outline'}>
-                              {origen}
-                            </Badge>
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-center">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setAjustarArticulo(m);
-                              setAjusteOpen(true);
-                            }}
-                          >
-                            <SlidersHorizontal className="size-3" />
-                            Ajustar
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+          <TablaStock
+            filas={paginated}
+            stockPorCodigo={stockPorCodigo}
+            codigosStockLocal={codigosStockLocal}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onOrdenar={handleSort}
+            onAjustar={(articulo) => setDialogo({ tipo: 'ajuste', articulo })}
+            onTraspasar={(articulo) => setDialogo({ tipo: 'traspaso', articulo })}
+          />
 
           <PaginacionStock
             mostrados={paginated.length}
