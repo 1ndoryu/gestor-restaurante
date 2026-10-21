@@ -12,7 +12,9 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use glory_backend::services::{procesar_lote, Consulta, ConsultaPedido, ResumenLote, MAX_INTENTOS};
+use glory_backend::services::{
+    cuentas_con_trabajo, procesar_lote, Consulta, ConsultaPedido, ResumenLote, MAX_INTENTOS,
+};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -341,6 +343,8 @@ async fn comanda_anulada_en_caja_anula_la_venta_local(pool: PgPool) {
         .expect("fijar motivo");
     let id2 = aviso(&pool, mia, "cambiar-estado", payload_comanda("43"), 0).await;
     procesar_lote(&pool, mia, &doble, 10).await.expect("lote 2");
+    let (estado2, _, _, _, _) = fila(&pool, id2).await;
+    assert_eq!(estado2, "procesado", "el aviso repetido también se procesa");
     let (_, anulada2, motivo2, _) = anulacion(&pool, venta).await;
     assert!(anulada2);
     assert_eq!(
@@ -348,6 +352,58 @@ async fn comanda_anulada_en_caja_anula_la_venta_local(pool: PgPool) {
         Some("motivo previo"),
         "un aviso repetido no debe pisar la anulación ya registrada"
     );
+}
+
+/// [D10 vivo] El TPV local, al anular, **borra** la comanda: `GetOrder` contesta
+/// 301000 en vez de devolverla con `Status: 2`. El aviso `cambiar-estado` con
+/// Estado=2 sobre una comanda que ya no existe es una anulación coherente.
+#[sqlx::test(migrations = "./migrations")]
+async fn aviso_que_cancela_una_comanda_que_bdp_ya_no_tiene_anula_la_venta(pool: PgPool) {
+    let mia = cuenta(&pool).await;
+    let venta = venta_con_bdp(&pool, mia, 42).await;
+    let payload = json!({
+        "IdentificadorComanda": "42",
+        "TimeStamp": "2026-10-21T22:15:00Z",
+        "Estado": 2,
+    });
+    let id = aviso(&pool, mia, "cambiar-estado", payload, 0).await;
+    let doble = DobleBdp::con(vec![(42, Consulta::NoExiste)]);
+
+    let resumen = procesar_lote(&pool, mia, &doble, 10).await.expect("lote");
+
+    assert_eq!(
+        resumen,
+        ResumenLote {
+            procesados: 1,
+            reintentos: 0,
+            revision: 0
+        },
+        "la anulación no es una incidencia: es el hecho que el TPV comunica"
+    );
+    let (estado, _, _, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "procesado");
+    let (estado_bdp, anulada, motivo, con_fecha) = anulacion(&pool, venta).await;
+    assert_eq!(estado_bdp.as_deref(), Some("cancelled"));
+    assert!(anulada && con_fecha);
+    assert!(motivo.as_deref().is_some_and(|m| m.contains("TPV")));
+}
+
+/// Un aviso sin Estado=2 cuya comanda desapareció sigue siendo una incidencia: no
+/// cualquier ausencia se toma por una anulación.
+#[sqlx::test(migrations = "./migrations")]
+async fn comanda_ausente_sin_anulacion_sigue_yendo_a_revision(pool: PgPool) {
+    let mia = cuenta(&pool).await;
+    let venta = venta_con_bdp(&pool, mia, 41).await;
+    let id = aviso(&pool, mia, "cambiar-estado", payload_comanda("41"), 0).await;
+    let doble = DobleBdp::con(vec![(41, Consulta::NoExiste)]);
+
+    procesar_lote(&pool, mia, &doble, 10).await.expect("lote");
+
+    let (estado, _, error, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "requiere_revision");
+    assert!(error.is_some());
+    let (_, anulada, _, _) = anulacion(&pool, venta).await;
+    assert!(!anulada, "sin anulación declarada la venta no se anula");
 }
 
 /// Lee la anulación de una venta: estado BDP, marca, motivo y si tiene fecha.
@@ -509,6 +565,42 @@ async fn reclamo_reciente_en_procesando_no_se_toca(pool: PgPool) {
 
     assert_eq!(resumen, ResumenLote::default());
     assert!(doble.pedidas().is_empty());
+}
+
+/// [D29] El bucle periódico tiene que ver también las cuentas cuyo único aviso
+/// quedó varado en `procesando` por una caída entre el reclamo y el commit: si
+/// solo mira `recibido`, esa fila no se retoma nunca. Un reclamo reciente, en
+/// cambio, no debe despertar a nadie (el otro worker sigue en él).
+#[sqlx::test(migrations = "./migrations")]
+async fn el_bucle_ve_la_cuenta_cuyo_aviso_quedo_en_procesando(pool: PgPool) {
+    let user = cuenta(&pool).await;
+    let id = aviso(&pool, user, "finalizar", payload_comanda("82"), 1).await;
+    sqlx::query(
+        "UPDATE bdp_avisos_inbox SET estado = 'procesando',
+             reclamado_en = NOW() - INTERVAL '1 hour' WHERE id = $1",
+    )
+    .bind(id)
+    .execute(&pool)
+    .await
+    .expect("simular caída tras el reclamo");
+
+    let cuentas = cuentas_con_trabajo(&pool).await.expect("listar");
+    assert_eq!(
+        cuentas,
+        vec![user],
+        "la cuenta con el aviso varado debe salir"
+    );
+
+    sqlx::query("UPDATE bdp_avisos_inbox SET reclamado_en = NOW() WHERE id = $1")
+        .bind(id)
+        .execute(&pool)
+        .await
+        .expect("reclamo en curso");
+    let cuentas = cuentas_con_trabajo(&pool).await.expect("listar");
+    assert!(
+        cuentas.is_empty(),
+        "un reclamo reciente no es trabajo pendiente"
+    );
 }
 
 /* ---------------------------------------------------------------------------

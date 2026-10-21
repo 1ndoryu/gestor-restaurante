@@ -148,6 +148,17 @@ async fn decidir(
             pedido: None,
             error: None,
         },
+        /* [D10] Al anular en caja, el TPV local borra la comanda: `GetOrder`
+         * responde 301000 en vez de devolverla con `Status: 2` (comprobado el
+         * 2026-10-21). Un aviso `cambiar-estado` con Estado=2 sobre una comanda
+         * que ya no existe es una anulación coherente, no una incidencia: se
+         * sintetiza el pedido cancelado para que la venta quede anulada igual
+         * que si BDP la devolviera. */
+        Consulta::NoExiste if accion == "cambiar-estado" && aviso_cancela(payload) => Decision {
+            estado: "procesado",
+            pedido: Some(serde_json::json!({ "Status": 2 })),
+            error: None,
+        },
         Consulta::NoExiste => Decision {
             estado: "requiere_revision",
             pedido: None,
@@ -164,6 +175,15 @@ async fn decidir(
             error: Some(error),
         },
     }
+}
+
+/// [D10] ¿El aviso declara `Estado: 2` (cancelada)? Es el único caso en que la
+/// desaparición de la comanda significa «anulada» y no «no existe».
+fn aviso_cancela(payload: &Value) -> bool {
+    CamposAviso::desde_json(payload)
+        .estado()
+        .and_then(|texto| texto.trim().parse::<i64>().ok())
+        == Some(2)
 }
 
 /// Comanda del aviso como número; None si no es numérica.
@@ -371,6 +391,23 @@ fn parsear_segundos(valor: Option<&str>) -> u64 {
     }
 }
 
+/// [D29] Cuentas con algo que hacer: avisos `recibido` y avisos `procesando` cuyo
+/// reclamo caducó. Lo segundo importa porque, si el worker cae entre el reclamo y
+/// el commit (o el proceso se reinicia por deploy), esa fila no vuelve sola a
+/// `recibido`; el bucle periódico se quedaba sin verla nunca y el aviso quedaba
+/// varado para siempre. Es la misma condición con la que reclama `procesar_lote`.
+pub async fn cuentas_con_trabajo(pool: &PgPool) -> Result<Vec<Uuid>, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT DISTINCT user_id FROM bdp_avisos_inbox \
+          WHERE estado = 'recibido' \
+             OR (estado = 'procesando' \
+                 AND reclamado_en < NOW() - ($1::float8 * INTERVAL '1 second'))",
+    )
+    .bind(CADUCIDAD_RECLAMO_SEG)
+    .fetch_all(pool)
+    .await
+}
+
 /// [D23a] Procesa una pasada de avisos `recibido`. Solo cuentas en modo BDP y con
 /// BDP configurado, igual que el endpoint manual; no escribe en el TPV. Devuelve
 /// los avisos procesados.
@@ -381,12 +418,7 @@ fn parsear_segundos(valor: Option<&str>) -> u64 {
 /// (la venta nunca se marcaba facturada). Ahora la llama el bucle periódico de
 /// `main.rs`, y el caso de arranque es su primera pasada.
 pub async fn procesar_pendientes(pool: &PgPool, modo: &ServicioModoOperacion) -> u32 {
-    let usuarios: Vec<Uuid> = match sqlx::query_scalar(
-        "SELECT DISTINCT user_id FROM bdp_avisos_inbox WHERE estado = 'recibido'",
-    )
-    .fetch_all(pool)
-    .await
-    {
+    let usuarios = match cuentas_con_trabajo(pool).await {
         Ok(usuarios) => usuarios,
         Err(error) => {
             tracing::warn!("[D23a] No se pudo listar el buzón: {error}");

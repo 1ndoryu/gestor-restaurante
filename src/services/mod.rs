@@ -48,8 +48,8 @@ mod venta;
 pub use api_key::ApiKeyService;
 pub use auth::AuthService;
 pub use bdp_avisos::{
-    procesar_lote, AccionAviso, AvisoPreparado, BdpAvisosService, CamposAviso, Consulta,
-    ConsultaPedido, FilaAviso, ResultadoInbox, ResumenLote, MAX_INTENTOS,
+    cuentas_con_trabajo, procesar_lote, AccionAviso, AvisoPreparado, BdpAvisosService, CamposAviso,
+    Consulta, ConsultaPedido, FilaAviso, ResultadoInbox, ResumenLote, MAX_INTENTOS,
 };
 pub use bdp_backup::{
     AuditoriaDirecta, BdpAuditEntry, BdpBackupService, BdpSnapshot, RestoreResult,
