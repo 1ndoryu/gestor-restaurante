@@ -113,6 +113,37 @@ impl VentaRepository {
         .await
     }
 
+    /* [D23b] Ventas con el acuse perdido: la comanda pudo crearse en BDP pero la
+     * respuesta nunca llegó y **no se guardó `bdp_order_id`**. Es el hueco que
+     * dejaba invisible la venta: `list_bdp_pending` filtra `bdp_synced=TRUE` y
+     * `list_bdp_orphaned` exige `bdp_order_id`, así que no caía en ninguna de
+     * las dos y el polling se cortaba antes de reconciliar. Solo son localizables
+     * las que tienen una auditoría `create_order` abierta: de ahí se saca el
+     * `MarketplaceOrderId` con el que se pregunta a BDP. */
+    pub async fn list_bdp_en_vuelo(
+        pool: &PgPool,
+        user_id: Uuid,
+    ) -> Result<Vec<Venta>, sqlx::Error> {
+        sqlx::query_as::<_, Venta>(
+            "SELECT v.* FROM ventas v \
+             WHERE v.user_id = $1 \
+               AND v.bdp_synced = FALSE \
+               AND v.anulada = FALSE \
+               AND EXISTS ( \
+                 SELECT 1 FROM bdp_audit_log a \
+                 WHERE a.user_id = $1 \
+                   AND a.target_entity_type = 'venta' \
+                   AND a.target_entity_id = v.id \
+                   AND a.operacion = 'create_order' \
+                   AND a.resultado IN ('pendiente', 'ambiguo') \
+               ) \
+             ORDER BY v.created_at ASC LIMIT 50",
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+    }
+
     /* [AUDIT-N2] Clientes BDP huérfanos: tienen bdp_synced=true pero auditoría
      * pendiente/ambiguo para 'create_customer'. El proceso murió entre
      * update_bdp_sync y actualizar_resultado (antes del fix N1).

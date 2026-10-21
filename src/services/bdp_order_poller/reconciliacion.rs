@@ -21,11 +21,15 @@ impl BdpOrderPollerService {
         config: &ConfiguracionRestaurante,
         client: &BdpWeblinkClient<'_>,
     ) -> Result<usize, String> {
+        /* [D23b] También las `pendiente`: son las que quedaron abiertas cuando el
+         * proceso murió entre el HTTP y el cierre de la auditoría, y nadie las
+         * miraba. Preguntar por su `MarketplaceOrderId` es inocuo: si la comanda
+         * no existe en BDP, no se toca nada. */
         let rows: Vec<(uuid::Uuid, String, uuid::Uuid, serde_json::Value)> = sqlx::query_as(
             r"SELECT id, operacion, target_entity_id, datos_enviados
                FROM bdp_audit_log
                WHERE user_id = $1
-                 AND resultado = 'ambiguo'
+                 AND resultado IN ('ambiguo', 'pendiente')
                  AND operacion IN ('create_order', 'add_payment', 'invoice')
                ORDER BY created_at DESC
                LIMIT 100",

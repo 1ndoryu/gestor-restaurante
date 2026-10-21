@@ -139,13 +139,34 @@ impl BdpOrderPollerService {
                     Vec::new()
                 });
 
-        if ventas.is_empty() && orphaned.is_empty() && orphaned_customers.is_empty() {
+        /* [D23b] Ventas con el acuse perdido: sin `bdp_order_id` no aparecen en
+         * ninguna de las dos listas de arriba, y son justo las que la
+         * reconciliación por `MarketplaceOrderId` sí puede recuperar. Si no se
+         * cuentan aquí, el corte de abajo deja pasar el turno sin mirarlas y la
+         * venta queda invisible para siempre. */
+        let en_vuelo = VentaRepository::list_bdp_en_vuelo(pool, user_id)
+            .await
+            .unwrap_or_else(|e| {
+                warn!("[D23b] Error buscando ventas con el acuse perdido: {e}");
+                Vec::new()
+            });
+
+        if ventas.is_empty()
+            && orphaned.is_empty()
+            && orphaned_customers.is_empty()
+            && en_vuelo.is_empty()
+        {
             return Ok(0);
         }
 
         let client = BdpWeblinkClient::new(config);
 
-        /* [R1] Reconciliar auditorías ambiguas antes de procesar estados normales. */
+        let mut updated = 0;
+
+        /* [R1] Reconciliar auditorías ambiguas antes de procesar estados normales.
+         * [D23b] Lo reconciliado aquí también cuenta: si no, la venta se recupera
+         * de verdad pero la pantalla dice «0 actualizadas» y parece que no se
+         * hizo nada. */
         match Self::reconcile_ambiguous(pool, user_id, config, &client).await {
             Ok(count) => {
                 if count > 0 {
@@ -153,6 +174,8 @@ impl BdpOrderPollerService {
                         "[R1] {} auditorías ambiguas reconciliadas para usuario {}",
                         count, user_id
                     );
+                    llamo_bdp = true;
+                    updated += count;
                 }
             }
             Err(error) => {
@@ -161,8 +184,6 @@ impl BdpOrderPollerService {
                 warn!("[R1] Error reconciliando auditorías ambiguas: {error}");
             }
         }
-
-        let mut updated = 0;
 
         if !orphaned.is_empty() {
             llamo_bdp = true;
