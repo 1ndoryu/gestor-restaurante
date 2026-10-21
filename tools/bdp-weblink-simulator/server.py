@@ -191,6 +191,13 @@ class SimulatorHandler(BaseHTTPRequestHandler):
             self._json(401, {"ErrorMessage": "token invalido o ausente"})
             return
 
+        # Respuesta perdida sin aplicar: la petición entra, se autentica y la
+        # conexión se corta antes de tocar el estado. Es el otro lado del caso
+        # `apply_then_disconnect` (D26g: ver S tras la pérdida).
+        if fault and fault.get("disconnect_before_apply"):
+            self.close_connection = True
+            return
+
         response = self._dispatch(path, payload)
         if fault and fault.get("apply_then_disconnect"):
             self.close_connection = True
@@ -232,7 +239,10 @@ class SimulatorHandler(BaseHTTPRequestHandler):
             if not target.startswith("/") or target.startswith("/__simulator/"):
                 self._json(400, {"ErrorMessage": "Path de fallo invalido"})
                 return
-            allowed = {"http_status", "remote_error", "invalid_json", "delay_ms", "apply_then_disconnect"}
+            allowed = {
+                "http_status", "remote_error", "invalid_json", "delay_ms",
+                "apply_then_disconnect", "disconnect_before_apply",
+            }
             fault = {key: value for key, value in payload.items() if key in allowed}
             with state.lock:
                 state.faults[target] = fault
@@ -270,8 +280,13 @@ class SimulatorHandler(BaseHTTPRequestHandler):
                 return {"Customers": list(copy.deepcopy(state.customers).values()), "ErrorMessage": ""}
             if path == "/API/Departments/Export" or path == "/API/Departments/ExportFromProfile":
                 return {"Departments": list(copy.deepcopy(state.departments).values()), "ErrorMessage": ""}
-            if path in {"/API/Warehouse/GetStock", "/API/Warehouse/GetListStock"}:
-                return {"Stock": copy.deepcopy(state.stock), "ErrorMessage": ""}
+            # [D26g] Contrato del BDP real: `GetStock` devuelve un número plano y
+            # `GetListStock` una lista de objetos. Antes ambas devolvían el mapa
+            # interno como objeto y el libro de stock no podía leer ninguna.
+            if path == "/API/Warehouse/GetStock":
+                return self._get_stock(payload)
+            if path == "/API/Warehouse/GetListStock":
+                return self._get_list_stock(payload)
             if path in {"/API/POSes/Get", "/API/POS/Get"}:
                 return {"POSes": copy.deepcopy(state.fixtures["poses"]), "ErrorMessage": ""}
             if path in {"/API/Employees/Get", "/API/Employee/Get", "/API/POS/Employees/Get"}:
@@ -620,6 +635,45 @@ class SimulatorHandler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             return
         state.stock[code] = state.stock.get(code, 0.0) + delta
+
+    def _stock_row(self, article: int) -> dict[str, Any]:
+        """Una línea de `GetListStock`, con el error del artículo no web."""
+        state = self.server.state
+        articulo = state.articles.get(article, {})
+        # El BDP real solo sirve por web los artículos marcados `Web`.
+        if not articulo.get("Web", True):
+            return {
+                "Article": article,
+                "Altern": 0,
+                "Units": 0.0,
+                "ErrorMessage": f"EL ARTÍCULO {article} NO ES DEL TIPO WEB",
+            }
+        return {
+            "Article": article,
+            "Altern": 0,
+            "Units": state.stock.get(article, 0.0),
+            "ErrorMessage": "",
+        }
+
+    def _get_stock(self, payload: dict[str, Any]) -> dict[str, Any]:
+        try:
+            article = int(payload.get("Article", 0))
+        except (TypeError, ValueError):
+            return {"Stock": 0.0, "ErrorMessage": "[200004]-EL ARTÍCULO NO EXISTE"}
+        fila = self._stock_row(article)
+        return {"Stock": fila["Units"], "ErrorMessage": fila["ErrorMessage"]}
+
+    def _get_list_stock(self, payload: dict[str, Any]) -> dict[str, Any]:
+        articulos = payload.get("Articles") or [
+            {"Article": code} for code in self.server.state.stock
+        ]
+        filas = []
+        for item in articulos:
+            try:
+                filas.append(self._stock_row(int(item.get("Article", 0))))
+            except (TypeError, ValueError):
+                continue
+        return {"Stock": filas, "ErrorMessage": ""}
 
     def _regularize(self, payload: dict[str, Any]) -> dict[str, Any]:
         self._apply_stock_delta(payload.get("Article"), payload.get("Units"))

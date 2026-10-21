@@ -176,9 +176,10 @@ async fn simulator_stock_of(client: &BdpWeblinkClient<'_>, article: i64) -> f64 
             store: 1,
         })
         .await
+        /* [D26g] `GetStock` del BDP real devuelve el número plano, no un objeto
+         * por artículo; el simulador ya sigue ese contrato. */
         .unwrap()["Stock"]
-        .get(article.to_string())
-        .and_then(serde_json::Value::as_f64)
+        .as_f64()
         .unwrap_or(0.0)
 }
 
