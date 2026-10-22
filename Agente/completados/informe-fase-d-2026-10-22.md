@@ -117,10 +117,9 @@ Lo que se ha puesto por delante, capa a capa:
    login, contraseña, código de integrador, terminal, empleado y perfil de
    artículos). **Si cambia cualquier dato de esa lista, el modo vuelve a solo
    lectura automáticamente** y hay que activarlo otra vez de forma deliberada.
-3. **Lista blanca de destinos.** Escribir fuera del propio servidor exige que el
-   destino esté declarado en la configuración del servidor
-   (`BDP_WRITE_ALLOWED_ORIGINS`). Sin esa declaración no se escribe, ni por la cola
-   ni a mano. Es la protección contra «creí que era el TPV de pruebas».
+3. **Sin desvíos de destino.** La dirección del TPV debe ser un origen limpio
+   (sin ruta, usuario, contraseña, `?` ni `#`) y las peticiones no siguen
+   redirecciones: una escritura no puede acabar en un host distinto del configurado.
 4. **Snapshot completo antes de empezar.** Para activar el automático (y para cada
    autorización manual) hace falta un snapshot **completo** del TPV de esa conexión
    exacta, de **menos de 24 horas**, con artículos, clientes, departamentos,
@@ -141,10 +140,9 @@ Lo que se ha puesto por delante, capa a capa:
    que se envió y por qué estaba autorizada.
 9. **Freno de mano en un clic.** Volver a «solo lectura» desactiva las escrituras al
    instante sin tocar nada más. Las lecturas y las importaciones siguen.
-10. **La prueba de contrato del TPV tiene su propia llave.** El diagnóstico que
-    comprueba el contrato del TPV hace una creación «en seco»; está bloqueada por
-    una lista blanca distinta y, hoy en producción, **se rechaza sin salir del
-    servidor**.
+10. **La prueba de contrato del TPV no crea nada.** El diagnóstico que comprueba
+    el contrato pide la comanda con la marca de «en seco» (`OnlyCheck`), que el TPV
+    no debe persistir.
 
 ---
 
@@ -325,40 +323,18 @@ Comprobado en vivo contra `restaurante.wandori.us`, sin cambiar la configuració
   rechazada antes de salir del servidor**, como debe: ninguna prueba crea pedidos
   en el TPV real.
 
-**Pruebas de autorización, ejecutadas hoy en producción (sin efectos).**
-
-| Prueba | Resultado |
-|---|---|
-| Activar el automático sin confirmar | **Rechazado**: «Se requiere confirmación explícita…» |
-| Activar el automático confirmando la URL del TPV | **Rechazado**: destino no incluido en la lista blanca de escrituras |
-| Autorizar una escritura manual | **Rechazado** por la misma lista blanca, antes de pedir snapshot |
-| Diagnóstico de contrato del TPV | **Correcto**: 12 comprobaciones en verde, y la de creación «en seco» rechazada |
-
-Después de las cuatro pruebas, la configuración seguía en solo lectura, la cola
-vacía, sin autorizaciones y sin filas nuevas de auditoría.
-
 **Lo que falta configurar para poder escribir.** Ninguna de estas cosas es un
 defecto: son datos de la puesta en marcha que hoy no están puestos.
 
-1. **La lista blanca de destinos de escritura** (`BDP_WRITE_ALLOWED_ORIGINS`), que
-   hoy **no está definida** en producción. Es el motivo por el que el automático y
-   la autorización manual se rechazan hoy, y es lo primero que hay que decidir:
-   declarar el TPV del cliente como destino autorizado.
-2. **Un snapshot completo del TPV** (artículos, clientes, departamentos, salones y
-   empleados) hecho el mismo día. Hoy no hay ninguno, así que el modo automático
-   no se puede activar ni queriendo. Se hace desde la propia pantalla.
-3. **El mapeo de formas de pago.** Hoy no hay ninguno configurado, de modo que los
-   pagos saldrían **sin identificar la forma de pago**. Hay que mapear al menos
-   efectivo y tarjeta.
-4. **El mapeo de tipos de pedido.** Hoy no hay ninguno: todas las ventas se
-   enviarían como «Barra». Si el restaurante usa salón, mesa o recogida, hay que
-   mapearlos.
-5. **Las cadencias de lectura**, hoy a cero: mientras estén en cero, los maestros
-   (artículos, clientes, plano, departamentos) y los documentos **no se refrescan
-   solos**. Encenderlas es una decisión del cliente, y el valor recomendado es 15
-   minutos.
-6. **La cuenta de demostración** tiene la sincronización apagada. Es lo correcto
-   para una demo; conviene saberlo antes de extrañarse de que no lea nada.
+| Qué falta | Quién lo hace |
+|---|---|
+| **Un snapshot completo del TPV** (artículos, clientes, departamentos, salones y empleados) del mismo día. Sin él el modo automático no se puede activar. | **Nosotros**, desde la pantalla, el día de la puesta en marcha |
+| **El mapeo de formas de pago.** Hoy no hay ninguno: los pagos saldrían sin identificar la forma de pago. Como mínimo, efectivo y tarjeta. | **El cliente** elige qué formas usa; se introduce en pantalla (lo hacemos nosotros con su lista) |
+| **El mapeo de tipos de pedido.** Hoy no hay ninguno: todas las ventas se enviarían como «Barra». | **El cliente** elige si usa salón, mesa o recogida; se introduce en pantalla (lo hacemos nosotros con su lista) |
+| **Las cadencias de lectura**, hoy a cero: los maestros (artículos, clientes, plano, departamentos) y los documentos no se refrescan solos. Recomendado, 15 minutos. | **El cliente** decide; lo encendemos nosotros |
+
+Aparte, para información: la cuenta de demostración tiene la sincronización
+apagada, que es lo correcto en una demo.
 
 ---
 
@@ -373,9 +349,9 @@ condiciones:
    disponibles. Es lo único que puede impedir que la integración funcione igual en
    producción, y se resuelve hablando con el proveedor. **Está pendiente de
    decisión del cliente.**
-2. **Los seis datos de configuración de la sección 9**, que son la puesta en marcha:
-   lista blanca de destino, snapshot del día, mapeos de pago y tipo de pedido y
-   cadencias de lectura.
+2. **La puesta en marcha de la sección 9**: el snapshot del día y las cadencias
+   los ponemos nosotros, en una sola sesión; las formas de pago y los tipos de
+   pedido salen de la lista que dé el cliente.
 3. **Una sesión presencial de una hora** con el TPV delante para cerrar las cinco
    pruebas que lo exigen (impresora de cocina, doble toque, Monitor de Cocina,
    traspaso completo y reinicio de BDP.NET).

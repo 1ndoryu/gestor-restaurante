@@ -26,13 +26,12 @@
 
 > Todas deben fallar simultáneamente para que una escritura dañina llegue a BDP.
 
-### Capa 1 — Allowlist de destinos (`BDP_WRITE_ALLOWED_ORIGINS`)
+### Capa 1 — Forma del destino y sin redirects
 
-- **Archivo:** `src/services/bdp_weblink.rs:466-475`
-- **Comportamiento:** Si vacía o no definida → TODAS las escrituras bloqueadas.
-- **Verificación:** `ensure_write_target_allowed()` + `canonical_target()`
-- **Extra:** `redirect(Policy::none())` en `bdp_weblink.rs:44` previene evasión por redirect HTTP. **(S6-H1 cerrado)**
-- **Estado:** ✅ Activa
+- **Archivo:** `src/services/bdp_weblink/transporte.rs` (`ensure_base_url`, `construir_cliente`)
+- **Comportamiento:** toda petición exige un origen limpio (http/https, sin credenciales, query, fragmento ni ruta); un valor mal formado se rechaza con `InvalidBaseUrl`. `redirect(Policy::none())` impide que un 302 desvíe la petición.
+- **Retirado el 2026-10-22:** la allowlist por variable de entorno (`BDP_WRITE_ALLOWED_ORIGINS` / `BDP_CHECK_ORDER_ALLOWED_ORIGINS`) y su error `WriteTargetDenied`. El destino ya no se filtra por lista blanca; el resto de capas queda igual.
+- **Estado:** ✅ Activa (forma de URL) · ❌ Retirada (lista blanca)
 
 ### Capa 2 — Modo de sincronización (`bdp_sync_mode`)
 

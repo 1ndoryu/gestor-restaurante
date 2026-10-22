@@ -58,11 +58,11 @@ Dos procesos se lanzan en `tokio::spawn` al arrancar:
 
 La integración tiene **5 capas** de seguridad. TODAS deben pasar para que una escritura llegue al BDP:
 
-### Capa 1 — Variables de entorno (`BDP_WRITE_ALLOWED_ORIGINS`)
+### Capa 1 — Forma del destino (`ensure_base_url`)
 
-- Si está vacía o no definida → **TODAS las escrituras están bloqueadas**
-- En producción esta variable **NO se va a configurar** inicialmente
-- Efecto: aunque todo lo demás fallara, las escrituras no llegan al BDP
+- Toda petición exige un origen limpio: http/https, sin credenciales, query, fragmento ni ruta.
+- `redirect(Policy::none())`: un 302 no puede desviar una escritura a otro host.
+- **La allowlist por variable de entorno se retiró el 2026-10-22.** Se conecta a cualquier dirección que se configure, siempre que tenga forma de origen limpio.
 
 ### Capa 2 — `bdp_sync_mode` = `read_only`
 
@@ -115,7 +115,7 @@ Sin el string exacto, la operación se rechaza.
 
 Para que la integración BDP pueda escribir, el usuario debe (en este orden):
 
-1. Configurar `BDP_WRITE_ALLOWED_ORIGINS` en envs del contenedor
+1. Configurar la URL del TPV, el login, la contraseña y el código de integrador en Configuración
 2. Llamar `PUT /api/configuracion/bdp/sync-mode` con `confirmar_escritura=true`
 3. Para cada operación individual: pasar por WriteGuard + confirmación explícita
 

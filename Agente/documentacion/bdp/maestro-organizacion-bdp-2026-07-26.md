@@ -78,7 +78,7 @@
 
 | # | MD | Verificado | Estado | Detalle de verificación |
 |---|-----|-----------|--------|------------------------|
-| 3 | `bdp-seguridad-produccion-2026-07-21.md` | ✅ | **Correcto y vigente** | 5 capas verificadas: (1) BDP_WRITE_ALLOWED_ORIGINS en bdp_weblink.rs:466-475, (2) bdp_sync_mode=read_only en bdp_config_bootstrap.rs:208, (3) bdp_write_arming con remaining_operations en bdp_write_guard.rs:132, (4) confirmación textual en handlers/ventas.rs, (5) bdp_audit_log en bdp_write_guard.rs:158. Bootstrap desactiva todo. Background tasks inactivos por defecto. |
+| 3 | `bdp-seguridad-produccion-2026-07-21.md` | ⚠️ | **Desactualizado en la capa 1** | 5 capas: (1) allowlist `BDP_WRITE_ALLOWED_ORIGINS` **retirada el 2026-10-22**; queda la validación de forma de URL y `redirect::Policy::none()`, (2) bdp_sync_mode=read_only por defecto, (3) bdp_write_arming de un solo uso, (4) confirmación textual, (5) auditoría de cada escritura. Bootstrap desactiva todo; bucles apagados por defecto. |
 | 4 | `riesgos-produccion-bdp-2026-07-24.md` | ⚠️ | **Parcialmente desactualizado** | Verificación de cada riesgo contra código:
 - **R1**: ✅ `reconcile_ambiguous` implementado en bdp_order_poller.rs (5 funciones reconcile_create_order, reconcile_add_payment, reconcile_invoice, reconcile_ambiguous_pagos)
 - **R2**: ✅ Mitigado — distributed_lock cerrado antes de HTTP (§7 marca ✅ Aplicado)

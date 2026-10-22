@@ -33,7 +33,7 @@
 
 ## Invariantes implementadas localmente
 
-1. Toda escritura externa exige que la URL base coincida exactamente con `BDP_WRITE_ALLOWED_ORIGINS`; loopback se permite para el simulador.
+1. Toda escritura exige una URL base con forma de origen limpio (http/https, sin credenciales, query, fragmento ni ruta) y sin redirects automáticos. El destino no se filtra por lista: desde el 2026-10-22 se retiró la allowlist por variable de entorno (`BDP_WRITE_ALLOWED_ORIGINS`).
 2. `read_only`, auto-backup y auditoría son fail-closed.
 3. `MarketplaceOrderId` es determinista, estable y de 15 caracteres.
 4. `CreateOrder` se llama una sola vez. Un fallo de transporte obliga a `GetOrder`; si no aparece un `OrderId`, queda `ambiguo` y no se reintenta.
