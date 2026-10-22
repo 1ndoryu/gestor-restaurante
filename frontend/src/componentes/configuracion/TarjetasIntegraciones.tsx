@@ -4,9 +4,10 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { EstadoConfiguracion } from '../../hooks/useConfiguracion';
 import type { CambiarCampo } from '../config-bdp/tipos';
+import { AyudaTarjeta } from './AyudaTarjeta';
 
 interface TarjetasIntegracionesProps {
   config: EstadoConfiguracion;
@@ -22,6 +23,9 @@ export function TarjetasIntegraciones({ config, cambiarCampo }: TarjetasIntegrac
         <CardHeader>
           <CardTitle>Enlace a Haddock</CardTitle>
           <CardDescription>Sincronizar al día las ventas con Haddock por su POS API</CardDescription>
+          <CardAction>
+            <AyudaTarjeta id="haddock" titulo="Enlace a Haddock" />
+          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
@@ -66,6 +70,9 @@ export function TarjetasIntegraciones({ config, cambiarCampo }: TarjetasIntegrac
         <CardHeader>
           <CardTitle>Pedir reseñas y enlazar WhatsApp</CardTitle>
           <CardDescription>A dónde va quien puntúa bien, y qué botones llevan los mensajes de WhatsApp</CardDescription>
+          <CardAction>
+            <AyudaTarjeta id="resenas" titulo="Pedir reseñas y enlazar WhatsApp" />
+          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">

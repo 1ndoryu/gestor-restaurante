@@ -4,9 +4,10 @@
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { EstadoConfiguracion } from '../../hooks/useConfiguracion';
 import type { CambiarCampo } from '../config-bdp/tipos';
+import { AyudaTarjeta } from './AyudaTarjeta';
 
 interface TarjetasOperativasProps {
   config: EstadoConfiguracion;
@@ -21,6 +22,9 @@ export function TarjetasOperativas({ config, cambiarCampo }: TarjetasOperativasP
         <CardHeader>
           <CardTitle>Una venta al completar cada reserva</CardTitle>
           <CardDescription>Al marcar una reserva como completada se crea la venta sola, sin que nadie la teclee</CardDescription>
+          <CardAction>
+            <AyudaTarjeta id="venta-reserva" titulo="Una venta al completar cada reserva" />
+          </CardAction>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between">
@@ -38,6 +42,9 @@ export function TarjetasOperativas({ config, cambiarCampo }: TarjetasOperativasP
         <CardHeader>
           <CardTitle>Cómo se anula una venta</CardTitle>
           <CardDescription>«Crédito completo» exige motivo y revierte la venta en el resumen diario; «Solo estado» la marca como anulada sin pedir motivo</CardDescription>
+          <CardAction>
+            <AyudaTarjeta id="anulacion" titulo="Cómo se anula una venta" />
+          </CardAction>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between gap-4">

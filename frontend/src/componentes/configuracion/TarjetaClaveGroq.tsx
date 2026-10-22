@@ -4,9 +4,10 @@
 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { EstadoConfiguracion } from '../../hooks/useConfiguracion';
 import type { CambiarCampo } from '../config-bdp/tipos';
+import { AyudaTarjeta } from './AyudaTarjeta';
 
 interface TarjetaClaveGroqProps {
   config: EstadoConfiguracion;
@@ -21,6 +22,9 @@ export function TarjetaClaveGroq({ config, cambiarCampo }: TarjetaClaveGroqProps
         <CardDescription>
           Con una clave de Groq, la app reconoce sola el texto de los documentos que subes.
         </CardDescription>
+        <CardAction>
+          <AyudaTarjeta id="groq" titulo="Leer facturas y albaranes con IA" />
+        </CardAction>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col gap-2">

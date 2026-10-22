@@ -5,10 +5,11 @@
 import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useBdpDemoMode } from '../../hooks/useBdpDemoMode';
 import { GuardadoAlInstante } from './CardSeccion';
+import { AyudaTarjeta } from './AyudaTarjeta';
 
 interface TarjetaDatosPruebaProps {
   operandoSeed: boolean;
@@ -25,6 +26,9 @@ export function TarjetaDatosPrueba({ operandoSeed, ejecutarOperacion }: TarjetaD
         <CardHeader>
           <CardTitle>Datos de ejemplo</CardTitle>
           <CardDescription>Datos ficticios para probar la app sin tocar los reales</CardDescription>
+          <CardAction>
+            <AyudaTarjeta id="datos-prueba" titulo="Datos de ejemplo" />
+          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-4 rounded-md border p-3">

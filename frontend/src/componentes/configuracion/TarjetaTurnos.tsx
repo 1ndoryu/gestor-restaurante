@@ -3,9 +3,10 @@
 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { EstadoConfiguracion } from '../../hooks/useConfiguracion';
 import type { CambiarCampo } from '../config-bdp/tipos';
+import { AyudaTarjeta } from './AyudaTarjeta';
 
 interface TarjetaTurnosProps {
   config: EstadoConfiguracion;
@@ -20,6 +21,9 @@ export function TarjetaTurnos({ config, cambiarCampo }: TarjetaTurnosProps) {
         <CardHeader>
           <CardTitle>Horarios de turnos</CardTitle>
           <CardDescription>Define los rangos horarios para desayuno, comida y cena</CardDescription>
+          <CardAction>
+            <AyudaTarjeta id="turnos" titulo="Horarios de turnos" />
+          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="grid grid-cols-3 gap-4">

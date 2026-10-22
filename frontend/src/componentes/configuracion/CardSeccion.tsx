@@ -1,81 +1,62 @@
-/* [D33] Una sección de configuración es un grupo de tarjetas con un único
- * punto de guardado: el mismo botón arriba (para quien ya sabe qué toca) y
- * abajo (para quien acaba de reeditar), con el estado en medio. Lo que guarda
- * al instante NO se envuelve aquí: lleva `GuardadoAlInstante` para decirlo. */
+/* [D33] Un grupo de tarjetas con un único punto de guardado. Ese punto no vive
+ * aquí sino en la barra fija de la esquina (`BarraGuardado`): antes cada pestaña
+ * tenía dos botones «Guardar» —uno arriba y otro al final— y el de arriba de una
+ * tarjeta parecía guardar solo lo que tenía debajo. Lo que guarda al instante NO
+ * se envuelve aquí: lleva `GuardadoAlInstante` para decirlo.
+ *
+ * [D33c] El grupo ya no se pinta como tarjeta contenedora: las tarjetas hijas ya
+ * son tarjetas, y una caja dentro de otra hacía que en Conexiones convivieran los
+ * dos estilos (unas agrupadas dentro de una caja y otras sueltas). Ahora todas
+ * las pestañas son lo mismo: un título de sección y una lista de tarjetas
+ * hermanas, separadas por el mismo hueco. */
 
-import { Save } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Check } from 'lucide-react';
 
 interface CardSeccionProps {
   /** Qué grupo es, en las palabras de la usuaria («Mi restaurante»). */
   titulo: string;
   /** Una línea con el paraqué del grupo. */
   descripcion: string;
-  /** Sin guardar pendiente en esta sección: se avisa al intentar salir. */
-  sucio: boolean;
-  guardando: boolean;
-  onGuardar: () => void;
-  /** Resultado del último guardado (éxito o error), solo de esta sección. */
-  mensaje?: string;
+  /** El grupo entero guarda al instante: la marca va bajo el título, no suelta
+   * entre dos tarjetas, para que se lea como estado del grupo. */
+  alInstante?: boolean;
   children: React.ReactNode;
 }
 
-export function CardSeccion({
-  titulo,
-  descripcion,
-  sucio,
-  guardando,
-  onGuardar,
-  mensaje,
-  children,
-}: CardSeccionProps) {
-  const estado = guardando ? 'Guardando…' : sucio ? 'Cambios sin guardar' : 'Sin cambios pendientes';
+export function CardSeccion({ titulo, descripcion, alInstante, children }: CardSeccionProps) {
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-6 pt-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">{titulo}</h2>
-            <p className="text-sm text-muted-foreground">{descripcion}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {mensaje && (
-              <span className={`text-sm ${mensaje.includes('Error') ? 'text-destructive' : 'text-green-600'}`}>
-                {mensaje}
-              </span>
-            )}
-            <span className={`text-xs ${sucio ? 'font-medium text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}>
-              {estado}
-            </span>
-            <Button onClick={onGuardar} disabled={guardando || !sucio}>
-              <Save className="size-4 mr-1" />
-              {guardando ? 'Guardando…' : 'Guardar'}
-            </Button>
-          </div>
-        </div>
-        {children}
-        {sucio && (
-          <div className="flex items-center justify-between gap-4 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950/20">
-            <p className="text-sm text-amber-800 dark:text-amber-300">
-              Quedan cambios sin guardar en esta sección.
-            </p>
-            <Button onClick={onGuardar} disabled={guardando}>
-              {guardando ? 'Guardando…' : 'Guardar cambios'}
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <section className="flex flex-col gap-4">
+      <CabeceraGrupo titulo={titulo} descripcion={descripcion} alInstante={alInstante} />
+      {children}
+    </section>
   );
 }
 
-/** Marca para lo que no espera al botón: sin ella, la pantalla mezcla dos modos
- * de guardado y la usuaria no sabe cuál es cuál. */
+/** Cabecera de un grupo de tarjetas. Se exporta porque hay pestañas que no
+ * agrupan (todo se guarda al instante) y aun así necesitan el mismo título que
+ * las demás: sin él, media pantalla parece de otra aplicación. */
+export function CabeceraGrupo({
+  titulo,
+  descripcion,
+  alInstante,
+}: Omit<CardSeccionProps, 'children'>) {
+  return (
+    <div className="flex flex-col gap-1">
+      <h2 className="text-lg font-semibold">{titulo}</h2>
+      <p className="text-sm text-muted-foreground">{descripcion}</p>
+      {alInstante && <GuardadoAlInstante />}
+    </div>
+  );
+}
+
+/** Marca para lo que no espera al botón. Sin ella la pantalla mezcla dos modos de
+ * guardado y no se sabe cuál es cuál; con ella, la pestaña dice de un vistazo si
+ * hay que pulsar algo. */
 export function GuardadoAlInstante() {
   return (
-    <p className="text-xs text-muted-foreground">
-      Esto se guarda al instante, sin pulsar «Guardar».
-    </p>
+    <span className="inline-flex w-fit items-center gap-1.5 rounded-md border px-2 py-1 text-xs text-muted-foreground">
+      <Check className="size-3.5" />
+      Se guarda al instante, sin pulsar «Guardar»
+    </span>
   );
 }

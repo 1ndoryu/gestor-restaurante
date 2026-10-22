@@ -5,9 +5,10 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { EstadoConfiguracion } from '../../hooks/useConfiguracion';
 import type { CambiarCampo } from '../config-bdp/tipos';
+import { AyudaTarjeta } from './AyudaTarjeta';
 
 interface TarjetasNegocioProps {
   config: EstadoConfiguracion;
@@ -21,6 +22,9 @@ export function TarjetasNegocio({ config, cambiarCampo }: TarjetasNegocioProps) 
         <CardHeader>
           <CardTitle>El nombre que sale en los tickets y en la web</CardTitle>
           <CardDescription>Cómo aparece el restaurante para quien lo busca y para quien recibe una factura</CardDescription>
+          <CardAction>
+            <AyudaTarjeta id="negocio-nombre" titulo="El nombre que sale en los tickets y en la web" />
+          </CardAction>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-2">
@@ -39,6 +43,9 @@ export function TarjetasNegocio({ config, cambiarCampo }: TarjetasNegocioProps) 
         <CardHeader>
           <CardTitle>Qué datos se piden al reservar</CardTitle>
           <CardDescription>Lo que el cliente no puede dejar en blanco al reservar una mesa</CardDescription>
+          <CardAction>
+            <AyudaTarjeta id="negocio-reserva" titulo="Qué datos se piden al reservar" />
+          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {/* [303A-16] Fecha y hora siempre obligatorios — switches deshabilitados para
@@ -91,6 +98,9 @@ export function TarjetasNegocio({ config, cambiarCampo }: TarjetasNegocioProps) 
         <CardHeader>
           <CardTitle>El IVA que se aplica por defecto</CardTitle>
           <CardDescription>El impuesto que llevan los artículos nuevos si nadie lo cambia</CardDescription>
+          <CardAction>
+            <AyudaTarjeta id="negocio-iva" titulo="El IVA que se aplica por defecto" />
+          </CardAction>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-2">

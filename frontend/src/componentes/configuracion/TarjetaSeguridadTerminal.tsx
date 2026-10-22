@@ -7,10 +7,11 @@ import { KeyRound, RefreshCw, ShieldCheck, ShieldX } from 'lucide-react';
 import axios from '@/api/axios-instance';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { AyudaTarjeta } from './AyudaTarjeta';
 
 interface IntentoAcceso {
   created_at: string;
@@ -110,6 +111,9 @@ export function TarjetaSeguridadTerminal() {
           Cambiar la contraseña pide la actual: una sesión abierta sin conocerla no basta. Los
           intentos de acceso, con y sin éxito, quedan anotados abajo.
         </CardDescription>
+        <CardAction>
+          <AyudaTarjeta id="terminal" titulo="Contraseña del terminal" />
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         <div className="grid max-w-md gap-3">

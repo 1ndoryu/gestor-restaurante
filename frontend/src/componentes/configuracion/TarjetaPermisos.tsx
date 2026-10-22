@@ -4,9 +4,10 @@
 
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { EstadoConfiguracion } from '../../hooks/useConfiguracion';
 import type { CambiarCampo } from '../config-bdp/tipos';
+import { AyudaTarjeta } from './AyudaTarjeta';
 
 interface TarjetaPermisosProps {
   config: EstadoConfiguracion;
@@ -36,6 +37,9 @@ export function TarjetaPermisos({ config, cambiarCampo }: TarjetaPermisosProps) 
         <CardDescription>
           El servidor aplica el permiso en cada operación; esta pantalla solo lo declara.
         </CardDescription>
+        <CardAction>
+          <AyudaTarjeta id="permisos" titulo="Quién puede tocar cada cosa" />
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="grid gap-3 md:grid-cols-2">

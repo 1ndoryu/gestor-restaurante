@@ -1,8 +1,11 @@
-/* [D33] Botón de ayuda de una pestaña de Configuración: abre un modal con la
+/* [D33] Botón de ayuda de UNA tarjeta de Configuración: abre un modal con la
  * información completa de lo que hay dentro —qué hace cada ajuste, qué pasa si
  * se deja vacío, dónde se consigue el dato y qué se rompe si está mal—. El texto
  * no vive en las tarjetas: así se puede revisar la explicación sin tocar el
- * formulario, y una pestaña sin ayuda se nota al instante. */
+ * formulario, y una tarjeta sin ayuda se nota al instante.
+ * [D33b] Antes era una ayuda por pestaña; una pestaña mezcla siete ajustes sin
+ * relación y el texto obligaba a leerlo entero. Ahora cada tarjeta lleva la suya
+ * y el botón se coloca en su cabecera con `CardAction`. */
 
 import { HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import type { IdSeccion } from './secciones';
+import { AYUDA, type IdAyuda } from './ayuda';
 
 export interface BloqueAyuda {
   /** Qué ajuste es, con el mismo nombre que ve la usuaria en la tarjeta. */
@@ -25,14 +28,14 @@ export interface BloqueAyuda {
   detalle: string;
 }
 
-interface AyudaSeccionProps {
-  seccion: IdSeccion;
+interface AyudaTarjetaProps {
+  id: IdAyuda;
+  /** Título de la tarjeta, tal cual: el modal dice «Qué hay en …». */
   titulo: string;
-  intro: string;
-  bloques: readonly BloqueAyuda[];
 }
 
-export function AyudaSeccion({ seccion, titulo, intro, bloques }: AyudaSeccionProps) {
+export function AyudaTarjeta({ id, titulo }: AyudaTarjetaProps) {
+  const ayuda = AYUDA[id];
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -41,13 +44,13 @@ export function AyudaSeccion({ seccion, titulo, intro, bloques }: AyudaSeccionPr
           Ayuda
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-2xl" id={`ayuda-${seccion}`}>
+      <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-2xl" id={`ayuda-${id}`}>
         <DialogHeader>
           <DialogTitle>Qué hay en «{titulo}»</DialogTitle>
-          <DialogDescription>{intro}</DialogDescription>
+          <DialogDescription>{ayuda.intro}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          {bloques.map((bloque) => (
+          {ayuda.bloques.map((bloque) => (
             <section key={bloque.titulo} className="flex flex-col gap-1">
               <h3 className="text-sm font-semibold">{bloque.titulo}</h3>
               <p className="text-sm">{bloque.queHace}</p>

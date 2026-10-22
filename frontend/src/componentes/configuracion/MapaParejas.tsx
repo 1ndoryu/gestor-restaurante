@@ -95,7 +95,7 @@ export function MapaParejas({
       <Label htmlFor={`${id}-0-clave`}>{etiqueta}</Label>
       {ayuda && <p className="text-xs text-muted-foreground">{ayuda}</p>}
       {filas.length === 0 ? (
-        <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Sin parejas todavía. Añade la primera con el botón de abajo.
         </p>
       ) : (

@@ -26,7 +26,7 @@ const CAMPOS_BDP = [
   'ff_bdp_auto_arm', 'ff_bdp_partial_payments', 'ff_bdp_cancel_order',
   'ff_bdp_purchase_notes_read', 'ff_bdp_purchase_notes_draft', 'ff_bdp_purchase_notes_receive',
   'push_modalidad', 'bdp_tav_map', 'bdp_almacen_default', 'bdp_codreg_default',
-  'bdp_articulo_rango_inicial',
+  'bdp_articulo_rango_inicial', 'bdp_maestros_auto_segundos',
 ] as const satisfies readonly (keyof EstadoConfiguracion)[];
 
 export const SECCIONES: readonly DefinicionSeccion[] = [
