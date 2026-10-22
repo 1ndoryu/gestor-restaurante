@@ -38,7 +38,7 @@ pub use bdp_article_map::{crear_conteo_inventario, listar_conteos_inventario};
 /* [039A-1/H-P1-02] Fail-closed por modo efectivo en handlers que conectan
  * directo con BDP (login/export) — exposición para tests de regresión. */
 pub use bdp_article_map::{importar_catalogo, sync_catalog, sync_stock_almacen};
-pub use bdp_customer_sync::{importar_clientes_bdp, BdpCustomerImportRequest};
+pub use bdp_customer_sync::{importar_clientes, importar_clientes_bdp, BdpCustomerImportRequest};
 /* [039A-1/H-P1-03] Fail-closed por modo efectivo en explorar/backup BDP
  * (red real) — exposición para tests de regresión. */
 pub use bdp_backup::{

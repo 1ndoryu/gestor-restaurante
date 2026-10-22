@@ -2,6 +2,7 @@
 
 use axum::extract::State;
 use axum::Json;
+use sqlx::PgPool;
 use tracing::warn;
 use uuid::Uuid;
 
@@ -49,7 +50,19 @@ pub async fn importar_clientes_bdp(
                 .into(),
         ));
     }
-    let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    let resultado = importar_clientes(&state.pool, auth.user_id, req.aplicar).await?;
+    Ok(Json(resultado))
+}
+
+/* [D24-auto-2] Importar clientes del TPV a la web, sin pasar por el handler.
+ * Mismo camino que el botón: `aplicar=false` cuenta sin escribir. No escribe
+ * nada en el TPV, así que ni el barrido ni el botón necesitan armado. */
+pub async fn importar_clientes(
+    pool: &PgPool,
+    user_id: Uuid,
+    aplicar: bool,
+) -> Result<serde_json::Value, AppError> {
+    let config = ConfiguracionService::obtener(pool, user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
         return Err(AppError::Validation(
@@ -90,10 +103,10 @@ pub async fn importar_clientes_bdp(
     let mut codigos_vistos = std::collections::HashSet::new();
     for cust in customers {
         let cortar = procesar_cliente_bdp(
-            &state,
-            auth.user_id,
+            pool,
+            user_id,
             cust,
-            req.aplicar,
+            aplicar,
             &mut codigos_vistos,
             &mut rec,
         )
@@ -103,7 +116,7 @@ pub async fn importar_clientes_bdp(
         }
     }
 
-    Ok(Json(serde_json::json!({
+    Ok(serde_json::json!({
         "imported": rec.importados,
         "updated": rec.actualizados,
         "unchanged": rec.sin_cambios,
@@ -111,9 +124,9 @@ pub async fn importar_clientes_bdp(
         "conflicts": rec.conflictos,
         "conflict_sample": rec.muestra_conflictos,
         "total": customers.len(),
-        "applied": req.aplicar,
+        "applied": aplicar,
         "writes_to_bdp": false,
-    })))
+    }))
 }
 
 /// Contadores de la importación y racha de errores seguidos.
@@ -192,7 +205,7 @@ fn texto_bdp<'a>(cust: &'a serde_json::Value, clave: &str) -> &'a str {
 
 /// Procesa una fila de BDP. Devuelve `true` si hay que cortar la importación.
 async fn procesar_cliente_bdp(
-    state: &AppState,
+    pool: &PgPool,
     user_id: Uuid,
     cust: &serde_json::Value,
     aplicar: bool,
@@ -208,7 +221,7 @@ async fn procesar_cliente_bdp(
 
     /* Buscar cliente existente por teléfono o email */
     match ClienteRepository::find_by_telefono_o_email(
-        &state.pool,
+        pool,
         user_id,
         fila.telefono,
         fila.email,
@@ -216,9 +229,9 @@ async fn procesar_cliente_bdp(
     .await
     {
         Ok(Some(cliente)) => {
-            sincronizar_existente(state, &cliente, fila.codigo, aplicar, rec).await
+            sincronizar_existente(pool, &cliente, fila.codigo, aplicar, rec).await
         }
-        Ok(None) => crear_importado(state, user_id, &fila, aplicar, rec).await,
+        Ok(None) => crear_importado(pool, user_id, &fila, aplicar, rec).await,
         Err(e) => {
             warn!("[AUDIT-N5] Error DB buscando cliente: {e}");
             rec.error()
@@ -228,7 +241,7 @@ async fn procesar_cliente_bdp(
 
 /// Cliente inexistente en Glory: lo crea y lo vincula al aplicar.
 async fn crear_importado(
-    state: &AppState,
+    pool: &PgPool,
     user_id: Uuid,
     fila: &FilaBdp<'_>,
     aplicar: bool,
@@ -261,7 +274,7 @@ async fn crear_importado(
     };
     /* Crear localmente y vincular. El índice único por usuario y
      * código BDP evita que una carrera duplique la identidad remota. */
-    match ClienteService::create_bdp_import(&state.pool, user_id, nuevo, fila.codigo).await {
+    match ClienteService::create_bdp_import(pool, user_id, nuevo, fila.codigo).await {
         Ok(_) => {
             rec.importados += 1;
             false

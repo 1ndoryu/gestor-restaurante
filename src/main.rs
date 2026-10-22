@@ -110,6 +110,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /* [D-auto-push/D24-auto] Cola de envíos y catálogo programado (opt-in). */
     lanzar_push_automatico(pool.clone());
     lanzar_maestros_automaticos(pool.clone(), modo_operacion.clone());
+    /* [D24-auto-2] Clientes, plano de sala y departamentos, cada uno con su
+     * cadencia por cuenta. Comparten bucle: el grano es el mismo y así una sola
+     * pasada decide qué toca de los tres. */
+    lanzar_cadencias_maestros(pool.clone(), modo_operacion.clone());
 
     /* [303A-2] Graceful shutdown: señal SIGTERM/Ctrl+C cierra conexiones limpiamente */
     let listener = tokio::net::TcpListener::bind(&addr).await?;
@@ -243,6 +247,30 @@ fn lanzar_maestros_automaticos(pool: sqlx::PgPool, modo: ServicioModoOperacion) 
             let leidos = maestros::sincronizar_vencidas(&pool, &modo).await;
             if leidos > 0 {
                 tracing::info!("[D24-auto] Maestros del BDP leídos: {leidos}");
+            }
+        }
+    });
+}
+
+/* [D24-auto-2] Clientes, plano de sala y departamentos. Cada maestro tiene su
+ * propia cadencia y su propia marca de última lectura; el bucle los recorre en
+ * serie dentro de una pasada para no abrir tres conexiones al TPV a la vez. */
+fn lanzar_cadencias_maestros(pool: sqlx::PgPool, modo: ServicioModoOperacion) {
+    use glory_backend::services::bdp_cadencias_maestros as cadencias;
+
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+            cadencias::GRANO_BUCLE_SEGUNDOS,
+        ));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            for maestro in [
+                cadencias::Maestro::Clientes,
+                cadencias::Maestro::Plano,
+                cadencias::Maestro::Departamentos,
+            ] {
+                cadencias::sincronizar_vencidas(&pool, &modo, maestro).await;
             }
         }
     });

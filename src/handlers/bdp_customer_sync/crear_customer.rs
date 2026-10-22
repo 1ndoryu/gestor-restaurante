@@ -1,6 +1,7 @@
 /* [267A-8] Armado y ejecución de CreateCustomer en BDP con auditoría; división de nombres. */
 
 use axum::Json;
+use sqlx::PgPool;
 use tracing::warn;
 use uuid::Uuid;
 
@@ -8,13 +9,12 @@ use crate::errors::AppError;
 use crate::models::{Cliente, ConfiguracionRestaurante};
 use crate::repositories::{BdpAuditLogRepository, ClienteRepository};
 use crate::services::{BdpCreateCustomerRequest, BdpWeblinkClient};
-use crate::AppState;
 
 /* [267A-8] Construye el payload CreateCustomer [048A-8] y deja la escritura
  * armada localmente (guard + snapshot pre-write + authorize). Devuelve el
  * request y el audit_id autorizado. */
 pub(super) async fn armar_create_customer(
-    state: &AppState,
+    pool: &PgPool,
     user_id: Uuid,
     config: &ConfiguracionRestaurante,
     cliente: &Cliente,
@@ -29,7 +29,7 @@ pub(super) async fn armar_create_customer(
     };
 
     /* [D18d] El NIF viaja en FIN: sin él BDP da de alta el cliente sin identificación fiscal. */
-    let fin = ClienteRepository::datos_fiscales(&state.pool, cliente.id, user_id)
+    let fin = ClienteRepository::datos_fiscales(pool, cliente.id, user_id)
         .await
         .map_err(|e| AppError::Internal(format!("Error leyendo NIF del cliente: {e}")))?
         .map(|datos| datos.nif.trim().to_string())
@@ -69,7 +69,7 @@ pub(super) async fn armar_create_customer(
         "overwrite": overwrite
     });
     crate::services::BdpWriteGuard::ensure_no_unresolved(
-        &state.pool,
+        pool,
         user_id,
         "cliente_id",
         cliente.id,
@@ -78,7 +78,7 @@ pub(super) async fn armar_create_customer(
     .await
     .map_err(AppError::Validation)?;
     let snapshot_pre_id = crate::services::BdpBackupService::preparar_snapshot_escritura(
-        &state.pool,
+        pool,
         user_id,
         "create_customer",
         config,
@@ -92,7 +92,7 @@ pub(super) async fn armar_create_customer(
     })?;
 
     let audit_id = crate::services::BdpWriteGuard::authorize(
-        &state.pool,
+        pool,
         user_id,
         config,
         crate::services::EscrituraAutorizar {
@@ -114,7 +114,7 @@ pub(super) async fn armar_create_customer(
  * y confirma marca local + auditoría en transacción atómica [AUDIT-N1]. */
 pub(super) async fn ejecutar_create_customer(
     client: &BdpWeblinkClient<'_>,
-    state: &AppState,
+    pool: &PgPool,
     req: &BdpCreateCustomerRequest,
     audit_id: Uuid,
     cliente: &Cliente,
@@ -134,7 +134,7 @@ pub(super) async fn ejecutar_create_customer(
                 "error"
             };
             crate::services::BdpBackupService::actualizar_resultado(
-                &state.pool,
+                pool,
                 audit_id,
                 resultado,
                 None,
@@ -158,7 +158,7 @@ pub(super) async fn ejecutar_create_customer(
 
     if !error_msg.is_empty() {
         crate::services::BdpBackupService::actualizar_resultado(
-            &state.pool,
+            pool,
             audit_id,
             "error",
             Some(&resp),
@@ -172,7 +172,7 @@ pub(super) async fn ejecutar_create_customer(
         })?;
         /* Guardar error en el cliente */
         let _ = ClienteRepository::update_bdp_sync(
-            &state.pool,
+            pool,
             cliente.id,
             None,
             false,
@@ -184,7 +184,7 @@ pub(super) async fn ejecutar_create_customer(
         )));
     }
 
-    confirmar_cliente_creado(&state.pool, cliente.id, audit_id, bdp_code, &resp).await?;
+    confirmar_cliente_creado(pool, cliente.id, audit_id, bdp_code, &resp).await?;
 
     Ok(Json(serde_json::json!({
         "cliente_id": cliente.id,

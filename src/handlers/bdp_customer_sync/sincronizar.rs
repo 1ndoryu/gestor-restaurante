@@ -2,6 +2,7 @@
 
 use axum::extract::{Path, State};
 use axum::Json;
+use sqlx::PgPool;
 use tracing::warn;
 use uuid::Uuid;
 
@@ -19,7 +20,7 @@ use super::{customer_code, BdpCustomerSyncRequest};
 
 /// Cliente ya existente en Glory: vincula su código BDP si no tiene ninguno.
 pub(super) async fn sincronizar_existente(
-    state: &AppState,
+    pool: &PgPool,
     cliente: &Cliente,
     codigo_bdp: i32,
     aplicar: bool,
@@ -30,7 +31,7 @@ pub(super) async fn sincronizar_existente(
     match cliente.bdp_customer_code {
         None if aplicar => {
             match ClienteRepository::update_bdp_sync(
-                &state.pool,
+                pool,
                 cliente.id,
                 Some(codigo_bdp),
                 true,
@@ -117,15 +118,15 @@ pub async fn sincronizar_cliente_bdp(
     /* Con Overwrite autorizado el objetivo es reemplazar el registro ya vinculado,
      * así que el preflight de colisión no aplica. */
     if !overwrite {
-        if let Some(respuesta) = vincular_si_existe(&client, &state, &cliente, bdp_code).await? {
+        if let Some(respuesta) = vincular_si_existe(&client, &state.pool, &cliente, bdp_code).await? {
             return Ok(respuesta);
         }
     }
 
     let (req, audit_id) =
-        armar_create_customer(&state, auth.user_id, &config, &cliente, bdp_code, overwrite).await?;
+        armar_create_customer(&state.pool, auth.user_id, &config, &cliente, bdp_code, overwrite).await?;
 
-    ejecutar_create_customer(&client, &state, &req, audit_id, &cliente, bdp_code).await
+    ejecutar_create_customer(&client, &state.pool, &req, audit_id, &cliente, bdp_code).await
 }
 
 /* [267A-8] Puerta de sincronización: confirmación exacta + config + modo +
@@ -211,7 +212,7 @@ fn es_bdp_local(base_url: &str) -> bool {
  * si pertenece a otro cliente, error de conflicto. `None` = vía libre. */
 async fn vincular_si_existe(
     client: &BdpWeblinkClient<'_>,
-    state: &AppState,
+    pool: &PgPool,
     cliente: &Cliente,
     bdp_code: i32,
 ) -> Result<Option<Json<serde_json::Value>>, AppError> {
@@ -250,7 +251,7 @@ async fn vincular_si_existe(
             || (!cliente.email.trim().is_empty()
                 && cliente.email.trim().eq_ignore_ascii_case(remote_email));
         if same_identity {
-            ClienteRepository::update_bdp_sync(&state.pool, cliente.id, Some(bdp_code), true, None)
+            ClienteRepository::update_bdp_sync(pool, cliente.id, Some(bdp_code), true, None)
                 .await
                 .map_err(|e| AppError::Internal(format!("Error vinculando cliente BDP: {e}")))?;
             return Ok(Some(Json(serde_json::json!({

@@ -7,6 +7,7 @@ mod bdp_config_bootstrap;
 pub mod bdp_documentos_venta;
 mod bdp_explorer;
 mod bdp_import_departamentos;
+pub mod bdp_cadencias_maestros;
 pub mod bdp_maestros_auto;
 pub mod bdp_operaciones_no_api;
 pub(crate) mod bdp_order_poller;
@@ -81,8 +82,8 @@ pub use bdp_sync_preflight::{BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncP
 pub use bdp_throttle::{BdpThrottleManager, BDP_THROTTLE};
 pub use bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
 pub use bdp_weblink_catalog::{
-    BdpCatalogSyncResult, BdpCreateCustomerRequest, BdpExportArticlesRequest,
-    BdpExportCustomersRequest, BdpGetPricesArticlesResponse, BdpGetRoomTablesResponse,
+    BdpCatalogSyncResult, BdpCreateCustomerRequest, BdpDepartmentsExportFromProfileRequest,
+    BdpExportArticlesRequest, BdpExportCustomersRequest, BdpGetPricesArticlesResponse, BdpGetRoomTablesResponse,
     BdpGetRoomsTablesResponse, BdpRoomData,
 };
 pub use bdp_write_guard::{

@@ -57,7 +57,10 @@ const UPDATE_CONFIG_SQL: &str = "UPDATE configuracion_restaurante SET \
     bdp_responsable_no_api = COALESCE($65, bdp_responsable_no_api), \
     bdp_documentos_auto_segundos = COALESCE($66, bdp_documentos_auto_segundos), \
     bdp_documentos_perfil = COALESCE($67, bdp_documentos_perfil), \
-    bdp_maestros_auto_segundos = COALESCE($68, bdp_maestros_auto_segundos), updated_at = NOW() \
+    bdp_maestros_auto_segundos = COALESCE($68, bdp_maestros_auto_segundos), \
+    bdp_clientes_auto_segundos = COALESCE($69, bdp_clientes_auto_segundos), \
+    bdp_plano_auto_segundos = COALESCE($70, bdp_plano_auto_segundos), \
+    bdp_departamentos_auto_segundos = COALESCE($71, bdp_departamentos_auto_segundos), updated_at = NOW() \
     WHERE user_id = $1 RETURNING *";
 
 pub struct ConfiguracionRepository;
@@ -174,6 +177,9 @@ impl ConfiguracionRepository {
             .bind(req.bdp_documentos_auto_segundos)
             .bind(req.bdp_documentos_perfil)
             .bind(req.bdp_maestros_auto_segundos)
+            .bind(req.bdp_clientes_auto_segundos)
+            .bind(req.bdp_plano_auto_segundos)
+            .bind(req.bdp_departamentos_auto_segundos)
             .fetch_one(pool)
             .await
     }
