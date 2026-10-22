@@ -351,9 +351,10 @@ dejando puesta la parte de la puesta en marcha que no lo necesita.
 - La prueba de contrato del TPV se ejecuta a propósito, desde su botón, y pide la
   comanda con la marca de «en seco» (`OnlyCheck`): el TPV la valida y no la
   guarda. Nada fuera de esa prueba escribe en el TPV.
-- **Ya hay un snapshot completo del TPV**, hecho hoy y válido 24 horas
-  (artículos, clientes, departamentos, salones y empleados de la
-  conexión exacta). Es el que exige el modo automático.
+- **Ya hay un snapshot completo del TPV**, hecho hoy (artículos, clientes,
+  departamentos, salones y empleados de la conexión exacta). Caduca a las 24
+  horas, así que se rehará el día de la puesta en marcha: es el que exige el
+  modo automático.
 - **Las cadencias de lectura ya están encendidas** a 15 minutos: artículos,
   clientes, plano de sala y departamentos se refrescan solos, en solo lectura.
 
@@ -382,9 +383,10 @@ condiciones:
    disponibles. Es lo único que puede impedir que la integración funcione igual en
    producción, y se resuelve hablando con el proveedor. **Está pendiente de
    decisión del cliente.**
-2. **La puesta en marcha de la sección 9**: el snapshot del día ya está hecho y
-   las cadencias las encendemos nosotros en una sola sesión; las formas de pago y
-   los tipos de pedido salen de la lista que dé el cliente.
+2. **La puesta en marcha de la sección 9**, en una sola sesión: el snapshot se
+   rehace ese mismo día, porque caduca a las 24 horas; las cadencias ya están
+   encendidas y solo hay que confirmar el perfil de documentos; y las formas de pago
+   y los tipos de pedido salen de la lista que dé el cliente.
 3. **Una sesión presencial de una hora** con el TPV delante para cerrar las cinco
    pruebas que lo exigen (impresora de cocina, doble toque, Monitor de Cocina,
    traspaso completo y reinicio de BDP.NET).
