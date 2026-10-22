@@ -13,6 +13,9 @@ export type CuerpoConfiguracionLocal = ActualizarConfiguracionRequest & {
   bdp_almacen_default?: number;
   bdp_codreg_default?: number;
   bdp_articulo_rango_inicial?: number;
+  /** [D28-auto-R] Cadencia (s) y perfil de la lectura automática de documentos; 0 = no leer sola. */
+  bdp_documentos_auto_segundos?: number;
+  bdp_documentos_perfil?: number | null;
 };
 
 export interface EstadoConfiguracion {
@@ -79,6 +82,8 @@ export interface EstadoConfiguracion {
   bdp_almacen_default: number;
   bdp_codreg_default: number;
   bdp_articulo_rango_inicial: number;
+  bdp_documentos_auto_segundos: number;
+  bdp_documentos_perfil: number | null;
   google_review_url: string;
   telefono_restaurante: string;
   url_reservas: string;
@@ -141,6 +146,8 @@ export const DEFAULTS: EstadoConfiguracion = {
   bdp_almacen_default: 1,
   bdp_codreg_default: 1,
   bdp_articulo_rango_inicial: 90000000,
+  bdp_documentos_auto_segundos: 0,
+  bdp_documentos_perfil: null,
   google_review_url: '',
   telefono_restaurante: '',
   url_reservas: '',

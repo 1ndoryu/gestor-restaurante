@@ -120,6 +120,8 @@ export function useConfiguracion() {
       bdp_almacen_default: config.bdp_almacen_default,
       bdp_codreg_default: config.bdp_codreg_default,
       bdp_articulo_rango_inicial: config.bdp_articulo_rango_inicial,
+      bdp_documentos_auto_segundos: Number(config.bdp_documentos_auto_segundos) || 0,
+      ...(config.bdp_documentos_perfil ? { bdp_documentos_perfil: Number(config.bdp_documentos_perfil) } : {}),
       google_review_url: config.google_review_url || undefined,
       telefono_restaurante: config.telefono_restaurante || undefined,
       url_reservas: config.url_reservas || undefined,

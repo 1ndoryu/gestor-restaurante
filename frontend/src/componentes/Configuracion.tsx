@@ -13,6 +13,7 @@ import ConfigChatbot from './ConfigChatbot';
 import ConfigBdp from './ConfigBdp';
 import PanelBdpBackup from './PanelBdpBackup';
 import BuzonAvisosCard from './config-bdp/BuzonAvisosCard';
+import { DocumentosVentaCard } from './config-bdp/DocumentosVentaCard';
 import LibroStockCard from './config-bdp/LibroStockCard';
 import OperacionesNoApiCard from './config-bdp/OperacionesNoApiCard';
 import { TarjetasNegocio } from './configuracion/TarjetasNegocio';
@@ -191,6 +192,9 @@ function Configuracion() {
               campos de `secciones.ts` marcaba cambios sucios que no se veían. */}
           <TarjetaClaveGroq config={config} cambiarCampo={cambiarCampo} />
           <ConfigBdp config={config} cambiarCampo={cambiarCampo} />
+          {/* Los documentos se guardan con el mismo botón: su cadencia y su
+              perfil son campos de esta pestaña, no de una tarjeta aparte. */}
+          <DocumentosVentaCard config={config} cambiarCampo={cambiarCampo} />
         </CardSeccion>
         {/* [D33] El ancla del enlace profundo (bdpArming) baja a la tarjeta de
             modos de operación: el panel de respaldos ya vive en «Avanzado». */}

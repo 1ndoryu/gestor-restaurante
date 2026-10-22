@@ -86,6 +86,8 @@ export function useConfiguracionSync(datos: ConfigServerData | undefined) {
       bdp_almacen_default: Number(d.bdp_almacen_default ?? 1),
       bdp_codreg_default: Number(d.bdp_codreg_default ?? 1),
       bdp_articulo_rango_inicial: Number(d.bdp_articulo_rango_inicial ?? 90000000),
+      bdp_documentos_auto_segundos: Number(d.bdp_documentos_auto_segundos ?? 0),
+      bdp_documentos_perfil: d.bdp_documentos_perfil ? Number(d.bdp_documentos_perfil) : null,
       google_review_url: String(d.google_review_url ?? ''),
       telefono_restaurante: String(d.telefono_restaurante ?? ''),
       url_reservas: String(d.url_reservas ?? ''),
