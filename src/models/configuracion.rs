@@ -65,6 +65,11 @@ pub struct ConfiguracionRestaurante {
     /* [287A-5] Parámetros de consultas BDP. No conceden permiso de escritura. */
     pub bdp_catalog_price_type: i32,
     pub bdp_purchase_notes_profile_id: Option<i32>,
+    /* [D28-auto-R/D32] Cadencia y perfil de la lectura automática de documentos de
+     * venta. Antes solo se leían del entorno y nadie podía configurarla desde la
+     * web; 0 segundos = no leer sola. */
+    pub bdp_documentos_auto_segundos: i32,
+    pub bdp_documentos_perfil: Option<i32>,
     /* [065A-5] Artículo BDP genérico para el mapeo Glory → BDP.
      * Si el código es numérico, se usa directamente como ArtCode.
      * Si no, se busca el primer artículo del perfil. */
@@ -197,6 +202,11 @@ pub struct ActualizarConfiguracionRequest {
     pub bdp_catalog_price_type: Option<i32>,
     #[validate(range(min = 1, max = 999_999))]
     pub bdp_purchase_notes_profile_id: Option<i32>,
+    /* [D32] Cadencia de la lectura automática de documentos de venta; 0 la apaga. */
+    #[validate(range(min = 0, max = 86_400))]
+    pub bdp_documentos_auto_segundos: Option<i32>,
+    #[validate(range(min = 1, max = 999_999))]
+    pub bdp_documentos_perfil: Option<i32>,
     #[validate(length(max = 100))]
     pub bdp_default_article_code: Option<String>,
     #[validate(length(max = 255))]
