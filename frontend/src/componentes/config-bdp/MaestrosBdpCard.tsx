@@ -7,29 +7,8 @@
 import { Loader2, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { SelectorCadencia } from './cadencias';
 import { useMaestrosBdp, type MaestroBdp } from './useMaestrosBdp';
-
-/* [D24-auto] Cadencias ofrecidas para releer solas las listas de maestros; la
- * de 15 min es la recomendada porque los terminales y perfiles del TPV cambian
- * muy de vez en cuando. */
-const CADENCIAS = [0, 300, 900, 1800, 3600];
-
-/** Segundos → texto para quien no piensa en segundos (mismo criterio que la
- * lectura de documentos de venta). */
-function cadenciaTexto(segundos: number): string {
-  if (segundos === 0) return 'No se leen solas';
-  if (segundos % 3600 === 0) return `Cada ${segundos / 3600} h`;
-  if (segundos % 60 === 0) return `Cada ${segundos / 60} min`;
-  return `Cada ${segundos} s`;
-}
 
 interface Props {
   terminal: number;
@@ -73,23 +52,12 @@ export default function MaestrosBdpCard({ terminal, empleado, perfil, cadencia, 
       {/* [D24-auto] Con una cadencia distinta de cero el servidor relee estas
           listas y las guarda; la comprobación de arriba vale también sin pulsar. */}
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="maestros-cadencia" className="text-xs text-muted-foreground">
-            Lectura automática
-          </Label>
-          <Select value={String(cadencia)} onValueChange={(valor) => onCadencia(Number(valor))}>
-            <SelectTrigger id="maestros-cadencia" className="w-44">
-              <SelectValue>{cadenciaTexto(cadencia)}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {[...new Set([...CADENCIAS, cadencia])].sort((a, b) => a - b).map((segundos) => (
-                <SelectItem key={segundos} value={String(segundos)}>
-                  {cadenciaTexto(segundos)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <SelectorCadencia
+          id="maestros-cadencia"
+          etiqueta="Lectura automática"
+          segundos={cadencia}
+          onCambiar={onCadencia}
+        />
         <span className="pb-2 text-xs text-muted-foreground">
           Cada cuánto relee el servidor los terminales, empleados y perfiles. Se guarda con el
           botón de guardar de arriba.

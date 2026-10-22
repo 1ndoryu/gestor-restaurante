@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import ConfigBdpMapeos from '@/components/config-bdp-mapeos';
+import CadenciasMaestrosCard from './CadenciasMaestrosCard';
 import MaestrosBdpCard from './MaestrosBdpCard';
 import ResultadoDiagnosticoBdp from './ResultadoDiagnosticoBdp';
 import type { BdpDiagnosticoResponse } from '@/api/generated/gestionRestauranteAPI.schemas';
@@ -137,6 +138,9 @@ export default function ConexionBdpCard({
           cadencia={Number(config.bdp_maestros_auto_segundos) || 0}
           onCadencia={(segundos) => cambiarCampo('bdp_maestros_auto_segundos', segundos)}
         />
+        {/* [D24-auto-2] Los tres maestros que el alcance promete automáticos y
+            que hasta ahora solo tenían botón. */}
+        <CadenciasMaestrosCard config={config} cambiarCampo={cambiarCampo} />
         <div className="flex items-center justify-between gap-4 rounded-md border p-3">
           <div>
             <Label htmlFor="bdp-sync-enabled">Integración BDP activa</Label>
