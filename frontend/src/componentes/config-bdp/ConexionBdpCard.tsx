@@ -4,17 +4,19 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, ArrowRight, BookOpen, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Loader2, Radio, Settings, XCircle } from 'lucide-react';
+import { Activity, ArrowRight, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, Loader2, Radio, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import ConfigBdpMapeos from '@/components/config-bdp-mapeos';
 import MaestrosBdpCard from './MaestrosBdpCard';
+import ResultadoDiagnosticoBdp from './ResultadoDiagnosticoBdp';
 import type { BdpDiagnosticoResponse } from '@/api/generated/gestionRestauranteAPI.schemas';
 import type { EstadoConfiguracion } from '@/hooks/useConfiguracion';
 import type { BdpSyncDryRunResponse, CambiarCampo } from './tipos';
+import { AyudaTarjeta } from '../configuracion/AyudaTarjeta';
 
 interface ConexionBdpCardProps {
   config: EstadoConfiguracion;
@@ -48,6 +50,9 @@ export default function ConexionBdpCard({
       <CardHeader>
         <CardTitle>Conexión BDP</CardTitle>
         <CardDescription>Conexión al TPV/BDP del restaurante. La puesta en marcha debe dejar estos datos preparados; el cliente no debe inventar códigos ni identificadores.</CardDescription>
+        <CardAction>
+          <AyudaTarjeta id="bdp-conexion" titulo="Conexión BDP" />
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
@@ -129,6 +134,8 @@ export default function ConexionBdpCard({
           terminal={config.bdp_pos_id}
           empleado={config.bdp_employee_id}
           perfil={config.bdp_items_profile_id}
+          cadencia={Number(config.bdp_maestros_auto_segundos) || 0}
+          onCadencia={(segundos) => cambiarCampo('bdp_maestros_auto_segundos', segundos)}
         />
         <div className="flex items-center justify-between gap-4 rounded-md border p-3">
           <div>
@@ -153,7 +160,11 @@ export default function ConexionBdpCard({
           </div>
           <div className="rounded-md border p-3">
             <p className="text-sm font-medium">Dos vías automáticas</p>
-            <p className="mt-1 text-xs text-muted-foreground">No están habilitadas. Se separan las lecturas seguras de cada escritura autorizada.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {config.push_modalidad === 'automatico'
+                ? 'Activas: cada cambio sale a BDP y los estados se releen solos.'
+                : 'En manual: los cambios esperan a que pulses «Enviar a BDP».'}
+            </p>
           </div>
         </div>
 
@@ -182,11 +193,16 @@ export default function ConexionBdpCard({
             <Radio className="size-4 text-muted-foreground" />
             <span className="text-sm font-medium">Actualización de estados</span>
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+          {/* Las dos piezas del mismo ajuste van en la misma caja: antes el
+              interruptor tenía borde y la frecuencia no, y parecían cosas distintas. */}
+          <div className="flex flex-col gap-4 rounded-md border p-3 md:flex-row md:items-center">
+            <div className="flex flex-1 items-center justify-between gap-4">
               <div>
                 <Label htmlFor="bdp-poll-enabled-main">Actualizar estados automáticamente</Label>
-                <p className="text-xs text-muted-foreground">Consulta periódicamente el estado de comandas BDP. No crea ni modifica registros.</p>
+                <p className="text-xs text-muted-foreground">
+                  Consulta periódicamente el estado de comandas BDP. Se enciende solo con el envío
+                  automático; aquí puedes apagarlo. No crea ni modifica registros.
+                </p>
               </div>
               <Switch
                 id="bdp-poll-enabled-main"
@@ -194,7 +210,7 @@ export default function ConexionBdpCard({
                 onCheckedChange={(checked: boolean) => cambiarCampo('bdp_poll_enabled', checked)}
               />
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 md:w-56">
               <Label htmlFor="bdp-poll-interval-main">Frecuencia de actualización (segundos)</Label>
               <Input
                 id="bdp-poll-interval-main"
@@ -259,53 +275,7 @@ export default function ConexionBdpCard({
             La validación de comandas está bloqueada contra el restaurante porque utiliza el mismo endpoint de creación. Solo puede ejecutarse con el simulador local.
           </p>
         )}
-        {diagnostico?.version && (
-          <div className="grid gap-2 rounded-md border p-3 text-sm md:grid-cols-2">
-            <span>Versión: {diagnostico.version}.{diagnostico.sub_version ?? 0}</span>
-            <span>Aplicación: {diagnostico.application_description || diagnostico.application}</span>
-            {/* [L10/D01] Cuarto valor de la ficha, junto a salud, acceso y versión. */}
-            <span className={diagnostico.licencia_ok ? 'text-green-600' : 'text-destructive'}>
-              Licencia 84: {diagnostico.licencia
-                ? `v${diagnostico.licencia.version}.${diagnostico.licencia.subversion} (${diagnostico.licencia.application_description})`
-                : 'sin respuesta'}
-            </span>
-          </div>
-        )}
-        {dryRun && (
-          <div className="flex flex-col gap-3 rounded-md border p-3 text-sm">
-            <div className="flex items-start gap-2">
-              {dryRun.listo_para_sincronizar ? (
-                <CheckCircle2 className="mt-0.5 size-4 text-green-600" />
-              ) : (
-                <XCircle className="mt-0.5 size-4 text-destructive" />
-              )}
-              <div className="flex flex-col gap-1">
-                <span className={dryRun.listo_para_sincronizar ? 'font-medium text-green-700' : 'font-medium text-destructive'}>
-                  {dryRun.mensaje}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Escritura real: {dryRun.escritura_real ? 'sí' : 'no'} · Sync activo: {dryRun.sync_habilitado ? 'sí' : 'no'}
-                </span>
-              </div>
-            </div>
-            <div className="grid gap-2 md:grid-cols-2">
-              {dryRun.checks.map((check) => (
-                <div key={`${check.nombre}-${check.endpoint}`} className="rounded-md border p-2">
-                  <div className="flex items-center gap-2">
-                    {check.ok ? <CheckCircle2 className="size-4 text-green-600" /> : <XCircle className="size-4 text-destructive" />}
-                    <span className="font-medium">{check.nombre}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{check.mensaje}</p>
-                  {(check.cantidad !== null && check.cantidad !== undefined) || check.muestra ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {check.cantidad !== null && check.cantidad !== undefined ? `${check.cantidad} registros` : check.muestra}
-                    </p>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <ResultadoDiagnosticoBdp diagnostico={diagnostico} dryRun={dryRun} />
       </CardContent>
     </Card>
   );

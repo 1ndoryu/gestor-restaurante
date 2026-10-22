@@ -12,7 +12,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronRight, FileText, Loader2, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select';
 import type { EstadoConfiguracion } from '@/hooks/useConfiguracion';
 import { useDocumentosVenta, type DocumentoVenta } from './useDocumentosVenta';
+import { AyudaTarjeta } from '../configuracion/AyudaTarjeta';
 
 /** Cadencia en segundos → texto para quien no piensa en segundos. */
 function cadenciaTexto(segundos: number): string {
@@ -102,6 +103,9 @@ export function DocumentosVentaCard({ config, cambiarCampo }: Props) {
           Las facturas y tickets que el TPV emite. Se leen por perfil de exportación y no
           se escribe nada en el BDP.
         </CardDescription>
+        <CardAction>
+          <AyudaTarjeta id="bdp-documentos" titulo="Documentos de venta del BDP" />
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {/* Cadencia y perfil se editan aquí pero se guardan con el botón de «A qué

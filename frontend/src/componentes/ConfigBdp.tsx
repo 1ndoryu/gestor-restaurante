@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { Shield } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import axios from '@/api/axios-instance';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import type { EstadoConfiguracion } from '../hooks/useConfiguracion';
 import type { BdpDiagnosticoResponse } from '../api/generated/gestionRestauranteAPI.schemas';
@@ -20,6 +20,7 @@ import FormasPagoBdpCard from './config-bdp/FormasPagoBdpCard';
 import FuncionesBdpCard from './config-bdp/FuncionesBdpCard';
 import ParametrosEscrituraBdpCard from './config-bdp/ParametrosEscrituraBdpCard';
 import type { BdpSyncDryRunResponse, CambiarCampo } from './config-bdp/tipos';
+import { AyudaTarjeta } from './configuracion/AyudaTarjeta';
 
 interface BdpUiState {
   diagnostico: BdpDiagnosticoResponse | null;
@@ -92,7 +93,7 @@ function ConfigBdp({ config, cambiarCampo }: ConfigBdpProps) {
     />
 
     {/* [237A-3] Información sobre modo de autorización — el selector real vive en PanelBdpBackup */}
-    <Card className="mt-4">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Shield className="size-4" />
@@ -101,6 +102,9 @@ function ConfigBdp({ config, cambiarCampo }: ConfigBdpProps) {
         <CardDescription>
           Controla cómo la Aplicación Web interactúa con BDP para operaciones de escritura (crear comandas, pagar, facturar, crear clientes).
         </CardDescription>
+        <CardAction>
+          <AyudaTarjeta id="bdp-modo" titulo="Modo de operaciones BDP" />
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="grid gap-3 md:grid-cols-3">
@@ -130,7 +134,7 @@ function ConfigBdp({ config, cambiarCampo }: ConfigBdpProps) {
           </div>
           <BotonModoAutomatico config={config} />
         </div>
-        <div className="rounded-md border border-dashed p-3">
+        <div>
           <p className="text-sm text-muted-foreground">
             Cada tarjeta permite cambiar directamente a su modo: el flujo incluye la confirmación de destino, alcance, motivo y duración requeridos para cada escritura. El selector <strong>"Permiso de operación"</strong> del panel de <strong>Seguridad, respaldos e historial BDP</strong> (más abajo) ofrece el mismo cambio con idénticas garantías.
           </p>

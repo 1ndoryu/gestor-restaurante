@@ -12,7 +12,7 @@ import {
 } from '../api/generated/configuracion/configuracion';
 import { useConfiguracionSync } from './useConfiguracionSync';
 import type { CuerpoConfiguracionLocal, EstadoConfiguracion } from './configuracion-types';
-import type { IdSeccion } from '../componentes/configuracion/secciones';
+import { SECCIONES, type IdSeccion } from '../componentes/configuracion/secciones';
 
 export type { EstadoConfiguracion };
 
@@ -122,6 +122,7 @@ export function useConfiguracion() {
       bdp_articulo_rango_inicial: config.bdp_articulo_rango_inicial,
       bdp_documentos_auto_segundos: Number(config.bdp_documentos_auto_segundos) || 0,
       ...(config.bdp_documentos_perfil ? { bdp_documentos_perfil: Number(config.bdp_documentos_perfil) } : {}),
+      bdp_maestros_auto_segundos: Number(config.bdp_maestros_auto_segundos) || 0,
       google_review_url: config.google_review_url || undefined,
       telefono_restaurante: config.telefono_restaurante || undefined,
       url_reservas: config.url_reservas || undefined,
@@ -141,8 +142,25 @@ export function useConfiguracion() {
     }
   }, [config, mutacion, queryClient]);
 
+  /* [D33] Deshacer devuelve los campos de la pestaña a como llegaron del
+   * servidor. Sin esto, no guardar no tenía salida: los cambios se quedaban en
+   * pantalla y bloqueaban el paso a otra pestaña. */
+  const deshacer = useCallback((seccion: IdSeccion) => {
+    const campos = SECCIONES.find((s) => s.id === seccion)?.campos ?? [];
+    if (!referencia || campos.length === 0) return;
+    setConfig((previo) => {
+      /* La unión de campos de una pestaña no tiene un tipo único asignable;
+       * los dos extremos son el mismo formulario, así que se copia como mapa. */
+      const siguiente = { ...previo } as unknown as Record<string, unknown>;
+      const guardado = referencia as unknown as Record<string, unknown>;
+      for (const campo of campos) siguiente[campo] = guardado[campo];
+      return siguiente as unknown as EstadoConfiguracion;
+    });
+    setMensajes((previos) => ({ ...previos, [seccion]: '' }));
+  }, [referencia, setConfig]);
+
   return {
-    config, referencia, cambiarCampo, guardar, mensajes,
+    config, referencia, cambiarCampo, guardar, deshacer, mensajes,
     cargando: isLoading, guardandoEn,
   };
 }

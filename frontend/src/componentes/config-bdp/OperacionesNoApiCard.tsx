@@ -1,31 +1,26 @@
 /* [D32] Operaciones que BDP no expone por API: la web no las ejecuta, solo dice
  * quién las hace y cómo. Responsable y procedimiento se configuran aquí, uno por
  * operación, con un responsable global de respaldo: el cliente no tiene que
- * saberlo de antemano, lo rellena cuando lo decida. */
+ * saberlo de antemano, lo rellena cuando lo decida.
+ * [D33] El hook entra de fuera y la tarjeta no trae botones: la pestaña
+ * Conexiones tiene un único «Guardar» abajo a la derecha, y seis botones más
+ * dentro de la tarjeta eran justo la incoherencia que se estaba corrigiendo. */
 
-import { AlertTriangle, Check, Loader2, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useOperacionesNoApi } from './useOperacionesNoApi';
+import type { useOperacionesNoApi } from './useOperacionesNoApi';
+import { AyudaTarjeta } from '../configuracion/AyudaTarjeta';
 
-export default function OperacionesNoApiCard() {
-  const {
-    operaciones,
-    borradores,
-    global,
-    setGlobal,
-    cargando,
-    guardando,
-    guardarGlobalSeleccionado,
-    pendientes,
-    editar,
-    deshacer,
-    guardar,
-    guardarGlobal,
-  } = useOperacionesNoApi();
+interface Props {
+  operacionesNoApi: ReturnType<typeof useOperacionesNoApi>;
+}
+
+export default function OperacionesNoApiCard({ operacionesNoApi }: Props) {
+  const { operaciones, borradores, global, setGlobal, cargando, pendientes, editar } =
+    operacionesNoApi;
 
   return (
     <Card>
@@ -35,32 +30,20 @@ export default function OperacionesNoApiCard() {
           Estas operaciones se hacen en el TPV, no desde la web. Aquí se decide quién las hace y
           cómo se avisa al personal: la web solo muestra ese texto.
         </CardDescription>
+        <CardAction>
+          <AyudaTarjeta id="bdp-operaciones-no-api" titulo="Operaciones que BDP no expone por API" />
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
+        <div className="flex flex-col gap-2">
           <Label htmlFor="bdp-responsable-global">Responsable por defecto</Label>
-          <div className="flex items-center gap-2">
-            <Input
-              id="bdp-responsable-global"
-              value={global}
-              placeholder="Sin asignar: cada operación usa el suyo"
-              onChange={(evento) => setGlobal(evento.target.value)}
-              className="max-w-md"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={guardarGlobal}
-              disabled={guardando !== null}
-            >
-              {guardarGlobalSeleccionado ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Check className="size-4" />
-              )}
-              Guardar
-            </Button>
-          </div>
+          <Input
+            id="bdp-responsable-global"
+            value={global}
+            placeholder="Sin asignar: cada operación usa el suyo"
+            onChange={(evento) => setGlobal(evento.target.value)}
+            className="max-w-md"
+          />
           <p className="text-xs text-muted-foreground">
             Se usa en las operaciones que no tengan responsable propio. Si tampoco hay uno aquí, la
             web avisa de que está pendiente de asignar.
@@ -87,9 +70,6 @@ export default function OperacionesNoApiCard() {
           <div className="flex flex-col divide-y rounded-md border">
             {operaciones.map((fila) => {
               const borrador = borradores[fila.codigo] ?? { responsable: '', procedimiento: '' };
-              const sinCambios =
-                borrador.responsable === fila.responsable &&
-                borrador.procedimiento === fila.procedimiento;
               return (
                 <div key={fila.codigo} className="flex flex-col gap-2 p-3">
                   <div className="flex items-center gap-2">
@@ -111,33 +91,6 @@ export default function OperacionesNoApiCard() {
                       placeholder="Procedimiento (por defecto: hazla en el TPV)"
                       onChange={(evento) => editar(fila.codigo, 'procedimiento', evento.target.value)}
                     />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => guardar(fila.codigo)}
-                      disabled={guardando !== null || sinCambios}
-                    >
-                      {guardando === fila.codigo ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Check className="size-4" />
-                      )}
-                      Guardar
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => deshacer(fila)}
-                      disabled={guardando !== null || sinCambios}
-                      title="Volver a los valores guardados"
-                    >
-                      <RotateCcw className="size-4" />
-                      Deshacer
-                    </Button>
-                    <span className="text-xs text-muted-foreground">{fila.mensaje}</span>
                   </div>
                 </div>
               );

@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useConfiguracion } from '../hooks/useConfiguracion';
+import { useIntegraciones } from '../hooks/useIntegraciones';
 import IntegracionesMarketing from './IntegracionesMarketing';
 import ConfigChatbot from './ConfigChatbot';
 import ConfigBdp from './ConfigBdp';
@@ -16,6 +17,7 @@ import BuzonAvisosCard from './config-bdp/BuzonAvisosCard';
 import { DocumentosVentaCard } from './config-bdp/DocumentosVentaCard';
 import LibroStockCard from './config-bdp/LibroStockCard';
 import OperacionesNoApiCard from './config-bdp/OperacionesNoApiCard';
+import { useOperacionesNoApi } from './config-bdp/useOperacionesNoApi';
 import { TarjetasNegocio } from './configuracion/TarjetasNegocio';
 import { TarjetasOperativas } from './configuracion/TarjetasOperativas';
 import { TarjetasIntegraciones } from './configuracion/TarjetasIntegraciones';
@@ -24,9 +26,8 @@ import { TarjetaSeguridadTerminal } from './configuracion/TarjetaSeguridadTermin
 import { TarjetaPermisos } from './configuracion/TarjetaPermisos';
 import { TarjetaDatosPrueba } from './configuracion/TarjetaDatosPrueba';
 import { TarjetaClaveGroq } from './configuracion/TarjetaClaveGroq';
-import { CardSeccion, GuardadoAlInstante } from './configuracion/CardSeccion';
-import { AyudaSeccion } from './configuracion/AyudaSeccion';
-import { AYUDA } from './configuracion/ayuda';
+import { CardSeccion } from './configuracion/CardSeccion';
+import { BarraGuardado } from './configuracion/BarraGuardado';
 import { SECCIONES, type IdSeccion } from './configuracion/secciones';
 import { avisarAlSalir } from '../platform/avisos-navegador';
 import axios from '@/api/axios-instance';
@@ -61,24 +62,24 @@ function camposSucios(
   return campos.some((campo) => comparable(actual[campo]) !== comparable(guardado[campo]));
 }
 
-/* Cabecera de cada pestaña: qué hay dentro y su ayuda completa en un modal.
- * Fuera del componente para que el modal no se remonte en cada render. */
+/* [D33b] Cabecera de cada pestaña: una línea que dice qué contiene. La ayuda ya
+ * no va aquí sino en la cabecera de cada tarjeta: una pestaña mezcla siete
+ * ajustes y un modal único obligaba a leerlos todos para encontrar uno. */
 function CabeceraSeccion({ id }: { id: IdSeccion }) {
   const def = SECCIONES.find((s) => s.id === id);
-  const ayuda = AYUDA[id];
   if (!def) return null;
-  return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm text-muted-foreground">{def.descripcion}</p>
-      <AyudaSeccion seccion={id} titulo={def.titulo} intro={ayuda.intro} bloques={ayuda.bloques} />
-    </div>
-  );
+  return <p className="text-sm text-muted-foreground">{def.descripcion}</p>;
 }
 
 function Configuracion() {
   const {
-    config, referencia, cambiarCampo, guardar, mensajes, cargando, guardandoEn,
+    config, referencia, cambiarCampo, guardar, deshacer, mensajes, cargando, guardandoEn,
   } = useConfiguracion();
+  /* [D33] Marketing viaja por otro endpoint pero comparte botón con Conexiones,
+   * así que su estado entra en el mismo cálculo de cambios y en el mismo
+   * «Deshacer». */
+  const marketing = useIntegraciones();
+  const operacionesNoApi = useOperacionesNoApi();
   const [operandoSeed, setOperandoSeed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -115,12 +116,61 @@ function Configuracion() {
     }
   }
 
-  const sucias = useMemo(
-    () => Object.fromEntries(
+  /* [D33] Los campos de Conexiones incluyen los de marketing, que viajan por su
+   * propio endpoint: sin sumarlos, esa pestaña se podía abandonar con claves a
+   * medio escribir y el botón no se encendía al tocarlas. */
+  const sucias = useMemo(() => {
+    const base = Object.fromEntries(
       SECCIONES.map((s) => [s.id, camposSucios(s.id, config, referencia)]),
-    ) as Record<IdSeccion, boolean>,
-    [config, referencia],
-  );
+    ) as Record<IdSeccion, boolean>;
+    return {
+      ...base,
+      conexiones: base.conexiones || marketing.sucio || operacionesNoApi.sucio,
+    };
+  }, [config, referencia, marketing.sucio, operacionesNoApi.sucio]);
+
+  /* [D33] Un único punto de guardado por pestaña, y siempre en la esquina. Las
+   * pestañas que solo tienen tarjetas de guardado al instante no lo muestran:
+   * un «Guardar» ahí sería decorativo. */
+  const seccionActual = SECCIONES.find((s) => s.id === activeTab);
+  const puedeGuardar = (seccionActual?.campos.length ?? 0) > 0;
+
+  /* Conexiones guarda tres cosas con un botón: la configuración, las claves de
+   * marketing y las operaciones no API. Cada una va por su endpoint y solo se
+   * envía lo que tiene cambios. */
+  const guardarSeccion = async (seccion: IdSeccion) => {
+    if (seccion !== 'conexiones') {
+      await guardar(seccion);
+      return;
+    }
+    await Promise.all([
+      guardar(seccion),
+      marketing.sucio ? marketing.guardar() : Promise.resolve(),
+      operacionesNoApi.sucio ? operacionesNoApi.guardarTodo() : Promise.resolve(),
+    ]);
+  };
+
+  const deshacerSeccion = (seccion: IdSeccion) => {
+    deshacer(seccion);
+    if (seccion !== 'conexiones') return;
+    if (marketing.sucio) marketing.deshacer();
+    if (operacionesNoApi.sucio) operacionesNoApi.deshacerTodo();
+  };
+
+  /* [D33] No se cambia de pestaña con cambios sin guardar. Se avisa y se deja
+   * ahí, en vez de perderlos o de saltar a otra sección: el aviso «sin
+   * guardar» del tab y el botón «Deshacer» son la salida. */
+  const cambiarPestana = (valor: string) => {
+    const destino = valor as IdSeccion;
+    if (destino === activeTab) return;
+    if (sucias[activeTab]) {
+      toast.error('Hay cambios sin guardar', {
+        description: 'Guárdalos o pulsa «Deshacer» para cambiar de pestaña sin perderlos.',
+      });
+      return;
+    }
+    setActiveTab(destino);
+  };
 
   /* Salir con cambios pendientes se avisa: antes se perdían sin decir nada. El
    * acceso a `window` está en `platform/` (límite portable de Sentinel). */
@@ -129,7 +179,11 @@ function Configuracion() {
   if (cargando) return <p className="text-sm text-muted-foreground">Cargando configuración...</p>;
 
   return (
-    <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as IdSeccion)} className="max-w-5xl">
+    <Tabs
+      value={activeTab}
+      onValueChange={cambiarPestana}
+      className="relative flex max-w-5xl flex-col pb-20"
+    >
       {/* Seis pestañas no caben en el móvil. No se parte en filas: el trigger
           compartido mide `h-[calc(100%-1px)]`, así que con varias filas la lista
           no crece a su contenido y la última fila se monta encima de la sección.
@@ -148,45 +202,33 @@ function Configuracion() {
         ))}
       </TabsList>
 
-      <TabsContent value="restaurante" className="mt-4 flex flex-col gap-6">
+      <TabsContent value="restaurante" className="mt-4 flex flex-col gap-8">
         <CabeceraSeccion id="restaurante" />
         <CardSeccion
           titulo="Marca con nombre al restaurante"
           descripcion="Lo que identifica al negocio y lo que se pide al cliente al reservar"
-          sucio={sucias.restaurante}
-          guardando={guardandoEn === 'restaurante'}
-          mensaje={mensajes.restaurante}
-          onGuardar={() => void guardar('restaurante')}
         >
           <TarjetasNegocio config={config} cambiarCampo={cambiarCampo} />
           <TarjetaTurnos config={config} cambiarCampo={cambiarCampo} />
         </CardSeccion>
       </TabsContent>
 
-      <TabsContent value="operacion" className="mt-4 flex flex-col gap-6">
+      <TabsContent value="operacion" className="mt-4 flex flex-col gap-8">
         <CabeceraSeccion id="operacion" />
         <CardSeccion
           titulo="Cómo se cierra una reserva y cómo se anula una venta"
           descripcion="Ventas automáticas, anulaciones, turnos de sincronización con Haddock y reseñas"
-          sucio={sucias.operacion}
-          guardando={guardandoEn === 'operacion'}
-          mensaje={mensajes.operacion}
-          onGuardar={() => void guardar('operacion')}
         >
           <TarjetasOperativas config={config} cambiarCampo={cambiarCampo} />
           <TarjetasIntegraciones config={config} cambiarCampo={cambiarCampo} />
         </CardSeccion>
       </TabsContent>
 
-      <TabsContent value="conexiones" className="mt-4 flex flex-col gap-6">
+      <TabsContent value="conexiones" className="mt-4 flex flex-col gap-8">
         <CabeceraSeccion id="conexiones" />
         <CardSeccion
           titulo="Datos de conexión con otros sistemas"
           descripcion="TPV BDP, IA y marketing. Los diagnósticos y las pruebas no escriben nada."
-          sucio={sucias.conexiones}
-          guardando={guardandoEn === 'conexiones'}
-          mensaje={mensajes.conexiones}
-          onGuardar={() => void guardar('conexiones')}
         >
           {/* La clave de Groq pertenece a esta pestaña: sin su campo el mapa de
               campos de `secciones.ts` marcaba cambios sucios que no se veían. */}
@@ -195,58 +237,82 @@ function Configuracion() {
           {/* Los documentos se guardan con el mismo botón: su cadencia y su
               perfil son campos de esta pestaña, no de una tarjeta aparte. */}
           <DocumentosVentaCard config={config} cambiarCampo={cambiarCampo} />
+          {/* [D33] El ancla del enlace profundo (bdpArming) baja a esta tarjeta:
+              el panel de respaldos ya vive en «Avanzado». Va dentro de la misma
+              sección para que su ritmo y su ancho sean los de las demás. */}
+          <div ref={bdpPanelRef} className="scroll-mt-4">
+            <OperacionesNoApiCard operacionesNoApi={operacionesNoApi} />
+          </div>
         </CardSeccion>
-        {/* [D33] El ancla del enlace profundo (bdpArming) baja a la tarjeta de
-            modos de operación: el panel de respaldos ya vive en «Avanzado». */}
-        <div ref={bdpPanelRef} className="mt-6">
-          <OperacionesNoApiCard />
-        </div>
-        {/* Estos dos guardan solos (cada tarjeta suya): marca explícita para que
-            no se espere el botón de arriba. */}
-        <div className="mt-6 flex flex-col gap-2">
-          <p className="text-sm font-medium">Claves de servicios externos</p>
-          <GuardadoAlInstante />
-          <IntegracionesMarketing />
-        </div>
+        {/* Las claves de marketing viajan por otro endpoint, pero se guardan con
+            el botón de la pestaña: dos «Guardar» en la misma pantalla es justo lo
+            que se estaba corrigiendo. */}
+        <CardSeccion
+          titulo="Claves de servicios externos"
+          descripcion="Las cuentas con las que salen los correos y los mensajes"
+        >
+          <IntegracionesMarketing integraciones={marketing} />
+        </CardSeccion>
       </TabsContent>
 
-      <TabsContent value="chatbot" className="mt-4 flex flex-col gap-6">
+      <TabsContent value="chatbot" className="mt-4 flex flex-col gap-8">
         <CabeceraSeccion id="chatbot" />
-        <div className="flex flex-col gap-2">
-          <GuardadoAlInstante />
+        <CardSeccion
+          titulo="Claves de acceso del chatbot"
+          descripcion="Cómo entra un chatbot externo a las reservas y a la carta"
+          alInstante
+        >
           <ConfigChatbot />
-        </div>
+        </CardSeccion>
       </TabsContent>
 
-      <TabsContent value="acceso" className="mt-4 flex flex-col gap-6">
+      <TabsContent value="acceso" className="mt-4 flex flex-col gap-8">
         <CabeceraSeccion id="acceso" />
         <CardSeccion
           titulo="Permisos de cada rol"
           descripcion="Qué puede hacer un admin, un trabajador o cualquiera"
-          sucio={sucias.acceso}
-          guardando={guardandoEn === 'acceso'}
-          mensaje={mensajes.acceso}
-          onGuardar={() => void guardar('acceso')}
         >
           <TarjetaPermisos config={config} cambiarCampo={cambiarCampo} />
         </CardSeccion>
-        <div className="mt-6 flex flex-col gap-2">
-          <GuardadoAlInstante />
+        <CardSeccion
+          titulo="Contraseña del terminal del local"
+          descripcion="Lo que protege la pantalla que está en la barra"
+          alInstante
+        >
           <TarjetaSeguridadTerminal />
-        </div>
+        </CardSeccion>
       </TabsContent>
 
       {/* Avanzado no tiene formulario: todo lo de aquí guarda al instante y
           guarda solo (respaldos, dictámenes, datos de prueba), así que un botón
           «Guardar» sería decorativo y mentiría. */}
-      <TabsContent value="avanzado" className="mt-4 flex flex-col gap-6">
+      <TabsContent value="avanzado" className="mt-4 flex flex-col gap-8">
         <CabeceraSeccion id="avanzado" />
-        <GuardadoAlInstante />
-        <PanelBdpBackup config={config} />
-        <LibroStockCard />
-        <BuzonAvisosCard />
-        <TarjetaDatosPrueba operandoSeed={operandoSeed} ejecutarOperacion={ejecutarOperacion} />
+        <CardSeccion
+          titulo="Respaldos, avisos y datos de prueba"
+          descripcion="Lo que la app guarda del TPV y el contenido ficticio para probar"
+          alInstante
+        >
+          <PanelBdpBackup config={config} />
+          <LibroStockCard />
+          <BuzonAvisosCard />
+          <TarjetaDatosPrueba operandoSeed={operandoSeed} ejecutarOperacion={ejecutarOperacion} />
+        </CardSeccion>
       </TabsContent>
+      {/* Fuera de los `TabsContent` para que no se remonte al cambiar de
+          pestaña; su estado sale de la pestaña activa. */}
+      {puedeGuardar && (
+        <BarraGuardado
+          sucio={sucias[activeTab]}
+          guardando={
+            guardandoEn === activeTab
+            || (activeTab === 'conexiones' && (marketing.guardando || operacionesNoApi.guardando !== null))
+          }
+          mensaje={mensajes[activeTab] || (activeTab === 'conexiones' ? marketing.mensaje : '')}
+          onGuardar={() => void guardarSeccion(activeTab)}
+          onDeshacer={() => deshacerSeccion(activeTab)}
+        />
+      )}
     </Tabs>
   );
 }

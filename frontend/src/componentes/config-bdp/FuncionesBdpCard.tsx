@@ -8,9 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { EstadoConfiguracion } from '@/hooks/useConfiguracion';
 import type { CambiarCampo } from './tipos';
+import { AyudaTarjeta } from '../configuracion/AyudaTarjeta';
 
 interface FuncionesBdpCardProps {
   config: EstadoConfiguracion;
@@ -19,7 +20,7 @@ interface FuncionesBdpCardProps {
 
 export default function FuncionesBdpCard({ config, cambiarCampo }: FuncionesBdpCardProps) {
   return (
-    <Card className="mt-4">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <ToggleLeft className="size-4" />
@@ -29,6 +30,9 @@ export default function FuncionesBdpCard({ config, cambiarCampo }: FuncionesBdpC
           Cada interruptor abre una capacidad de la integración con BDP (pagos parciales, cancelar
           comandas, compras). Todos están apagados por defecto por seguridad.
         </CardDescription>
+        <CardAction>
+          <AyudaTarjeta id="bdp-funciones" titulo="Qué funciones avanzadas del TPV se usan" />
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-4 rounded-md border p-3">

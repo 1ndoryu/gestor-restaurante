@@ -7,8 +7,9 @@
 import { CreditCard, Loader2, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useFormasPagoBdp } from './useFormasPagoBdp';
+import { AyudaTarjeta } from '../configuracion/AyudaTarjeta';
 
 /** Parejas `método → id` del mapa; vacío si el texto no es un JSON de objetos. */
 function parejasDelMapa(texto: string): Array<{ metodo: string; id: number }> {
@@ -40,6 +41,9 @@ export default function FormasPagoBdpCard({ mapa }: { mapa: string }) {
           Las formas de pago dadas de alta en BDP y cómo se traduce a ellas cada método de pago de
           la web. Un código que no exista en BDP hace fallar el cobro.
         </CardDescription>
+        <CardAction>
+          <AyudaTarjeta id="bdp-formas-pago" titulo="Formas de pago del BDP" />
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {parejas.length === 0 ? (

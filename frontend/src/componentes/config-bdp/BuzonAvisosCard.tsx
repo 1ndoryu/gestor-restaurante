@@ -7,7 +7,7 @@
 import { Inbox, Loader2, Play, RefreshCw, RotateCcw, TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ESTADOS_AVISO, useBuzonAvisos, type Aviso } from './useBuzonAvisos';
+import { AyudaTarjeta } from '../configuracion/AyudaTarjeta';
 
 /** Los estados en que un aviso todavía pide algo de una persona. */
 const ESTADOS_ATENCION = new Set(['requiere_revision', 'rechazado']);
@@ -127,6 +128,9 @@ export default function BuzonAvisosCard() {
           Lo que el TPV manda a la web (comandas creadas, modificadas, traspasos, cobros) queda
           aquí hasta cruzarse con BDP. Procesar un lote solo lee de BDP: no cambia nada en el TPV.
         </CardDescription>
+        <CardAction>
+          <AyudaTarjeta id="bdp-avisos" titulo="Avisos del TPV" />
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">

@@ -2,30 +2,33 @@
  * Formularios para SMTP, Twilio y Meta WhatsApp credentials.
  * Los passwords nunca se devuelven — se muestran como "Configurado ✓" si ya hay valor. */
 
-import { useIntegraciones } from '../hooks/useIntegraciones';
-import { Button } from '@/components/ui/button';
+import type { useIntegraciones } from '../hooks/useIntegraciones';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { AyudaTarjeta } from './configuracion/AyudaTarjeta';
 
-function IntegracionesMarketing() {
+/* [D33] El formulario recibe el hook de fuera: así la pestaña tiene un solo
+ * botón «Guardar» y esta sección no trae el suyo propio. */
+interface Props {
+  integraciones: ReturnType<typeof useIntegraciones>;
+}
+
+function IntegracionesMarketing({ integraciones }: Props) {
   const {
     form,
     cambiarCampo,
-    guardar,
-    mensaje,
     cargando,
-    guardando,
     smtpConfigurado,
     twilioConfigurado,
     metaConfigurado,
-  } = useIntegraciones();
+  } = integraciones;
 
   if (cargando) return <p className="text-sm text-muted-foreground">Cargando integraciones...</p>;
 
   return (
-    <div className="flex flex-col gap-6 max-w-2xl">
+    <div className="flex flex-col gap-4">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -33,6 +36,9 @@ function IntegracionesMarketing() {
             {smtpConfigurado && <Badge variant="secondary">Configurado</Badge>}
           </CardTitle>
           <CardDescription>Configura tu servidor SMTP para enviar campañas y recordatorios por email</CardDescription>
+          <CardAction>
+            <AyudaTarjeta id="marketing-smtp" titulo="Email (SMTP)" />
+          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-3">
@@ -107,6 +113,9 @@ function IntegracionesMarketing() {
             {twilioConfigurado && <Badge variant="secondary">Configurado</Badge>}
           </CardTitle>
           <CardDescription>Configura Twilio para enviar SMS en campañas y recordatorios</CardDescription>
+          <CardAction>
+            <AyudaTarjeta id="marketing-twilio" titulo="SMS (Twilio)" />
+          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
@@ -147,6 +156,9 @@ function IntegracionesMarketing() {
             {metaConfigurado && <Badge variant="secondary">Configurado</Badge>}
           </CardTitle>
           <CardDescription>Configura Meta Cloud API para enviar mensajes por WhatsApp</CardDescription>
+          <CardAction>
+            <AyudaTarjeta id="marketing-meta" titulo="WhatsApp (Meta)" />
+          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
@@ -190,16 +202,6 @@ function IntegracionesMarketing() {
         </CardContent>
       </Card>
 
-      <div className="flex items-center gap-4">
-        <Button onClick={guardar} disabled={guardando}>
-          {guardando ? 'Guardando...' : 'Guardar integraciones'}
-        </Button>
-        {mensaje && (
-          <span className={`text-sm ${mensaje.includes('Error') ? 'text-destructive' : 'text-green-600'}`}>
-            {mensaje}
-          </span>
-        )}
-      </div>
     </div>
   );
 }

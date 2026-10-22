@@ -111,3 +111,64 @@ export function useLibroStock() {
 
   return { ...libro, cargar, resolver };
 }
+
+/** [D-auto-push] Una auditoría de stock bloqueada: el envío falló antes de
+ * abrir el libro, así que no hay relectura que la cierre y ese artículo y
+ * almacén no admiten otro movimiento hasta que alguien la descarte. */
+export interface AuditoriaBloqueada {
+  id: string;
+  operacion: string;
+  resultado: string;
+  error_mensaje: string | null;
+  creada_en: string;
+}
+
+export function useAuditoriasBloqueadas() {
+  const [estado, setEstado] = useState<{
+    filas: AuditoriaBloqueada[];
+    cargando: boolean;
+    descartando: string | null;
+  }>({ filas: [], cargando: true, descartando: null });
+
+  const cargar = useCallback(async () => {
+    setEstado((previo) => ({ ...previo, cargando: true }));
+    try {
+      const resp = await axios.get<AuditoriaBloqueada[]>('/api/bdp/stock/auditorias-bloqueadas');
+      setEstado((previo) => ({ ...previo, filas: resp.data }));
+    } catch (error) {
+      toast.error('No se pudieron leer las auditorías bloqueadas', {
+        description: mensajeDeError(error, 'Revisa la conexión con el servidor.'),
+      });
+      setEstado((previo) => ({ ...previo, filas: [] }));
+    } finally {
+      setEstado((previo) => ({ ...previo, cargando: false }));
+    }
+  }, []);
+
+  useEffect(() => {
+    void cargar();
+  }, [cargar]);
+
+  /** El motivo es obligatorio: sin él nadie sabrá por qué se destrabó. */
+  const descartar = useCallback(async (id: string, motivo: string) => {
+    setEstado((previo) => ({ ...previo, descartando: id }));
+    try {
+      await axios.post(`/api/bdp/stock/auditorias-bloqueadas/${id}`, { motivo });
+      toast.success('Auditoría descartada', {
+        description: 'Ese artículo y almacén vuelven a admitir movimientos.',
+      });
+      setEstado((previo) => ({
+        ...previo,
+        filas: previo.filas.filter((fila) => fila.id !== id),
+      }));
+    } catch (error) {
+      toast.error('No se pudo descartar', {
+        description: mensajeDeError(error, 'El motivo debe tener al menos 5 caracteres.'),
+      });
+    } finally {
+      setEstado((previo) => ({ ...previo, descartando: null }));
+    }
+  }, []);
+
+  return { ...estado, cargar, descartar };
+}

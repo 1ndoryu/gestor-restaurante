@@ -2,7 +2,7 @@
  * Accesible desde /configuracion como sección expandible o como página independiente. */
 
 import {Database, Download, Loader2, RefreshCw, Shield} from 'lucide-react';
-import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
+import {Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
 import {useBdpSnapshots, useBdpAudit} from '@/api/bdp-backup';
 import type {EstadoConfiguracion} from '@/hooks/useConfiguracion';
@@ -10,6 +10,7 @@ import {SyncModeSelector} from './panel-bdp-backup/SyncModeSelector';
 import {SnapshotActions} from './panel-bdp-backup/SnapshotActions';
 import {SnapshotTable} from './panel-bdp-backup/SnapshotTable';
 import {AuditTable} from './panel-bdp-backup/AuditTable';
+import {AyudaTarjeta} from './configuracion/AyudaTarjeta';
 
 /* Panel principal */
 
@@ -53,6 +54,9 @@ export default function PanelBdpBackup({config}: PanelBdpBackupProps) {
                         />
                     </div>
                 </div>
+                <CardAction>
+                    <AyudaTarjeta id="bdp-respaldos" titulo="Seguridad, respaldos e historial BDP" />
+                </CardAction>
             </CardHeader>
             <CardContent>
                 <Tabs defaultValue="snapshots">

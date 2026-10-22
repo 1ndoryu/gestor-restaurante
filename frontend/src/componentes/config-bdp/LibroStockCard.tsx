@@ -10,9 +10,16 @@ import { useState } from 'react';
 import { BookOpenCheck, Loader2, RefreshCw, TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useLibroStock, type DecisionStock, type RevisionStock } from './useLibroStock';
+import {
+  useAuditoriasBloqueadas,
+  useLibroStock,
+  type AuditoriaBloqueada,
+  type DecisionStock,
+  type RevisionStock,
+} from './useLibroStock';
+import { AyudaTarjeta } from '../configuracion/AyudaTarjeta';
 
 const ETIQUETA_OPERACION: Record<string, string> = {
   regularizar: 'Ajuste de stock',
@@ -117,8 +124,57 @@ function Fila({
   );
 }
 
+/** [D-auto-push] Auditoría que no la puede cerrar ninguna relectura: el envío
+ * falló antes de abrir el libro. Se muestra aparte del libro justamente porque
+ * no hay valores que comparar, solo el motivo del rechazo del TPV. */
+function FilaBloqueada({
+  fila,
+  descartando,
+  onDescartar,
+}: {
+  fila: AuditoriaBloqueada;
+  descartando: boolean;
+  onDescartar: (motivo: string) => void;
+}) {
+  const [motivo, setMotivo] = useState('');
+  const valido = motivo.trim().length >= 5;
+
+  return (
+    <div className="flex flex-col gap-3 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium">
+          {ETIQUETA_OPERACION[fila.operacion] ?? fila.operacion}
+        </span>
+        <Badge variant="destructive">{fila.resultado === 'ambiguo' ? 'Sin confirmar' : 'Pendiente'}</Badge>
+        <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+          {fecha(fila.creada_en)}
+        </span>
+      </div>
+      {fila.error_mensaje && (
+        <p className="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-sm text-destructive">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+          <span>{fila.error_mensaje}</span>
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={motivo}
+          onChange={(evento) => setMotivo(evento.target.value)}
+          placeholder="Por qué se da por no aplicada (mínimo 5 caracteres)"
+          className="max-w-sm"
+        />
+        <Button type="button" size="sm" onClick={() => onDescartar(motivo)} disabled={!valido || descartando}>
+          {descartando ? <Loader2 className="size-4 animate-spin" /> : null}
+          Descartar y desbloquear
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function LibroStockCard() {
   const { filas, cargando, resolviendo, cargar, resolver } = useLibroStock();
+  const bloqueadas = useAuditoriasBloqueadas();
 
   return (
     <Card>
@@ -132,6 +188,9 @@ export default function LibroStockCard() {
           y el stock no cuadra ni con el valor previo ni con el esperado. Mientras no se resuelvan,
           ese artículo y almacén no admiten otro movimiento.
         </CardDescription>
+        <CardAction>
+          <AyudaTarjeta id="bdp-libro-stock" titulo="Libro de stock" />
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -166,6 +225,42 @@ export default function LibroStockCard() {
             ))}
           </div>
         )}
+
+        {/* [D-auto-push] Sin este bloqueo no había salida: el envío no abrió
+            libro y el guard rechazaba cualquier movimiento de ese artículo. */}
+        <div className="flex flex-col gap-2 border-t pt-4">
+          <p className="text-sm font-medium">Auditorías sin lectura que las cierre</p>
+          <p className="text-xs text-muted-foreground">
+            Envíos de stock que BDP no confirmó y que no llegaron a abrir libro: no hay valor con el
+            que decidir. Mientras estén aquí, ese artículo y almacén no admiten otro movimiento.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void bloqueadas.cargar()}
+              disabled={bloqueadas.cargando}
+            >
+              <RefreshCw className={`size-4 ${bloqueadas.cargando ? 'animate-spin' : ''}`} />
+              Actualizar
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {bloqueadas.filas.length === 0 ? 'Ninguna' : `${bloqueadas.filas.length} bloqueando`}
+            </span>
+          </div>
+          {bloqueadas.filas.length > 0 && (
+            <div className="flex flex-col divide-y rounded-md border">
+              {bloqueadas.filas.map((fila) => (
+                <FilaBloqueada
+                  key={fila.id}
+                  fila={fila}
+                  descartando={bloqueadas.descartando === fila.id}
+                  onDescartar={(motivo) => void bloqueadas.descartar(fila.id, motivo)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

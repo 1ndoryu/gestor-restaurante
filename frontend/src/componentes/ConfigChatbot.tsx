@@ -9,7 +9,7 @@ import { TooltipButton } from '@/components/ui/tooltip-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Copy, Trash2, Plus, ExternalLink } from 'lucide-react';
@@ -19,6 +19,7 @@ import {
   useCrearApiKey,
   useRevocarApiKey,
 } from '../api/generated';
+import { AyudaTarjeta } from './configuracion/AyudaTarjeta';
 
 function ConfigChatbot() {
   /* [149A-3/F2] Toda la sección depende de listar las claves: si esa consulta
@@ -70,7 +71,7 @@ function ConfigChatbot() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <Card>
         <CardHeader>
           <CardTitle>API del Chatbot</CardTitle>
@@ -78,6 +79,9 @@ function ConfigChatbot() {
             Crea claves API para conectar tu chatbot con la plataforma.
             Las claves permiten crear y consultar reservas de forma segura.
           </CardDescription>
+          <CardAction>
+            <AyudaTarjeta id="chatbot-claves" titulo="API del Chatbot" />
+          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex items-center gap-2">

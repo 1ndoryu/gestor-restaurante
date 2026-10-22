@@ -4,12 +4,13 @@
  * aquí, viendo qué IVA usa cada uno de sus artículos. */
 
 import { AlertTriangle } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { EstadoConfiguracion } from '@/hooks/useConfiguracion';
 import type { CambiarCampo } from './tipos';
 import { MapaJsonCrudo, MapaParejas } from '../configuracion/MapaParejas';
+import { AyudaTarjeta } from '../configuracion/AyudaTarjeta';
 
 interface ParametrosEscrituraBdpCardProps {
   config: EstadoConfiguracion;
@@ -42,6 +43,9 @@ export default function ParametrosEscrituraBdpCard({
         <CardDescription>
           Qué IVA corresponde a cada tipo, cuándo se envía la cola y qué códigos se usan por defecto.
         </CardDescription>
+        <CardAction>
+          <AyudaTarjeta id="bdp-escritura" titulo="Lo que hace falta para crear artículos y mover stock en el TPV" />
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {parejas <= 0 && (
@@ -76,7 +80,16 @@ export default function ParametrosEscrituraBdpCard({
             <select
               id="bdp-push-modalidad"
               value={config.push_modalidad}
-              onChange={(evento) => cambiarCampo('push_modalidad', evento.target.value)}
+              onChange={(evento) => {
+                cambiarCampo('push_modalidad', evento.target.value);
+                /* [D-auto] En automático la web también relee sola los estados:
+                 * sin eso la comanda sale y su estado se queda congelado. El
+                 * interruptor de «Actualización de estados» se enciende con
+                 * esto y sigue pudiéndose apagar a mano. */
+                if (evento.target.value === 'automatico') {
+                  cambiarCampo('bdp_poll_enabled', true);
+                }
+              }}
               className="h-9 max-w-md rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value="automatico">Automático: cada cambio se envía a BDP</option>
