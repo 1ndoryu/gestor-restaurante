@@ -105,6 +105,28 @@ impl BdpWriteGuard {
         if ServicioModoOperacion::modo_efectivo_desde_config(config) != ModoEfectivo::Bdp {
             return Err("La integración BDP no está activa".into());
         }
+        /* [10AA-4] `bdp_sync_mode` es el permiso operativo y el barrido de fondo
+         * no se lo concede a sí mismo. Antes solo miraba `push_modalidad`, cuyo
+         * valor por defecto es `automatico`: toda cuenta nueva escribía en el
+         * TPV estando en `read_only`, y `auto_arm_inner` cambiaba el modo por su
+         * cuenta. Ahora el barrido necesita el permiso permanente (`automatic`);
+         * en `unidirectional` el permiso es por operación y lo concede una
+         * persona. La acción manual (`forzar_manual`, el botón) sigue armando la
+         * operación y `cerrar_armado` devuelve el modo a `read_only` en la misma
+         * transacción, que es el kill switch documentado. */
+        if !forzar_manual && config.bdp_sync_mode != "automatic" {
+            return Err(format!(
+                "Envío automático bloqueado: el modo de sincronización es '{}'; el barrido solo escribe con permiso permanente ('automatic').",
+                config.bdp_sync_mode
+            ));
+        }
+        /* En `automatic` no hay armado por operación: `authorize_automatic` es la
+         * puerta. Antes se creaba uno igual y `auto_arm_inner` bajaba el modo a
+         * `unidirectional`, así que la comprobación del propio modo automático
+         * fallaba y la fila quedaba rechazada. */
+        if config.bdp_sync_mode == "automatic" {
+            return Ok(());
+        }
         if !config.bdp_auto_backup_before_write {
             return Err("Escritura BDP bloqueada: auto-backup pre-write desactivado".into());
         }
@@ -280,8 +302,16 @@ impl BdpWriteGuard {
         .await
         .map_err(|error| format!("No se pudo crear armado BDP automático: {error}"))?;
 
+        /* [10AA-4] Aquí solo se llega por una acción explícita o por un modo de
+         * escritura ya concedido: `armar_push` sale antes en `automatic` (allí no
+         * hay armado por operación) y su barrido no arma nada. Se deja el modo en
+         * `unidirectional` porque es lo que `consumir_armado` exige para gastar
+         * el permiso; `cerrar_armado` lo devuelve a `read_only` en la misma
+         * transacción de la autorización, así que no sobrevive a la operación que
+         * lo justificó. */
         sqlx::query(
-            "UPDATE configuracion_restaurante SET bdp_sync_mode = 'unidirectional', updated_at = NOW() WHERE user_id = $1",
+            "UPDATE configuracion_restaurante SET bdp_sync_mode = 'unidirectional', updated_at = NOW() \
+              WHERE user_id = $1",
         )
         .bind(user_id)
         .execute(&mut *tx)

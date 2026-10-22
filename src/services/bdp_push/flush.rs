@@ -158,8 +158,17 @@ impl BdpPushFlushService {
     /// reintentan a mano, y `REINTENTOS_MAX` corta los errores transitorios—, así
     /// que un fallo no se convierte en un bucle de escrituras contra el TPV.
     pub async fn sincronizar_cuentas_automaticas(pool: &sqlx::PgPool) -> usize {
+        /* [10AA-4] Solo las cuentas con permiso permanente: `push_modalidad` es
+         * `automatico` por defecto, así que sin mirar `bdp_sync_mode` toda cuenta
+         * nueva escribía en el TPV estando en `read_only`. En `unidirectional` el
+         * permiso es por operación y lo gasta una persona con el botón; este
+         * barrido no debe gastarlo, así que tampoco entra aquí. `armar_push`
+         * vuelve a comprobarlo por si el modo cambia entre esta consulta y el
+         * envío. */
         let usuarios: Vec<Uuid> = match sqlx::query_scalar(
-            "SELECT user_id FROM configuracion_restaurante WHERE push_modalidad = 'automatico'",
+            "SELECT user_id FROM configuracion_restaurante \
+              WHERE push_modalidad = 'automatico' \
+                AND bdp_sync_mode = 'automatic'",
         )
         .fetch_all(pool)
         .await

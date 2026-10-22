@@ -48,6 +48,17 @@ pub async fn llamar_camarero(
             "Llamar camarero no está disponible sin BDP (modo standalone)".into(),
         ));
     }
+    /* [10AA-4] Es una escritura directa al TPV —no pasa por la cola ni por el
+     * armado, así que no hay permiso que gastar— y por eso no escribe en solo
+     * lectura. Antes solo miraba el modo maestro: con la cuenta en `read_only`
+     * el aviso salía igual y lo frenaba, como mucho, la allowlist de destinos.
+     * Se deja pasar en `unidirectional`: ahí es la persona la que pulsa, y el
+     * modo significa que puede haber escrituras autorizadas a mano. */
+    if config.bdp_sync_mode == "read_only" {
+        return Err(AppError::Forbidden(
+            "Llamar camarero está bloqueado: el modo de sincronización es 'read_only' (solo lectura).".into(),
+        ));
+    }
 
     let client = BdpWeblinkClient::new(&config);
     let datos_enviados = serde_json::json!({ "mesa": table, "sala": room });

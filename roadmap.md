@@ -64,6 +64,10 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 - [ ] `1d` — **Comanda 5330 en el BDP real.**
   Creada en la prueba 2.2 (Status=0 abierta, sin ticket): avisar al cliente para que la anule desde el TPV.
 
+- [ ] `10AA-4` — **Solo lectura de verdad: el barrido automático no escribe sin permiso.**
+  `sincronizar_cuentas_automaticas` seleccionaba por `push_modalidad = 'automatico'` (valor por defecto de la columna) sin mirar `bdp_sync_mode` (nace en `read_only`): toda cuenta nueva escribía en el TPV en el primer barrido y `auto_arm_inner` le cambiaba el modo por su cuenta. Corregido y cubierto con `tests/bdp_push_readonly.rs` y la matriz `tests/bdp_seguridad_escritura_simulador.rs` (simulador BDP, 4 casos).
+  Pendiente: deploy a producción y verificación en vivo (va con `1e`).
+
 - [ ] `1e` — **Deploy a producción + correcciones de intuitividad.**
   Plan `Agente/planes/plan-deploy-produccion-intuitividad-2026-08-08.md` (incluye borrador de respuesta al cliente). U1–U8 implementadas y validadas (2026-08-09).
   Pendiente: gate `task:check`, commit/push, deploy vía `coolify-manager-rs` y verificación en producción; la activación de escrituras BDP queda sujeta a validación del cliente.
