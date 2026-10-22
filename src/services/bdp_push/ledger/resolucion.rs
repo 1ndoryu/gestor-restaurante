@@ -345,3 +345,71 @@ async fn cerrar_auditorias(
     }
     Ok(())
 }
+
+/// [D-auto-push] Auditorías de stock que ninguna revisión automática puede
+/// cerrar: no existe fila en el libro (el envío falló antes de abrirlo) ni
+/// operación del poller que las cubra, así que mientras estén `pendiente` o
+/// `ambiguo` ese artículo y almacén no admiten otro movimiento.
+#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
+pub struct AuditoriaBloqueada {
+    pub id: Uuid,
+    pub operacion: String,
+    pub resultado: String,
+    pub error_mensaje: Option<String>,
+    pub creada_en: chrono::DateTime<chrono::Utc>,
+}
+
+/// Las que bloquean, la más reciente primero.
+pub async fn listar_auditorias_bloqueadas(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<Vec<AuditoriaBloqueada>, String> {
+    sqlx::query_as::<_, AuditoriaBloqueada>(
+        "SELECT id, operacion, resultado, error_mensaje, created_at AS creada_en \
+         FROM bdp_audit_log \
+         WHERE user_id = $1 AND target_entity_type = $2 \
+           AND resultado IN ('pendiente', 'ambiguo') \
+         ORDER BY created_at DESC",
+    )
+    .bind(user_id)
+    .bind(DOMINIO_STOCK)
+    .fetch_all(pool)
+    .await
+    .map_err(|error| format!("No se pudo leer las auditorías de stock bloqueadas: {error}"))
+}
+
+/// Cierra una auditoría de stock que el restaurante da por no aplicada. El
+/// motivo es obligatorio: sin él, dentro de un mes nadie sabe por qué se
+/// destrabó un artículo. No se borra la fila, se cierra como `error`.
+pub async fn descartar_auditoria(
+    pool: &PgPool,
+    user_id: Uuid,
+    audit_id: Uuid,
+    motivo: &str,
+) -> Result<(), String> {
+    let motivo = motivo.trim();
+    if motivo.chars().count() < 5 {
+        return Err("el motivo del descarte debe tener al menos 5 caracteres".into());
+    }
+    let nota = format!("descartada por el restaurante: {motivo}");
+    /* El filtro por estado va en el UPDATE: si otra revisión la cerró entre la
+     * lectura y esto, no se pisa su dictamen. */
+    let cerradas = sqlx::query(
+        "UPDATE bdp_audit_log \
+         SET resultado = 'error', error_mensaje = $3, updated_at = NOW() \
+         WHERE id = $1 AND user_id = $2 AND target_entity_type = $4 \
+           AND resultado IN ('pendiente', 'ambiguo')",
+    )
+    .bind(audit_id)
+    .bind(user_id)
+    .bind(&nota)
+    .bind(DOMINIO_STOCK)
+    .execute(pool)
+    .await
+    .map_err(|error| format!("No se pudo descartar la auditoría de stock: {error}"))?;
+    if cerradas.rows_affected() == 0 {
+        return Err("Esa auditoría ya no estaba bloqueando: recarga la lista".into());
+    }
+    tracing::info!("[D-auto-push] auditoría de stock {audit_id} descartada: {motivo}");
+    Ok(())
+}

@@ -269,6 +269,16 @@ pub async fn actualizar_configuracion(
         req.bdp_sync_enabled = Some(false);
     }
 
+    /* [D-auto] En automático el sondeo de estados se enciende solo salvo que se
+     * pida lo contrario en la misma petición. */
+    let modalidad_final = req
+        .push_modalidad
+        .clone()
+        .unwrap_or_else(|| stored.push_modalidad.clone());
+    if encender_poll_con_automatico(&modalidad_final, req.bdp_poll_enabled) {
+        req.bdp_poll_enabled = Some(true);
+    }
+
     let mut config = ConfiguracionService::actualizar(&state.pool, auth.user_id, &req).await?;
     if invalida_armado_bdp {
         /* [187A-1] Cambiar cualquier dato que afecte destino o payload anula
@@ -326,6 +336,13 @@ pub struct CambiarBdpSyncModeRequest {
     /// (código de artículo, de cliente de puntos…), del que se deriva el UUID
     /// de arming y auditoría. [10AA-3-B]
     pub target_entity_id: Option<String>,
+}
+
+/// [D-auto] ¿Hay que encender la relectura de estados? La cola automática envía
+/// la comanda al BDP; sin el sondeo su estado se queda congelado en la web.
+/// Solo se respeta un apagado explícito en la misma petición.
+fn encender_poll_con_automatico(modalidad: &str, poll_pedido: Option<bool>) -> bool {
+    modalidad == "automatico" && poll_pedido.is_none()
 }
 
 const VALID_BDP_WRITE_SCOPES: &[&str] = &[
@@ -386,12 +403,22 @@ fn destino_a_uuid(alcance: &str, target_type: &str, target_id: &str) -> Result<U
 
 #[cfg(test)]
 mod tests {
-    use super::{alcance_casa_con_objetivo, destino_a_uuid};
+    use super::{alcance_casa_con_objetivo, destino_a_uuid, encender_poll_con_automatico};
     use crate::services::entidad_uuid;
     use uuid::Uuid;
 
     fn alcances(valores: &[&str]) -> Vec<String> {
         valores.iter().map(|valor| (*valor).to_string()).collect()
+    }
+
+    /// [D-auto] Pasar a automático enciende la relectura de estados; un apagado
+    /// explícito en la misma petición manda, y en manual no se toca nada.
+    #[test]
+    fn automatico_enciende_el_sondeo_de_estados_salvo_apagado_explicito() {
+        assert!(encender_poll_con_automatico("automatico", None));
+        assert!(!encender_poll_con_automatico("automatico", Some(false)));
+        assert!(!encender_poll_con_automatico("automatico", Some(true)));
+        assert!(!encender_poll_con_automatico("manual", None));
     }
 
     /// Tipos de destino que declara el worker de push.

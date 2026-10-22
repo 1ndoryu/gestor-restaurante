@@ -191,6 +191,8 @@ async fn seed_config(pool: &PgPool, user_id: Uuid) -> ConfiguracionRestaurante {
         bdp_purchase_notes_profile_id: None,
         bdp_documentos_auto_segundos: 0,
         bdp_documentos_perfil: None,
+        bdp_maestros_auto_segundos: 0,
+        bdp_maestros_ultima_lectura: None,
         bdp_default_article_code: "1001".into(),
         bdp_default_article_name: "Servicio".into(),
         bdp_tender_map: json!({"efectivo": "1", "tarjeta": "2"}),

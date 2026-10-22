@@ -218,15 +218,9 @@ impl BdpWriteGuard {
             .await
             .map_err(|error| format!("Error adquiriendo lock de armado BDP: {error}"))?;
 
-        /* No pisar un armado manual/admin existente. */
-        let arming_existente: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM bdp_write_arming WHERE user_id = $1 AND expires_at > NOW() AND remaining_operations > 0)",
-        )
-        .bind(user_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|error| format!("Error verificando armado BDP previo: {error}"))?;
-        if arming_existente {
+        /* [D-auto-push] No pisar un armado manual/admin que aún se pueda
+         * consumir: si no es consumible se pisa sin más, porque no autoriza nada. */
+        if armado_consumible(&mut tx, user_id, &target, &fingerprint).await? {
             return Err("Ya existe un armado BDP activo; consume el armado actual o espera a que venza antes de auto-armar".into());
         }
 
@@ -360,4 +354,40 @@ impl BdpWriteGuard {
             .map_err(|error| format!("No se pudo confirmar cancelación de armado BDP: {error}"))?;
         Ok(())
     }
+}
+
+/// Armado vivo del usuario que `authorize` sí podría consumir: mismos requisitos
+/// que exige la autorización (destino, huella, snapshot y modo de escritura).
+/// Antes se bloqueaba con cualquier fila viva, así que un armado huérfano de
+/// otra entidad —o cualquiera con el modo en `read_only`, que nunca se podrá
+/// consumir— dejaba la cola entera en error hasta que venciera.
+async fn armado_consumible(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    target: &str,
+    fingerprint: &str,
+) -> Result<bool, String> {
+    sqlx::query_scalar(
+        r"SELECT EXISTS (
+             SELECT 1 FROM bdp_write_arming a
+             WHERE a.user_id = $1
+               AND a.expires_at > NOW()
+               AND a.remaining_operations > 0
+               AND a.snapshot_id IS NOT NULL
+               AND a.base_url = $2
+               AND a.connection_fingerprint = $3
+               AND EXISTS (
+                 SELECT 1 FROM configuracion_restaurante c
+                 WHERE c.user_id = $1
+                   AND TRIM(TRAILING '/' FROM TRIM(c.bdp_base_url)) = $2
+                   AND c.bdp_sync_mode = 'unidirectional'
+               )
+           )",
+    )
+    .bind(user_id)
+    .bind(target)
+    .bind(fingerprint)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(|error| format!("Error verificando armado BDP previo: {error}"))
 }

@@ -152,6 +152,37 @@ impl BdpPushFlushService {
         }
     }
 
+    /// [D-auto-push] Barrido periódico de las cuentas que enviarán solas.
+    /// Equivale al botón «Exportar al BDP» (`forzar_manual = false`): respeta las
+    /// reglas ya existentes —`pendiente_suscripcion` y `rechazado` solo se
+    /// reintentan a mano, y `REINTENTOS_MAX` corta los errores transitorios—, así
+    /// que un fallo no se convierte en un bucle de escrituras contra el TPV.
+    pub async fn sincronizar_cuentas_automaticas(pool: &sqlx::PgPool) -> usize {
+        let usuarios: Vec<Uuid> = match sqlx::query_scalar(
+            "SELECT user_id FROM configuracion_restaurante WHERE push_modalidad = 'automatico'",
+        )
+        .fetch_all(pool)
+        .await
+        {
+            Ok(usuarios) => usuarios,
+            Err(error) => {
+                tracing::warn!("[D-auto-push] No se pudieron listar cuentas automáticas: {error}");
+                return 0;
+            }
+        };
+
+        let mut total = 0;
+        for user_id in usuarios {
+            /* Un fallo de una cuenta no corta a las demás: cada fila de la cola
+             * guarda su propio estado y reintento. */
+            match Self::flush(pool, user_id, false).await {
+                Ok(resumen) => total += resumen.sincronizados,
+                Err(error) => tracing::warn!("[D-auto-push] Envío de {user_id} fallido: {error}"),
+            }
+        }
+        total
+    }
+
     /// [159A-2/F1] Predicado del filtro por dominio del flush.
     /// `None` o vacío = todo pasa (flush global histórico).
     fn dominio_en_filtro(dominio: &str, dominios: Option<&[String]>) -> bool {
@@ -521,15 +552,25 @@ async fn registrar_fallo_de_stock(
         /* La relectura dice que no se aplicó: queda deja de ser ambigua y el
          * guard de escritura deja pasar el reintento único. */
         AccionLibro::Reintentar => ("error", ESTADO_ERROR, true),
-        /* No se puede atribuir: la auditoría sigue ambigua y el guard bloquea
-         * cualquier escritura nueva de esa entidad hasta la revisión manual.
-         * Un rechazo de negocio conserva su estado definitivo. */
+        /* No se puede atribuir el movimiento del stock. Pero `ambiguo` solo
+         * vale cuando de verdad no sabemos si la escritura llegó: con un
+         * rechazo de negocio ([200202] «no es del tipo web») o un 4xx, BDP
+         * contestó que no la aplicó. Dejarlo `ambiguo` bloqueaba ese artículo
+         * y almacén para siempre, porque la reconciliación del poller no
+         * cubre stock y el libro ya no tiene filas que dictaminen. */
         AccionLibro::Revisar => {
-            let estado = match clasificar_error(error).0 {
-                ESTADO_RECHAZADO => ESTADO_RECHAZADO,
-                _ => ESTADO_ERROR,
+            let rechazo = clasificar_error(error).0 == ESTADO_RECHAZADO;
+            let audit = if rechazo || !es_transitorio(error) {
+                "error"
+            } else {
+                "ambiguo"
             };
-            ("ambiguo", estado, false)
+            let estado = if rechazo {
+                ESTADO_RECHAZADO
+            } else {
+                ESTADO_ERROR
+            };
+            (audit, estado, false)
         }
     };
     BdpBackupService::actualizar_resultado(pool, audit_id, resultado_audit, None, Some(&nota))

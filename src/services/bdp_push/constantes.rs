@@ -23,6 +23,10 @@ pub const ESTADO_RECHAZADO: &str = "rechazado";
 pub const ESTADO_SINCRONIZADO: &str = "sincronizado";
 pub const ESTADO_DESCARTADO: &str = "descartado";
 
+/* [D-auto-push] Cadencia del barrido de la cola. Cada fila ya trae su propio
+ * fail-closed; 60 s evita que un cambio local espere minutos. */
+pub const SEGUNDOS_PUSH_AUTOMATICO: u64 = 60;
+
 /* [M21] Tope de reintentos automáticos por operación (solo errores transitorios). */
 pub const REINTENTOS_MAX: i32 = 5;
 

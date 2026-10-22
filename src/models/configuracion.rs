@@ -70,6 +70,10 @@ pub struct ConfiguracionRestaurante {
      * web; 0 segundos = no leer sola. */
     pub bdp_documentos_auto_segundos: i32,
     pub bdp_documentos_perfil: Option<i32>,
+    /* [D24-auto] Lectura programada del catálogo de maestros. `0` segundos = no
+     * leer sola; la última lectura es la marca que el barrido usa para decidir. */
+    pub bdp_maestros_auto_segundos: i32,
+    pub bdp_maestros_ultima_lectura: Option<chrono::DateTime<chrono::Utc>>,
     /* [065A-5] Artículo BDP genérico para el mapeo Glory → BDP.
      * Si el código es numérico, se usa directamente como ArtCode.
      * Si no, se busca el primer artículo del perfil. */
@@ -207,6 +211,10 @@ pub struct ActualizarConfiguracionRequest {
     pub bdp_documentos_auto_segundos: Option<i32>,
     #[validate(range(min = 1, max = 999_999))]
     pub bdp_documentos_perfil: Option<i32>,
+    /* [D24-auto] Cadencia de la lectura de maestros; 0 la apaga. La fecha de la
+     * última lectura no se edita desde la API: la pone el barrido. */
+    #[validate(range(min = 0, max = 86_400))]
+    pub bdp_maestros_auto_segundos: Option<i32>,
     #[validate(length(max = 100))]
     pub bdp_default_article_code: Option<String>,
     #[validate(length(max = 255))]

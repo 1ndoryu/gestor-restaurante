@@ -26,7 +26,10 @@ use super::cola::BdpPushPendiente;
 use super::constantes::{DOMINIO_STOCK, OPERACION_INVENTARIO};
 
 pub use modelo::{clasificar, ReconciliacionStock};
-pub use resolucion::{listar as listar_revisiones, resolver, Decision, FilaRevision, Resolucion};
+pub use resolucion::{
+    descartar_auditoria, listar as listar_revisiones, listar_auditorias_bloqueadas, resolver,
+    AuditoriaBloqueada, Decision, FilaRevision, Resolucion,
+};
 
 use modelo::{decimal, lineas_del_payload, stock_desde_respuesta, variacion_de_linea};
 use registro::{FilaLibro, FilaPendiente};

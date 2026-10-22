@@ -35,15 +35,17 @@ pub use constantes::{
     ESTADO_PENDIENTE, ESTADO_PENDIENTE_SUSCRIPCION, ESTADO_RECHAZADO, ESTADO_SINCRONIZADO,
     OPERACION_CANCELAR, OPERACION_CREAR, OPERACION_INVENTARIO, OPERACION_MODIFICAR,
     OPERACION_PRECIOS, OPERACION_PROPINA, OPERACION_PUNTOS, OPERACION_REGULARIZAR,
-    OPERACION_TRASPASAR, REINTENTOS_MAX,
+    OPERACION_TRASPASAR, REINTENTOS_MAX, SEGUNDOS_PUSH_AUTOMATICO,
 };
 pub use flush::{BdpPushFlushResumen, BdpPushFlushService};
 pub use ledger::cerrar_libro;
 /* [D26g] Revisión manual del libro de stock (endpoints de Configuración → BDP). */
 pub use ledger::{
+    descartar_auditoria as descartar_auditoria_stock,
+    listar_auditorias_bloqueadas as listar_auditorias_stock_bloqueadas,
     listar_revisiones as listar_revisiones_stock, resolver as resolver_revision_stock,
-    Decision as DecisionRevisionStock, FilaRevision as FilaRevisionStock,
-    Resolucion as ResolucionStock,
+    AuditoriaBloqueada as AuditoriaStockBloqueada, Decision as DecisionRevisionStock,
+    FilaRevision as FilaRevisionStock, Resolucion as ResolucionStock,
 };
 pub use payloads::{
     payload_cancelar, payload_crear_articulo, payload_crear_departamento, payload_crear_familia,

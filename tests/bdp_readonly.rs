@@ -47,6 +47,8 @@ fn bdp_config_from_env() -> Option<ConfiguracionRestaurante> {
         bdp_articulo_rango_inicial: 90_000_000,
         bdp_documentos_auto_segundos: 0,
         bdp_documentos_perfil: None,
+        bdp_maestros_auto_segundos: 0,
+        bdp_maestros_ultima_lectura: None,
         bdp_responsable_no_api: String::new(),
         bdp_order_end_type: 0,
         bdp_billing_details: false,

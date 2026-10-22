@@ -7,6 +7,7 @@ mod bdp_config_bootstrap;
 pub mod bdp_documentos_venta;
 mod bdp_explorer;
 mod bdp_import_departamentos;
+pub mod bdp_maestros_auto;
 pub mod bdp_operaciones_no_api;
 pub(crate) mod bdp_order_poller;
 pub mod bdp_purchase_sync;
@@ -69,8 +70,11 @@ pub use bdp_push::{
 };
 /* [D26g] Revisión manual del libro de stock: el endpoint que destraba una
  * operación ambigua (el guard la bloqueaba sin salida). */
+pub use bdp_push::{
+    descartar_auditoria_stock, listar_auditorias_stock_bloqueadas, AuditoriaStockBloqueada,
+    DecisionRevisionStock, FilaRevisionStock, ResolucionStock,
+};
 pub use bdp_push::{listar_revisiones_stock, resolver_revision_stock};
-pub use bdp_push::{DecisionRevisionStock, FilaRevisionStock, ResolucionStock};
 pub use bdp_sync::BdpSyncService;
 pub use bdp_sync_catalogo::SyncTablesResult;
 pub use bdp_sync_preflight::{BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncPreflightService};

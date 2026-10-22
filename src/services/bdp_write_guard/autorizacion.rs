@@ -75,7 +75,12 @@ impl BdpWriteGuard {
 
         /* [267A-7] Modo automático: autorización permanente sin armado por
          * operación. Misma auditoría e idempotencia que el modo manual, pero
-         * no consume armado ni devuelve el modo a `read_only`. */
+         * no consume armado ni devuelve el modo a `read_only`.
+         * [D-auto-push] Sí descarta el armado de esta entidad: `armar_push`
+         * deja uno en cada envío automático y en modo `automatic` nadie lo
+         * consume, así que a los dos envíos de la misma entidad el
+         * `auto_arm_inner` se negaba con «Ya existe un armado BDP activo» y
+         * el barrido periódico se quedaba parado el resto del TTL. */
         if config.bdp_sync_mode == "automatic" {
             return Self::authorize_automatic(pool, config, escritura, snapshot_pre_id).await;
         }
@@ -120,6 +125,11 @@ impl BdpWriteGuard {
         comprobar_config_automatica(&mut tx, escritura, config).await?;
         let audit_id =
             registrar_intencion(&mut tx, escritura, snapshot_pre_id, "modo_automatico").await?;
+        /* [D-auto-push] El armado ya cumplió su función (destino, alcance y
+         * snapshot vigentes): se borra sin tocar `bdp_sync_mode`, que en este
+         * modo es permanente. Mismo advisory lock de la escritura: ningún otro
+         * envío de esta entidad puede estar armando a la vez. */
+        descartar_armado(&mut tx, escritura).await?;
 
         tx.commit()
             .await
@@ -348,5 +358,28 @@ async fn cerrar_armado(tx: &mut Transaction<'_, Postgres>, user_id: Uuid) -> Res
         .execute(&mut **tx)
         .await
         .map_err(|error| format!("No se pudo eliminar armado BDP consumido: {error}"))?;
+    Ok(())
+}
+
+/// [D-auto-push] Borra el armado de la entidad y alcance de esta escritura sin
+/// tocar `bdp_sync_mode`. En modo `automatic` el armado no se consume: sin
+/// esto, la primera fila de una entidad dejaba un armado vivo que el
+/// `auto_arm_inner` del siguiente envío se negaba a pisar.
+async fn descartar_armado(
+    tx: &mut Transaction<'_, Postgres>,
+    e: Escritura<'_>,
+) -> Result<(), String> {
+    sqlx::query(
+        "DELETE FROM bdp_write_arming
+          WHERE user_id = $1 AND target_entity_type = $2 AND target_entity_id = $3
+            AND $4 = ANY(scopes)",
+    )
+    .bind(e.user_id)
+    .bind(e.target_entity_type)
+    .bind(e.target_entity_id)
+    .bind(e.scope)
+    .execute(&mut **tx)
+    .await
+    .map_err(|error| format!("No se pudo descartar el armado BDP: {error}"))?;
     Ok(())
 }

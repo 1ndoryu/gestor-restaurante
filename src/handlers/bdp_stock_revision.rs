@@ -18,7 +18,8 @@ use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::models::UserRole;
 use crate::services::{
-    listar_revisiones_stock, resolver_revision_stock, DecisionRevisionStock, FilaRevisionStock,
+    descartar_auditoria_stock, listar_auditorias_stock_bloqueadas, listar_revisiones_stock,
+    resolver_revision_stock, AuditoriaStockBloqueada, DecisionRevisionStock, FilaRevisionStock,
     ResolucionStock,
 };
 use crate::AppState;
@@ -28,8 +29,11 @@ use super::rate_limit::{limitador_escrituras, limitar};
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/bdp/stock/revisiones", get(listar))
+        .route("/bdp/stock/auditorias-bloqueadas", get(listar_bloqueadas))
         // sentinel-disable-next-line ruta-post-sin-rate-limit: el limitador está en el `layer` de abajo, igual que en el resto de escrituras BDP.
         .route("/bdp/stock/revisiones/:id", post(resolver))
+        // sentinel-disable-next-line ruta-post-sin-rate-limit: mismo `layer` que resuelve y escribe en auditoría.
+        .route("/bdp/stock/auditorias-bloqueadas/:id", post(descartar))
         .layer(axum::middleware::from_fn_with_state(
             limitador_escrituras(),
             limitar,
@@ -87,4 +91,42 @@ pub async fn resolver(
         ok: true,
         resolucion,
     }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DescartarAuditoriaRequest {
+    /// Por qué se da por no aplicada: queda en la auditoría para siempre.
+    pub motivo: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RespuestaDescarte {
+    pub ok: bool,
+}
+
+/* [D-auto-push] Auditorías de stock que ninguna revisión automática puede
+ * cerrar (el envío falló antes de abrir el libro). Sin esta salida, ese
+ * artículo y almacén no admitían otro movimiento nunca más. */
+pub async fn listar_bloqueadas(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<Json<Vec<AuditoriaStockBloqueada>>, AppError> {
+    auth.require_role(&[UserRole::Admin])?;
+    let filas = listar_auditorias_stock_bloqueadas(&state.pool, auth.user_id)
+        .await
+        .map_err(AppError::Internal)?;
+    Ok(Json(filas))
+}
+
+pub async fn descartar(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<uuid::Uuid>,
+    Json(cuerpo): Json<DescartarAuditoriaRequest>,
+) -> Result<Json<RespuestaDescarte>, AppError> {
+    auth.require_role(&[UserRole::Admin])?;
+    descartar_auditoria_stock(&state.pool, auth.user_id, id, &cuerpo.motivo)
+        .await
+        .map_err(AppError::BadRequest)?;
+    Ok(Json(RespuestaDescarte { ok: true }))
 }

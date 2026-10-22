@@ -107,6 +107,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
      * venta sin marcar como facturada. La primera pasada cubre los avisos que
      * esperaron con el backend parado. */
     lanzar_avisos_automaticos(pool.clone(), modo_operacion.clone());
+    /* [D-auto-push/D24-auto] Cola de envíos y catálogo programado (opt-in). */
+    lanzar_push_automatico(pool.clone());
+    lanzar_maestros_automaticos(pool.clone(), modo_operacion.clone());
 
     /* [303A-2] Graceful shutdown: señal SIGTERM/Ctrl+C cierra conexiones limpiamente */
     let listener = tokio::net::TcpListener::bind(&addr).await?;
@@ -199,6 +202,47 @@ fn lanzar_avisos_automaticos(pool: sqlx::PgPool, modo: ServicioModoOperacion) {
             let procesados = bdp_avisos::procesar_pendientes(&pool, &modo).await;
             if procesados > 0 {
                 tracing::info!("[10AA-3] Avisos del buzón procesados: {procesados}");
+            }
+        }
+    });
+}
+
+/* [D-auto-push] Barrido de la cola Glory → BDP. Quién envía lo manda
+ * `push_modalidad` de cada cuenta (solo las `automatico`); el bucle no decide
+ * nada más. 0 filas no hace nada: no hay log ni estado que tocar. */
+fn lanzar_push_automatico(pool: sqlx::PgPool) {
+    use glory_backend::services::bdp_push::SEGUNDOS_PUSH_AUTOMATICO;
+    use glory_backend::services::BdpPushFlushService;
+
+    tokio::spawn(async move {
+        let mut interval =
+            tokio::time::interval(std::time::Duration::from_secs(SEGUNDOS_PUSH_AUTOMATICO));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            let enviadas = BdpPushFlushService::sincronizar_cuentas_automaticas(&pool).await;
+            if enviadas > 0 {
+                tracing::info!("[D-auto-push] Filas enviadas a BDP: {enviadas}");
+            }
+        }
+    });
+}
+
+/* [D24-auto] Lectura programada del catálogo de maestros (artículos, precios y
+ * stock agregado). La cadencia es de cada cuenta y `0` la deja apagada. */
+fn lanzar_maestros_automaticos(pool: sqlx::PgPool, modo: ServicioModoOperacion) {
+    use glory_backend::services::bdp_maestros_auto as maestros;
+
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+            maestros::GRANO_BUCLE_SEGUNDOS,
+        ));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            let leidos = maestros::sincronizar_vencidas(&pool, &modo).await;
+            if leidos > 0 {
+                tracing::info!("[D24-auto] Maestros del BDP leídos: {leidos}");
             }
         }
     });

@@ -491,6 +491,8 @@ mod tests {
             bdp_purchase_notes_profile_id: None,
             bdp_documentos_auto_segundos: 0,
             bdp_documentos_perfil: None,
+            bdp_maestros_auto_segundos: 0,
+            bdp_maestros_ultima_lectura: None,
             bdp_default_article_code: String::new(),
             bdp_default_article_name: String::new(),
             /* [276A-4.2] Campos BDP nuevos */
@@ -1263,6 +1265,7 @@ mod tests {
             bdp_purchase_notes_profile_id: None,
             bdp_documentos_auto_segundos: None,
             bdp_documentos_perfil: None,
+            bdp_maestros_auto_segundos: None,
             bdp_tender_map: None,
             bdp_order_type_map: None,
             bdp_default_customer_code: None,

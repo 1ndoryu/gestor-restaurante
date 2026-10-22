@@ -524,7 +524,7 @@ async fn armar_push_reutiliza_el_armado_manual_vigente(pool: PgPool) {
     assert_eq!(operaciones, 1, "armar el push no consume el armado");
 
     /* Otra entidad no lo reutiliza: cae al auto-armado, que se niega a pisar un
-     * armado activo. El fail-closed se mantiene. */
+     * armado consumible. El fail-closed se mantiene y el armado no se toca. */
     let error = BdpWriteGuard::armar_push(
         &pool,
         user_id,
@@ -537,4 +537,103 @@ async fn armar_push_reutiliza_el_armado_manual_vigente(pool: PgPool) {
     .await
     .expect_err("un armado de otra entidad no autoriza esta operación");
     assert!(error.contains("armado BDP activo"), "{error}");
+
+    let (motivo_final, operaciones_finales): (String, i32) = sqlx::query_as(
+        "SELECT reason, remaining_operations FROM bdp_write_arming WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .expect("leer armado tras el rechazo");
+    assert_eq!(motivo_final, "prueba local", "el rechazo no pisa el armado");
+    assert_eq!(operaciones_finales, 1);
+}
+
+/// [D-auto-push] Un armado que `authorize` nunca podrá consumir no puede
+/// bloquear la cola entera. Caso real: con `bdp_sync_mode='read_only'` quedó una
+/// fila de `transfer_stock` para otra entidad y todo envío automático respondía
+/// «Ya existe un armado BDP activo» hasta que vencía, sin botón que lo arreglara.
+#[sqlx::test(migrations = "./migrations")]
+async fn auto_armar_pisa_un_armado_que_no_se_puede_consumir(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let mut config = ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración");
+    config.bdp_base_url = "http://127.0.0.1:18765".into();
+    config.bdp_sync_mode = "read_only".into();
+    config.bdp_sync_enabled = true;
+    config.bdp_login = "prueba".into();
+    config.bdp_password = "prueba".into();
+    config.bdp_integrator_code = "PRUEBA".into();
+    sqlx::query(
+        r"UPDATE configuracion_restaurante
+             SET bdp_base_url = $2, bdp_sync_mode = 'read_only',
+                 bdp_sync_enabled = TRUE, bdp_login = 'prueba', bdp_password = 'prueba',
+                 bdp_integrator_code = 'PRUEBA'
+           WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .bind(&config.bdp_base_url)
+    .execute(&pool)
+    .await
+    .expect("configurar BDP local en solo lectura");
+
+    let fingerprint = BdpBackupService::connection_fingerprint(&config).expect("fingerprint");
+    let snapshot_id: Uuid = sqlx::query_scalar(
+        r"INSERT INTO bdp_snapshots
+           (user_id, tipo, direccion, trigger_tipo, datos, target_base_url, connection_fingerprint)
+           VALUES ($1, 'completo', 'bdp', 'manual', $2, $3, $4)
+           RETURNING id",
+    )
+    .bind(user_id)
+    .bind(serde_json::json!({
+        "articulos": [], "clientes": [], "departamentos": [], "salones": [], "empleados": []
+    }))
+    .bind(&config.bdp_base_url)
+    .bind(&fingerprint)
+    .fetch_one(&pool)
+    .await
+    .expect("crear snapshot exacto");
+
+    /* Armado huérfano: otra entidad y modo que `authorize` no consume. */
+    sqlx::query(
+        r"INSERT INTO bdp_write_arming
+           (user_id, base_url, scopes, target_entity_type, target_entity_id,
+            reason, expires_at, remaining_operations, snapshot_id, connection_fingerprint)
+           VALUES ($1, $2, ARRAY['transfer_stock'], 'stock', $3,
+                   'auto_arm:transfer_stock:stock:huerfano', NOW() + INTERVAL '10 minutes', 1, $4, $5)",
+    )
+    .bind(user_id)
+    .bind(&config.bdp_base_url)
+    .bind(Uuid::new_v4())
+    .bind(snapshot_id)
+    .bind(&fingerprint)
+    .execute(&pool)
+    .await
+    .expect("crear armado huérfano");
+
+    BdpWriteGuard::armar_push(
+        &pool,
+        user_id,
+        &config,
+        "regularize_stock",
+        "stock",
+        Uuid::new_v4(),
+        true,
+    )
+    .await
+    .expect("un armado no consumible no bloquea el envío");
+
+    let (scopes, motivo): (Vec<String>, String) =
+        sqlx::query_as("SELECT scopes, reason FROM bdp_write_arming WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("leer armado reemplazado");
+    assert_eq!(
+        scopes,
+        vec!["regularize_stock".to_string()],
+        "el armado huérfano se reemplaza"
+    );
+    assert!(motivo.starts_with("auto_arm:regularize_stock:"), "{motivo}");
 }
