@@ -142,7 +142,8 @@ Lo que se ha puesto por delante, capa a capa:
    instante sin tocar nada más. Las lecturas y las importaciones siguen.
 10. **La prueba de contrato del TPV no crea nada.** El diagnóstico que comprueba
     el contrato pide la comanda con la marca de «en seco» (`OnlyCheck`), que el TPV
-    no debe persistir.
+    no debe persistir. Se ejecuta a propósito, desde el botón de diagnóstico: no
+    forma parte de la operación normal y no crea comandas en el TPV.
 
 ---
 
@@ -308,7 +309,8 @@ web: son límites del TPV o de las condiciones de prueba.
 
 ## 9. Estado de la instalación de producción (22 de octubre de 2026)
 
-Comprobado en vivo contra `restaurante.wandori.us`, sin cambiar la configuración:
+Comprobado en vivo contra `restaurante.wandori.us`, sin escribir nada en el TPV y
+dejando puesta la parte de la puesta en marcha que no lo necesita.
 
 **Lo que funciona hoy.**
 
@@ -319,19 +321,23 @@ Comprobado en vivo contra `restaurante.wandori.us`, sin cambiar la configuració
 - Las dos cuentas están en **solo lectura**. La cola de envío está vacía, no hay
   autorizaciones pendientes ni avisos acumulados, y el registro de auditoría no
   tiene ninguna escritura nueva.
-- La prueba de contrato del TPV se ejecuta y **la creación «en seco» queda
-  rechazada antes de salir del servidor**, como debe: ninguna prueba crea pedidos
-  en el TPV real.
+- La prueba de contrato del TPV se ejecuta a propósito, desde su botón, y pide la
+  comanda con la marca de «en seco» (`OnlyCheck`): el TPV la valida y no la
+  guarda. Nada fuera de esa prueba escribe en el TPV.
+- **Ya hay un snapshot completo del TPV**, hecho hoy y válido 24 horas
+  (artículos, clientes, departamentos, salones y empleados de la
+  conexión exacta). Es el que exige el modo automático.
+- **Las cadencias de lectura ya están encendidas** a 15 minutos: artículos,
+  clientes, plano de sala y departamentos se refrescan solos, en solo lectura.
 
 **Lo que falta configurar para poder escribir.** Ninguna de estas cosas es un
 defecto: son datos de la puesta en marcha que hoy no están puestos.
 
 | Qué falta | Quién lo hace |
 |---|---|
-| **Un snapshot completo del TPV** (artículos, clientes, departamentos, salones y empleados) del mismo día. Sin él el modo automático no se puede activar. | **Nosotros**, desde la pantalla, el día de la puesta en marcha |
 | **El mapeo de formas de pago.** Hoy no hay ninguno: los pagos saldrían sin identificar la forma de pago. Como mínimo, efectivo y tarjeta. | **El cliente** elige qué formas usa; se introduce en pantalla (lo hacemos nosotros con su lista) |
 | **El mapeo de tipos de pedido.** Hoy no hay ninguno: todas las ventas se enviarían como «Barra». | **El cliente** elige si usa salón, mesa o recogida; se introduce en pantalla (lo hacemos nosotros con su lista) |
-| **Las cadencias de lectura**, hoy a cero: los maestros (artículos, clientes, plano, departamentos) y los documentos no se refrescan solos. Recomendado, 15 minutos. | **El cliente** decide; lo encendemos nosotros |
+| **La cadencia de documentos de venta**, hoy apagada: no tiene perfil asignado y adivinar cuál es el de este restaurante leería documentos ajenos. Se enciende en la puesta en marcha, con el perfil confirmado por el cliente. | **Nosotros**, en la puesta en marcha, con el perfil que confirme el cliente |
 
 Aparte, para información: la cuenta de demostración tiene la sincronización
 apagada, que es lo correcto en una demo.
@@ -349,9 +355,9 @@ condiciones:
    disponibles. Es lo único que puede impedir que la integración funcione igual en
    producción, y se resuelve hablando con el proveedor. **Está pendiente de
    decisión del cliente.**
-2. **La puesta en marcha de la sección 9**: el snapshot del día y las cadencias
-   los ponemos nosotros, en una sola sesión; las formas de pago y los tipos de
-   pedido salen de la lista que dé el cliente.
+2. **La puesta en marcha de la sección 9**: el snapshot del día ya está hecho y
+   las cadencias las encendemos nosotros en una sola sesión; las formas de pago y
+   los tipos de pedido salen de la lista que dé el cliente.
 3. **Una sesión presencial de una hora** con el TPV delante para cerrar las cinco
    pruebas que lo exigen (impresora de cocina, doble toque, Monitor de Cocina,
    traspaso completo y reinicio de BDP.NET).
