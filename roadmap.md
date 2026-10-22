@@ -124,9 +124,6 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 - [ ] `189A-5` — **PATCH `invalida_armado_bdp` no incluye `bdp_auto_backup_before_write`.**
   `src/handlers/configuracion.rs:197-209`: desactivar el backup pre-write en `automatic` no fuerza `read_only`. Añadir el flag a la lista + test.
 
-- [ ] `189A-6` — **Cierre de auditoría silencioso (`let _ = actualizar_resultado`).**
-  5 sitios (`bdp_sync_pago.rs:344,468`, `bdp_sync_factura.rs:303`, `bdp_customer_sync.rs:660`, `bdp_sync_venta.rs:381`). Propagar o al menos loguear + reconciliar pendientes.
-
 - [ ] `159A-2` — **Unificar botones sync en Importar/Exportar + importar departamentos/familias del BDP.**
   Plan `Agente/planes/plan-sync-importar-exportar-bdp-2026-09-15.md`. 13 botones sync reales → 2 por sección + endpoint `importar-departamentos` + spike familias. Bloqueo: F0 spike (rango códigos 1..999, export familias, filtro flush).
 
