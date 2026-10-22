@@ -378,14 +378,19 @@ impl BdpSyncService {
 
         if let Err(e) = commit_result {
             warn!("[BDP-SAFE] {e} (venta {})", venta.id);
-            let _ = crate::services::BdpBackupService::actualizar_resultado(
+            if let Err(error_auditoria) = crate::services::BdpBackupService::actualizar_resultado(
                 pool,
                 audit_id,
                 "ambiguo",
                 Some(&respuesta),
                 Some(&e),
             )
-            .await;
+            .await
+            {
+                warn!(
+                    "[BDP-AUDITORIA] no se pudo cerrar la auditoría {audit_id}: {error_auditoria}"
+                );
+            }
         }
     }
 

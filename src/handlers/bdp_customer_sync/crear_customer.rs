@@ -1,6 +1,7 @@
 /* [267A-8] Armado y ejecución de CreateCustomer en BDP con auditoría; división de nombres. */
 
 use axum::Json;
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::errors::AppError;
@@ -183,18 +184,35 @@ pub(super) async fn ejecutar_create_customer(
         )));
     }
 
-    /* [AUDIT-N1] Envolver marca local + auditoría en transacción atómica
-     * para que, si el proceso muere después del HTTP, no quede
-     * bdp_synced=true sin auditoría cerrada (o viceversa).
-     * [267A-7] SQL en repositorios; el handler conserva mensajes y puerta. */
+    confirmar_cliente_creado(&state.pool, cliente.id, audit_id, bdp_code, &resp).await?;
+
+    Ok(Json(serde_json::json!({
+        "cliente_id": cliente.id,
+        "bdp_customer_code": bdp_code,
+        "bdp_synced": true,
+        "bdp_synced_at": chrono::Utc::now().to_rfc3339(),
+    })))
+}
+
+/* [AUDIT-N1] Marca local + auditoría en una sola transacción: si el proceso
+ * muere después del HTTP, no queda `bdp_synced = true` sin su auditoría (ni al
+ * revés). [267A-7] El SQL vive en los repositorios; aquí quedan mensajes y
+ * puerta. Se extrajo de `ejecutar_create_customer` para no pasar de 100 líneas
+ * efectivas ([189A-6], regla `funcion-larga-rs`). */
+async fn confirmar_cliente_creado(
+    pool: &sqlx::PgPool,
+    cliente_id: Uuid,
+    audit_id: Uuid,
+    bdp_code: i32,
+    resp: &serde_json::Value,
+) -> Result<(), AppError> {
     let commit_result = async {
-        let mut tx = state
-            .pool
+        let mut tx = pool
             .begin()
             .await
             .map_err(|e| format!("Error iniciando tx post-create_customer: {e}"))?;
 
-        ClienteRepository::update_bdp_sync_confirmado_tx(&mut tx, cliente.id, bdp_code)
+        ClienteRepository::update_bdp_sync_confirmado_tx(&mut tx, cliente_id, bdp_code)
             .await
             .map_err(|e| {
                 format!(
@@ -202,7 +220,7 @@ pub(super) async fn ejecutar_create_customer(
                 )
             })?;
 
-        BdpAuditLogRepository::marcar_exito_tx(&mut tx, audit_id, Some(&resp))
+        BdpAuditLogRepository::marcar_exito_tx(&mut tx, audit_id, Some(resp))
             .await
             .map_err(|e| format!("Cliente confirmado, pero falló el cierre de auditoría: {e}"))?;
 
@@ -214,23 +232,20 @@ pub(super) async fn ejecutar_create_customer(
 
     if let Err(e) = commit_result {
         /* La tx falló pero BDP ya creó el cliente → auditoría ambigua. */
-        let _ = crate::services::BdpBackupService::actualizar_resultado(
-            &state.pool,
+        if let Err(error_auditoria) = crate::services::BdpBackupService::actualizar_resultado(
+            pool,
             audit_id,
             "ambiguo",
-            Some(&resp),
+            Some(resp),
             Some(&e),
         )
-        .await;
+        .await
+        {
+            warn!("[BDP-AUDITORIA] no se pudo cerrar la auditoría {audit_id}: {error_auditoria}");
+        }
         return Err(AppError::Internal(e));
     }
-
-    Ok(Json(serde_json::json!({
-        "cliente_id": cliente.id,
-        "bdp_customer_code": bdp_code,
-        "bdp_synced": true,
-        "bdp_synced_at": chrono::Utc::now().to_rfc3339(),
-    })))
+    Ok(())
 }
 
 /// Heurística para dividir un nombre completo BDP en nombre + apellidos.

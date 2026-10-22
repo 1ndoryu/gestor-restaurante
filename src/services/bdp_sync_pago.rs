@@ -9,7 +9,7 @@ use rust_decimal::prelude::Decimal;
 use serde_json::Value;
 use sqlx::PgPool;
 use tokio::sync::Mutex as TokioMutex;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::models::{ConfiguracionRestaurante, Venta};
@@ -359,14 +359,19 @@ impl BdpSyncService {
             | crate::services::bdp_weblink::BdpWeblinkError::Throttled(_) => "ambiguo",
             _ => "error",
         };
-        let _ = crate::services::BdpBackupService::actualizar_resultado(
+        /* [189A-6] Un cierre de auditoría fallido no se pierde en silencio: la
+         * fila queda abierta y al menos el log lo dice. */
+        if let Err(error_auditoria) = crate::services::BdpBackupService::actualizar_resultado(
             pool,
             audit_id,
             resultado,
             None,
             Some(&msg),
         )
-        .await;
+        .await
+        {
+            warn!("[BDP-AUDITORIA] no se pudo cerrar la auditoría {audit_id}: {error_auditoria}");
+        }
         msg
     }
 
@@ -490,14 +495,20 @@ impl BdpSyncService {
 
         if let Err(e) = commit_result {
             /* La tx falló pero BDP ya procesó el pago → auditoría ambigua. */
-            let _ = crate::services::BdpBackupService::actualizar_resultado(
+            if let Err(error_auditoria) = crate::services::BdpBackupService::actualizar_resultado(
                 pool,
                 armado.audit_id,
                 "ambiguo",
                 Some(&response),
                 Some(&e),
             )
-            .await;
+            .await
+            {
+                warn!(
+                    "[BDP-AUDITORIA] no se pudo cerrar la auditoría {}: {error_auditoria}",
+                    armado.audit_id
+                );
+            }
             return Err(e);
         }
 

@@ -6,7 +6,7 @@
 use rust_decimal::prelude::Decimal;
 use serde_json::Value;
 use sqlx::PgPool;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::models::{ConfiguracionRestaurante, Venta};
@@ -357,14 +357,19 @@ impl BdpSyncService {
 
         if let Err(e) = commit_result {
             /* La tx falló pero BDP ya procesó la factura → auditoría ambigua. */
-            let _ = crate::services::BdpBackupService::actualizar_resultado(
+            if let Err(error_auditoria) = crate::services::BdpBackupService::actualizar_resultado(
                 pool,
                 audit_id,
                 "ambiguo",
                 Some(response),
                 Some(&e),
             )
-            .await;
+            .await
+            {
+                warn!(
+                    "[BDP-AUDITORIA] no se pudo cerrar la auditoría {audit_id}: {error_auditoria}"
+                );
+            }
             return Err(e);
         }
         Ok(())
