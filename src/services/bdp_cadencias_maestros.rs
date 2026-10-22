@@ -112,19 +112,28 @@ async fn leer(
 
     match maestro {
         Maestro::Clientes => {
-            let resultado =
-                crate::handlers::importar_clientes(pool, user_id, true).await
-                    .map_err(|error| error.to_string())?;
-            let importados = resultado.get("imported").and_then(serde_json::Value::as_u64).unwrap_or(0);
-            let actualizados = resultado.get("updated").and_then(serde_json::Value::as_u64).unwrap_or(0);
-            let conflictos = resultado.get("conflicts").and_then(serde_json::Value::as_u64).unwrap_or(0);
-            Ok(format!("{importados} nuevos, {actualizados} vinculados, {conflictos} conflictos"))
+            let resultado = crate::handlers::importar_clientes(pool, user_id, true)
+                .await
+                .map_err(|error| error.to_string())?;
+            let importados = resultado
+                .get("imported")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0);
+            let actualizados = resultado
+                .get("updated")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0);
+            let conflictos = resultado
+                .get("conflicts")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0);
+            Ok(format!(
+                "{importados} nuevos, {actualizados} vinculados, {conflictos} conflictos"
+            ))
         }
         Maestro::Plano => {
-            let resultado = crate::services::BdpSyncService::sync_tables(
-                &client, pool, user_id, true,
-            )
-            .await?;
+            let resultado =
+                crate::services::BdpSyncService::sync_tables(&client, pool, user_id, true).await?;
             Ok(format!(
                 "{} salones, {} zonas y {} mesas nuevas",
                 resultado.salones_bdp, resultado.zonas_creadas, resultado.mesas_creadas
@@ -132,11 +141,9 @@ async fn leer(
         }
         Maestro::Departamentos => {
             let valor = client
-                .export_departments_from_profile(
-                    &BdpDepartmentsExportFromProfileRequest {
-                        profile_id: config.bdp_items_profile_id,
-                    },
-                )
+                .export_departments_from_profile(&BdpDepartmentsExportFromProfileRequest {
+                    profile_id: config.bdp_items_profile_id,
+                })
                 .await
                 .map_err(|error| error.to_string())?;
             let items = crate::services::aplanar_departamentos(&valor);

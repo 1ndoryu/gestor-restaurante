@@ -30,14 +30,8 @@ pub(super) async fn sincronizar_existente(
      * coincidencia heurística de teléfono/email. */
     match cliente.bdp_customer_code {
         None if aplicar => {
-            match ClienteRepository::update_bdp_sync(
-                pool,
-                cliente.id,
-                Some(codigo_bdp),
-                true,
-                None,
-            )
-            .await
+            match ClienteRepository::update_bdp_sync(pool, cliente.id, Some(codigo_bdp), true, None)
+                .await
             {
                 Ok(()) => {
                     rec.actualizados += 1;
@@ -118,13 +112,22 @@ pub async fn sincronizar_cliente_bdp(
     /* Con Overwrite autorizado el objetivo es reemplazar el registro ya vinculado,
      * así que el preflight de colisión no aplica. */
     if !overwrite {
-        if let Some(respuesta) = vincular_si_existe(&client, &state.pool, &cliente, bdp_code).await? {
+        if let Some(respuesta) =
+            vincular_si_existe(&client, &state.pool, &cliente, bdp_code).await?
+        {
             return Ok(respuesta);
         }
     }
 
-    let (req, audit_id) =
-        armar_create_customer(&state.pool, auth.user_id, &config, &cliente, bdp_code, overwrite).await?;
+    let (req, audit_id) = armar_create_customer(
+        &state.pool,
+        auth.user_id,
+        &config,
+        &cliente,
+        bdp_code,
+        overwrite,
+    )
+    .await?;
 
     ejecutar_create_customer(&client, &state.pool, &req, audit_id, &cliente, bdp_code).await
 }

@@ -102,15 +102,8 @@ pub async fn importar_clientes(
     let mut rec = RecuentoImportacion::default();
     let mut codigos_vistos = std::collections::HashSet::new();
     for cust in customers {
-        let cortar = procesar_cliente_bdp(
-            pool,
-            user_id,
-            cust,
-            aplicar,
-            &mut codigos_vistos,
-            &mut rec,
-        )
-        .await;
+        let cortar =
+            procesar_cliente_bdp(pool, user_id, cust, aplicar, &mut codigos_vistos, &mut rec).await;
         if cortar {
             break;
         }
@@ -220,17 +213,10 @@ async fn procesar_cliente_bdp(
     rec.ok();
 
     /* Buscar cliente existente por teléfono o email */
-    match ClienteRepository::find_by_telefono_o_email(
-        pool,
-        user_id,
-        fila.telefono,
-        fila.email,
-    )
-    .await
+    match ClienteRepository::find_by_telefono_o_email(pool, user_id, fila.telefono, fila.email)
+        .await
     {
-        Ok(Some(cliente)) => {
-            sincronizar_existente(pool, &cliente, fila.codigo, aplicar, rec).await
-        }
+        Ok(Some(cliente)) => sincronizar_existente(pool, &cliente, fila.codigo, aplicar, rec).await,
         Ok(None) => crear_importado(pool, user_id, &fila, aplicar, rec).await,
         Err(e) => {
             warn!("[AUDIT-N5] Error DB buscando cliente: {e}");

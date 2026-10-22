@@ -171,14 +171,8 @@ pub(super) async fn ejecutar_create_customer(
             ))
         })?;
         /* Guardar error en el cliente */
-        let _ = ClienteRepository::update_bdp_sync(
-            pool,
-            cliente.id,
-            None,
-            false,
-            Some(error_msg),
-        )
-        .await;
+        let _ = ClienteRepository::update_bdp_sync(pool, cliente.id, None, false, Some(error_msg))
+            .await;
         return Err(AppError::Validation(format!(
             "BDP devolvió error: {error_msg}"
         )));

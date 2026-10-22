@@ -3,11 +3,11 @@ mod auth;
 /* [147A-F6] módulos BDP — sincronización Glory → BDP WebLink REST API */
 pub mod bdp_avisos;
 mod bdp_backup;
+pub mod bdp_cadencias_maestros;
 mod bdp_config_bootstrap;
 pub mod bdp_documentos_venta;
 mod bdp_explorer;
 mod bdp_import_departamentos;
-pub mod bdp_cadencias_maestros;
 pub mod bdp_maestros_auto;
 pub mod bdp_operaciones_no_api;
 pub(crate) mod bdp_order_poller;
@@ -83,8 +83,8 @@ pub use bdp_throttle::{BdpThrottleManager, BDP_THROTTLE};
 pub use bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
 pub use bdp_weblink_catalog::{
     BdpCatalogSyncResult, BdpCreateCustomerRequest, BdpDepartmentsExportFromProfileRequest,
-    BdpExportArticlesRequest, BdpExportCustomersRequest, BdpGetPricesArticlesResponse, BdpGetRoomTablesResponse,
-    BdpGetRoomsTablesResponse, BdpRoomData,
+    BdpExportArticlesRequest, BdpExportCustomersRequest, BdpGetPricesArticlesResponse,
+    BdpGetRoomTablesResponse, BdpGetRoomsTablesResponse, BdpRoomData,
 };
 pub use bdp_write_guard::{
     alcance_usa_uuid_propio, entidad_uuid, tipo_destino_de_alcance, BdpWriteGuard,
