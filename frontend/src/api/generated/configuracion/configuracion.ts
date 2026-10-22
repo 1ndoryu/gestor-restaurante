@@ -419,8 +419,7 @@ export const getDiagnosticarBdpSyncDryRunUrl = () => {
 }
 
 /**
- * bloqueado para destinos externos salvo allowlist extraordinaria separada.
- * @summary Validar el contrato BDP contra el simulador local. `OnlyCheck` permanece
+ * @summary Validar el contrato BDP contra el TPV configurado. `OnlyCheck` permanece
  */
 export const diagnosticarBdpSyncDryRun = async ( options?: RequestInit): Promise<diagnosticarBdpSyncDryRunResponse> => {
 
@@ -491,7 +490,7 @@ export function useDiagnosticarBdpSyncDryRun<TData = Awaited<ReturnType<typeof d
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Validar el contrato BDP contra el simulador local. `OnlyCheck` permanece
+ * @summary Validar el contrato BDP contra el TPV configurado. `OnlyCheck` permanece
  */
 
 export function useDiagnosticarBdpSyncDryRun<TData = Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError = ErrorResponse>(
