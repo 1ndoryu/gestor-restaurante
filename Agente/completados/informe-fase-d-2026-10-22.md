@@ -22,7 +22,10 @@ versión 36.2), que es el mismo programa y las mismas tablas que el del cliente.
 Lo que no se ha podido probar son los cuatro puntos que exigen una persona delante
 del TPV físico, y están enumerados sin adornos en la sección 4.
 
-**Resultado de las 65 pruebas de aceptación** (fichas D01–D32):
+**Resultado de las 65 pruebas de aceptación** (fichas D01–D32). Cada una está
+hecha o no lo está: no hay «parcialmente». Las que declaran un límite son
+pruebas que **no se pueden hacer tal cual** porque el TPV no ofrece ese servicio,
+y se cierran diciendo qué se hace en su lugar:
 
 | Estado | Cuántas | Cuáles |
 |---|---|---|
