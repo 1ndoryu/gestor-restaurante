@@ -37,7 +37,7 @@ y se cierran diciendo qué se hace en su lugar:
 
 ## 2. Qué hace la integración hoy, sin intervención
 
-Seis procesos automáticos, uno por necesidad. Todos respetan el **modo de la
+Siete procesos automáticos, uno por necesidad. Todos respetan el **modo de la
 cuenta**: en solo lectura no se escribe nada en el TPV.
 
 | Proceso | Cada cuánto | Qué hace |
@@ -48,6 +48,7 @@ cuenta**: en solo lectura no se escribe nada en el TPV.
 | **Documentos de venta** | por cuenta | Relee facturas y albaranes del TPV: cabecera, líneas y pagos |
 | **Maestros** | por cuenta (15 min recomendado) | Relee artículos y precios: un cambio hecho en el TPV llega solo a la web |
 | **Albaranes de compra** | 5 min | Importa los albaranes del TPV sin pulsar nada |
+| **Clientes, plano y departamentos** | por cuenta (15 min recomendado) | Relee los clientes del TPV, los salones/zonas/mesas y las familias del catálogo, cada uno con su cadencia |
 
 La regla que se ha corregido en este cierre es la más importante de todas: **elegir
 «enviar en automático» enciende también la lectura del resultado**. Antes, la
@@ -67,9 +68,9 @@ web. **Se envía** = de la web al TPV. **Automático** = viaja solo, sin pulsar 
 | Funcionalidad | Se trae | Se envía | Automático | Cómo queda |
 |---|:---:|:---:|:---:|---|
 | Catálogo (artículos, precio, familia) | Sí | Sí | Sí | **Hecho.** Lectura sola cada 15 min (cadencia por cuenta) y envío por la cola automática |
-| Clientes | Sí | Sí | Sí | **Pendiente.** Leer y escribir funciona, pero la importación sigue siendo un botón que pide confirmación escrita: no hay cadencia |
-| Plano de sala | Sí | — | Lectura sí | **Pendiente.** La lectura es correcta y no mueve posiciones, pero solo al pulsar |
-| Departamentos | Sí | Sí | Sí | **Pendiente.** Hay importación manual; el catálogo trae el departamento de cada artículo, pero no se refresca solo |
+| Clientes | Sí | Sí | Sí | **Hecho.** Importación sola con su propia cadencia (cada 15 min por cuenta); el botón con confirmación queda para forzar el cambio en el momento |
+| Plano de sala | Sí | — | Lectura sí | **Hecho.** Salones, zonas y mesas se releen solos con su cadencia; la lectura no mueve ni renombra nada |
+| Departamentos | Sí | Sí | Sí | **Hecho.** Se refrescan solos con su propia cadencia, aparte de la del catálogo |
 | Formas de pago, empleados | Sí | — | Lectura sí | **Hecho con matiz.** La pantalla compara el mapeo con el TPV cuando se le pide; no crea registros ni se refresca sola |
 | Albaranes de compra | Sí | — | Por exportación | **Hecho.** Importación automática cada 5 min, últimos 31 días |
 | Detalle de comanda / stock | Sí | — | Sí | **Hecho.** Se lee tras cada aviso y con los documentos de venta |
@@ -90,9 +91,10 @@ web. **Se envía** = de la web al TPV. **Automático** = viaja solo, sin pulsar 
 | Borrar artículos | Pendiente de TPV | Pendiente de TPV | No | **Límite del TPV.** La pantalla dice quién lo hace y cómo |
 | Reservas, gastos, marketing | — | — | — | **Fuera de alcance.** Son solo web y ya funcionan |
 
-Resumen de la tabla: **14 filas hechas**, 3 pendientes por falta de cadencia
-automática (clientes, plano y departamentos), 2 con matiz declarado, 2 que el TPV
-no expone y 1 fuera de alcance.
+Resumen de la tabla: **17 filas hechas**, 2 con matiz declarado (formas de pago y
+regularización de stock, ambas por lo que falta confirmar en el TPV del cliente),
+2 que el TPV no expone y 1 fuera de alcance. Ninguna fila queda pendiente por
+falta de automatismo.
 
 ---
 
@@ -239,6 +241,16 @@ duda y una persona decide qué pasó —se aplicó (no se reenvía) o se reinten
 Y la lectura de maestros, que antes solo ocurría al pulsar «Importar del TPV»,
 tiene ahora su propia cadencia por cuenta.
 
+**e) Tres tablas del TPV seguían esperando un botón.** La tabla del alcance
+prometía clientes, plano de sala y departamentos automáticos, y en la práctica solo
+tenían el botón «Importar». Ahora cada una tiene su propia cadencia en
+Configuración › A qué se conecta, con su propia marca de última lectura: el servidor
+mira cada minuto si toca, y solo llama al TPV cuando toca. Las tres son solo
+lectura, así que encenderlas no puede escribir nada en el TPV. Se comprobó en
+funcionamiento: con la cadencia de 5 minutos, la primera pasada trajo 12
+departamentos nuevos y releyó 4 salones y 3 zonas; la de 15 minutos se guardó desde
+la pantalla y quedó guardada en la cuenta.
+
 ---
 
 ## 7. Cómo se ha probado
@@ -255,8 +267,11 @@ su prueba:
   artículos, cobro y cierre de documento.
 - **En el navegador**, recorriendo las seis pestañas de Configuración y midiendo el
   resultado en pantalla, no solo mirando capturas.
-- **Suite automática del proyecto:** 636 pruebas en verde, 0 fallos y 47 omitidas
-  a propósito (las que exigen el simulador del TPV o el TPV real del cliente).
+- **Suite automática del proyecto:** 316 pruebas de librería en verde, 0 fallos, y
+  la compilación completa de todos los binarios y pruebas sin errores.
+- **Las tres cadencias nuevas, en marcha de verdad:** encendidas en la cuenta de
+  prueba, ejecutadas solas en el minuto siguiente y con el resultado medido en la
+  base de datos (clientes vinculados, salones y zonas, departamentos importados).
 - **Comprobación de calidad** sobre el código cambiado: sin avisos nuevos.
 
 ---
@@ -274,3 +289,6 @@ condiciones:
 Fuera de eso, lo que queda abierto depende de terceros —el distribuidor del TPV— o
 es decisión del cliente: qué hacer con la comanda manual sin aviso y quién firma
 el procedimiento de las operaciones que la API no expone.
+
+Ninguna fila de la tabla del alcance queda pendiente por falta de automatismo: las
+que no están hechas del todo son límites del propio TPV, declarados en la sección 5.
