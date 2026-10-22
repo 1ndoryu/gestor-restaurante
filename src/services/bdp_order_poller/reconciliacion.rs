@@ -43,7 +43,8 @@ impl BdpOrderPollerService {
         for (audit_id, operacion, target_entity_id, datos_enviados) in rows {
             let result = match operacion.as_str() {
                 "create_order" => {
-                    Self::reconcile_create_order(pool, client, audit_id, target_entity_id).await
+                    Self::reconcile_create_order(pool, client, audit_id, user_id, target_entity_id)
+                        .await
                 }
                 "add_payment" => {
                     Self::reconcile_add_payment(
@@ -166,6 +167,7 @@ impl BdpOrderPollerService {
         pool: &PgPool,
         client: &BdpWeblinkClient<'_>,
         audit_id: uuid::Uuid,
+        user_id: uuid::Uuid,
         venta_id: uuid::Uuid,
     ) -> Result<bool, String> {
         let marketplace_id =
@@ -214,6 +216,28 @@ impl BdpOrderPollerService {
                     )
                     .bind(audit_id)
                     .bind(Some(&respuesta))
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                    /* [D04] La comanda recuperada deja el mismo vínculo que si la
+                     * respuesta hubiera llegado: sin esta fila, `bdp_id_map` solo
+                     * tenía las ventas confirmadas en línea y la auditoría por
+                     * OrderId se quedaba incompleta. Upsert para no duplicar si
+                     * el poller la vuelve a ver. */
+                    sqlx::query(
+                        r"INSERT INTO bdp_id_map (id, user_id, entidad, glory_id, bdp_id, market_id, marketplace_order_id)
+                        VALUES ($1, $2, 'venta', $3, $4, $5, $6)
+                        ON CONFLICT (user_id, entidad, glory_id)
+                        DO UPDATE SET bdp_id = EXCLUDED.bdp_id, market_id = EXCLUDED.market_id,
+                                      marketplace_order_id = EXCLUDED.marketplace_order_id,
+                                      actualizado_en = NOW()",
+                    )
+                    .bind(uuid::Uuid::new_v4())
+                    .bind(user_id)
+                    .bind(venta_id.to_string())
+                    .bind(order_id.to_string())
+                    .bind(crate::services::bdp_sync::BDP_SYNC_MARKET_ID.to_string())
+                    .bind(&marketplace_id)
                     .execute(&mut *tx)
                     .await
                     .map_err(|e| e.to_string())?;
