@@ -1,6 +1,6 @@
 /* [065A-2] Tarjeta de conexión BDP: datos de conexión, integración, actualización
- * de estados, diagnóstico y simulador de envío. El simulador solo se habilita con
- * el BDP local, para no lanzar la escritura real contra el restaurante. */
+ * de estados, diagnóstico y prueba de envío. La prueba va marcada como OnlyCheck
+ * contra el TPV configurado, sea cual sea su dirección. */
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -42,9 +42,6 @@ export default function ConexionBdpCard({
 }: ConexionBdpCardProps) {
   const navigate = useNavigate();
   const [mostrarMapeos, setMostrarMapeos] = useState(false);
-  const simuladorLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\/?$/i.test(
-    config.bdp_base_url.trim(),
-  );
 
   return (
     <Card>
@@ -262,11 +259,12 @@ export default function ConexionBdpCard({
             {diagnosticando ? <Loader2 className="size-4 animate-spin" /> : <Activity className="size-4" />}
             Probar conexión
           </Button>
-          {/* [159A-2/F2] El dry-run no escribe: valida que el envío a BDP
-           * funcionaría. "Probar conexión" es el diagnóstico de al lado. */}
-          <Button type="button" variant="secondary" onClick={onProbarSincronizacion} disabled={probandoSync || !simuladorLocal} title="Simula el envío a BDP sin escribir nada">
+          {/* [159A-2/F2] El dry-run no persiste: sale hacia el TPV configurado
+           * con la comanda marcada como OnlyCheck. "Probar conexión" es el
+           * diagnóstico de lectura de al lado. */}
+          <Button type="button" variant="secondary" onClick={onProbarSincronizacion} disabled={probandoSync} title="Valida el contrato de comanda contra el TPV configurado; se envía marcada como OnlyCheck, que el TPV no debe guardar">
             {probandoSync ? <Loader2 className="size-4 animate-spin" /> : <ClipboardCheck className="size-4" />}
-            Probar envío (simulador)
+            Probar envío (no crea comanda)
           </Button>
           {diagnostico && (
             <span className={diagnostico.health_ok && diagnostico.login_ok ? 'text-sm text-green-600' : 'text-sm text-destructive'}>
@@ -274,11 +272,6 @@ export default function ConexionBdpCard({
             </span>
           )}
         </div>
-        {!simuladorLocal && (
-          <p className="text-xs text-muted-foreground">
-            La validación de comandas está bloqueada contra el restaurante porque utiliza el mismo endpoint de creación. Solo puede ejecutarse con el simulador local.
-          </p>
-        )}
         <ResultadoDiagnosticoBdp diagnostico={diagnostico} dryRun={dryRun} />
       </CardContent>
     </Card>
