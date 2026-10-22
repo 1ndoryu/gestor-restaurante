@@ -87,6 +87,7 @@ Precondición: L4 hecho y F1–F2 implementados (L5.0 ya está) (receptor, inbox
 - **D23-m:** comanda manual con aviso perdido. No hay lista de abiertas confirmada: se resuelve por listado si existe o por límite formal declarado. La pregunta a BDP la decide la usuaria (§9 punto 11).
 - **D04, D08:** respuesta perdida al crear (consulta antes de repetir, comanda única en `bdp_id_map`); toque simultáneo caja y web (conflicto visible, sin pisar).
 - **D29:** tres reinicios en pruebas separadas: proceso de sincronización, WebLinkRestAPI o su servicio, BDP.NET. El de BDP.NET local lo hace la usuaria (TpvNet elevado). En cada uno: alerta, cola, cursor, reanudación y conciliación.
+  **Hecho el 2026-10-21 (desde la 89):** (1) reinicio del proceso de sincronización con un aviso inyectado en `procesando` y `reclamado_en` de hace 1 h —el bucle lo recuperó solo por `cuentas_con_trabajo`, sin perder documentos ni cursor (24/24)—; (2) caída del WebLink cerrando el túnel del PC, que es la misma condición que ve la app: el aviso agotó sus 5 intentos y quedó en `requiere_revision` con el error real, el cursor no avanzó, y tras reabrir se reabrió y procesó sin pérdida ni duplicado. **Queda presencial:** el reinicio de `TpvNet.exe` (aloja WebLinkRestAPI; `netsh http show servicestate` lo da como proceso del puerto 8070) y el de BDP.NET, ambos con UAC y con el TPV caído unos segundos.
 - **D31:** llamar al camarero desde una mesa vinculada; avisa en caja sin dejar estado.
 
 ### L10 — Excepciones, accesos y piloto (D01, D02, D30, D32)
