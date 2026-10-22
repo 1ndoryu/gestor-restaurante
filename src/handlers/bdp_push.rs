@@ -17,10 +17,9 @@
  * `omitidos_standalone`; el fail-closed se conserva porque cada fila pasa por
  * `armar_push` (arming) → backup → auditoría antes de cualquier HTTP. */
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, RawQuery, State};
 use axum::routing::get;
 use axum::{Json, Router};
-use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::errors::AppError;
@@ -46,28 +45,132 @@ pub fn routes() -> Router<AppState> {
         ))
 }
 
-/// Query del flush manual: filtro opcional por dominio (159A-2/F1).
-#[derive(Debug, Default, Deserialize)]
-pub struct FlushQuery {
-    pub dominios: Option<Vec<String>>,
+/* [10AA-3-D34] El filtro por dominio se lee a mano de la query.
+ *
+ * Antes era `Query<FlushQuery>` con `Option<Vec<String>>`, y `serde_urlencoded`
+ * no sabe deserializar una clave repetida en una secuencia: toda llamada con
+ * `?dominios=propina` respondía 400 «invalid type: string, expected a
+ * sequence». El botón «Exportar por sección» del front enviaba exactamente eso,
+ * así que estaba roto desde que existe el filtro. Se aceptan las dos formas
+ * (`dominios=a&dominios=b` y `dominios=a,b`). */
+fn dominios_de_query(cruda: Option<&str>) -> Option<Vec<String>> {
+    let mut dominios = Vec::new();
+    for (clave, valor) in form_urlencoded_pares(cruda.unwrap_or_default()) {
+        /* `dominios[]` es la forma que usan algunos clientes HTTP. */
+        if clave != "dominios" && clave != "dominios[]" {
+            continue;
+        }
+        dominios.extend(
+            valor
+                .split(',')
+                .map(str::trim)
+                .filter(|dominio| !dominio.is_empty())
+                .map(str::to_string),
+        );
+    }
+    (!dominios.is_empty()).then_some(dominios)
+}
+
+/// Pares `clave=valor` de una query, decodificados. Vacío si no hay query.
+fn form_urlencoded_pares(cruda: &str) -> Vec<(String, String)> {
+    cruda
+        .split('&')
+        .filter(|par| !par.is_empty())
+        .map(|par| {
+            let (clave, valor) = par.split_once('=').unwrap_or((par, ""));
+            (decodificar(clave), decodificar(valor))
+        })
+        .collect()
+}
+
+/// Decodifica `%XX` y `+` (el espacio de una query). Un `%` suelto se deja tal cual.
+fn decodificar(texto: &str) -> String {
+    let bytes = texto.as_bytes();
+    let mut salida = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'+' => salida.push(b' '),
+            b'%' if i + 2 < bytes.len() => {
+                match u8::from_str_radix(&texto[i + 1..i + 3], 16) {
+                    Ok(byte) => {
+                        salida.push(byte);
+                        i += 3;
+                        continue;
+                    }
+                    /* No es hexadecimal: se copia el `%` literal. */
+                    Err(_) => salida.push(b'%'),
+                }
+            }
+            byte => salida.push(byte),
+        }
+        i += 1;
+    }
+    /* `from_utf8_lossy` evita un error por un byte roto: el dominio se compara
+     * contra constantes ASCII y uno inválido simplemente no casa. */
+    String::from_utf8_lossy(&salida).into_owned()
 }
 
 pub async fn flush_manual(
     State(state): State<AppState>,
     auth: AuthUser,
-    Query(query): Query<FlushQuery>,
+    RawQuery(query): RawQuery,
 ) -> Result<Json<BdpPushFlushResumen>, AppError> {
     /* Escritura BDP: disparar el push (armado + envío) es acción de Admin. */
     auth.require_role(&[UserRole::Admin])?;
+    let dominios = dominios_de_query(query.as_deref());
     let resumen = BdpPushFlushService::flush_con_dominios(
         &state.pool,
         auth.user_id,
         true,
-        query.dominios.as_deref(),
+        dominios.as_deref(),
     )
     .await
     .map_err(AppError::Internal)?;
     Ok(Json(resumen))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::dominios_de_query;
+
+    /* [10AA-3-D34] La forma que envía el front: clave repetida. */
+    #[test]
+    fn acepta_clave_repetida() {
+        assert_eq!(
+            dominios_de_query(Some("dominios=articulo&dominios=stock")),
+            Some(vec!["articulo".to_string(), "stock".to_string()])
+        );
+    }
+
+    /* Y la forma con corchetes o con coma, por comodidad de otros clientes. */
+    #[test]
+    fn acepta_corchetes_y_coma() {
+        assert_eq!(
+            dominios_de_query(Some("dominios[]=propina")),
+            Some(vec!["propina".to_string()])
+        );
+        assert_eq!(
+            dominios_de_query(Some("dominios=articulo, stock")),
+            Some(vec!["articulo".to_string(), "stock".to_string()])
+        );
+    }
+
+    /* Sin filtro la cola entera se procesa: `None`, nunca una lista vacía. */
+    #[test]
+    fn sin_dominios_es_none() {
+        assert_eq!(dominios_de_query(None), None);
+        assert_eq!(dominios_de_query(Some("")), None);
+        assert_eq!(dominios_de_query(Some("dominios=")), None);
+    }
+
+    #[test]
+    fn decodifica_porcentajes() {
+        assert_eq!(
+            dominios_de_query(Some("dominios=cliente%5Fpuntos")),
+            Some(vec!["cliente_puntos".to_string()])
+        );
+    }
 }
 
 /// Listar las filas de la cola de sincronización (visibilidad D5).
