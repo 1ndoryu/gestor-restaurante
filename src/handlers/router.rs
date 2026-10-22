@@ -12,10 +12,10 @@ use utoipa_swagger_ui::SwaggerUi;
 use super::openapi::ApiDoc;
 use super::{
     admin, api_keys, auth, bdp_article_map, bdp_avisos, bdp_backup, bdp_catalogo,
-    bdp_customer_sync, bdp_menu_local, bdp_purchase_note, bdp_push, bdp_stock_revision, campanas,
-    canales_reserva, chatbot, clientes, configuracion, dashboard, errores, etiquetas, gastos,
-    health, inactividad, modo_operacion, notificaciones, plano_sala, plantillas_whatsapp,
-    recordatorios, resenas, reservas, trabajadores, ventas,
+    bdp_customer_sync, bdp_documentos, bdp_menu_local, bdp_purchase_note, bdp_push,
+    bdp_stock_revision, campanas, canales_reserva, chatbot, clientes, configuracion, dashboard,
+    errores, etiquetas, gastos, health, inactividad, modo_operacion, notificaciones, plano_sala,
+    plantillas_whatsapp, recordatorios, resenas, reservas, trabajadores, ventas,
 };
 use crate::AppState;
 
@@ -108,6 +108,7 @@ fn api_routes() -> Router<AppState> {
         .merge(bdp_backup::routes())
         .merge(bdp_catalogo::routes())
         .merge(bdp_customer_sync::routes())
+        .merge(bdp_documentos::routes())
         .merge(bdp_menu_local::routes())
         .merge(bdp_purchase_note::routes())
         .merge(bdp_push::routes())

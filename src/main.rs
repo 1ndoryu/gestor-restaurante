@@ -99,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /* [D28a] Importación automática de albaranes de compra. El intervalo y la ventana
      * vienen del entorno; BDP_ALBARANES_AUTO_SEGUNDOS=0 la desactiva. */
     lanzar_albaranes_automaticos(pool.clone(), modo_operacion.clone());
-    /* [L8/D28-auto] Lectura incremental de documentos de venta. Desactivada por defecto. */
+    /* [L8/D28-auto-R] Lectura incremental de documentos de venta: apagada por defecto. */
     lanzar_documentos_automaticos(pool.clone(), modo_operacion.clone());
 
     /* [D23a] Buzón de avisos del TPV: se procesa en bucle, no solo al arrancar, porque
@@ -130,27 +130,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/* [L8/D28-auto] Lectura automática de documentos de venta. Necesita intervalo
- * (BDP_DOCUMENTOS_AUTO_SEGUNDOS > 0) y perfil (BDP_DOCUMENTOS_PERFIL > 0); sin ambos no arranca. */
+/* [L8/D28-auto-R] Lectura automática de documentos de venta. La cadencia y el
+ * perfil son de cada cuenta (Configuración), no del entorno: el bucle solo mira
+ * cada `GRANO_BUCLE_SEGUNDOS` qué cuenta tiene el turno vencido y llama a BDP por
+ * esa. `0` segundos la deja apagada sin reiniciar la app. */
 fn lanzar_documentos_automaticos(pool: sqlx::PgPool, modo: ServicioModoOperacion) {
     use glory_backend::services::bdp_documentos_venta as documentos;
 
-    let segundos = documentos::segundos_automaticos();
-    let Some(perfil) = documentos::perfil_automatico() else {
-        if segundos > 0 {
-            tracing::warn!("[D28-auto] BDP_DOCUMENTOS_AUTO_SEGUNDOS sin BDP_DOCUMENTOS_PERFIL válido: desactivado");
-        }
-        return;
-    };
-    if segundos == 0 {
-        return;
-    }
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(segundos));
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+            documentos::GRANO_BUCLE_SEGUNDOS,
+        ));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
             interval.tick().await;
-            let procesados = documentos::sincronizar_automatico(&pool, &modo, perfil).await;
+            let procesados = documentos::sincronizar_vencidas(&pool, &modo).await;
             if procesados > 0 {
                 tracing::info!("[D28-auto] Documentos de venta guardados: {procesados}");
             }
