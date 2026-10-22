@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use chrono::{Duration, NaiveDate, Utc};
+use chrono::{DateTime, Duration, NaiveDate, Utc};
 use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -33,7 +33,7 @@ const CLAVES_LISTA: [&str; 3] = ["DocumentsLists", "Documents", "DocumentsList"]
 const CLAVES_ID: [&str; 5] = ["Id", "DocumentId", "Document_Id", "Number", "idWeblink"];
 const CLAVES_FECHA: [&str; 3] = ["Date", "DocumentDate", "Fecha"];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct ResultadoDocumentos {
     /// Documentos guardados (nuevos o actualizados).
     pub procesados: usize,
@@ -115,7 +115,6 @@ pub async fn sincronizar(
     user_id: Uuid,
     config: &ConfiguracionRestaurante,
     perfil: i32,
-    solo_ultimos_movimientos: bool,
 ) -> Result<ResultadoDocumentos, AppError> {
     if perfil <= 0 {
         return Err(AppError::Validation(
@@ -133,11 +132,15 @@ pub async fn sincronizar(
         );
     }
 
+    /* `OnlyLastMovements: false` es obligatorio. Comprobado contra el BDP local
+     * (perfil 1, 2026-10-21): con `true`, todas las ventanas —incluida la misma
+     * que con `false` devuelve 24 documentos— llegan vacías. El manual no lo
+     * explica; si se pone `true`, la lectura automática no traería nada nunca. */
     let req = BdpExportDocumentsRequest {
         export_profile_code: perfil,
         initial_date: desde.format("%Y-%m-%d").to_string(),
         final_date: hasta.format("%Y-%m-%d").to_string(),
-        only_last_movements: solo_ultimos_movimientos,
+        only_last_movements: false,
     };
     let client = BdpWeblinkClient::new(config);
     let respuesta = match client.export_documents(&req).await {
@@ -176,61 +179,95 @@ fn error_documentos(err: &BdpWeblinkError) -> AppError {
     }
 }
 
-/// Intervalo del disparo automático en segundos, de `BDP_DOCUMENTOS_AUTO_SEGUNDOS`.
-/// Por defecto 0: apagado hasta que se configure, porque llama a BDP en cada ciclo.
-#[must_use]
-pub fn segundos_automaticos() -> u64 {
-    std::env::var("BDP_DOCUMENTOS_AUTO_SEGUNDOS")
-        .ok()
-        .and_then(|valor| valor.trim().parse::<u64>().ok())
-        .unwrap_or(0)
+/// Cada cuánto mira el bucle si alguna cuenta tiene su lectura vencida. No es la
+/// cadencia de lectura: es el grano con el que se comprueban las cadencias de cada
+/// cuenta, que viven en su configuración. 30 s es suficientemente fino para el
+/// mínimo útil y barato (una consulta por pasada, sin llamar a BDP).
+pub const GRANO_BUCLE_SEGUNDOS: u64 = 30;
+
+/// Cadencia y perfil de la lectura automática de una cuenta. Los dos viven en la
+/// configuración desde D32: antes solo se leían del entorno y en la práctica la
+/// lectura nunca se activaba, porque nadie podía tocar esas variables desde la web.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub struct CadenciaDocumentos {
+    pub segundos: u64,
+    pub perfil: Option<i32>,
 }
 
-/// Perfil de exportación para el disparo automático, de `BDP_DOCUMENTOS_PERFIL`.
-/// Sin perfil válido el disparo no hace nada.
-#[must_use]
-pub fn perfil_automatico() -> Option<i32> {
-    std::env::var("BDP_DOCUMENTOS_PERFIL")
-        .ok()
-        .and_then(|valor| valor.trim().parse::<i32>().ok())
-        .filter(|perfil| *perfil > 0)
-}
-
-/// Lectura incremental de todas las cuentas en modo BDP con sincronización activa.
-/// Un fallo de una cuenta se registra y no corta a las demás.
-pub async fn sincronizar_automatico(
-    pool: &PgPool,
-    modo: &ServicioModoOperacion,
-    perfil: i32,
-) -> usize {
-    let usuarios: Vec<Uuid> =
-        match sqlx::query_scalar("SELECT user_id FROM configuracion_restaurante")
-            .fetch_all(pool)
-            .await
-        {
-            Ok(usuarios) => usuarios,
-            Err(error) => {
-                tracing::warn!("[D28] No se pudieron listar cuentas para documentos: {error}");
-                return 0;
-            }
+impl CadenciaDocumentos {
+    /// Vencida si hay cadencia y perfil y ya pasó el intervalo desde el último intento.
+    #[must_use]
+    pub fn vencida(&self, ultimo_intento: Option<DateTime<Utc>>, ahora: DateTime<Utc>) -> bool {
+        let Some(perfil) = self.perfil else {
+            return false;
         };
+        if self.segundos == 0 || perfil <= 0 {
+            return false;
+        }
+        match ultimo_intento {
+            None => true,
+            Some(ultimo) => u64::try_from(ahora.signed_duration_since(ultimo).num_seconds())
+                .is_ok_and(|transcurridos| transcurridos >= self.segundos),
+        }
+    }
+}
 
+/// Cadencia configurada de una cuenta, tal cual está guardada.
+#[must_use]
+pub fn cadencia_de(config: &ConfiguracionRestaurante) -> CadenciaDocumentos {
+    CadenciaDocumentos {
+        segundos: u64::try_from(config.bdp_documentos_auto_segundos.max(0)).unwrap_or(0),
+        perfil: config.bdp_documentos_perfil.filter(|perfil| *perfil > 0),
+    }
+}
+
+/// Lectura de las cuentas cuyo turno ha vencido, con su propia cadencia y perfil.
+/// Un fallo de una cuenta se registra y no corta a las demás. Devuelve los
+/// documentos guardados en esta pasada.
+pub async fn sincronizar_vencidas(pool: &PgPool, modo: &ServicioModoOperacion) -> usize {
+    let usuarios: Vec<Uuid> = match sqlx::query_scalar(
+        "SELECT user_id FROM configuracion_restaurante WHERE bdp_documentos_auto_segundos > 0",
+    )
+    .fetch_all(pool)
+    .await
+    {
+        Ok(usuarios) => usuarios,
+        Err(error) => {
+            tracing::warn!("[D28] No se pudieron listar cuentas para documentos: {error}");
+            return 0;
+        }
+    };
+
+    let ahora = Utc::now();
     let mut total = 0;
     for user_id in usuarios {
+        let Ok(config) = ConfiguracionService::obtener(pool, user_id).await else {
+            continue;
+        };
+        let cadencia = cadencia_de(&config);
+        let Some(perfil) = cadencia.perfil else {
+            continue;
+        };
+        /* El turno se cuenta desde el último *intento*, no desde el último éxito:
+         * si el BDP falla, se espera la cadencia entera antes de reintentar en vez
+         * de llamarlo cada 30 s. */
+        let ultimo = BdpDocumentosVentaRepository::leer_ultimo_intento(pool, user_id, perfil)
+            .await
+            .ok()
+            .flatten();
+        if !cadencia.vencida(ultimo, ahora) {
+            continue;
+        }
+        /* El modo se consulta al final: es lo más caro y no todo turno vencido
+         * acaba en lectura. */
         if !matches!(
             modo.modo_efectivo(pool, user_id).await,
             Ok(ModoEfectivo::Bdp)
         ) {
             continue;
         }
-        let Ok(config) = ConfiguracionService::obtener(pool, user_id).await else {
-            continue;
-        };
-        if !config.bdp_sync_enabled || config.bdp_base_url.is_empty() || config.bdp_login.is_empty()
-        {
-            continue;
-        }
-        match sincronizar(pool, user_id, &config, perfil, true).await {
+        /* El botón y el bucle comparten camino: misma validación y mismo rastro. */
+        match sincronizar_ahora(pool, user_id, &config, perfil).await {
             Ok(resultado) => total += resultado.procesados,
             Err(error) => {
                 tracing::warn!("[D28] Lectura automática de documentos fallida: {error:?}");
@@ -240,6 +277,33 @@ pub async fn sincronizar_automatico(
     total
 }
 
+/// Lectura manual de una cuenta: valida el perfil y deja el mismo rastro que el
+/// disparo automático (`ultimo_intento` en el cursor), para que el botón no rompa
+/// la cadencia configurada. Exige BDP configurado: no inventa una ventana.
+pub async fn sincronizar_ahora(
+    pool: &PgPool,
+    user_id: Uuid,
+    config: &ConfiguracionRestaurante,
+    perfil: i32,
+) -> Result<ResultadoDocumentos, AppError> {
+    if perfil <= 0 {
+        return Err(AppError::Validation(
+            "Indica el perfil de exportación de documentos del BDP".into(),
+        ));
+    }
+    if !config.bdp_sync_enabled {
+        return Err(AppError::Validation(
+            "La sincronización con BDP está desactivada".into(),
+        ));
+    }
+    if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
+        return Err(AppError::Validation(
+            "Faltan los datos de conexión con BDP".into(),
+        ));
+    }
+    sincronizar(pool, user_id, config, perfil).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -247,6 +311,40 @@ mod tests {
 
     fn dia(texto: &str) -> NaiveDate {
         NaiveDate::parse_from_str(texto, "%Y-%m-%d").unwrap()
+    }
+
+    /* [D28-auto-R] La cadencia configurada decide sola: sin perfil o con 0 segundos
+     * no hay lectura, y con ambos el turno se cuenta desde el último intento. */
+    #[test]
+    fn la_cadencia_configurada_decide_cuando_toca_leer() {
+        let ahora = Utc::now();
+        let apagada = CadenciaDocumentos {
+            segundos: 0,
+            perfil: Some(3),
+        };
+        assert!(!apagada.vencida(None, ahora), "0 segundos es apagada");
+        let sin_perfil = CadenciaDocumentos {
+            segundos: 60,
+            perfil: None,
+        };
+        assert!(
+            !sin_perfil.vencida(None, ahora),
+            "sin perfil no hay lectura"
+        );
+
+        let cada_minuto = CadenciaDocumentos {
+            segundos: 60,
+            perfil: Some(3),
+        };
+        assert!(cada_minuto.vencida(None, ahora), "nunca leída: toca");
+        assert!(
+            !cada_minuto.vencida(Some(ahora - Duration::seconds(30)), ahora),
+            "media cadencia todavía no"
+        );
+        assert!(
+            cada_minuto.vencida(Some(ahora - Duration::seconds(61)), ahora),
+            "pasada la cadencia: toca"
+        );
     }
 
     #[test]

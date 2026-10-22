@@ -15,6 +15,21 @@ pub struct DocumentoVentaLocal {
     pub datos: serde_json::Value,
 }
 
+/// Documento ya guardado, tal como lo sirve la API (sin el JSON crudo completo).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DocumentoVentaGuardado {
+    pub bdp_documento_id: String,
+    pub perfil: i32,
+    pub fecha: Option<NaiveDate>,
+    /// Serie del documento si el JSON la trae; el resto de campos no está documentado.
+    pub serie: Option<String>,
+    pub numero: Option<String>,
+    pub total: Option<serde_json::Value>,
+    pub recibido_at: chrono::DateTime<chrono::Utc>,
+    /// JSON original de BDP: la pantalla lo enseña en crudo al desplegar la fila.
+    pub datos_bdp: serde_json::Value,
+}
+
 pub const DOMINIO_CURSOR_DOCUMENTOS: &str = "documentos";
 
 pub struct BdpDocumentosVentaRepository;
@@ -38,6 +53,76 @@ impl BdpDocumentosVentaRepository {
         .flatten();
         // Un cursor corrupto se trata como ausente: la ventana inicial lo recupera sin huecos.
         Ok(hasta.and_then(|texto| NaiveDate::parse_from_str(&texto, "%Y-%m-%d").ok()))
+    }
+
+    /// Documentos guardados, del más reciente al más antiguo.
+    ///
+    /// Serie, número y total no están documentados por el distribuidor, así que
+    /// salen del JSON crudo por las claves habituales: si un documento no las
+    /// trae, la fila se sirve igual y la pantalla enseña el JSON.
+    pub async fn listar(
+        pool: &PgPool,
+        user_id: Uuid,
+        perfil: Option<i32>,
+        limite: i64,
+    ) -> Result<Vec<DocumentoVentaGuardado>, sqlx::Error> {
+        /* sqlx sin macros devuelve la fila como tupla: el alias evita repetirla
+         * y deja legible el orden de las columnas. */
+        type Fila = (
+            String,
+            i32,
+            Option<NaiveDate>,
+            serde_json::Value,
+            chrono::DateTime<chrono::Utc>,
+        );
+        let filas: Vec<Fila> = sqlx::query_as(concat!(
+            "SELECT bdp_documento_id, perfil, fecha, datos_bdp, recibido_at ",
+            "FROM bdp_documentos_venta ",
+            "WHERE user_id = $1 AND ($2::int IS NULL OR perfil = $2) ",
+            "ORDER BY fecha DESC NULLS LAST, recibido_at DESC ",
+            "LIMIT $3",
+        ))
+        .bind(user_id)
+        .bind(perfil)
+        .bind(limite.clamp(1, 500))
+        .fetch_all(pool)
+        .await?;
+        Ok(filas
+            .into_iter()
+            .map(
+                |(bdp_documento_id, perfil, fecha, datos_bdp, recibido_at)| {
+                    DocumentoVentaGuardado {
+                        bdp_documento_id,
+                        perfil,
+                        fecha,
+                        serie: primero_de(&datos_bdp, &["Serie", "Series", "SerieDocumento"]),
+                        numero: numero_de(&datos_bdp),
+                        total: total_de(&datos_bdp),
+                        recibido_at,
+                        datos_bdp,
+                    }
+                },
+            )
+            .collect())
+    }
+
+    /// Último intento de lectura del perfil (éxito o error). El disparo automático
+    /// lo usa como reloj: la cadencia configurada se cuenta desde aquí, no desde el
+    /// último éxito, para que un BDP caído no provoque una llamada cada pasada.
+    pub async fn leer_ultimo_intento(
+        pool: &PgPool,
+        user_id: Uuid,
+        perfil: i32,
+    ) -> Result<Option<chrono::DateTime<chrono::Utc>>, sqlx::Error> {
+        sqlx::query_scalar(concat!(
+            "SELECT ultimo_intento FROM bdp_sync_cursor ",
+            "WHERE user_id = $1 AND dominio = $2 AND perfil = $3",
+        ))
+        .bind(user_id)
+        .bind(DOMINIO_CURSOR_DOCUMENTOS)
+        .bind(perfil.to_string())
+        .fetch_optional(pool)
+        .await
     }
 
     /// Guarda el lote (upsert por id BDP) y avanza el cursor a `hasta`, todo en una transacción.
@@ -115,6 +200,31 @@ impl BdpDocumentosVentaRepository {
         .await?;
         Ok(())
     }
+}
+
+/// Primer valor no vacío bajo cualquiera de las claves, como texto.
+/* Los campos reales del perfil 1 del BDP local (comprobado 2026-10-21) son
+ * `Serie`, `Numero` y `Total_Documento`, y los números llegan como decimales
+ * (`12.0`): sin esto la pantalla enseñaba «12.0» y un total vacío. */
+fn numero_de(datos: &serde_json::Value) -> Option<String> {
+    primero_de(datos, &["Numero", "Number", "DocumentNumber"])
+        .map(|texto| texto.strip_suffix(".0").unwrap_or(&texto).to_string())
+}
+
+fn total_de(datos: &serde_json::Value) -> Option<serde_json::Value> {
+    ["Total_Documento", "Total", "Importe"]
+        .iter()
+        .find_map(|clave| datos.get(*clave).filter(|valor| !valor.is_null()).cloned())
+}
+
+fn primero_de(datos: &serde_json::Value, claves: &[&str]) -> Option<String> {
+    claves.iter().find_map(|clave| match datos.get(*clave)? {
+        serde_json::Value::String(texto) if !texto.trim().is_empty() => {
+            Some(texto.trim().to_string())
+        }
+        serde_json::Value::Number(numero) => Some(numero.to_string()),
+        _ => None,
+    })
 }
 
 #[cfg(test)]

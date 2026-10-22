@@ -57,7 +57,9 @@ pub use bdp_article_map::BdpArticleMapRepository;
 pub use bdp_article_map::BdpArticleUpsertData;
 pub use bdp_article_map::BdpArticleUpsertStatus;
 pub use bdp_catalogo_clasificacion::BdpCatalogoClasificacionRepository;
-pub use bdp_documentos_venta::{BdpDocumentosVentaRepository, DocumentoVentaLocal};
+pub use bdp_documentos_venta::{
+    BdpDocumentosVentaRepository, DocumentoVentaGuardado, DocumentoVentaLocal,
+};
 pub use bdp_menu_local::BdpMenuLocalRepository;
 pub use bdp_operaciones_no_api::BdpOperacionesNoApiRepository;
 pub use bdp_pago::BdpPagoRepository;
