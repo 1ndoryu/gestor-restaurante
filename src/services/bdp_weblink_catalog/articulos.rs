@@ -127,9 +127,19 @@ pub struct BdpExportArticleItem {
     /// anidado dentro de `PricesTableData` o `Prices` en lugar de a nivel raíz.
     #[serde(default, alias = "PricesTableData", alias = "Prices")]
     pub prices_table_data: Vec<BdpArticlePriceEntry>,
-    /// Marca «Inventariable» (`Is_Inventoriable` en `ExportArticles`). Ausente → None:
-    /// no se rechaza el traspaso por falta de dato.
-    #[serde(default, alias = "Is_Inventoriable")]
+    /// Marca «Inventariable» de `ExportArticles`. Ausente → None: no se rechaza
+    /// el traspaso por falta de dato.
+    ///
+    /// [D26d] El BDP la escribe **con errata**, `Is_Invontariable` (comprobado
+    /// contra el BDP local v36.2 el 2026-10-21). Las variantes correctas se
+    /// aceptan también porque el manual las usa y otras versiones pueden
+    /// corregirla.
+    #[serde(
+        default,
+        rename = "Is_Invontariable",
+        alias = "Is_Inventoriable",
+        alias = "IsInventoriable"
+    )]
     pub is_inventoriable: Option<bool>,
 }
 
@@ -273,7 +283,10 @@ fn map_article_essential(item: &Value) -> Option<BdpExportArticleItem> {
         discount: field_decimal(item, &["Discount"]),
         bar_code: field_text(item, &["BarCode", "Barcode"]),
         active: field_bool(item, &["Active"]).unwrap_or(true),
-        is_inventoriable: field_bool(item, &["Is_Inventoriable", "IsInventoriable"]),
+        is_inventoriable: field_bool(
+            item,
+            &["Is_Invontariable", "Is_Inventoriable", "IsInventoriable"],
+        ),
         current_stock: field_decimal(item, &["CurrentStock", "Stock"]),
         prices_table_data: Vec::new(),
     })
@@ -313,7 +326,9 @@ pub struct BdpCatalogSyncResult {
     pub total_bdp: usize,
 }
 
-/* [D26d] `Is_Inventoriable` de ExportArticles llega con guion bajo. */
+/* [D26d] El BDP escribe la marca con errata: `Is_Invontariable`. Si se busca
+ * solo `Is_Inventoriable`, el campo llega `None` en TODOS los artículos y la
+ * guarda «no inventariable» del traspaso no puede saltar nunca. */
 #[cfg(test)]
 mod inventariable_tests {
     use super::BdpExportArticleItem;
@@ -321,10 +336,20 @@ mod inventariable_tests {
     #[test]
     fn lee_is_inventoriable_con_nombre_de_bdp() {
         let item: BdpExportArticleItem = serde_json::from_value(
-            serde_json::json!({ "Article": 90000003, "Is_Inventoriable": true }),
+            serde_json::json!({ "Article": 90000003, "Is_Invontariable": true }),
         )
         .unwrap();
         assert_eq!(item.is_inventoriable, Some(true));
+    }
+
+    /* Forma del manual: se sigue aceptando por si otra versión corrige la errata. */
+    #[test]
+    fn acepta_tambien_la_forma_sin_errata() {
+        let item: BdpExportArticleItem = serde_json::from_value(
+            serde_json::json!({ "Article": 90000003, "Is_Inventoriable": false }),
+        )
+        .unwrap();
+        assert_eq!(item.is_inventoriable, Some(false));
     }
 
     #[test]

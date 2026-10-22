@@ -26,6 +26,9 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Pendientes
 
+- [ ] `10AA-3-D26d` — **Fase D: la marca «inventariable» del BDP se lee al fin.**
+  El BDP escribe el campo con errata (`Is_Invontariable`) y el parser buscaba `Is_Inventoriable`, así que llegaba `None` en todos los artículos y la guarda «no inventariable» del traspaso no podía saltar nunca. Corregido con la errata como nombre real y las formas correctas como alias; falta la corrida en vivo del rechazo.
+
 - [ ] `199A-1` — **Fase D — Receptor Avisos de Acciones BDP→web.**
   Plan `Agente/planes/plan-fase-d-avisos-bdp-2026-09-19.md`. 7 eventos → receptor idempotente + worker `GetOrder` + reconciliación. F0 (decisiones) y F1 (receptor + inbox) hechas el 2026-10-17.
   Pendiente: F2 worker 7 eventos, F3 reconciliación + XML distribuidor, F4 TPV v36 real + piloto 7 días. No urgente (el restaurante ya opera sin ella).
