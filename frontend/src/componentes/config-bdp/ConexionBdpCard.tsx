@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import ConfigBdpMapeos from '@/components/config-bdp-mapeos';
+import MaestrosBdpCard from './MaestrosBdpCard';
 import type { BdpDiagnosticoResponse } from '@/api/generated/gestionRestauranteAPI.schemas';
 import type { EstadoConfiguracion } from '@/hooks/useConfiguracion';
 import type { BdpSyncDryRunResponse, CambiarCampo } from './tipos';
@@ -122,6 +123,13 @@ export default function ConexionBdpCard({
             />
           </div>
         </div>
+        {/* [D24-p] Los tres números de arriba se comprueban contra las listas
+            reales del BDP: un id inventado solo se descubre al enviar. */}
+        <MaestrosBdpCard
+          terminal={config.bdp_pos_id}
+          empleado={config.bdp_employee_id}
+          perfil={config.bdp_items_profile_id}
+        />
         <div className="flex items-center justify-between gap-4 rounded-md border p-3">
           <div>
             <Label htmlFor="bdp-sync-enabled">Integración BDP activa</Label>

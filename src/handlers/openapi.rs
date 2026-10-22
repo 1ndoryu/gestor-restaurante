@@ -4,10 +4,10 @@
 use utoipa::OpenApi;
 
 use super::{
-    admin, api_keys, auth, bdp_article_map, bdp_backup, bdp_customer_sync, bdp_menu_local,
-    bdp_purchase_note, campanas, canales_reserva, chatbot, clientes, configuracion, dashboard,
-    errores, etiquetas, gastos, health, inactividad, modo_operacion, notificaciones, plano_sala,
-    plantillas_whatsapp, recordatorios, resenas, reservas, trabajadores, ventas,
+    admin, api_keys, auth, bdp_article_map, bdp_backup, bdp_customer_sync, bdp_maestros,
+    bdp_menu_local, bdp_purchase_note, campanas, canales_reserva, chatbot, clientes, configuracion,
+    dashboard, errores, etiquetas, gastos, health, inactividad, modo_operacion, notificaciones,
+    plano_sala, plantillas_whatsapp, recordatorios, resenas, reservas, trabajadores, ventas,
 };
 use crate::errors::ErrorResponse;
 
@@ -197,6 +197,7 @@ impl utoipa::Modify for SecurityAddon {
         bdp_backup::explorar_bdp,
         bdp_backup::departamentos_del_perfil,
         bdp_backup::formas_pago_bdp,
+        bdp_maestros::listar_maestros,
         bdp_backup::snapshot_completo,
         bdp_backup::snapshot_parcial,
         bdp_backup::snapshot_glory,
@@ -388,6 +389,8 @@ impl utoipa::Modify for SecurityAddon {
         crate::services::SyncTablesResult,
         bdp_article_map::SyncTablesRequest,
         bdp_article_map::SyncStockAlmacenRequest,
+        bdp_maestros::MaestroBdp,
+        bdp_maestros::MaestrosBdp,
         crate::services::BdpExploracionResultado,
         crate::services::ExploracionCategoria,
         crate::services::BdpSnapshot,
