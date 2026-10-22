@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 14mm;
+    @bottom-left { content: none; } @bottom-center { content: none; }
+    @bottom-right { content: none; } @top-left { content: none; }
+    @top-center { content: none; } @top-right { content: none; }
+  }
+  *, *:before, *:after { box-sizing: border-box; }
+  body {
+    font-family: "Times New Roman", Times, "Liberation Serif", serif;
+    font-size: 8.2pt; line-height: 1.28; color: #000; background: #fff;
+    text-align: justify; text-justify: inter-word; margin: 0; padding: 0;
+  }
+  h1 { font-size: 11pt; font-weight: bold; text-transform: uppercase; text-align: center;
+       margin: 0 0 6pt 0; line-height: 1.25; letter-spacing: 0.2pt;
+       page-break-after: avoid; break-after: avoid; }
+  h2 { font-size: 8.8pt; font-weight: bold; text-transform: uppercase; margin: 8pt 0 4pt 0;
+       line-height: 1.2; letter-spacing: 0.15pt; page-break-after: avoid; break-after: avoid; }
+  h3 { font-size: 8.2pt; font-weight: bold; margin: 6pt 0 3pt 0; line-height: 1.2;
+       page-break-after: avoid; break-after: avoid; }
+  p { margin: 0 0 3.5pt 0; text-indent: 0; }
+  .sub { text-align: center; margin-bottom: 10pt; }
+  table { width: 100%; border-collapse: collapse; margin: 4pt 0 5pt 0; font-size: 7.6pt; line-height: 1.2; }
+  tr { page-break-inside: avoid; break-inside: avoid; }
+  thead { display: table-header-group; }
+  th { border-top: 1.2pt solid #000; border-bottom: 0.75pt solid #000; border-left: none;
+       border-right: none; padding: 2.4pt 3pt; font-weight: bold; text-transform: uppercase;
+       font-size: 7.2pt; letter-spacing: 0.1pt; text-align: left; }
+  td { border: none; padding: 1.3pt 3pt; vertical-align: top; }
+  tbody tr:last-child td { border-bottom: 1.2pt solid #000; }
+  th.c, td.c { text-align: center; white-space: nowrap; }
+  table.alcance th:nth-child(1), table.alcance td:nth-child(1) { width: 25%; }
+  table.alcance th:nth-child(2), table.alcance td:nth-child(2),
+  table.alcance th:nth-child(3), table.alcance td:nth-child(3) { width: 8%; text-align: center; white-space: nowrap; }
+  table.alcance th:nth-child(4), table.alcance td:nth-child(4) { width: 10%; text-align: center; white-space: nowrap; }
+  table.alcance th:nth-child(5), table.alcance td:nth-child(5) { width: 49%; }
+  table.pruebas th:nth-child(1), table.pruebas td:nth-child(1) { width: 11%; text-align: center; white-space: nowrap; }
+  table.estado th:nth-child(1), table.estado td:nth-child(1) { width: 22%; }
+  table.estado th:nth-child(2), table.estado td:nth-child(2) { width: 10%; text-align: center; white-space: nowrap; }
+  table.procesos th:nth-child(1), table.procesos td:nth-child(1) { width: 24%; }
+  table.procesos th:nth-child(2), table.procesos td:nth-child(2) { width: 20%; text-align: center; }
+  ul, ol { margin: 3pt 0 6pt 0; padding-left: 15pt; }
+  li { margin-bottom: 4.5pt; text-align: justify; page-break-inside: avoid; break-inside: avoid; }
+  li:last-child { margin-bottom: 2pt; }
+  strong, b { font-weight: bold; }
+  .nueva { break-before: page; page-break-before: always; }
+</style>
+</head>
+<body>
+<h1>Fase D &#8212; Informe de cierre</h1>
+<p class="sub"><strong>Integraci&#243;n web&#8211;TPV BDP.</strong> Qu&#233; se ha comprobado, qu&#233; funciona solo y qu&#233; queda pendiente. Fecha del informe: 22 de octubre de 2026.</p>
+<h2>1. Resumen</h2>
+<p>La fase D ped&#237;a una cosa por encima de todas: <strong>que la integraci&#243;n funcione sin que nadie pulse botones</strong>. Cada ajuste del TPV ten&#237;a que llegar solo a la web, y cada venta de la web ten&#237;a que llegar sola al TPV, sin duplicados y sin depender de que alguien se acuerde de sincronizar.</p>
+<p>Eso es lo que hay hoy. La web lee del TPV, le env&#237;a, recoge sus avisos y corrige lo que se quede a medias <strong>en segundo plano</strong>, con una cadencia por cuenta que se configura una vez. Y cuando algo no se puede resolver solo, la pantalla lo dice y ofrece la salida, en vez de bloquear el art&#237;culo para siempre.</p>
+<p>Se ha probado contra un <strong>TPV BDP real instalado en local</strong> (licencia DEMO, versi&#243;n 36.2), que es el mismo programa y las mismas tablas que el del cliente. Lo que no se ha podido probar son los cuatro puntos que exigen una persona delante del TPV f&#237;sico, y est&#225;n enumerados sin adornos en la secci&#243;n 5.</p>
+<p><strong>Resultado de las 65 pruebas de aceptaci&#243;n</strong> (fichas D01&#8211;D32). Cada una est&#225; hecha o no lo est&#225;: no hay &#171;parcialmente&#187;. Las que declaran un l&#237;mite son pruebas que <strong>no se pueden hacer tal cual</strong> porque el TPV no ofrece ese servicio, y se cierran diciendo qu&#233; se hace en su lugar:</p>
+<table class="estado">
+<thead><tr><th>Estado</th><th>Cu&#225;ntas</th><th>Cu&#225;les</th></tr></thead>
+<tbody>
+<tr><td><strong>Cerradas con evidencia</strong></td><td><strong>46</strong></td><td>D01, D02, D03, D04, D09, D10, D11a, D11b, D11c, D12a, D12b, D12c, D13, D13a, D14, D14s, D15, D15t, D16, D17, D18, D18a, D18b, D18c, D18d, D19, D19t, D20, D22, D22a, D23a, D24a, D24b, D24c, D24-p, D24-m, D25, D26b, D26d, D26f, D26g, D28, D28-auto, D28-auto-R, D28a, D32</td></tr>
+<tr><td><strong>Cerradas declarando un l&#237;mite</strong></td><td><strong>9</strong></td><td>D05, D06, D07 (el TPV no modifica l&#237;neas), D23b y D23-m (solo se recupera lo localizable), D24d (sin servicio de borrado: va por D32), D26a (lectura correcta; el error con almac&#233;n inexistente se confirma en el TPV del cliente), D26e (cubierta por la regularizaci&#243;n), D27 (no hay proceso que mueva stock por venta)</td></tr>
+<tr><td><strong>Pendientes</strong></td><td><strong>10</strong></td><td>D03a, D08, D09a, D21, D21a, D26, D26c, D29, D31 (presencia f&#237;sica, impresora, configuraci&#243;n del terminal o el proveedor) y D30 (piloto, fuera de esta fase)</td></tr>
+</tbody></table>
+<h2>2. Qu&#233; hace la integraci&#243;n hoy, sin intervenci&#243;n</h2>
+<p>Siete procesos autom&#225;ticos, uno por necesidad. Todos respetan el <strong>modo de la cuenta</strong>: en solo lectura no se escribe nada en el TPV.</p>
+<table class="procesos">
+<thead><tr><th>Proceso</th><th>Cada cu&#225;nto</th><th>Qu&#233; hace</th></tr></thead>
+<tbody>
+<tr><td><strong>Env&#237;o de la cola</strong></td><td>15 s</td><td>Manda al TPV lo que la web tiene pendiente (ventas, art&#237;culos, stock, pagos, facturas)</td></tr>
+<tr><td><strong>Actualizaci&#243;n de estados</strong></td><td>60 s</td><td>Relee el estado de las comandas enviadas: si el TPV la cerr&#243;, la web lo sabe</td></tr>
+<tr><td><strong>Avisos del TPV</strong></td><td>30 s</td><td>Procesa los avisos que el TPV manda a la web (crear, modificar, borrar, finalizar, traspasar&#8230;)</td></tr>
+<tr><td><strong>Documentos de venta</strong></td><td>por cuenta</td><td>Relee facturas y albaranes del TPV: cabecera, l&#237;neas y pagos</td></tr>
+<tr><td><strong>Maestros</strong></td><td>por cuenta (15 min)</td><td>Relee art&#237;culos y precios: un cambio hecho en el TPV llega solo a la web</td></tr>
+<tr><td><strong>Albaranes de compra</strong></td><td>5 min</td><td>Importa los albaranes del TPV sin pulsar nada</td></tr>
+<tr><td><strong>Clientes, plano y departamentos</strong></td><td>por cuenta (15 min)</td><td>Relee los clientes del TPV, los salones/zonas/mesas y las familias del cat&#225;logo, cada uno con su cadencia</td></tr>
+</tbody></table>
+<p>La regla que se ha corregido en este cierre es la m&#225;s importante de todas: <strong>elegir &#171;enviar en autom&#225;tico&#187; enciende tambi&#233;n la lectura del resultado</strong>. Antes, la comanda se enviaba y se quedaba congelada en la web, porque nadie volv&#237;a a preguntar c&#243;mo acab&#243;. Eso era exactamente lo contrario de lo que pide un restaurante que elige autom&#225;tico.</p>
+<h2>3. La tabla del alcance, c&#243;mo queda hoy</h2>
+<p>Es la misma tabla que se entreg&#243; en el documento de alcance (&#171;Despu&#233;s de la fase D&#187;), fila por fila, con la &#250;ltima columna puesta al d&#237;a. <strong>Se trae</strong> = del TPV a la web. <strong>Se env&#237;a</strong> = de la web al TPV. <strong>Autom&#225;tico</strong> = viaja solo, sin pulsar nada. <strong>C&#243;mo queda</strong> = lo que hay hoy.</p>
+<table class="alcance">
+<thead><tr><th>Funcionalidad</th><th>Se trae</th><th>Se env&#237;a</th><th>Autom&#225;tico</th><th>C&#243;mo queda</th></tr></thead>
+<tbody>
+<tr><td>Cat&#225;logo (art&#237;culos, precio, familia)</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td><strong>Hecho.</strong> Lectura sola cada 15 min (cadencia por cuenta) y env&#237;o por la cola autom&#225;tica</td></tr>
+<tr><td>Clientes</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td><strong>Hecho.</strong> Importaci&#243;n sola con su propia cadencia (cada 15 min por cuenta); el bot&#243;n con confirmaci&#243;n queda para forzar el cambio en el momento</td></tr>
+<tr><td>Plano de sala</td><td class="c">S&#237;</td><td class="c">&#8212;</td><td class="c">Lectura s&#237;</td><td><strong>Hecho.</strong> Salones, zonas y mesas se releen solos con su cadencia; la lectura no mueve ni renombra nada</td></tr>
+<tr><td>Departamentos</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td><strong>Hecho.</strong> Se refrescan solos con su propia cadencia, aparte de la del cat&#225;logo</td></tr>
+<tr><td>Formas de pago, empleados</td><td class="c">S&#237;</td><td class="c">&#8212;</td><td class="c">Lectura s&#237;</td><td><strong>Hecho con matiz.</strong> La pantalla compara el mapeo con el TPV cuando se le pide; no crea registros ni se refresca sola</td></tr>
+<tr><td>Albaranes de compra</td><td class="c">S&#237;</td><td class="c">&#8212;</td><td class="c">Por exportaci&#243;n</td><td><strong>Hecho.</strong> Importaci&#243;n autom&#225;tica cada 5 min, &#250;ltimos 31 d&#237;as</td></tr>
+<tr><td>Detalle de comanda / stock</td><td class="c">S&#237;</td><td class="c">&#8212;</td><td class="c">S&#237;</td><td><strong>Hecho.</strong> Se lee tras cada aviso y con los documentos de venta</td></tr>
+<tr><td>Crear comanda</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td><strong>Hecho en local.</strong> Falta el env&#237;o a cocina, que necesita la impresora</td></tr>
+<tr><td>Propina (en comanda)</td><td class="c">&#8212;</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td><strong>Hecho.</strong> Sumar, sustituir y dejar a cero</td></tr>
+<tr><td>Puntos fidelizaci&#243;n (cliente)</td><td class="c">&#8212;</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td><strong>Hecho.</strong> Abono, cargo y p&#233;rdida de respuesta, sin duplicar</td></tr>
+<tr><td>Anular comanda</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td><strong>Hecho.</strong> El efecto en cocina queda para la sesi&#243;n presencial</td></tr>
+<tr><td>Modificar comanda enviada</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td><strong>No existe en el TPV.</strong> No hay servicio web para cambiar l&#237;neas; se dice en pantalla en vez de ofrecer un bot&#243;n que falla</td></tr>
+<tr><td>Detectar traspaso de TPV (avisos)</td><td class="c">S&#237;</td><td class="c">&#8212;</td><td class="c">S&#237;</td><td><strong>Hecho en parte.</strong> Traspaso de l&#237;nea probado; el de comanda completa es presencial</td></tr>
+<tr><td>Iniciar traspaso desde la web</td><td class="c">&#8212;</td><td class="c">Pendiente de TPV</td><td class="c">No</td><td><strong>Fuera.</strong> El TPV no lo expone</td></tr>
+<tr><td>Cobrar comanda existente</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td><strong>Hecho.</strong> Parcial, total, doble clic y respuesta perdida</td></tr>
+<tr><td>Facturar</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td><strong>Hecho</strong>, con la salvedad de la suscripci&#243;n de pago del TPV</td></tr>
+<tr><td>Consultar stock (TPV&#8594;web)</td><td class="c">S&#237;</td><td class="c">&#8212;</td><td class="c">Lectura s&#237;</td><td><strong>Hecho.</strong> Por art&#237;culo y en lista por almac&#233;n</td></tr>
+<tr><td>Regularizar stock (web&#8594;TPV)</td><td class="c">&#8212;</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td><strong>Hecho en parte.</strong> Falta confirmar en el TPV del cliente el rechazo por motivo inv&#225;lido</td></tr>
+<tr><td>Traspasar stock entre almacenes</td><td class="c">&#8212;</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td><strong>Hecho.</strong> Ida y vuelta real</td></tr>
+<tr><td>Actualizar inventario (web&#8594;TPV)</td><td class="c">&#8212;</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td><strong>Hecho.</strong> Nunca env&#237;a cantidad vac&#237;a</td></tr>
+<tr><td>Llamar al camarero</td><td class="c">&#8212;</td><td class="c">S&#237;</td><td class="c">S&#237;</td><td><strong>Hecho de nuestro lado.</strong> El TPV lo rechaza hasta que se configure en el terminal</td></tr>
+<tr><td>Borrar art&#237;culos</td><td class="c">Pendiente de TPV</td><td class="c">Pendiente de TPV</td><td class="c">No</td><td><strong>L&#237;mite del TPV.</strong> La pantalla dice qui&#233;n lo hace y c&#243;mo</td></tr>
+<tr><td>Reservas, gastos, marketing</td><td class="c">&#8212;</td><td class="c">&#8212;</td><td class="c">&#8212;</td><td><strong>Fuera de alcance.</strong> Son solo web y ya funcionan</td></tr>
+</tbody></table>
+<p>Resumen de la tabla: <strong>17 filas hechas</strong>, 2 con matiz declarado (formas de pago y regularizaci&#243;n de stock, ambas por lo que falta confirmar en el TPV del cliente), 2 que el TPV no expone y 1 fuera de alcance. Ninguna fila queda pendiente por falta de automatismo.</p>
+<h2 class="nueva">4. Resultado de cada prueba</h2>
+<h3>Bloque 1 &#8212; Base y seguridad (Hito 1)</h3>
+<table class="pruebas">
+<thead><tr><th>Ficha</th><th>Qu&#233; comprueba</th><th>Resultado</th></tr></thead>
+<tbody>
+<tr><td>D01</td><td>Salud, versi&#243;n, licencia 84 y acceso registrados</td><td><strong>Cerrada.</strong> El TPV respondi&#243; versi&#243;n 36.2 y la ficha qued&#243; registrada. La licencia 84 se consulta ya en el diagn&#243;stico de la pantalla; en el TPV DEMO responde &#171;sin licencia&#187;, que es lo esperado</td></tr>
+<tr><td>D02</td><td>La contrase&#241;a vieja no entra, la nueva s&#237;, sin secretos legibles</td><td><strong>Cerrada.</strong> Rotaci&#243;n que exige la contrase&#241;a actual y registro de intentos que nunca guarda la contrase&#241;a ni su huella cifrada</td></tr>
+</tbody></table>
+<h3>Bloque 2 &#8212; Comandas y cocina (Hito 2)</h3>
+<table class="pruebas">
+<thead><tr><th>Ficha</th><th>Resultado</th></tr></thead>
+<tbody>
+<tr><td>D03 &#8212; una venta web crea una sola comanda en caja, vinculada</td><td><strong>Cerrada.</strong> Comanda 15, presente en el TPV y en la web, con el v&#237;nculo</td></tr>
+<tr><td>D03a &#8212; crear con env&#237;o a cocina</td><td><strong>Pendiente.</strong> Necesita la impresora de cocina</td></tr>
+<tr><td>D04 &#8212; respuesta perdida al crear: se recupera la misma, no otra</td><td><strong>Cerrada en vivo.</strong> Se cort&#243; la respuesta con un proxy: la app no reenvi&#243; a ciegas, la relectura recogi&#243; la misma comanda (n&#186; 60) y un reintento devolvi&#243; el mismo identificador con una sola entrada de auditor&#237;a</td></tr>
+<tr><td>D05&#8211;D07 &#8212; a&#241;adir, cambiar o retirar l&#237;nea de una comanda</td><td><strong>No aplicable.</strong> El TPV no ofrece servicio web para modificar l&#237;neas. Se declara, no se disimula</td></tr>
+<tr><td>D08 &#8212; toque simult&#225;neo en caja y web</td><td><strong>Pendiente.</strong> Exige dos personas a la vez: una en la caja y otra en la web</td></tr>
+<tr><td>D09 &#8212; anular desde la web anula en caja</td><td><strong>Cerrada.</strong> La anulaci&#243;n lleg&#243; al TPV y la comanda desapareci&#243; de su tabla</td></tr>
+<tr><td>D09a &#8212; efecto en cocina de esa anulaci&#243;n</td><td><strong>Pendiente.</strong> Necesita testigo de impresora auxiliar</td></tr>
+<tr><td>D10 &#8212; anular en caja se refleja en la web</td><td><strong>Cerrada en vivo.</strong> La comanda 46 pas&#243; a anulada en la web con fecha y motivo; un aviso repetido no la vuelve a tocar; el sondeo tambi&#233;n la anula</td></tr>
+<tr><td>D21 &#8212; llegan los siete avisos</td><td><strong>6 de 7 cerrados.</strong> El s&#233;ptimo (&#171;cambiar estado&#187;) necesita el Monitor de Cocina instalado</td></tr>
+<tr><td>D21a &#8212; aviso de traspaso de comanda completa</td><td><strong>Pendiente</strong> de la prueba presencial</td></tr>
+<tr><td>D22 / D22a &#8212; aviso repetido o desordenado</td><td><strong>Cerradas.</strong> Repetido = ignorado; desordenado = aceptado y ordenado. El traspaso de l&#237;nea real (comanda 47) se reenvi&#243;: id&#233;ntico &#8594; &#171;duplicado&#187;, con fecha anterior &#8594; aceptado</td></tr>
+<tr><td>D23a &#8212; trabajador ca&#237;do con receptor operativo</td><td><strong>Cerrada.</strong> El aviso espera en el buz&#243;n y se procesa al arrancar</td></tr>
+<tr><td>D23b &#8212; receptor inaccesible</td><td><strong>Cerrada con l&#237;mite declarado:</strong> solo se recupera lo que se puede localizar por su identificador de pedido</td></tr>
+<tr><td>D23-m &#8212; comanda manual con aviso perdido</td><td><strong>Cerrada con l&#237;mite declarado.</strong> El TPV no ofrece listado de comandas por API, as&#237; que una comanda de caja sin aviso no se recupera sola; queda el procedimiento escrito para que una persona la resuelva</td></tr>
+</tbody></table>
+<h3>Bloque 3 &#8212; Pagos, propina, puntos y factura (Hito 3)</h3>
+<table class="pruebas">
+<thead><tr><th>Ficha</th><th>Resultado</th></tr></thead>
+<tbody>
+<tr><td>D11a / D11b / D11c &#8212; propina que suma, que sustituye y que se queda a cero</td><td><strong>Cerradas</strong> con lectura entre pasos. Se corrigi&#243; una conclusi&#243;n anterior falsa: se hab&#237;a le&#237;do una comanda ya anulada</td></tr>
+<tr><td>D12a / D12b / D12c &#8212; puntos que suman, que restan y respuesta perdida</td><td><strong>Cerradas.</strong> La p&#233;rdida de respuesta se reconcili&#243; leyendo el saldo, sin reenviar. Y dos sumas seguidas ya no se pisan: se acumulan sobre la misma fila</td></tr>
+<tr><td>D13 / D13a &#8212; pago parcial, con y sin factura</td><td><strong>Cerradas.</strong> Dejaron ver un defecto real: un n&#250;mero de factura vac&#237;o marcaba la venta como facturada. Corregido</td></tr>
+<tr><td>D14 &#8212; pago total liquida una sola vez</td><td><strong>Cerrada.</strong> Un pago repetido se rechaza porque excede el saldo</td></tr>
+<tr><td>D14s &#8212; dos pagos a la vez</td><td><strong>Cerrada.</strong> Una petici&#243;n entra y la otra recibe &#171;ya hay un pago en proceso&#187;. No hay cobro doble</td></tr>
+<tr><td>D15 / D15t &#8212; respuesta perdida o sin respuesta al pagar</td><td><strong>Cerradas.</strong> La app consulta antes de repetir y encuentra el pago que s&#237; se aplic&#243;</td></tr>
+<tr><td>D16 &#8212; pago hecho en la caja se ve en la misma venta web</td><td><strong>Cerrada</strong> con un lote automatizado contra el TPV (4 pasos en verde, documento cerrado)</td></tr>
+<tr><td>D17 &#8212; tope de tres pagos</td><td><strong>Cerrada.</strong> Defecto encontrado y corregido: no hab&#237;a tope</td></tr>
+<tr><td>D18 / D18a / D18b / D18c &#8212; n&#250;mero &#250;nico, no re-facturar</td><td><strong>Cerradas.</strong> Una segunda factura devuelve la existente en vez de emitir otra</td></tr>
+<tr><td>D18d &#8212; factura completa con NIF</td><td><strong>Cerrada</strong> sin escribir nada nuevo: la exportaci&#243;n del TPV ya trae el CIF y el nombre del cliente en cada documento</td></tr>
+<tr><td>D19 / D19t &#8212; respuesta perdida al facturar</td><td><strong>Cerradas.</strong> N&#250;mero &#250;nico, sin segunda factura</td></tr>
+<tr><td>D20 &#8212; aviso y documento enlazados en una sola venta</td><td><strong>Cerrada.</strong> Se enlazan por el n&#250;mero de factura, con &#237;ndice &#250;nico que impide duplicar</td></tr>
+</tbody></table>
+<h3>Bloque 4 &#8212; Maestros, stock y documentos (Hito 4)</h3>
+<table class="pruebas">
+<thead><tr><th>Ficha</th><th>Resultado</th></tr></thead>
+<tbody>
+<tr><td>D24a / D24b / D24c &#8212; alta, modificaci&#243;n y desactivaci&#243;n de art&#237;culos</td><td><strong>Cerradas</strong> contra el TPV, con el art&#237;culo le&#237;do despu&#233;s en su maestro</td></tr>
+<tr><td>D24d &#8212; borrado</td><td><strong>Cubierta por D32.</strong> El TPV no tiene servicio de borrado: la web muestra el procedimiento y el responsable</td></tr>
+<tr><td>D24-p &#8212; plano le&#237;do sin mover posiciones</td><td><strong>Cerrada.</strong> Comprobaci&#243;n del terminal, empleado y perfil contra el TPV</td></tr>
+<tr><td>D24-m &#8212; formas de pago y empleados le&#237;dos</td><td><strong>Cerrada.</strong> Tarjeta de solo lectura; no crea registros</td></tr>
+<tr><td>D25 &#8212; clientes, con y sin sobrescritura</td><td><strong>Cerrada.</strong> La sobrescritura es expl&#237;cita y solo se aprob&#243; en el TPV local</td></tr>
+<tr><td>D26 / D26a &#8212; ajuste de stock desde la web y consulta unitaria</td><td><strong>D26a cerrada con l&#237;mite:</strong> la lectura es correcta y el caso de error con almac&#233;n inexistente se confirma en el TPV del cliente. <strong>D26 (ajuste web = un solo movimiento)</strong> pendiente: exige una corrida completa de escritura de stock en el piloto</td></tr>
+<tr><td>D26b &#8212; consulta en lista por almac&#233;n</td><td><strong>Cerrada</strong> con bot&#243;n propio y llamador en producci&#243;n</td></tr>
+<tr><td>D26c &#8212; regularizaci&#243;n con motivo</td><td><strong>Pendiente</strong> de la corrida con motivo inv&#225;lido contra el TPV del cliente</td></tr>
+<tr><td>D26d &#8212; traspaso entre almacenes</td><td><strong>Cerrada</strong> con traspaso real de ida y vuelta</td></tr>
+<tr><td>D26e &#8212; ajuste por diferencia</td><td><strong>Cubierta</strong> por la regularizaci&#243;n, que es el mismo servicio con motivo (y por eso auditable). El TPV ofrece un servicio menor que no se usa a prop&#243;sito</td></tr>
+<tr><td>D26f &#8212; inventario absoluto</td><td><strong>Cerrada.</strong> Nunca env&#237;a cantidad vac&#237;a; la misma cantidad da diferencia cero</td></tr>
+<tr><td>D26g &#8212; sin respuesta en stock</td><td><strong>Cerrada.</strong> Si hay duda, no se reintenta a ciegas; si el TPV rechaz&#243; con un motivo claro, ya no se marca &#171;ambiguo&#187;</td></tr>
+<tr><td>D27 &#8212; la venta de caja no descuenta dos veces</td><td><strong>Declarada no verificable hoy:</strong> no existe un proceso que mueva stock por venta. La protecci&#243;n queda escrita y probada para cuando exista</td></tr>
+<tr><td>D28 / D28-auto / D28-auto-R &#8212; documentos, exportaci&#243;n programada y reinicio a mitad</td><td><strong>Cerradas y vivas.</strong> Cadencia y perfil por cuenta. Se descubri&#243; que un ajuste del TPV devolv&#237;a vac&#237;o y se fij&#243; correctamente</td></tr>
+<tr><td>D28a &#8212; albaranes autom&#225;ticos</td><td><strong>Cerrada.</strong> Importaci&#243;n completa sin bot&#243;n</td></tr>
+<tr><td>D32 &#8212; procedimiento y responsable de lo que la API no hace</td><td><strong>Cerrada en pantalla.</strong> Responsable por defecto y por operaci&#243;n, editable por el cliente</td></tr>
+</tbody></table>
+<h3>Bloque 5 &#8212; Excepciones y piloto (Hito 5)</h3>
+<table class="pruebas">
+<thead><tr><th>Ficha</th><th>Resultado</th></tr></thead>
+<tbody>
+<tr><td>D29 &#8212; tres reinicios en mitad de una operaci&#243;n</td><td><strong>2 de 3 cerradas</strong> por inyecci&#243;n (proceso de sincronizaci&#243;n y ca&#237;da del servicio web), sin p&#233;rdida ni duplicado. Los dos reinicios que quedan exigen tocar el PC</td></tr>
+<tr><td>D31 &#8212; llamar al camarero desde una mesa</td><td><strong>Cerrada t&#233;cnicamente:</strong> el aviso llega al TPV y el TPV lo rechaza por su propia configuraci&#243;n (falta la direcci&#243;n del servidor de mensajes). Queda configurarlo en el terminal</td></tr>
+<tr><td>D30 &#8212; piloto y despliegue por etapas</td><td><strong>Fuera de esta fase.</strong> Requiere permiso y un TPV en producci&#243;n</td></tr>
+<tr><td>D33 &#8212; Configuraci&#243;n legible y con un solo guardado</td><td><strong>Cerrada este cierre</strong> (ver secci&#243;n 6)</td></tr>
+</tbody></table>
+<h2 class="nueva">5. Limitaciones encontradas</h2>
+<p>Todas las de esta lista est&#225;n declaradas, no escondidas. Ninguna es un fallo de la web: son l&#237;mites del TPV o de las condiciones de prueba.</p>
+<ol><li><strong>Cuatro pruebas exigen una persona delante del TPV f&#237;sico.</strong> Son D03a y D09a (impresora de cocina), D08 (dos personas tocando a la vez) y el reinicio presencial de D29. No hay forma de simularlas sin falsear el resultado.</li><li><strong>El TPV no permite modificar l&#237;neas de una comanda por API</strong> (D05&#8211;D07). La web lo dice en lugar de ofrecer un bot&#243;n que iba a fallar.</li><li><strong>El TPV no permite borrar art&#237;culos por API</strong> (D24d). Se resuelve por D32: la pantalla muestra qui&#233;n lo hace y c&#243;mo.</li><li><strong>El TPV no ofrece listado de comandas por API</strong> (D23-m). Una comanda creada a mano en la caja sin que llegue su aviso no se puede recuperar sola. L&#237;mite declarado con procedimiento escrito.</li><li><strong>El s&#233;ptimo aviso (&#171;cambiar estado&#187;) exige el Monitor de Cocina instalado.</strong> Los otros seis est&#225;n probados con eventos reales.</li><li><strong>El aviso de &#171;llamar al camarero&#187; depende de la configuraci&#243;n del terminal</strong> (D31): sin la direcci&#243;n del servidor de mensajes, el TPV lo rechaza con su propio c&#243;digo de error. No es un defecto de la web; el error ya se puede leer en pantalla.</li><li><strong>Licencia 84:</strong> el TPV de prueba es DEMO y responde &#171;sin licencia&#187;. La consulta funciona; el valor afirmativo solo se ver&#225; en el TPV del cliente.</li><li><strong>Sobrescritura de clientes (D25):</strong> se aprob&#243; &#250;nicamente en el TPV local. En producci&#243;n viene desactivada por defecto.</li></ol>
+<h3>Riesgo pendiente de decisi&#243;n del cliente</h3>
+<p>La suscripci&#243;n de pago del TPV es la que habilita a&#241;adir un pago a una comanda ya creada y facturarla. Todo el flujo est&#225; escrito y probado en local contra la versi&#243;n DEMO; con la suscripci&#243;n gratuita esas dos operaciones no est&#225;n disponibles. Es lo &#250;nico que puede impedir que la integraci&#243;n funcione igual en producci&#243;n, y se resuelve hablando con el proveedor.</p>
+<h2 class="nueva">6. Qu&#233; se ha cambiado en este &#250;ltimo tramo</h2>
+<p>Adem&#225;s de cerrar fichas, se han corregido cuatro cosas que no se ve&#237;an en las pruebas pero que hac&#237;an la aplicaci&#243;n inc&#243;moda de usar. Las cuatro nacen de lo que se ve en pantalla, no de una lista de tareas:</p>
+<p><strong>a) Configuraci&#243;n parec&#237;a seis aplicaciones distintas.</strong> Unas ayudas eran cajas dentro de una caja y otras cajas sueltas; unas pesta&#241;as ten&#237;an dos botones &#171;Guardar&#187; y otras ninguno; el aviso &#171;esto se guarda al instante&#187; flotaba entre dos tarjetas sin decir a cu&#225;l pertenec&#237;a. Ahora las seis pesta&#241;as son iguales: un t&#237;tulo de grupo, sus tarjetas separadas por el mismo hueco, una sola barra de guardado abajo a la derecha y el aviso de guardado instant&#225;neo pegado al t&#237;tulo del grupo al que pertenece.</p>
+<p><strong>b) La ayuda estaba donde no se busca.</strong> Antes hab&#237;a una ayuda por pesta&#241;a, con siete temas mezclados: para entender un interruptor hab&#237;a que leer siete bloques. Ahora cada tarjeta tiene la suya, en su cabecera.</p>
+<p><strong>c) Se pod&#237;a perder lo escrito.</strong> Al cambiar de pesta&#241;a con cambios sin guardar, se perd&#237;an sin avisar. Ahora se avisa, no se cambia de pesta&#241;a y el bot&#243;n &#171;Deshacer&#187; es la salida. Salir de la p&#225;gina con cambios tambi&#233;n avisa.</p>
+<p><strong>d) El stock pod&#237;a quedar bloqueado para siempre.</strong> Si una operaci&#243;n de stock quedaba en duda, ese art&#237;culo y ese almac&#233;n no se pod&#237;an volver a tocar nunca: ni reintentar ni dejarlo estar. Ahora hay una pantalla que ense&#241;a las operaciones en duda y una persona decide qu&#233; pas&#243; &#8212;se aplic&#243; (no se reenv&#237;a) o se reintenta&#8212;.</p>
+<p>Y la lectura de maestros, que antes solo ocurr&#237;a al pulsar &#171;Importar del TPV&#187;, tiene ahora su propia cadencia por cuenta.</p>
+<p><strong>e) Tres tablas del TPV segu&#237;an esperando un bot&#243;n.</strong> La tabla del alcance promet&#237;a clientes, plano de sala y departamentos autom&#225;ticos, y en la pr&#225;ctica solo ten&#237;an el bot&#243;n &#171;Importar&#187;. Ahora cada una tiene su propia cadencia en Configuraci&#243;n &#8250; A qu&#233; se conecta, con su propia marca de &#250;ltima lectura: el servidor mira cada minuto si toca, y solo llama al TPV cuando toca. Las tres son solo lectura, as&#237; que encenderlas no puede escribir nada en el TPV. Se comprob&#243; en funcionamiento: con la cadencia de 5 minutos, la primera pasada trajo 12 departamentos nuevos y reley&#243; 4 salones y 3 zonas; la de 15 minutos se guard&#243; desde la pantalla y qued&#243; guardada en la cuenta.</p>
+<h2 class="nueva">7. C&#243;mo se ha probado</h2>
+<p>Ninguna afirmaci&#243;n de este informe viene de leer el c&#243;digo y suponer. Cada una tiene su prueba:</p>
+<ul><li><strong>Contra el TPV real en local</strong>, por su API, con el t&#250;nel de la m&#225;quina de pruebas: lecturas, escrituras, avisos, pagos, facturas, stock y documentos.</li><li><strong>Con fallos provocados a prop&#243;sito:</strong> proxies que cortan la respuesta, que la retrasan 75 segundos, que duplican avisos o los llegan desordenados. Sirven para comprobar que la app no duplica nada cuando la red falla.</li><li><strong>Con el TPV automatizado</strong> (teclado y pantalla del propio TPV): alta de art&#237;culos, cobro y cierre de documento.</li><li><strong>En el navegador</strong>, recorriendo las seis pesta&#241;as de Configuraci&#243;n y midiendo el resultado en pantalla, no solo mirando capturas.</li><li><strong>Suite autom&#225;tica del proyecto:</strong> 316 pruebas de librer&#237;a en verde, 0 fallos, y la compilaci&#243;n completa de todos los binarios y pruebas sin errores.</li><li><strong>Las tres cadencias nuevas, en marcha de verdad:</strong> encendidas en la cuenta de prueba, ejecutadas solas en el minuto siguiente y con el resultado medido en la base de datos (clientes vinculados, salones y zonas, departamentos importados).</li><li><strong>Comprobaci&#243;n de calidad</strong> sobre el c&#243;digo cambiado: sin avisos nuevos.</li></ul>
+<h2 class="nueva">8. Estado final y siguiente paso</h2>
+<p>La integraci&#243;n est&#225; lista para el piloto en el TPV del cliente, con dos condiciones:</p>
+<ol><li><strong>La suscripci&#243;n de pago del TPV</strong>, que habilita pagos y facturas sobre comandas existentes.</li><li><strong>Una sesi&#243;n presencial de una hora</strong> con el TPV delante para cerrar las cuatro pruebas que lo exigen (impresora de cocina, doble toque y reinicios).</li></ol>
+<p>Fuera de eso, lo que queda abierto depende de terceros &#8212;el distribuidor del TPV&#8212; o es decisi&#243;n del cliente: qu&#233; hacer con la comanda manual sin aviso y qui&#233;n firma el procedimiento de las operaciones que la API no expone.</p>
+<p>Ninguna fila de la tabla del alcance queda pendiente por falta de automatismo: las que no est&#225;n hechas del todo son l&#237;mites del propio TPV, declarados en la secci&#243;n 5.</p>
+</body>
+</html>

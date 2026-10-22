@@ -1,6 +1,6 @@
 # Fase D — Informe de cierre
 
-**Integración web ↔ TPV BDP.** Qué se ha comprobado, qué funciona solo y qué queda pendiente.
+**Integración web–TPV BDP.** Qué se ha comprobado, qué funciona solo y qué queda pendiente.
 Fecha del informe: 22 de octubre de 2026.
 
 ---
@@ -46,9 +46,9 @@ cuenta**: en solo lectura no se escribe nada en el TPV.
 | **Actualización de estados** | 60 s | Relee el estado de las comandas enviadas: si el TPV la cerró, la web lo sabe |
 | **Avisos del TPV** | 30 s | Procesa los avisos que el TPV manda a la web (crear, modificar, borrar, finalizar, traspasar…) |
 | **Documentos de venta** | por cuenta | Relee facturas y albaranes del TPV: cabecera, líneas y pagos |
-| **Maestros** | por cuenta (15 min recomendado) | Relee artículos y precios: un cambio hecho en el TPV llega solo a la web |
+| **Maestros** | por cuenta (15 min) | Relee artículos y precios: un cambio hecho en el TPV llega solo a la web |
 | **Albaranes de compra** | 5 min | Importa los albaranes del TPV sin pulsar nada |
-| **Clientes, plano y departamentos** | por cuenta (15 min recomendado) | Relee los clientes del TPV, los salones/zonas/mesas y las familias del catálogo, cada uno con su cadencia |
+| **Clientes, plano y departamentos** | por cuenta (15 min) | Relee los clientes del TPV, los salones/zonas/mesas y las familias del catálogo, cada uno con su cadencia |
 
 La regla que se ha corregido en este cierre es la más importante de todas: **elegir
 «enviar en automático» enciende también la lectura del resultado**. Antes, la
