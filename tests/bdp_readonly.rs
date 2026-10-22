@@ -45,6 +45,8 @@ fn bdp_config_from_env() -> Option<ConfiguracionRestaurante> {
         bdp_almacen_default: 1,
         bdp_codreg_default: 1,
         bdp_articulo_rango_inicial: 90_000_000,
+        bdp_documentos_auto_segundos: 0,
+        bdp_documentos_perfil: None,
         bdp_responsable_no_api: String::new(),
         bdp_order_end_type: 0,
         bdp_billing_details: false,

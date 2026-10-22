@@ -266,6 +266,8 @@ async fn test_configuracion_actualizar_haddock_fields(pool: PgPool) {
         bdp_items_profile_id: None,
         bdp_catalog_price_type: None,
         bdp_purchase_notes_profile_id: None,
+        bdp_documentos_auto_segundos: Some(0),
+        bdp_documentos_perfil: None,
         google_review_url: None,
         telefono_restaurante: None,
         url_reservas: None,

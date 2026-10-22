@@ -122,6 +122,8 @@ mod tests {
             bdp_items_profile_id: 1,
             bdp_catalog_price_type: 1,
             bdp_purchase_notes_profile_id: None,
+            bdp_documentos_auto_segundos: 0,
+            bdp_documentos_perfil: None,
             bdp_default_article_code: "1001".into(),
             bdp_default_article_name: "CAFE BOMBON".into(),
             bdp_tender_map: serde_json::json!({"efectivo": "1", "tarjeta": "2"}),
