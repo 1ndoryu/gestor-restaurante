@@ -10,38 +10,62 @@ y contra la instalación de producción.
 ## 1. Resumen
 
 La fase D pedía una cosa por encima de todas: **que la integración funcione sin que
-nadie pulse botones**. Cada ajuste del TPV tenía que llegar solo a la web, y cada
-venta de la web tenía que llegar sola al TPV, sin duplicados y sin depender de que
-alguien se acuerde de sincronizar.
+nadie pulse botones**. Lo que se toca en el TPV tenía que llegar solo a la web, y
+lo que se vende en la web tenía que llegar solo al TPV, sin duplicados y sin
+depender de que alguien se acuerde de sincronizar. El cliente lo concretó en
+**65 pruebas de aceptación** (fichas D01–D32), una por funcionalidad, cada una con
+su prueba. No valía «más o menos»: o se hace, o se declara por qué no se puede.
 
-Eso es lo que hay hoy. La web lee del TPV, le envía, recoge sus avisos y corrige
-lo que se quede a medias **en segundo plano**, con una cadencia por cuenta que se
-configura una vez. Y cuando algo no se puede resolver solo, la pantalla lo dice y
-ofrece la salida, en vez de bloquear el artículo para siempre.
+**Lo que se pedía, y está hecho:**
 
-Se ha probado contra un **TPV BDP real instalado en local** (licencia DEMO,
-versión 36.2), que es el mismo programa y las mismas tablas que el del cliente.
-Lo que no se ha podido probar son los cinco puntos que exigen una persona delante
-del TPV físico, y están enumerados sin adornos en la sección 8.
+- **La automatización existe y corre sola.** Siete procesos en segundo plano: la
+  cola envía lo pendiente cada minuto, los avisos del TPV se recogen cada 5
+  segundos, y las lecturas (estados de comandas, maestros, clientes, plano,
+  departamentos, documentos y albaranes) se refrescan con su propia cadencia. Las
+  lecturas no escriben nada en el TPV.
+- **La venta no se queda a medias.** Cada operación lleva su clave de
+  idempotencia, no se admiten dos en vuelo sobre la misma comanda, y lo que queda
+  «ambiguo» se resuelve releyendo el TPV en vez de reenviarlo a ciegas.
+- **En automático, se envía y además se relee el resultado.** Antes la comanda se
+  enviaba y se quedaba congelada en la web porque nadie volvía a preguntar cómo
+  acabó; eso se corrigió en este cierre.
+- **La escritura está protegida por diseño, no por confianza.** Tres modos (solo
+  lectura, una operación autorizada a mano y automático), copia previa obligatoria,
+  snapshot del día, confirmación expresa y una fila de auditoría por operación
+  desde antes de salir hasta su resultado.
+- **Está probado contra un TPV BDP real instalado en local** (licencia DEMO,
+  versión 36.2): el mismo programa y las mismas tablas que el del cliente, con otra
+  instalación y otra configuración. Fase D pedía exactamente eso: probar aquí
+  antes de tocar su restaurante.
 
-**Resultado de las 65 pruebas de aceptación** (fichas D01–D32). Cada una está
-hecha o no lo está: no hay «parcialmente». Las que declaran un límite son
-pruebas que **no se pueden hacer tal cual** porque el TPV no ofrece ese servicio,
-y se cierran diciendo qué se hace en su lugar:
+**Resultado de las 65 pruebas.** Cada una está hecha o no lo está; no hay
+«parcialmente». Las que declaran un límite son pruebas que **no se pueden hacer tal
+cual** porque el TPV no ofrece ese servicio, y se cierran diciendo qué se hace en
+su lugar:
 
 | Estado | Cuántas | Cuáles |
 |---|---|---|
 | **Cerradas con evidencia** | **46** | D01, D02, D03, D04, D09, D10, D11a, D11b, D11c, D12a, D12b, D12c, D13, D13a, D14, D14s, D15, D15t, D16, D17, D18, D18a, D18b, D18c, D18d, D19, D19t, D20, D22, D22a, D23a, D24a, D24b, D24c, D24-p, D24-m, D25, D26b, D26d, D26f, D26g, D28, D28-auto, D28-auto-R, D28a, D32 |
 | **Cerradas declarando un límite** | **9** | D05, D06, D07 (el TPV no modifica líneas), D23b y D23-m (solo se recupera lo localizable), D24d (sin servicio de borrado: lo cubre la ficha de procedimiento), D26a (lectura correcta; el error con almacén inexistente se confirma en el TPV del cliente), D26e (cubierta por la regularización), D27 (no hay proceso que mueva stock por venta) |
-| **Pendientes** | **10** | D03a, D08, D09a, D21, D21a, D26, D26c y D29 (presencia física, impresora, Monitor de Cocina o corrida en el piloto), D31 (de nuestro lado está hecho; falta configurar el terminal) y D30 (piloto, fuera de esta fase) |
+| **Pendientes** | **10** | D03a y D09a (impresora de cocina), D08 (dos personas a la vez), D21a (traspaso completo) y D29 (reinicio real): exigen una persona delante del TPV físico. D21 (Monitor de Cocina) y D31 (dirección del servidor de mensajes del terminal): exigen configuración del terminal. D26 y D26c (corrida completa de stock con escritura) y D30 (piloto): exigen el TPV del cliente |
 
-Una nota de alcance: la ficha técnica **D33** (configuración legible y con un solo
-guardado) que aparece en la sección 5 **no forma parte de estas 65**: no está en
-el documento de alcance. Es trabajo de esta entrega y se lista aparte.
+**Qué falta, y por qué no se pudo cerrar aquí.** No falta automatismo: no hay
+ninguna de las 65 parada por una función sin hacer. Las diez pendientes dependen de
+algo que no existe en este entorno:
 
-**Ninguna ficha de las 65 queda pendiente por falta de automatismo.** Las que no
-están cerradas dependen de una persona delante del TPV, de la configuración del
-terminal o de una corrida con escritura en el piloto.
+- **Una persona delante del TPV físico (5).** La impresora de cocina, dos personas
+  tocando la misma comanda en el mismo segundo, el traspaso completo y el reinicio
+  real de BDP.NET no se pueden simular sin falsear el resultado.
+- **La configuración del terminal (2).** El séptimo aviso necesita el Monitor de
+  Cocina instalado, y «llamar al camarero» necesita la dirección del servidor de
+  mensajes en el terminal. De nuestro lado están hechos: el aviso llega y el error
+  del TPV se puede leer en pantalla.
+- **El piloto en su restaurante (3).** La corrida completa de stock y el
+  despliegue por etapas se hacen con su TPV, no con el de pruebas.
+
+Lo que sí queda de nuestro lado es terminar la puesta en marcha con sus datos: las
+formas de pago, los tipos de pedido y el perfil de documentos de venta (§9). Son
+decisiones suyas, no cosas pendientes de programar.
 
 ---
 
