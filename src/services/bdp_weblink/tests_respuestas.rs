@@ -433,28 +433,31 @@ async fn get_list_stock_tolera_error_de_linea_y_rechaza_almacen_inexistente() {
     }
 }
 
-/* [S16-H3] Tests adicionales para ensure_target_allowed.
- * Valida rechazo de query strings, fragmentos y aceptación via env var. */
+/* [S16-H3] Forma de la URL base: se rechazan query strings, fragmentos y vacío;
+ * el destino en sí ya no se filtra. */
 
 #[test]
 fn write_target_rejects_url_with_query_string() {
     let config = config("http://127.0.0.1:18765?token=abc".to_string());
     let client = BdpWeblinkClient::new(&config);
-    assert!(client.ensure_target_allowed("BDP_TEST_ALLOWLIST").is_err());
+    assert!(client.ensure_configured().is_err());
 }
 
 #[test]
 fn write_target_rejects_url_with_fragment() {
     let config = config("http://127.0.0.1:18765#section".to_string());
     let client = BdpWeblinkClient::new(&config);
-    assert!(client.ensure_target_allowed("BDP_TEST_ALLOWLIST").is_err());
+    assert!(client.ensure_configured().is_err());
 }
 
 #[test]
 fn write_target_rejects_empty_base_url() {
     let config = config(String::new());
     let client = BdpWeblinkClient::new(&config);
-    assert!(client.ensure_target_allowed("BDP_TEST_ALLOWLIST").is_err());
+    assert!(matches!(
+        client.ensure_configured(),
+        Err(BdpWeblinkError::NotConfigured)
+    ));
 }
 
 /* [S16-H4] canonical_target en bdp_backup rechaza URLs con path/query/fragment/credenciales.
@@ -463,7 +466,7 @@ fn write_target_rejects_empty_base_url() {
 fn localhost_with_port_is_allowed() {
     let config = config("http://localhost:8068".to_string());
     let client = BdpWeblinkClient::new(&config);
-    assert!(client.ensure_target_allowed("BDP_TEST_ALLOWLIST").is_ok());
+    assert!(client.ensure_configured().is_ok());
 }
 
 /* [S16-H3] IPv6 loopback: reqwest::Url::parse host_str() incluye corchetes
@@ -471,8 +474,7 @@ fn localhost_with_port_is_allowed() {
  * el caso loopback. Verificar en CI si se necesita cubrir IPv6 explícitamente. */
 
 /* [198A-1] Wiremock: las escrituras nuevas autentican y usan el path
- * y payload PascalCase correctos; ensure_write_target_allowed pasa porque
- * el MockServer escucha en loopback. */
+ * y payload PascalCase correctos. */
 #[tokio::test]
 async fn add_order_tip_posts_pascal_case_payload() {
     let server = MockServer::start().await;

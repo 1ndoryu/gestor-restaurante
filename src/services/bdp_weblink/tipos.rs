@@ -16,8 +16,6 @@ pub enum BdpWeblinkError {
     Api { status: u16, body: String },
     #[error("BDP devolvio error: {0}")]
     Remote(String),
-    #[error("Escritura BDP bloqueada: destino no incluido en BDP_WRITE_ALLOWED_ORIGINS: {0}")]
-    WriteTargetDenied(String),
     #[error("BDP throttled: {0}")]
     Throttled(String),
     /// [D26g] La escritura salió y se cortó antes de leer la respuesta: puede

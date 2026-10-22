@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use super::BdpWriteGuard;
 use crate::models::ConfiguracionRestaurante;
-use crate::services::{BdpBackupService, BdpWeblinkClient, ModoEfectivo, ServicioModoOperacion};
+use crate::services::{BdpBackupService, ModoEfectivo, ServicioModoOperacion};
 
 /* [C1-2] Scopes de escritura BDP válidos. */
 const VALID_BDP_WRITE_SCOPES: &[&str] = &[
@@ -86,7 +86,7 @@ impl BdpWriteGuard {
     /// `push_modalidad == "automatico"` (D1) o por una acción manual explícita
     /// (`forzar_manual`, botón "Sincronizar a BDP" — D1/D2) en lugar del flag
     /// interactivo `ff_bdp_auto_arm`; conserva el resto del fail-closed (sync
-    /// activo, backup pre-write, scope válido, destino allowlist, snapshot
+    /// activo, backup pre-write, scope válido, snapshot
     /// vigente). El reintento manual tras bloqueo por suscripción (D2) usa
     /// `forzar_manual=true`.
     #[allow(clippy::too_many_arguments)]
@@ -219,11 +219,6 @@ impl BdpWriteGuard {
         target_entity_id: Uuid,
     ) -> Result<(), String> {
         let target = BdpBackupService::canonical_target(config)?;
-
-        BdpWeblinkClient::new(config)
-            .ensure_write_target_allowed()
-            .map_err(|error| error.to_string())?;
-
         let fingerprint = BdpBackupService::connection_fingerprint(config)?;
 
         let mut tx = pool

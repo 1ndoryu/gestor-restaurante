@@ -363,9 +363,8 @@ pub const BDP_ENDPOINTS: &[BdpEndpointSpec] = &[
 ];
 
 /* [198A-1] Rutas de escritura BDP. Se usan para introspección/UI (badge de
- * solo-lectura vs escritura) y para el kill-switch de destino por endpoint.
- * La autoridad real de enforcement sigue siendo
- * `BdpWeblinkClient::ensure_write_target_allowed`. */
+ * solo-lectura vs escritura) y para separar el cliente HTTP con timeout de
+ * escritura del de lectura. */
 pub const BDP_WRITE_PATHS: &[&str] = &[
     BDP_PATH_AUTH_LOGIN,
     BDP_PATH_CREATE_CUSTOMER,

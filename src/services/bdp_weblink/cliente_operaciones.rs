@@ -35,7 +35,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpCreateArticlesRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         let response = self
             .post_authenticated_json(BDP_PATH_CREATE_ARTICLES, request)
             .await?;
@@ -47,7 +46,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpModifyArticleRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         let response = self
             .post_authenticated_json(BDP_PATH_MODIFY_ARTICLE, request)
             .await?;
@@ -59,7 +57,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpModifyPricesRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_MODIFY_PRICES, request)
             .await
     }
@@ -73,7 +70,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpCreateDepartmentRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         let response = self
             .post_authenticated_json(BDP_PATH_CREATE_DEPARTMENT, request)
             .await?;
@@ -85,7 +81,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpCreateDepartmentProfilesRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         let response = self
             .post_authenticated_json(BDP_PATH_CREATE_DEPARTMENT_PROFILES, request)
             .await?;
@@ -98,7 +93,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpAddOrderTipRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_ADD_ORDER_TIP, request)
             .await
     }
@@ -107,7 +101,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpCallWaiterRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_CALL_WAITER, request)
             .await
     }
@@ -117,7 +110,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpAddPointsRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_ADD_POINTS, request)
             .await
     }
@@ -127,7 +119,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpCreateFamilyRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_CREATE_FAMILY, request)
             .await
     }
@@ -136,7 +127,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpCreateSubfamilyRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_CREATE_SUBFAMILY, request)
             .await
     }
@@ -145,7 +135,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpRegularizationRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_REGULARIZATIONS, request)
             .await
     }
@@ -154,7 +143,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpTransferRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_TRANSFERS, request)
             .await
     }
@@ -167,7 +155,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpMassiveStockRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         let response = self
             .post_authenticated_json(BDP_PATH_UPDATE_MASSIVE_STOCK, request)
             .await?;
@@ -179,7 +166,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpUpdateStockRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         let response = self
             .post_authenticated_json(BDP_PATH_UPDATE_STOCK, request)
             .await?;
@@ -191,7 +177,6 @@ impl BdpWeblinkClient<'_> {
         &self,
         request: &BdpMassiveStockRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         let response = self
             .post_authenticated_json(BDP_PATH_UPDATE_MASSIVE_INVENTORY, request)
             .await?;

@@ -49,7 +49,7 @@ impl BdpPushFlushService {
     ///
     /// Cada fila respeta los guards ya existentes: `armar_push` (arming
     /// autorizado por D1), `preparar_snapshot_escritura` (backup) y `authorize`
-    /// (auditoría + fail-closed). `ensure_write_target_allowed` lo aplica el
+    /// (auditoría + fail-closed). La forma de la URL de destino la valida el
     /// propio cliente antes de cada HTTP.
     pub async fn flush(
         pool: &PgPool,
@@ -337,7 +337,7 @@ impl BdpPushFlushService {
             },
         };
 
-        /* 5. Dispatcher -> HTTP de escritura (el cliente valida la allowlist).
+        /* 5. Dispatcher -> HTTP de escritura (el cliente valida forma de URL).
          * `payload` es deliberadamente el mismo valor que se auditó arriba. */
         match Self::dispatch(client, &pendiente.dominio, &pendiente.operacion, &payload).await {
             Ok(respuesta) => {

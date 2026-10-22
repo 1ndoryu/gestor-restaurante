@@ -99,9 +99,6 @@ impl BdpSyncService {
                 crate::services::bdp_weblink::BdpWeblinkError::InvalidBaseUrl(url) => {
                     BdpSyncError::Rejected(format!("URL BDP inválida: {url}"))
                 }
-                crate::services::bdp_weblink::BdpWeblinkError::WriteTargetDenied(url) => {
-                    BdpSyncError::Rejected(format!("destino de escritura BDP no autorizado: {url}"))
-                }
                 crate::services::bdp_weblink::BdpWeblinkError::Http(message) => {
                     BdpSyncError::AmbiguousTransport(format!("error de transporte BDP: {message}"))
                 }

@@ -51,7 +51,7 @@ pub async fn llamar_camarero(
     /* [10AA-4] Es una escritura directa al TPV —no pasa por la cola ni por el
      * armado, así que no hay permiso que gastar— y por eso no escribe en solo
      * lectura. Antes solo miraba el modo maestro: con la cuenta en `read_only`
-     * el aviso salía igual y lo frenaba, como mucho, la allowlist de destinos.
+     * el aviso salía igual y nada lo frenaba.
      * Se deja pasar en `unidirectional`: ahí es la persona la que pulsa, y el
      * modo significa que puede haber escrituras autorizadas a mano. */
     if config.bdp_sync_mode == "read_only" {
@@ -120,9 +120,6 @@ fn error_llamar_camarero(e: BdpWeblinkError) -> AppError {
             AppError::Conflict(format!("El TPV rechazó el aviso: {mensaje}"))
         }
         BdpWeblinkError::NotConfigured => AppError::Forbidden("BDP no está configurado".into()),
-        BdpWeblinkError::WriteTargetDenied(destino) => {
-            AppError::Forbidden(format!("Escritura a BDP bloqueada para {destino}"))
-        }
         otro => AppError::Internal(format!("Error llamando camarero: {otro}")),
     }
 }

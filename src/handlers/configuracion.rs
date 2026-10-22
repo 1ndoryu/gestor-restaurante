@@ -584,9 +584,6 @@ async fn verificar_destino_escritura(
                 .into(),
         ));
     }
-    BdpWeblinkClient::new(&actual)
-        .ensure_write_target_allowed()
-        .map_err(|error| AppError::Validation(error.to_string()))?;
     Ok((actual, target))
 }
 
@@ -958,8 +955,8 @@ pub struct BdpDryRunQuery {
     pub tender_id: Option<i32>,
 }
 
-/// Validar el contrato BDP contra el simulador local. `OnlyCheck` permanece
-/// bloqueado para destinos externos salvo allowlist extraordinaria separada.
+/// Validar el contrato BDP contra el TPV configurado. La comanda se envía con
+/// `OnlyCheck`, que el TPV no debe persistir.
 #[utoipa::path(
     get,
     path = "/api/configuracion/bdp/sync-dry-run",

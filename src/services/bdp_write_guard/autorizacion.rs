@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use super::BdpWriteGuard;
 use crate::models::ConfiguracionRestaurante;
-use crate::services::{BdpBackupService, BdpWeblinkClient};
+use crate::services::BdpBackupService;
 
 /// Datos de una escritura BDP agrupados, para no repetir una docena de
 /// argumentos en cada paso de la transacción.
@@ -55,11 +55,6 @@ impl BdpWriteGuard {
             snapshot_pre_id,
             idempotency_key,
         } = datos;
-        /* La allowlist se valida antes de tocar auditoría o autorización. El
-         * cliente HTTP repite esta comprobación justo antes del envío. */
-        BdpWeblinkClient::new(config)
-            .ensure_write_target_allowed()
-            .map_err(|error| error.to_string())?;
         let base = BdpBackupService::canonical_target(config)?;
         let fingerprint = BdpBackupService::connection_fingerprint(config)?;
         let escritura = Escritura {

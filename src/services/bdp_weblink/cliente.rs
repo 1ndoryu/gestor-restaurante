@@ -202,7 +202,6 @@ impl<'a> BdpWeblinkClient<'a> {
         &self,
         request: &BdpCreateCustomerRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_CREATE_CUSTOMER, request)
             .await
     }
@@ -211,7 +210,6 @@ impl<'a> BdpWeblinkClient<'a> {
         &self,
         request: &BdpCreateOrderRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_CREATE_ORDER, request)
             .await
     }
@@ -220,10 +218,8 @@ impl<'a> BdpWeblinkClient<'a> {
         &self,
         request: &BdpCreateOrderRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        /* [187A-1] OnlyCheck comparte el endpoint de creación. Hasta que la
-         * versión real demuestre que no persiste, queda denegado externamente
-         * por defecto y usa una allowlist independiente de las escrituras. */
-        self.ensure_target_allowed("BDP_CHECK_ORDER_ALLOWED_ORIGINS")?;
+        /* [187A-1] OnlyCheck comparte el endpoint de creación: el flag
+         * `order_operation_type = 1` es lo que pide al TPV que no persista. */
         let mut request = request.clone();
         request.order_operation_type = 1;
         self.post_authenticated_json(BDP_PATH_CREATE_ORDER, &request)
@@ -239,7 +235,6 @@ impl<'a> BdpWeblinkClient<'a> {
         &self,
         request: &BdpCancelOrderRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_CANCEL_ORDER, request)
             .await
     }
@@ -248,7 +243,6 @@ impl<'a> BdpWeblinkClient<'a> {
         &self,
         request: &BdpAddOrderPaymentRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_ORDER_PAYMENT_ADD, request)
             .await
     }
@@ -257,7 +251,6 @@ impl<'a> BdpWeblinkClient<'a> {
         &self,
         request: &BdpInvoiceOrderRequest,
     ) -> Result<Value, BdpWeblinkError> {
-        self.ensure_write_target_allowed()?;
         self.post_authenticated_json(BDP_PATH_INVOICE_ORDER, request)
             .await
     }

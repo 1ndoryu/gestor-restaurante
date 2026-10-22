@@ -202,7 +202,8 @@ fn overwrite_autorizado(
     flag_activo && vinculado == Some(bdp_code) && es_bdp_local(base_url)
 }
 
-/* [D25] BDP local = host de loopback (mismo criterio que `ensure_target_allowed`). */
+/* [D25] BDP local = host de loopback: el unico destino cuya sobrescritura de
+ * clientes se aprueba sola, porque es el TPV de pruebas, no uno real. */
 fn es_bdp_local(base_url: &str) -> bool {
     reqwest::Url::parse(base_url.trim())
         .ok()

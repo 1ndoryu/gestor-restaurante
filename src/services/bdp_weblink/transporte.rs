@@ -45,9 +45,8 @@ fn causa_completa(error: &(dyn std::error::Error + 'static)) -> String {
 fn construir_cliente(timeout: Duration) -> Result<Client, String> {
     let builder = Client::builder()
         .timeout(timeout)
-        /* [207A-1] S6-H1: Deshabilitar redirects automáticos para que
-         * ensure_target_allowed() realmente controle el destino. Sin esto,
-         * un 302 a un host arbitrario bypassa la allowlist. */
+        /* [207A-1] Sin redirects automáticos: un 302 desviaría una escritura a
+         * un host que no es el configurado, sin dejar rastro en la auditoría. */
         .redirect(reqwest::redirect::Policy::none());
     /* [10AA-3] Las pruebas comparten este cliente (es un `LazyLock` de proceso), pero cada
      * `#[tokio::test]` trae su propio runtime. Una conexión ociosa que creó un runtime ya
@@ -63,8 +62,7 @@ fn construir_cliente(timeout: Duration) -> Result<Client, String> {
 /* Cliente HTTP compartido de BDP. `build()` solo falla si el backend TLS no puede
  * inicializarse (fallo de entorno, no de configuracion). Se propaga como error de
  * transporte en lugar de entrar en panico, y NO se degrada al cliente por defecto de
- * reqwest porque este perderia `redirect::Policy::none()` y con ello el control de
- * allowlist de `ensure_target_allowed()` ([207A-1] S6-H1). */
+ * reqwest porque este perderia `redirect::Policy::none()` ([207A-1] S6-H1). */
 fn http_client(path: &str) -> Result<&'static Client, BdpWeblinkError> {
     let cliente = if es_escritura_venta(path) {
         &HTTP_CLIENT_ESCRITURA
@@ -169,52 +167,27 @@ impl BdpWeblinkClient<'_> {
         Ok(())
     }
 
+    /// La URL debe ser un origen limpio: esquema http(s), sin credenciales, sin
+    /// query, sin fragmento y sin ruta. Cualquier otro valor rompería `build_url`
+    /// o desviaría la petición; el destino en sí no se restringe.
     fn ensure_base_url(&self) -> Result<(), BdpWeblinkError> {
-        if self.config.bdp_base_url.trim().is_empty() {
+        let base = self.config.bdp_base_url.trim().trim_end_matches('/');
+        if base.is_empty() {
             return Err(BdpWeblinkError::NotConfigured);
         }
-        Ok(())
-    }
-
-    /// Kill switch de destino para toda escritura. Loopback se permite para el
-    /// simulador local; cualquier host externo debe estar autorizado de forma
-    /// exacta y deliberada mediante una variable del proceso.
-    pub(crate) fn ensure_write_target_allowed(&self) -> Result<(), BdpWeblinkError> {
-        self.ensure_target_allowed("BDP_WRITE_ALLOWED_ORIGINS")
-    }
-
-    pub(super) fn ensure_target_allowed(&self, allowlist_env: &str) -> Result<(), BdpWeblinkError> {
-        self.ensure_base_url()?;
-        let base = self.config.bdp_base_url.trim().trim_end_matches('/');
         let parsed = reqwest::Url::parse(base)
             .map_err(|_| BdpWeblinkError::InvalidBaseUrl(base.to_string()))?;
-        if !matches!(parsed.scheme(), "http" | "https") {
-            return Err(BdpWeblinkError::WriteTargetDenied(base.to_string()));
+        let limpia = matches!(parsed.scheme(), "http" | "https")
+            && parsed.username().is_empty()
+            && parsed.password().is_none()
+            && parsed.query().is_none()
+            && parsed.fragment().is_none()
+            && parsed.path() == "/";
+        if limpia {
+            Ok(())
+        } else {
+            Err(BdpWeblinkError::InvalidBaseUrl(base.to_string()))
         }
-        if !parsed.username().is_empty()
-            || parsed.password().is_some()
-            || parsed.query().is_some()
-            || parsed.fragment().is_some()
-            || parsed.path() != "/"
-        {
-            return Err(BdpWeblinkError::WriteTargetDenied(base.to_string()));
-        }
-        if parsed.host_str().is_some_and(|host| {
-            host.eq_ignore_ascii_case("localhost") || host == "127.0.0.1" || host == "::1"
-        }) {
-            return Ok(());
-        }
-
-        let allowed = std::env::var(allowlist_env).unwrap_or_default();
-        if allowed
-            .split(',')
-            .map(str::trim)
-            .map(|entry| entry.trim_end_matches('/'))
-            .any(|entry| !entry.is_empty() && entry == base)
-        {
-            return Ok(());
-        }
-        Err(BdpWeblinkError::WriteTargetDenied(base.to_string()))
     }
 
     fn build_url(&self, path: &str) -> Result<String, BdpWeblinkError> {

@@ -101,23 +101,13 @@ pub(crate) fn config(base_url: String) -> ConfiguracionRestaurante {
 }
 
 #[test]
-fn external_write_and_only_check_are_denied_without_explicit_allowlist() {
-    let config = config("http://192.0.2.10:8068".to_string());
-    let client = BdpWeblinkClient::new(&config);
-
-    assert!(client
-        .ensure_target_allowed("BDP_TEST_ALLOWLIST_THAT_DOES_NOT_EXIST")
-        .is_err());
-}
-
-#[test]
-fn loopback_simulator_is_allowed_without_external_allowlist() {
-    let config = config("http://127.0.0.1:18765".to_string());
-    let client = BdpWeblinkClient::new(&config);
-
-    assert!(client
-        .ensure_target_allowed("BDP_TEST_ALLOWLIST_THAT_DOES_NOT_EXIST")
-        .is_ok());
+fn external_target_is_accepted_whatever_its_host() {
+    // El destino ya no se filtra: cualquier origen limpio es válido.
+    for base_url in ["http://192.0.2.10:8068", "https://tpv.cliente.example"] {
+        let config = config(base_url.to_string());
+        let client = BdpWeblinkClient::new(&config);
+        assert!(client.ensure_configured().is_ok(), "{base_url}");
+    }
 }
 
 #[test]
@@ -128,9 +118,10 @@ fn write_target_rejects_embedded_path_or_credentials() {
     ] {
         let config = config(base_url.to_string());
         let client = BdpWeblinkClient::new(&config);
-        assert!(client
-            .ensure_target_allowed("BDP_TEST_ALLOWLIST_THAT_DOES_NOT_EXIST")
-            .is_err());
+        assert!(matches!(
+            client.ensure_configured(),
+            Err(BdpWeblinkError::InvalidBaseUrl(_))
+        ));
     }
 }
 
@@ -206,20 +197,10 @@ async fn authenticated_calls_use_bearer_token() {
 }
 
 #[test]
-fn external_write_target_is_denied_by_default() {
+fn external_write_target_is_accepted_by_default() {
     let config = config("https://bdp.example.invalid".to_string());
     let client = BdpWeblinkClient::new(&config);
-    assert!(matches!(
-        client.ensure_write_target_allowed(),
-        Err(BdpWeblinkError::WriteTargetDenied(_))
-    ));
-}
-
-#[test]
-fn loopback_write_target_is_allowed_for_simulator() {
-    let config = config("http://127.0.0.1:18765".to_string());
-    let client = BdpWeblinkClient::new(&config);
-    assert!(client.ensure_write_target_allowed().is_ok());
+    assert!(client.ensure_configured().is_ok());
 }
 
 #[tokio::test]
