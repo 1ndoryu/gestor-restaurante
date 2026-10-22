@@ -317,7 +317,7 @@ dejando puesta la parte de la puesta en marcha que no lo necesita.
 - El TPV del restaurante responde desde dentro del servidor (salud correcta) y la
   conexión pasa las comprobaciones de lectura: sesión y versión, terminal,
   empleado, empleado asociado al terminal, formas de pago, departamentos y
-  artículos del perfil. Hay **559 artículos** mapeados entre la web y el TPV.
+  artículos del perfil. Hay **560 artículos** mapeados entre la web y el TPV.
 - Las dos cuentas están en **solo lectura**. La cola de envío está vacía, no hay
   autorizaciones pendientes ni avisos acumulados, y el registro de auditoría no
   tiene ninguna escritura nueva.
