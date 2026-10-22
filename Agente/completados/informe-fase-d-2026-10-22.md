@@ -20,7 +20,7 @@ ofrece la salida, en vez de bloquear el artículo para siempre.
 Se ha probado contra un **TPV BDP real instalado en local** (licencia DEMO,
 versión 36.2), que es el mismo programa y las mismas tablas que el del cliente.
 Lo que no se ha podido probar son los cuatro puntos que exigen una persona delante
-del TPV físico, y están enumerados sin adornos en la sección 4.
+del TPV físico, y están enumerados sin adornos en la sección 5.
 
 **Resultado de las 65 pruebas de aceptación** (fichas D01–D32). Cada una está
 hecha o no lo está: no hay «parcialmente». Las que declaran un límite son
@@ -57,7 +57,46 @@ restaurante que elige automático.
 
 ---
 
-## 3. Resultado de cada prueba
+## 3. La tabla del alcance, cómo queda hoy
+
+Es la misma tabla que se entregó en el documento de alcance («Después de la fase
+D»), fila por fila, con la última columna puesta al día. **Se trae** = del TPV a la
+web. **Se envía** = de la web al TPV. **Automático** = viaja solo, sin pulsar nada.
+**Cómo queda** = lo que hay hoy.
+
+| Funcionalidad | Se trae | Se envía | Automático | Cómo queda |
+|---|:---:|:---:|:---:|---|
+| Catálogo (artículos, precio, familia) | Sí | Sí | Sí | **Hecho.** Lectura sola cada 15 min (cadencia por cuenta) y envío por la cola automática |
+| Clientes | Sí | Sí | Sí | **Pendiente.** Leer y escribir funciona, pero la importación sigue siendo un botón que pide confirmación escrita: no hay cadencia |
+| Plano de sala | Sí | — | Lectura sí | **Pendiente.** La lectura es correcta y no mueve posiciones, pero solo al pulsar |
+| Departamentos | Sí | Sí | Sí | **Pendiente.** Hay importación manual; el catálogo trae el departamento de cada artículo, pero no se refresca solo |
+| Formas de pago, empleados | Sí | — | Lectura sí | **Hecho con matiz.** La pantalla compara el mapeo con el TPV cuando se le pide; no crea registros ni se refresca sola |
+| Albaranes de compra | Sí | — | Por exportación | **Hecho.** Importación automática cada 5 min, últimos 31 días |
+| Detalle de comanda / stock | Sí | — | Sí | **Hecho.** Se lee tras cada aviso y con los documentos de venta |
+| Crear comanda | Sí | Sí | Sí | **Hecho en local.** Falta el envío a cocina, que necesita la impresora |
+| Propina (en comanda) | — | Sí | Sí | **Hecho.** Sumar, sustituir y dejar a cero |
+| Puntos fidelización (cliente) | — | Sí | Sí | **Hecho.** Abono, cargo y pérdida de respuesta, sin duplicar |
+| Anular comanda | Sí | Sí | Sí | **Hecho.** El efecto en cocina queda para la sesión presencial |
+| Modificar comanda enviada | Sí | Sí | Sí | **No existe en el TPV.** No hay servicio web para cambiar líneas; se dice en pantalla en vez de ofrecer un botón que falla |
+| Detectar traspaso de TPV (avisos) | Sí | — | Sí | **Hecho en parte.** Traspaso de línea probado; el de comanda completa es presencial |
+| Iniciar traspaso desde la web | — | Pendiente de TPV | No | **Fuera.** El TPV no lo expone |
+| Cobrar comanda existente | Sí | Sí | Sí | **Hecho.** Parcial, total, doble clic y respuesta perdida |
+| Facturar | Sí | Sí | Sí | **Hecho**, con la salvedad de la suscripción de pago del TPV |
+| Consultar stock (TPV→web) | Sí | — | Lectura sí | **Hecho.** Por artículo y en lista por almacén |
+| Regularizar stock (web→TPV) | — | Sí | Sí | **Hecho en parte.** Falta confirmar en el TPV del cliente el rechazo por motivo inválido |
+| Traspasar stock entre almacenes | — | Sí | Sí | **Hecho.** Ida y vuelta real |
+| Actualizar inventario (web→TPV) | — | Sí | Sí | **Hecho.** Nunca envía cantidad vacía |
+| Llamar al camarero | — | Sí | Sí | **Hecho de nuestro lado.** El TPV lo rechaza hasta que se configure en el terminal |
+| Borrar artículos | Pendiente de TPV | Pendiente de TPV | No | **Límite del TPV.** La pantalla dice quién lo hace y cómo |
+| Reservas, gastos, marketing | — | — | — | **Fuera de alcance.** Son solo web y ya funcionan |
+
+Resumen de la tabla: **14 filas hechas**, 3 pendientes por falta de cadencia
+automática (clientes, plano y departamentos), 2 con matiz declarado, 2 que el TPV
+no expone y 1 fuera de alcance.
+
+---
+
+## 4. Resultado de cada prueba
 
 ### Bloque 1 — Base y seguridad (Hito 1)
 
@@ -130,11 +169,11 @@ restaurante que elige automático.
 | D29 — tres reinicios en mitad de una operación | **2 de 3 cerradas** por inyección (proceso de sincronización y caída del servicio web), sin pérdida ni duplicado. Los dos reinicios que quedan exigen tocar el PC |
 | D31 — llamar al camarero desde una mesa | **Cerrada técnicamente:** el aviso llega al TPV y el TPV lo rechaza por su propia configuración (falta la dirección del servidor de mensajes). Queda configurarlo en el terminal |
 | D30 — piloto y despliegue por etapas | **Fuera de esta fase.** Requiere permiso y un TPV en producción |
-| D33 — Configuración legible y con un solo guardado | **Cerrada este cierre** (ver sección 5) |
+| D33 — Configuración legible y con un solo guardado | **Cerrada este cierre** (ver sección 6) |
 
 ---
 
-## 4. Limitaciones encontradas
+## 5. Limitaciones encontradas
 
 Todas las de esta lista están declaradas, no escondidas. Ninguna es un fallo de la
 web: son límites del TPV o de las condiciones de prueba.
@@ -170,7 +209,7 @@ producción, y se resuelve hablando con el proveedor.
 
 ---
 
-## 5. Qué se ha cambiado en este último tramo
+## 6. Qué se ha cambiado en este último tramo
 
 Además de cerrar fichas, se han corregido cuatro cosas que no se veían en las
 pruebas pero que hacían la aplicación incómoda de usar. Las cuatro nacen de lo que
@@ -202,7 +241,7 @@ tiene ahora su propia cadencia por cuenta.
 
 ---
 
-## 6. Cómo se ha probado
+## 7. Cómo se ha probado
 
 Ninguna afirmación de este informe viene de leer el código y suponer. Cada una tiene
 su prueba:
@@ -222,7 +261,7 @@ su prueba:
 
 ---
 
-## 7. Estado final y siguiente paso
+## 8. Estado final y siguiente paso
 
 La integración está lista para el piloto en el TPV del cliente, con dos
 condiciones:
