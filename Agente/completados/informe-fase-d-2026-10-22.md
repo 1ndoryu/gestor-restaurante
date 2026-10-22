@@ -48,8 +48,11 @@ terminal o de una corrida con escritura en el piloto.
 ## 2. Qué hace la integración hoy, sin intervención
 
 Siete procesos automáticos, uno por necesidad, y una regla que vale para todos:
-**las seis lecturas no escriben nada en el TPV**. El único proceso que escribe es
-el envío de la cola, y solo cuando la cuenta tiene permiso de escritura (sección 3).
+**las seis lecturas no escriben nada en el TPV**. De los siete, el único que escribe
+es el envío de la cola, y solo cuando la cuenta tiene permiso de escritura
+(sección 3). Fuera de esta lista hay dos acciones que también escriben, y solo a
+mano: reintentar el envío de una venta concreta y dar de alta un cliente en el TPV.
+Las dos pasan por el mismo permiso de escritura y la misma auditoría.
 
 La columna «cada cuánto» es el valor real y de fábrica, no el recomendado. Las
 cadencias marcadas «por cuenta» nacen **en cero (apagadas)** y se encienden desde
