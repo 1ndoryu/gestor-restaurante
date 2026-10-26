@@ -4,7 +4,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `26AA-5` — ejecutar en el BDP local las pruebas reproducibles (D08, D21a, D22a, D26/D26c/D26e/D27, D29, D24-m); requiere el BDP local operativo.
+- Siguiente en orden: la pendiente de pruebas en el BDP local (ver Pendientes); requiere el BDP local operativo.
 
 ## Pendientes
 
@@ -12,7 +12,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
   · prioridad: alta · urgencia: normal
 - [ ] `26AA-4` — **Probar D21 como cambio de estado de comanda pendiente de validación.** Ya reformulada en el informe; falta la prueba con `OrderEndType=1`: aviso de espera, aceptación desde BDP, avisos 0 y 1 sin duplicados y en orden. Hecho cuando se reciben ambos o BDP confirma por escrito la dependencia.
   · prioridad: media · urgencia: normal
-- [ ] `26AA-5` — **Ejecutar en el BDP local las pruebas reproducibles.** D08 con peticiones paralelas, D29 reiniciando el BDP local, D21a, la batería completa de stock (D26, D26c, D26e, D27), D18d con factura nueva y D05–D07. Lo que exija la edición de pago queda preparado y marcado pendiente de licencia. Hecho cuando cada ficha tiene evidencia o una dependencia concreta.
+- [ ] `26AA-5` — **Ejecutar en el BDP local las pruebas reproducibles.** D08 con peticiones paralelas, D29 reiniciando el BDP local, D21a, la batería completa de stock (D26, D26c, D26e, D27), D18d con factura nueva, D05–D07, D22a y D24-m. Lo que exija la edición de pago queda preparado y marcado pendiente de licencia. Hecho cuando cada ficha tiene evidencia o una dependencia concreta.
   · prioridad: alta · urgencia: normal
 - [ ] `26AA-6` — **Entregar una ficha de evidencia por prueba y actualizar el informe de cierre.** Código, fecha, entorno, versión, licencia, petición, respuesta, resultado en web y BDP, identificadores y estado final. Hecho cuando el informe cuenta pruebas superadas, no funciones programadas.
   · prioridad: media · urgencia: normal · depende-de: 26AA-5
