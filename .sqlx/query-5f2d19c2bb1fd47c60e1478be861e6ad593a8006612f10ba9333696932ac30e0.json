@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT user_id FROM configuracion_restaurante WHERE bdp_plano_auto_segundos > 0",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5f2d19c2bb1fd47c60e1478be861e6ad593a8006612f10ba9333696932ac30e0"
+}

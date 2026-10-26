@@ -25,15 +25,15 @@ pub const GRANO_BUCLE_SEGUNDOS: u64 = 60;
 /// reclama el turno en la misma sentencia para que dos instancias no lean a la
 /// vez; si no reclama, otra ya lo hizo.
 async fn reclamar(pool: &PgPool, user_id: Uuid) -> Result<bool, String> {
-    sqlx::query(
+    sqlx::query!(
         "UPDATE configuracion_restaurante \
          SET bdp_maestros_ultima_lectura = NOW() \
          WHERE user_id = $1 AND bdp_maestros_auto_segundos > 0 \
            AND (bdp_maestros_ultima_lectura IS NULL \
                 OR bdp_maestros_ultima_lectura \
                    <= NOW() - bdp_maestros_auto_segundos * INTERVAL '1 second')",
+        user_id
     )
-    .bind(user_id)
     .execute(pool)
     .await
     .map(|resultado| resultado.rows_affected() > 0)

@@ -48,52 +48,70 @@ impl Maestro {
             Self::Departamentos => "departamentos",
         }
     }
-
-    fn columna_cadencia(self) -> &'static str {
-        match self {
-            Self::Clientes => "bdp_clientes_auto_segundos",
-            Self::Plano => "bdp_plano_auto_segundos",
-            Self::Departamentos => "bdp_departamentos_auto_segundos",
-        }
-    }
-
-    fn columna_ultima(self) -> &'static str {
-        match self {
-            Self::Clientes => "bdp_clientes_ultima_lectura",
-            Self::Plano => "bdp_plano_ultima_lectura",
-            Self::Departamentos => "bdp_departamentos_ultima_lectura",
-        }
-    }
 }
 
 /// Reclama el turno de una cuenta en la misma sentencia que lo comprueba: si dos
 /// instancias coinciden, solo una recibe `true` y la otra pasa de largo. La marca
 /// se pone antes de leer a propósito: si la lectura falla, se espera una cadencia
 /// entera en vez de martillear el TPV con el mismo error.
+///
+/// Una sentencia literal por maestro: `sqlx::query!` verifica el SQL al compilar
+/// y no admite nombres de columna construidos en tiempo de ejecución.
 async fn reclamar(pool: &PgPool, user_id: Uuid, maestro: Maestro) -> Result<bool, sqlx::Error> {
-    let sql = format!(
-        "UPDATE configuracion_restaurante \
-         SET {ultima} = NOW() \
-         WHERE user_id = $1 AND {cadencia} > 0 \
-           AND ({ultima} IS NULL \
-                OR {ultima} <= NOW() - {cadencia} * INTERVAL '1 second')",
-        ultima = maestro.columna_ultima(),
-        cadencia = maestro.columna_cadencia(),
-    );
-    sqlx::query(&sql)
-        .bind(user_id)
+    let resultado = match maestro {
+        Maestro::Clientes => sqlx::query!(
+            "UPDATE configuracion_restaurante \
+             SET bdp_clientes_ultima_lectura = NOW() \
+             WHERE user_id = $1 AND bdp_clientes_auto_segundos > 0 \
+               AND (bdp_clientes_ultima_lectura IS NULL \
+                    OR bdp_clientes_ultima_lectura <= NOW() - bdp_clientes_auto_segundos * INTERVAL '1 second')",
+            user_id
+        )
         .execute(pool)
-        .await
-        .map(|resultado| resultado.rows_affected() > 0)
+        .await?,
+        Maestro::Plano => sqlx::query!(
+            "UPDATE configuracion_restaurante \
+             SET bdp_plano_ultima_lectura = NOW() \
+             WHERE user_id = $1 AND bdp_plano_auto_segundos > 0 \
+               AND (bdp_plano_ultima_lectura IS NULL \
+                    OR bdp_plano_ultima_lectura <= NOW() - bdp_plano_auto_segundos * INTERVAL '1 second')",
+            user_id
+        )
+        .execute(pool)
+        .await?,
+        Maestro::Departamentos => sqlx::query!(
+            "UPDATE configuracion_restaurante \
+             SET bdp_departamentos_ultima_lectura = NOW() \
+             WHERE user_id = $1 AND bdp_departamentos_auto_segundos > 0 \
+               AND (bdp_departamentos_ultima_lectura IS NULL \
+                    OR bdp_departamentos_ultima_lectura <= NOW() - bdp_departamentos_auto_segundos * INTERVAL '1 second')",
+            user_id
+        )
+        .execute(pool)
+        .await?,
+    };
+    Ok(resultado.rows_affected() > 0)
 }
 
 /// Cuentas con esa cadencia encendida.
 async fn cuentas(pool: &PgPool, maestro: Maestro) -> Result<Vec<Uuid>, sqlx::Error> {
-    let sql = format!(
-        "SELECT user_id FROM configuracion_restaurante WHERE {} > 0",
-        maestro.columna_cadencia()
-    );
-    sqlx::query_scalar(&sql).fetch_all(pool).await
+    match maestro {
+        Maestro::Clientes => {
+            sqlx::query_scalar!("SELECT user_id FROM configuracion_restaurante WHERE bdp_clientes_auto_segundos > 0")
+                .fetch_all(pool)
+                .await
+        }
+        Maestro::Plano => {
+            sqlx::query_scalar!("SELECT user_id FROM configuracion_restaurante WHERE bdp_plano_auto_segundos > 0")
+                .fetch_all(pool)
+                .await
+        }
+        Maestro::Departamentos => {
+            sqlx::query_scalar!("SELECT user_id FROM configuracion_restaurante WHERE bdp_departamentos_auto_segundos > 0")
+                .fetch_all(pool)
+                .await
+        }
+    }
 }
 
 /// Lee un maestro para una cuenta ya reclamada. Devuelve una descripción corta
@@ -218,24 +236,4 @@ pub async fn sincronizar_vencidas(
         }
     }
     leidas
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Los nombres de columna son la parte que no puede fallar en silencio: un
-    /// nombre mal escrito da un error de SQL en cada pasada del bucle.
-    #[test]
-    fn cada_maestro_declara_sus_columnas() {
-        for maestro in [Maestro::Clientes, Maestro::Plano, Maestro::Departamentos] {
-            assert!(maestro.columna_cadencia().starts_with("bdp_"));
-            assert!(maestro.columna_cadencia().ends_with("_auto_segundos"));
-            assert!(maestro.columna_ultima().starts_with("bdp_"));
-            assert!(maestro.columna_ultima().ends_with("_ultima_lectura"));
-            /* Las columnas llevan el nombre del maestro: así una variante nueva
-             * copiada sin cambiar las columnas se detecta aquí. */
-            assert!(maestro.columna_cadencia().contains(maestro.nombre()));
-        }
-    }
 }

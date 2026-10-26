@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE configuracion_restaurante SET bdp_clientes_ultima_lectura = NOW() WHERE user_id = $1 AND bdp_clientes_auto_segundos > 0 AND (bdp_clientes_ultima_lectura IS NULL OR bdp_clientes_ultima_lectura <= NOW() - bdp_clientes_auto_segundos * INTERVAL '1 second')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "55ed91a5b581de326d124859e799736ad0c8e9df89d54e72eb6d644f9f937541"
+}
