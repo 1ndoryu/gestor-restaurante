@@ -114,6 +114,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
      * cadencia por cuenta. Comparten bucle: el grano es el mismo y así una sola
      * pasada decide qué toca de los tres. */
     lanzar_cadencias_maestros(pool.clone(), modo_operacion.clone());
+    /* [26AA-2] Formas de pago y empleados, también con cadencia por cuenta. */
+    lanzar_pagos_empleados(pool.clone(), modo_operacion.clone());
 
     /* [303A-2] Graceful shutdown: señal SIGTERM/Ctrl+C cierra conexiones limpiamente */
     let listener = tokio::net::TcpListener::bind(&addr).await?;
@@ -247,6 +249,24 @@ fn lanzar_maestros_automaticos(pool: sqlx::PgPool, modo: ServicioModoOperacion) 
             let leidos = maestros::sincronizar_vencidas(&pool, &modo).await;
             if leidos > 0 {
                 tracing::info!("[D24-auto] Maestros del BDP leídos: {leidos}");
+            }
+        }
+    });
+}
+
+/* [26AA-2] Formas de pago y empleados: solo lectura, apagados de fábrica. */
+fn lanzar_pagos_empleados(pool: sqlx::PgPool, modo: ServicioModoOperacion) {
+    use glory_backend::services::bdp_pagos_empleados_auto as lectura;
+
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+            lectura::GRANO_BUCLE_SEGUNDOS,
+        ));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            for maestro in lectura::Maestro::TODOS {
+                lectura::sincronizar_vencidas(&pool, &modo, maestro).await;
             }
         }
     });

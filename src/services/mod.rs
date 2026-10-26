@@ -11,6 +11,7 @@ mod bdp_import_departamentos;
 pub mod bdp_maestros_auto;
 pub mod bdp_operaciones_no_api;
 pub(crate) mod bdp_order_poller;
+pub mod bdp_pagos_empleados_auto;
 pub mod bdp_purchase_sync;
 pub mod bdp_push;
 mod bdp_sync;

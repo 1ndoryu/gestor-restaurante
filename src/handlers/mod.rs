@@ -10,6 +10,7 @@ mod bdp_catalogo;
 mod bdp_customer_sync;
 mod bdp_documentos;
 mod bdp_guard;
+mod bdp_lecturas;
 mod bdp_maestros;
 mod bdp_menu_local;
 mod bdp_purchase_note;
