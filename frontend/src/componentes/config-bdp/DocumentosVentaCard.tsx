@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CADENCIAS } from './cadencias';
 import {
   Select,
   SelectContent,
@@ -79,9 +80,6 @@ function Fila({ documento }: { documento: DocumentoVenta }) {
     </div>
   );
 }
-
-/** Cadencias ofrecidas: de «apagada» a una vez por hora, que es el rango útil. */
-const CADENCIAS = [0, 300, 900, 1800, 3600];
 
 interface Props {
   config: EstadoConfiguracion;

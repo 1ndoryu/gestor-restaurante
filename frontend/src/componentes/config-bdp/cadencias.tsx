@@ -16,7 +16,8 @@ import {
 
 /** Tramos ofrecidos. 15 min es la recomendación: estos maestros cambian muy de
  * vez en cuando y cada lectura es una llamada al TPV. */
-export const CADENCIAS = [0, 300, 900, 1800, 3600];
+// `as const`: los importadores no pueden mutar el tramo compartido.
+export const CADENCIAS = [0, 300, 900, 1800, 3600] as const;
 
 /** Segundos → texto para quien no piensa en segundos. */
 export function cadenciaTexto(segundos: number): string {
