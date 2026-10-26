@@ -12,7 +12,7 @@ use utoipa_swagger_ui::SwaggerUi;
 use super::openapi::ApiDoc;
 use super::{
     admin, api_keys, auth, bdp_article_map, bdp_avisos, bdp_backup, bdp_catalogo,
-    bdp_customer_sync, bdp_documentos, bdp_lecturas, bdp_maestros, bdp_menu_local,
+    bdp_customer_sync, bdp_documentos, bdp_lecturas, bdp_maestros, bdp_menu_local, bdp_permisos,
     bdp_purchase_note, bdp_push, bdp_stock_revision, campanas, canales_reserva, chatbot, clientes,
     configuracion, dashboard, errores, etiquetas, gastos, health, inactividad, modo_operacion,
     notificaciones, plano_sala, plantillas_whatsapp, recordatorios, resenas, reservas,
@@ -111,6 +111,7 @@ fn api_routes() -> Router<AppState> {
         .merge(bdp_customer_sync::routes())
         .merge(bdp_documentos::routes())
         .merge(bdp_lecturas::routes())
+        .merge(bdp_permisos::routes())
         .merge(bdp_maestros::routes())
         .merge(bdp_menu_local::routes())
         .merge(bdp_purchase_note::routes())

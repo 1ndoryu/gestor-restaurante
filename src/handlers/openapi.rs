@@ -5,10 +5,10 @@ use utoipa::OpenApi;
 
 use super::{
     admin, api_keys, auth, bdp_article_map, bdp_backup, bdp_customer_sync, bdp_lecturas,
-    bdp_maestros, bdp_menu_local, bdp_purchase_note, campanas, canales_reserva, chatbot, clientes,
-    configuracion, dashboard, errores, etiquetas, gastos, health, inactividad, modo_operacion,
-    notificaciones, plano_sala, plantillas_whatsapp, recordatorios, resenas, reservas,
-    trabajadores, ventas,
+    bdp_maestros, bdp_menu_local, bdp_permisos, bdp_purchase_note, campanas, canales_reserva,
+    chatbot, clientes, configuracion, dashboard, errores, etiquetas, gastos, health, inactividad,
+    modo_operacion, notificaciones, plano_sala, plantillas_whatsapp, recordatorios, resenas,
+    reservas, trabajadores, ventas,
 };
 use crate::errors::ErrorResponse;
 
@@ -201,6 +201,8 @@ impl utoipa::Modify for SecurityAddon {
         bdp_maestros::listar_maestros,
         bdp_lecturas::listar,
         bdp_lecturas::cambiar,
+        bdp_permisos::listar,
+        bdp_permisos::cambiar,
         bdp_backup::snapshot_completo,
         bdp_backup::snapshot_parcial,
         bdp_backup::snapshot_glory,
@@ -396,6 +398,8 @@ impl utoipa::Modify for SecurityAddon {
         bdp_maestros::MaestrosBdp,
         bdp_lecturas::LecturaProgramada,
         bdp_lecturas::CambiarLectura,
+        crate::services::PermisoCategoria,
+        bdp_permisos::CambiarPermiso,
         crate::services::BdpExploracionResultado,
         crate::services::ExploracionCategoria,
         crate::services::BdpSnapshot,

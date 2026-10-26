@@ -13,6 +13,7 @@ mod bdp_guard;
 mod bdp_lecturas;
 mod bdp_maestros;
 mod bdp_menu_local;
+mod bdp_permisos;
 mod bdp_purchase_note;
 mod bdp_push;
 mod bdp_stock_revision;
