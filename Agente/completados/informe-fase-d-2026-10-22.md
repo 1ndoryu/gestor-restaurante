@@ -5,6 +5,15 @@ escrituras y qué queda pendiente.
 Fecha del informe: 22 de octubre de 2026. Revisado y corregido el mismo día contra el código
 y contra la instalación de producción.
 
+> **Corrección del 26 de octubre de 2026.** La revisión dirigida a Wan
+> (`Agente/usuario/correcciones-antes-del-piloto-2026-10-26.docx`) detectó que varias
+> fichas se cerraron antes de disponer de la licencia, la configuración o la prueba que
+> exige cada caso. Este informe ya **no afirma que la integración esté lista para el
+> piloto**: los estados de la sección 1 y el cierre de la sección 10 sustituyen a los
+> del 22 de octubre. Una prueba hecha con la edición DEMO o gratuita demuestra el
+> código, no el flujo real de producción. Producción sigue en solo lectura. Plan:
+> `Agente/planes/plan-correcciones-piloto-bdp-2026-10-26.md`.
+
 ---
 
 ## 1. Resumen
@@ -38,34 +47,36 @@ su prueba. No valía «más o menos»: o se hace, o se declara por qué no se pu
   instalación y otra configuración. Fase D pedía exactamente eso: probar aquí
   antes de tocar su restaurante.
 
-**Resultado de las 65 pruebas.** Cada una está hecha o no lo está; no hay
-«parcialmente». Las que declaran un límite son pruebas que **no se pueden hacer tal
-cual** porque el TPV no ofrece ese servicio, y se cierran diciendo qué se hace en
-su lugar:
+**Resultado de las 65 pruebas (estados corregidos el 26 de octubre).** Una ficha solo
+figura como cerrada si el entorno cumplía sus requisitos, se ejecutó la operación real,
+el resultado se vio en la web y en BDP y se conserva la evidencia. Si falta algo, lleva
+uno de estos estados. Los recuentos exactos se recalculan al entregar las fichas de
+evidencia (`26AA-6`).
 
-| Estado | Cuántas | Cuáles |
-|---|---|---|
-| **Cerradas con evidencia** | **46** | D01, D02, D03, D04, D09, D10, D11a, D11b, D11c, D12a, D12b, D12c, D13, D13a, D14, D14s, D15, D15t, D16, D17, D18, D18a, D18b, D18c, D18d, D19, D19t, D20, D22, D22a, D23a, D24a, D24b, D24c, D24-p, D24-m, D25, D26b, D26d, D26f, D26g, D28, D28-auto, D28-auto-R, D28a, D32 |
-| **Cerradas declarando un límite** | **9** | D05, D06, D07 (el TPV no modifica líneas), D23b y D23-m (solo se recupera lo localizable), D24d (sin servicio de borrado: lo cubre la ficha de procedimiento), D26a (lectura correcta; el error con almacén inexistente se confirma en el TPV del cliente), D26e (cubierta por la regularización), D27 (no hay proceso que mueva stock por venta) |
-| **Pendientes** | **10** | D03a y D09a (impresora de cocina), D08 (dos personas a la vez), D21a (traspaso completo) y D29 (reinicio real): exigen una persona delante del TPV físico. D21 (Monitor de Cocina) y D31 (dirección del servidor de mensajes del terminal): exigen configuración del terminal. D26 y D26c (corrida completa de stock con escritura) y D30 (piloto): exigen el TPV del cliente |
+| Estado | Fichas |
+|---|---|
+| **Cerrada** (prueba real y evidencia) | D02, D03, D04, D09, D10, D12a, D12b, D12c, D22, D23a, D24a, D24b, D24c, D25, D26b, D28, D28-auto, D28-auto-R, D28a. D26d, D26f y D26g se mantienen cerradas y se repiten dentro de la batería de stock (`26AA-5`) |
+| **Pendiente de licencia** (WebLinkRestAPI de pago, servicio 84) | D01 (el diagnóstico devuelve «sin licencia»); D05, D06, D07 (modificar comanda existente: la edición gratuita lo bloquea, no es un límite del TPV); D11a, D11b, D11c (propinas); D13, D13a, D14, D14s, D15, D15t, D16, D17 (pagos); D18, D18a, D18b, D18c, D18d, D19, D19t, D20 (facturación; D18d además debe emitir una factura nueva con datos fiscales); D24-p (salones, zonas y mesas); D31 (llamar al camarero) |
+| **Pendiente de configuración** | D21 (reformulada: cambio de estado de comanda pendiente de validación, sin dar por hecho el Monitor de Cocina); D31 (dirección del servidor de mensajes en el terminal) |
+| **Pendiente de prueba local** (se puede hacer en el BDP local) | D08 (dos peticiones simultáneas), D21a (traspaso desde la interfaz local), D22a (falta el testigo de la línea movida), D26, D26c, D26e, D27 (batería de stock), D29 (reinicio del BDP local), D24-m (formas de pago y empleados: hasta que exista la lectura programada de `26AA-2` solo se consultan a mano) |
+| **Pendiente de piloto** (hardware o terceros) | D03a y D09a (impresora de cocina), D26a (error con almacén inexistente en el TPV del cliente), D30 (piloto), D32 (responsables y procedimientos nominales aprobados por Guillermo y el restaurante; la pantalla existe, la ficha no está cerrada) |
+| **Límite confirmado** (el TPV no ofrece el servicio) | D23-m (sin listado de comandas por API), D23b (solo se recupera lo localizable), D24d (sin servicio de borrado; lo cubre D32) |
 
-**Qué falta, y por qué no se pudo cerrar aquí.** No falta automatismo: no hay
-ninguna de las 65 parada por una función sin hacer. Las diez pendientes dependen de
-algo que no existe en este entorno:
+**Qué falta.** El 22 de octubre este apartado decía que no faltaba automatismo y que
+todo lo pendiente dependía del entorno. No era exacto:
 
-- **Una persona delante del TPV físico (5).** La impresora de cocina, dos personas
-  tocando la misma comanda en el mismo segundo, el traspaso completo y el reinicio
-  real de BDP.NET no se pueden simular sin falsear el resultado.
-- **La configuración del terminal (2).** El séptimo aviso necesita el Monitor de
-  Cocina instalado, y «llamar al camarero» necesita la dirección del servidor de
-  mensajes en el terminal. De nuestro lado están hechos: el aviso llega y el error
-  del TPV se puede leer en pantalla.
-- **El piloto en su restaurante (3).** La corrida completa de stock y el
-  despliegue por etapas se hacen con su TPV, no con el de pruebas.
-
-Lo que sí queda de nuestro lado es terminar la puesta en marcha con sus datos: las
-formas de pago, los tipos de pedido y el perfil de documentos de venta (§9). Son
-decisiones suyas, no cosas pendientes de programar.
+- **Licencia (WebLinkRestAPI de pago).** Afecta a más operaciones que pagos y facturas:
+  propinas, lectura completa y actualización de comandas, salones y mesas y llamar al
+  camarero. Hasta activarla, esas pruebas no demuestran el flujo de producción.
+- **Automatización que faltaba.** Las formas de pago y los empleados solo se consultaban
+  a mano (`26AA-2`), y el modo automático concede permiso a todas las escrituras sin poder
+  separarlas por tipo, lo que impide un despliegue por etapas (`26AA-3`).
+- **Pruebas que se pueden hacer en local** y se enviaron al piloto sin necesidad
+  (`26AA-4`, `26AA-5`).
+- **Hardware y terceros.** Impresora de cocina, reinicio real de BDP.NET, dirección del
+  servidor de mensajes del terminal y responsables nominales de D32.
+- **Puesta en marcha con sus datos:** formas de pago, tipos de pedido y perfil de
+  documentos de venta (§9). Son decisiones suyas, no cosas pendientes de programar.
 
 ---
 
@@ -117,7 +128,7 @@ administrador.
 
 Dos precisiones que importan en la práctica:
 
-- El modo automático **no se puede limitar por tipo de operación**: da permiso a
+- Hasta que exista el permiso por categoría (`26AA-3`), el modo automático **no se puede limitar por tipo de operación**: da permiso a
   todas. Por eso la recomendación es activarlo solo después de haber ensayado a
   mano cada operación que se vaya a usar.
 - «Llamar al camarero» está permitido en los dos modos con escritura, pero **no
@@ -210,14 +221,14 @@ web. **Se envía** = de la web al TPV. **Automático** = viaja solo, sin pulsar 
 | Clientes | Sí | Sí | Sí | **Hecho.** Importación sola con su propia cadencia (cada 15 min por cuenta); el botón con confirmación queda para forzar el cambio en el momento |
 | Plano de sala | Sí | — | Lectura sí | **Hecho.** Salones, zonas y mesas se releen solos con su cadencia; la lectura no mueve ni renombra nada |
 | Departamentos | Sí | Sí | Sí | **Hecho.** Se refrescan solos con su propia cadencia, aparte de la del catálogo |
-| Formas de pago, empleados | Sí | — | Lectura sí | **Hecho con matiz.** La pantalla compara el mapeo con el TPV cuando se le pide; no crea registros ni se refresca sola |
+| Formas de pago, empleados | Sí | — | Lectura sí | **Pendiente.** Hoy se consultan al abrir la pantalla o forzar la comparación; falta la lectura programada (`26AA-2`) |
 | Albaranes de compra | Sí | — | Por exportación | **Hecho.** Importación automática cada 5 min, últimos 31 días |
 | Detalle de comanda / stock | Sí | — | Sí | **Hecho.** Se lee tras cada aviso y con los documentos de venta |
 | Crear comanda | Sí | Sí | Sí | **Hecho en local.** Falta el envío a cocina, que necesita la impresora |
 | Propina (en comanda) | — | Sí | Sí | **Hecho.** Sumar, sustituir y dejar a cero |
 | Puntos fidelización (cliente) | — | Sí | Sí | **Hecho.** Abono, cargo y pérdida de respuesta, sin duplicar |
 | Anular comanda | Sí | Sí | Sí | **Hecho.** El efecto en cocina queda para la sesión presencial |
-| Modificar comanda enviada | Sí | Sí | Sí | **No existe en el TPV.** No hay servicio web para cambiar líneas; se dice en pantalla en vez de ofrecer un botón que falla |
+| Modificar comanda enviada | Sí | Sí | Sí | **Pendiente de licencia.** El manual de BDP bloquea la actualización de una comanda existente en la edición gratuita y remite a la de pago; se prueba allí antes de declarar ningún límite |
 | Detectar traspaso de TPV (avisos) | Sí | — | Sí | **Hecho en parte.** Traspaso de línea probado; el de comanda completa es presencial |
 | Iniciar traspaso desde la web | — | Pendiente de TPV | No | **Fuera.** El TPV no lo expone |
 | Cobrar comanda existente | Sí | Sí | Sí | **Hecho.** Parcial, total, doble clic y respuesta perdida |
@@ -374,28 +385,25 @@ apagada, que es lo correcto en una demo.
 
 ## 10. Estado final y siguiente paso
 
-La integración está lista para el piloto en el TPV del cliente, con tres
-condiciones:
+**La integración no está lista para el piloto.** El 22 de octubre este apartado decía lo
+contrario por el número de funciones programadas; el criterio correcto son las pruebas
+realmente superadas. Mientras sigan abiertas las correcciones del plan
+`plan-correcciones-piloto-bdp-2026-10-26`, producción permanece en **solo lectura** y no
+se ejecutan pagos, facturas ni stock en el restaurante.
 
-1. **La suscripción de pago del TPV**, que habilita añadir un pago a una comanda ya
-   creada y facturarla. Todo el flujo está escrito y probado en local contra la
-   versión DEMO; con la suscripción gratuita esas dos operaciones no están
-   disponibles. Es lo único que puede impedir que la integración funcione igual en
-   producción, y se resuelve hablando con el proveedor. **Está pendiente de
-   decisión del cliente.**
-2. **La puesta en marcha de la sección 9**, en una sola sesión: el snapshot se
-   rehace ese mismo día, porque caduca a las 24 horas; las cadencias ya están
-   encendidas y solo hay que confirmar el perfil de documentos; y las formas de pago
-   y los tipos de pedido salen de la lista que dé el cliente.
-3. **Una sesión presencial de una hora** con el TPV delante para cerrar las cinco
-   pruebas que lo exigen (impresora de cocina, doble toque, Monitor de Cocina,
-   traspaso completo y reinicio de BDP.NET).
+Orden de trabajo:
 
-El orden recomendado para empezar a operar es el de la sección 5: primero solo
-lectura con las lecturas encendidas, después escritura autorizada a mano operación
-por operación, y solo entonces el modo automático, con su confirmación, su snapshot
-del día y el freno de «volver a solo lectura» siempre a mano.
+1. **Estados corregidos** (§1) — `26AA-1`.
+2. **Licencia:** activar WebLinkRestAPI de pago en el BDP local y repetir allí las
+   pruebas afectadas; decisión del cliente y trato con BDP.
+3. **Automatización:** lectura programada de formas de pago y empleados (`26AA-2`) y
+   permisos automáticos por categoría, todos apagados de fábrica (`26AA-3`).
+4. **Pruebas locales:** D21 reformulada (`26AA-4`), concurrencia, reinicio, traspaso,
+   batería de stock, factura completa y actualización de comandas (`26AA-5`).
+5. **Dependencias externas:** D31 (terminal) y D32 (responsables aprobados).
+6. **Evidencia:** una ficha por prueba y este informe actualizado (`26AA-6`).
 
-Ninguna fila de la tabla del alcance queda pendiente por falta de automatismo: las
-que no están hechas del todo son límites del propio TPV, declarados en la
-sección 8.
+Solo entonces se plantea la puesta en marcha de la sección 9 y, en ella, el orden de la
+sección 5: solo lectura con las lecturas encendidas, escritura autorizada a mano
+operación por operación y, por categorías, el modo automático con su confirmación, su
+snapshot del día y el freno de «volver a solo lectura» siempre a mano.

@@ -4,7 +4,7 @@
 
 ## 10. Cobertura del PDF (anexo B8, fichas D01–D32)
 
-Cada ficha tiene fase. Estado a **2026-10-22**: 46 fichas cerradas con evidencia, 9 con límite formal declarado y 10 pendientes de presencia física o de un tercero. Resumen para el cliente en `Agente/completados/informe-fase-d-2026-10-22.md`. Fuente: `Agente/documentacion/bdp/alcance-fase-d-pdf-2026-10-10.html` y `Agente/planes/anexo-b8-aceptacion-2026-10-08.md` (rev. 10/10; 65 fichas, todas con fase asignada — comprobado el 2026-10-17).
+Cada ficha tiene fase. **Estados corregidos el 2026-10-26** (revisión dirigida a Wan): la tabla de abajo conserva la historia del 22 de octubre, pero la clasificación vigente —cerrada, pendiente de licencia, de configuración, de prueba local o de piloto, o límite confirmado— está en la sección 1 del informe; donde difieran, manda el informe. Plan: `plan-correcciones-piloto-bdp-2026-10-26.md`. Resumen para el cliente en `Agente/completados/informe-fase-d-2026-10-22.md`. Fuente: `Agente/documentacion/bdp/alcance-fase-d-pdf-2026-10-10.html` y `Agente/planes/anexo-b8-aceptacion-2026-10-08.md` (rev. 10/10; 65 fichas, todas con fase asignada — comprobado el 2026-10-17).
 
 | Fichas | Qué comprueba | Fase | Estado / dependencia |
 |---|---|---|---|

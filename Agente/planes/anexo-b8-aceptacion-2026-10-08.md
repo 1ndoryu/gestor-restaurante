@@ -2,6 +2,10 @@
 
 Fichas de cada prueba de aceptación de la fase D. Cada ficha define previos, datos utilizados, pasos exactos, resultado esperado, qué error la detiene y evidencia en T2. Se entrega como archivo separado del PDF de alcance. Matriz resumen en el alcance; correspondencia con la guía operativa (A01–A20) en el alcance.
 
+## Regla para declarar una ficha cerrada (2026-10-26)
+
+Una función programada no equivale a una función demostrada. Una ficha solo figura como **cerrada** si el entorno cumple sus requisitos (licencia, configuración), se ejecuta la operación real, el resultado se ve en la web y en BDP y se conserva la evidencia. Si falta algo, el estado es **pendiente de licencia**, **de configuración**, **de prueba local** o **de piloto**; **límite confirmado** solo si BDP o su documentación lo confirman. Una prueba hecha con la edición DEMO o gratuita demuestra el código, no el flujo de producción. Estado vigente por ficha: `Agente/completados/informe-fase-d-2026-10-22.md` §1.
+
 ## Checklist de ejecución
 
 Estado: fichas de aceptación pendientes de ejecución; el avance real de cada prueba se registra en `plan-fase-d-bdp-local-2026-10-10.md` (§8 y §10).
