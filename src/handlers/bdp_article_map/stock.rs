@@ -85,6 +85,10 @@ pub async fn ajustar_stock(
                 "idempotency_key ya usada (resultado previo: {resultado})"
             )));
         }
+        /* [26AA-5/D26] Reintento con la misma clave: el ajuste ya se aplicó y se
+         * encoló la primera vez. Reencolarlo mandaría a BDP un segundo movimiento
+         * (visto en vivo: 6 → 8 con una sola petición lógica de +2). */
+        return Ok(Json(stock));
     }
 
     /* [198A-1/F1] Encolar el ajuste para push BDP. Solo si el artículo tiene

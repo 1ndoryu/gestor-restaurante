@@ -247,6 +247,68 @@ async fn trabajador_recibe_403_anular_venta_con_default_admin(pool: PgPool) {
     assert_forbidden(&result);
 }
 
+/* [26AA-5/D26] Un reintento con la misma idempotency_key no reencola el ajuste:
+ * visto en vivo, reencolar mandaba a BDP un segundo movimiento (6 → 8 con +2). */
+#[sqlx::test(migrations = "./migrations")]
+async fn reintento_idempotente_no_reencola_el_ajuste(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("config por defecto");
+    let map = glory_backend::models::CrearBdpArticleMapRequest {
+        articulo_glory_codigo: "ART-IDEM".into(),
+        articulo_bdp_codigo: Some("7".into()),
+        articulo_bdp_nombre: None,
+        descripcion: Some("Articulo con codigo BDP".into()),
+        precio_tarifa1: Some(Decimal::new(100, 2)),
+        iva_pct: None,
+        departamento: None,
+        familia: None,
+        subfamilia: None,
+        activo: None,
+        barcode: None,
+    };
+    glory_backend::repositories::BdpArticleMapRepository::crear(&pool, user_id, &map)
+        .await
+        .expect("crear mapeo");
+    let state = make_app_state(pool.clone());
+    let peticion = || AjustarBdpArticleStockRequest {
+        articulo_glory_codigo: "ART-IDEM".to_string(),
+        delta: Decimal::from_str("2").unwrap(),
+        motivo: "entrada".to_string(),
+        warehouse_id: None,
+        idempotency_key: Some("clave-unica-1".to_string()),
+    };
+    let sumar_cola = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM bdp_push_pendientes WHERE user_id = $1 AND operacion = 'regularizar'",
+        )
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+    };
+
+    let primera = ajustar_stock(State(state.clone()), make_auth(user_id, UserRole::Admin), Json(peticion()))
+        .await
+        .expect("primer ajuste");
+    let segunda = ajustar_stock(State(state), make_auth(user_id, UserRole::Admin), Json(peticion()))
+        .await
+        .expect("reintento idempotente");
+
+    assert_eq!(primera.0.stock, segunda.0.stock, "el stock local no cambia");
+    assert_eq!(sumar_cola().await, 1, "una sola fila en la cola");
+    let delta: Decimal = sqlx::query_scalar(
+        "SELECT (payload_json->>'Units')::numeric FROM bdp_push_pendientes WHERE user_id = $1 AND operacion = 'regularizar'",
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    /* La cola acumula por artículo: un reencolado dejaría +4, no +2. */
+    assert_eq!(delta, Decimal::from(2), "la cola conserva un solo +2");
+}
+
 /* ── Admin sin 403 ───────────────────────────────────────────────────── */
 
 #[sqlx::test(migrations = "./migrations")]
