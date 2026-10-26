@@ -30,9 +30,9 @@
 
 ## Checklist de cierre
 
-- [ ] F1 estados corregidos en informe, cobertura y anexo
-- [ ] F2 sincronización programada de pagos y empleados, con test
-- [ ] F3 permisos por categoría, con migración, UI, servidor y cola
+- [x] F1 estados corregidos en informe, cobertura y anexo (informe alineado; anexo B8 remite a §1)
+- [~] F2 código hecho (`4fcb3a0`, con test); falta la prueba viva en el BDP local
+- [x] F3 permisos por categoría, con migración, UI, servidor y cola (`dfa3716`, `cfa42de`, `4b43aaf`, `c82c713`; gate cerrado: 0 nuevos)
 - [ ] F4 D21 reformulada y probada
 - [ ] F5 pruebas locales ejecutadas o marcadas con su dependencia concreta
 - [ ] F6 fichas de evidencia e informe actualizado

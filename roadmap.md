@@ -4,20 +4,16 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `26AA-1` — corregir los estados de las fichas antes de tocar código (plan `plan-correcciones-piloto-bdp-2026-10-26`).
+- `26AA-5` — ejecutar en el BDP local las pruebas reproducibles (D08, D21a, D22a, D26/D26c/D26e/D27, D29, D24-m); requiere el BDP local operativo.
 
 ## Pendientes
 
-- [ ] `26AA-1` — **Corregir los estados de las fichas en el informe, la cobertura y el anexo B8.** Las cerradas sin licencia, configuración o ejecución real (D01, D05–D07, D18d, D21, D26, D26c, D26e, D27, D31, D32) pasan a pendiente de licencia, de configuración, de prueba local o de piloto; el informe deja de afirmar «lista para el piloto». Hecho cuando los tres documentos usan los mismos cinco estados.
-  · prioridad: alta · urgencia: alta
-- [ ] `26AA-2` — **Sincronizar formas de pago y empleados con una lectura programada.** Cadencia por cuenta (apagada de fábrica), importación inicial, relación por identificador BDP, inactivos en vez de borrados, última sincronización y error visibles; no escribe en BDP. Hecho cuando un cambio en el BDP local aparece en la web sin abrir la pantalla.
-  · prioridad: alta · urgencia: normal · depende-de: 26AA-1
-- [ ] `26AA-3` — **Separar el modo automático en permisos por categoría.** Comandas, artículos y clientes, propinas y puntos, pagos, facturas, stock y llamada al camarero, todos apagados de fábrica; la cola solo ejecuta las habilitadas y deja el resto bloqueado con motivo; cada activación auditada; el interruptor general sigue de freno. Hecho cuando activar una categoría no deja escribir a ninguna otra.
-  · prioridad: alta · urgencia: normal · depende-de: 26AA-1
-- [ ] `26AA-4` — **Reformular D21 como cambio de estado de comanda pendiente de validación.** Prueba con `OrderEndType=1`: aviso de espera, aceptación desde BDP, avisos 0 y 1 sin duplicados y en orden. Hecho cuando se reciben ambos o BDP confirma por escrito la dependencia.
-  · prioridad: media · urgencia: normal · depende-de: 26AA-1
+- [ ] `26AA-2` — **Comprobar en vivo la lectura programada de formas de pago y empleados.** El código está (commit `4fcb3a0`, cadencia apagada de fábrica, no escribe en BDP); falta que un cambio hecho en el BDP local llegue a la web sin abrir la pantalla, en la cadencia configurada.
+  · prioridad: alta · urgencia: normal
+- [ ] `26AA-4` — **Probar D21 como cambio de estado de comanda pendiente de validación.** Ya reformulada en el informe; falta la prueba con `OrderEndType=1`: aviso de espera, aceptación desde BDP, avisos 0 y 1 sin duplicados y en orden. Hecho cuando se reciben ambos o BDP confirma por escrito la dependencia.
+  · prioridad: media · urgencia: normal
 - [ ] `26AA-5` — **Ejecutar en el BDP local las pruebas reproducibles.** D08 con peticiones paralelas, D29 reiniciando el BDP local, D21a, la batería completa de stock (D26, D26c, D26e, D27), D18d con factura nueva y D05–D07. Lo que exija la edición de pago queda preparado y marcado pendiente de licencia. Hecho cuando cada ficha tiene evidencia o una dependencia concreta.
-  · prioridad: alta · urgencia: normal · depende-de: 26AA-1
+  · prioridad: alta · urgencia: normal
 - [ ] `26AA-6` — **Entregar una ficha de evidencia por prueba y actualizar el informe de cierre.** Código, fecha, entorno, versión, licencia, petición, respuesta, resultado en web y BDP, identificadores y estado final. Hecho cuando el informe cuenta pruebas superadas, no funciones programadas.
   · prioridad: media · urgencia: normal · depende-de: 26AA-5
 
@@ -28,7 +24,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Planes activos
 
-- `Agente/planes/plan-correcciones-piloto-bdp-2026-10-26.md` — `26AA-1` — correcciones antes del piloto BDP: estados, maestros, permisos por categoría y pruebas locales.
+- `Agente/planes/plan-correcciones-piloto-bdp-2026-10-26.md` — `26AA-2`, `26AA-4`, `26AA-5`, `26AA-6` — correcciones antes del piloto BDP (F1 y F3 hechas).
 - `Agente/planes/anexo-b8-aceptacion-2026-10-08.md` — `anexo-b8-aceptacion-2026-10-08` — fichas de aceptación D, pendientes de ejecución.
 - `Agente/planes/plan-50k-2026-09-16.md` — `169A-5` — escalar a 50.000 personas con caché, CDN y re-medición.
 - `Agente/planes/plan-alcance-local-bdp-2026-10-01.md` — `01AA-1` — alcance real con el TPV local licenciado.
