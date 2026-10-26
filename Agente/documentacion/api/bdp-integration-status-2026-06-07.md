@@ -654,7 +654,7 @@ sequenceDiagram
 | `MarketplaceOrderId` máx 15 chars               | Usar `G<timestamp_14>`                                   |
 | `CancelOrder` no está disponible                | Devuelve "Subscripción no activada" — no depende de esto |
 | `CreateOrder` con `OnlyCheck=true` es útil      | Permite validar sin crear (preflight dry-run)            |
-| `sqlx::query()` sin macro para nuevas columnas  | Evita necesitar `cargo sqlx prepare` cada vez            |
+| `sqlx::query!` con macro y caché `.sqlx/`       | Adoptado: tras cambiar SQL, `cargo sqlx prepare` (ver lecciones) |
 | Mutex por `venta_id`                            | Evita race conditions en sync concurrente                |
 | `#[serde(rename_all = "PascalCase")]`           | Fundamental para el contrato JSON de BDP                 |
 | JWT expira en ~59 min                           | El cliente maneja re-login automáticamente               |
