@@ -34,5 +34,5 @@
 - [x] F2 código (`4fcb3a0`, con test) y prueba viva en el BDP local (24-m, punto 5)
 - [x] F3 permisos por categoría, con migración, UI, servidor y cola (`dfa3716`, `cfa42de`, `4b43aaf`, `c82c713`; gate cerrado: 0 nuevos)
 - [~] F4 D21 reformulada en el informe (`pendiente de configuración`); tests del receptor 26/26 en la 89 (`bdp_avisos_worker`); prueba viva con el TPV pendiente
-- [~] F5 hechas en el BDP local: D08 (concurrencia real), D26, D26c, D26e, punto 9 y arreglo de idempotencia (`fed7ddd`); pendientes: D27 (la venta no movió el stock), D29, D21a, D22a; D18d y D05–D07 esperan licencia
+- [~] F5 hechas en el BDP local: D08 (concurrencia real), D26, D26c, D26e, punto 9 y arreglo de idempotencia (`fed7ddd`); D22a cerrada en el testigo y D21a con traspaso real; pendientes: D27 (la venta no movió el stock), D29 (reinicio real, requiere UAC), D21a (el aviso no llega: receptor sin configurar); D18d y D05–D07 esperan licencia
 - [~] F6 informe actualizado con recuentos reales (26/10/2026); falta regenerar el PDF y cerrar con D27, D29, D21a y D22a
