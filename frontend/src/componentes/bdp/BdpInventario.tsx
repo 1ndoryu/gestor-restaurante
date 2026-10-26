@@ -9,12 +9,9 @@
  * confirmación en un modal con el resumen antes de ajustar el stock. */
 
 import { useMemo } from 'react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Warehouse, Save, History, Loader2 } from 'lucide-react';
+import { Warehouse, History } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListarArticleMaps } from '@/api/generated/bdp-mapeos/bdp-mapeos';
@@ -27,6 +24,8 @@ import type { AlmacenBdp } from './bdp-stock/TraspasarStockDialog';
 import { DialogoConfirmarConteo } from './bdp-inventario/DialogoConfirmarConteo';
 import { PestanaConteos } from './bdp-inventario/PestanaConteos';
 import { toNumber } from './bdp-inventario/formato';
+import { TablaInventario, PaginacionInventario } from './bdp-inventario/TablaInventario';
+import { CabeceraInventario } from './bdp-inventario/CabeceraInventario';
 
 function BdpInventario() {
   const queryClient = useQueryClient();
@@ -214,41 +213,15 @@ function BdpInventario() {
           {/* [L7] El conteo es de un almacén concreto: el esperado, el ajuste
               local y el envío a BDP salen de aquí. «General» (0) es el stock
               sin desglose, el que había antes de este selector. */}
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">
-              {contados.length} artículos contados · {filas.length} en catálogo
-            </p>
-            <div className="flex items-center gap-2">
-              <Button onClick={() => setConfirmar(true)} disabled={guardarMutation.isPending || contados.length === 0}>
-                {guardarMutation.isPending ? <Loader2 className="size-4 animate-spin mr-1" /> : <Save className="size-4 mr-1" />}
-                Guardar conteo
-              </Button>
-              <Label htmlFor="inventario-almacen" className="text-xs text-muted-foreground">Almacén</Label>
-              <Input
-                id="inventario-almacen"
-                type="number"
-                min={0}
-                list="inventario-almacenes"
-                className="w-24"
-                value={almacen}
-                onChange={(e) => { setAlmacen(e.target.value.trim() === '' ? '0' : e.target.value); setPagina(1); }}
-              />
-              <datalist id="inventario-almacenes">
-                {almacenes.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.nombre}
-                  </option>
-                ))}
-              </datalist>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <p className="text-xs text-muted-foreground">
-              {almacen === '0'
-                ? 'Almacén «General» (0): stock sin desglose, el que no se ha contado por almacén.'
-                : `Conteo del almacén ${almacen}: el ajuste local y el envío a BDP usan este almacén.`}
-            </p>
-          </div>
+          <CabeceraInventario
+            contados={contados.length}
+            totalCatalogo={filas.length}
+            guardando={guardarMutation.isPending}
+            almacen={almacen}
+            almacenes={almacenes}
+            onGuardar={() => setConfirmar(true)}
+            onAlmacen={(valor) => { setAlmacen(valor.trim() === '' ? '0' : valor); setPagina(1); }}
+          />
 
           <Input
             value={busqueda}
@@ -269,66 +242,20 @@ function BdpInventario() {
               </p>
             </div>
           ) : (
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead className="text-right">Esperadas</TableHead>
-                    <TableHead className="text-right">Contadas</TableHead>
-                    <TableHead className="text-right">Diferencia</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filasPagina.map(({ m, esperada: e, diferencia }) => (
-                    <TableRow key={m.id}>
-                      <TableCell className="font-mono text-xs">{m.articulo_glory_codigo || '—'}</TableCell>
-                      <TableCell className="text-xs">{m.articulo_bdp_nombre || '—'}</TableCell>
-                      <TableCell className="text-right tabular-nums">{e.toFixed(0)}</TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          type="number"
-                          step="any"
-                          className="w-24 ml-auto text-right"
-                          value={contadas[m.articulo_glory_codigo] ?? ''}
-                          onChange={(ev) => setContada(m.articulo_glory_codigo, ev.target.value)}
-                          placeholder="0"
-                        />
-                      </TableCell>
-                      <TableCell className={`text-right tabular-nums ${diferencia !== null && diferencia !== 0 ? 'font-semibold text-amber-700' : 'text-muted-foreground'}`}>
-                        {diferencia === null ? '—' : diferencia === 0 ? '0' : `${diferencia > 0 ? '+' : ''}${diferencia.toFixed(0)}`}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <TablaInventario filas={filasPagina} contadas={contadas} onContada={setContada} />
           )}
 
           {filasFiltradas.length > PAGE_SIZE && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
-              <span className="text-muted-foreground">
-                Mostrando {filasPagina.length} de {filasFiltradas.length} artículos
-                {busquedaNormalizada !== '' ? ` (filtrados de ${filas.length})` : ''}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={paginaSegura <= 1}>
-                  Anterior
-                </Button>
-                <span className="text-muted-foreground">
-                  Página {paginaSegura} de {totalPaginas}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
-                  disabled={paginaSegura >= totalPaginas}
-                >
-                  Siguiente
-                </Button>
-              </div>
-            </div>
+            <PaginacionInventario
+              mostrados={filasPagina.length}
+              totalFiltrados={filasFiltradas.length}
+              totalCatalogo={filas.length}
+              filtrado={busquedaNormalizada !== ''}
+              pagina={paginaSegura}
+              totalPaginas={totalPaginas}
+              onAnterior={() => setPagina((p) => Math.max(1, p - 1))}
+              onSiguiente={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+            />
           )}
         </TabsContent>
 
