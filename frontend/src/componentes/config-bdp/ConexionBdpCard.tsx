@@ -13,6 +13,7 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import ConfigBdpMapeos from '@/components/config-bdp-mapeos';
 import CadenciasMaestrosCard from './CadenciasMaestrosCard';
 import LecturasPagosEmpleadosCard from './LecturasPagosEmpleadosCard';
+import PermisosAutomaticosCard from './PermisosAutomaticosCard';
 import MaestrosBdpCard from './MaestrosBdpCard';
 import ResultadoDiagnosticoBdp from './ResultadoDiagnosticoBdp';
 import type { BdpDiagnosticoResponse } from '@/api/generated/gestionRestauranteAPI.schemas';
@@ -141,6 +142,8 @@ export default function ConexionBdpCard({
         <CadenciasMaestrosCard config={config} cambiarCampo={cambiarCampo} />
         {/* [26AA-2] Formas de pago y empleados, con su propia cadencia. */}
         <LecturasPagosEmpleadosCard />
+        {/* [26AA-3] Qué puede escribir el modo automático, categoría a categoría. */}
+        <PermisosAutomaticosCard />
         <div className="flex items-center justify-between gap-4 rounded-md border p-3">
           <div>
             <Label htmlFor="bdp-sync-enabled">Integración BDP activa</Label>
