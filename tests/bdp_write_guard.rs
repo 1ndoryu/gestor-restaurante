@@ -4,7 +4,7 @@
 
 use glory_backend::repositories::ConfiguracionRepository;
 use glory_backend::services::{
-    AuditoriaDirecta, BdpBackupService, BdpWriteGuard, EscrituraAutorizar,
+    fijar_permiso, AuditoriaDirecta, BdpBackupService, BdpWriteGuard, EscrituraAutorizar,
 };
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -389,6 +389,11 @@ async fn modo_automatico_autoriza_sin_armado_ni_cierre(pool: PgPool) {
     .await
     .expect("configurar BDP local en automático");
 
+    /* [26AA-3] Con el modo automático, cada categoría necesita su permiso. */
+    fijar_permiso(&pool, user_id, "comandas", true)
+        .await
+        .expect("permitir comandas");
+
     let venta_id = Uuid::new_v4();
     let audit_id = BdpWriteGuard::authorize(
         &pool,
@@ -432,6 +437,51 @@ async fn modo_automatico_autoriza_sin_armado_ni_cierre(pool: PgPool) {
             .await
             .expect("contar arming");
     assert_eq!(arming_count, 0, "el automático no crea ni consume arming");
+}
+
+/// [26AA-3] El modo automático no escribe una categoría apagada, aunque el
+/// interruptor general esté encendido. Otra categoría encendida no la abre.
+#[sqlx::test(migrations = "./migrations")]
+async fn modo_automatico_bloquea_categoria_apagada(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let mut config = ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("crear configuración");
+    config.bdp_base_url = "http://127.0.0.1:18765".into();
+    config.bdp_sync_mode = "automatic".into();
+    sqlx::query(
+        "UPDATE configuracion_restaurante SET bdp_base_url = $2, bdp_sync_mode = 'automatic' WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .bind(&config.bdp_base_url)
+    .execute(&pool)
+    .await
+    .expect("configurar BDP local en automático");
+    fijar_permiso(&pool, user_id, "pagos", true)
+        .await
+        .expect("permitir pagos");
+
+    let venta_id = Uuid::new_v4();
+    let error = BdpWriteGuard::authorize(
+        &pool,
+        user_id,
+        &config,
+        EscrituraAutorizar {
+            scope: "create_order",
+            target_entity_type: "venta",
+            target_entity_id: venta_id,
+            entity_json_field: "venta_id",
+            datos_enviados: &serde_json::json!({"venta_id": venta_id}),
+            snapshot_pre_id: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect_err("comandas está apagada");
+    assert!(
+        error.contains("comandas"),
+        "el error nombra la categoría: {error}"
+    );
 }
 
 /// [10AA-3-A] El armado manual vigente (el que se concede por lote con

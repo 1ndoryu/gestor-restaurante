@@ -60,6 +60,19 @@ pub async fn llamar_camarero(
         ));
     }
 
+    /* [26AA-3] En modo automático la llamada sigue el permiso de su categoría
+     * («camarero»), apagado de fábrica. Fuera de automático la pulsa una persona. */
+    if config.bdp_sync_mode == "automatic" {
+        let bloqueo = crate::services::motivo_bloqueo(&state.pool, auth.user_id, "call_waiter")
+            .await
+            .map_err(AppError::Internal)?;
+        if let Some(motivo) = bloqueo {
+            return Err(AppError::Forbidden(format!(
+                "Llamar camarero está bloqueado: {motivo}."
+            )));
+        }
+    }
+
     let client = BdpWeblinkClient::new(&config);
     let datos_enviados = serde_json::json!({ "mesa": table, "sala": room });
     /* [049A-1/H-W-1] Trazabilidad en bdp_audit_log como el resto de escrituras:

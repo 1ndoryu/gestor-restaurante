@@ -10,8 +10,8 @@ use crate::services::bdp_weblink_catalog::{
     BdpModifyArticleRequest, BdpModifyPricesRequest, BdpRegularizationRequest, BdpTransferRequest,
 };
 use crate::services::{
-    entidad_uuid, BdpBackupService, BdpWriteGuard, ConfiguracionService, EscrituraAutorizar,
-    ModoEfectivo, ServicioModoOperacion,
+    entidad_uuid, motivo_bloqueo, BdpBackupService, BdpWriteGuard, ConfiguracionService,
+    EscrituraAutorizar, ModoEfectivo, ServicioModoOperacion,
 };
 
 use super::cola::{BdpPushPendiente, BdpPushService, MarcarResultado};
@@ -39,6 +39,8 @@ pub struct BdpPushFlushResumen {
     pub errores: usize,
     pub omitidos_standalone: usize,
     pub omitidos_manual: usize,
+    /// [26AA-3] Filas que esperan a que se encienda su categoría automática.
+    pub bloqueados_permiso: usize,
 }
 
 pub struct BdpPushFlushService;
@@ -103,6 +105,14 @@ impl BdpPushFlushService {
                 resumen.rechazados += 1;
                 continue;
             }
+            /* [26AA-3] Categoría apagada: la fila espera con su motivo sin gastar reintentos. */
+            if let Some(motivo) =
+                Self::bloqueo_por_permiso(pool, user_id, &config, &pendiente).await
+            {
+                let _ = BdpPushService::anotar_motivo(pool, pendiente.id, &motivo).await;
+                resumen.bloqueados_permiso += 1;
+                continue;
+            }
             /* M21: no reintentar indefinidamente errores transitorios. */
             if pendiente.reintentos >= REINTENTOS_MAX {
                 resumen.errores += 1;
@@ -123,6 +133,25 @@ impl BdpPushFlushService {
             }
         }
         Ok(resumen)
+    }
+
+    /// [26AA-3] Motivo por el que el modo automático no puede escribir esta fila.
+    /// Solo aplica en `automatic` y a los alcances con categoría; un error al
+    /// leer el permiso bloquea (fail-closed).
+    async fn bloqueo_por_permiso(
+        pool: &PgPool,
+        user_id: Uuid,
+        config: &ConfiguracionRestaurante,
+        pendiente: &BdpPushPendiente,
+    ) -> Option<String> {
+        if config.bdp_sync_mode != "automatic" {
+            return None;
+        }
+        let scope = scope_para(&pendiente.dominio, &pendiente.operacion)?;
+        match motivo_bloqueo(pool, user_id, scope).await {
+            Ok(motivo) => motivo,
+            Err(error) => Some(error),
+        }
     }
 
     /// [10AA-3] `procesar_uno` falla antes del HTTP en el armado, el snapshot o el
@@ -433,5 +462,85 @@ impl BdpPushFlushService {
                 "operación no soportada: {dominio}/{operacion}"
             ))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests_permiso {
+    use super::*;
+    use crate::services::bdp_push::constantes::ESTADO_PENDIENTE;
+    use crate::services::fijar_permiso;
+    use rust_decimal::Decimal;
+    use serde_json::json;
+
+    /* Cuenta en modo BDP con escritura automática: el único filtro que queda es el permiso. */
+    async fn usuario_automatico(pool: &PgPool) -> Uuid {
+        let user_id = Uuid::new_v4();
+        sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+            .bind(user_id)
+            .bind(format!("{user_id}@test.local"))
+            .bind("x")
+            .execute(pool)
+            .await
+            .unwrap();
+        ConfiguracionService::obtener(pool, user_id).await.unwrap();
+        sqlx::query(
+            "UPDATE configuracion_restaurante SET modo_operacion = 'bdp', bdp_sync_enabled = TRUE, \
+             bdp_base_url = 'http://127.0.0.1:1', bdp_sync_mode = 'automatic', \
+             push_modalidad = 'automatico' WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .execute(pool)
+        .await
+        .unwrap();
+        user_id
+    }
+
+    /* (estado, reintentos, ultimo_error) de la fila de puntos del cliente. */
+    async fn fila(pool: &PgPool, user_id: Uuid) -> (String, i32, Option<String>) {
+        sqlx::query_as(
+            "SELECT estado, reintentos, ultimo_error FROM bdp_push_pendientes \
+             WHERE user_id = $1 AND dominio = $2",
+        )
+        .bind(user_id)
+        .bind(DOMINIO_CLIENTE_PUNTOS)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    }
+
+    /* [26AA-3] Categoría apagada: la fila espera con su motivo sin gastar reintentos
+     * ni enviar nada; al encenderla, el mismo flush ya la procesa. */
+    #[sqlx::test(migrations = "./migrations")]
+    async fn categoria_apagada_deja_la_fila_en_espera_con_motivo(pool: PgPool) {
+        let user_id = usuario_automatico(&pool).await;
+        BdpPushService::acumular_puntos(
+            &pool,
+            user_id,
+            "cli-1",
+            Decimal::ONE,
+            &json!({ "PointsAdded": "1" }),
+        )
+        .await
+        .unwrap();
+
+        let resumen = BdpPushFlushService::flush(&pool, user_id, false)
+            .await
+            .unwrap();
+        assert_eq!(resumen.bloqueados_permiso, 1);
+        assert_eq!(resumen.procesados, 0);
+        let (estado, reintentos, error) = fila(&pool, user_id).await;
+        assert_eq!(estado, ESTADO_PENDIENTE);
+        assert_eq!(reintentos, 0);
+        assert!(error.unwrap().contains("propinas_puntos"));
+
+        fijar_permiso(&pool, user_id, "propinas_puntos", true)
+            .await
+            .unwrap();
+        let resumen = BdpPushFlushService::flush(&pool, user_id, false)
+            .await
+            .unwrap();
+        assert_eq!(resumen.bloqueados_permiso, 0);
+        assert_eq!(resumen.procesados, 1);
     }
 }

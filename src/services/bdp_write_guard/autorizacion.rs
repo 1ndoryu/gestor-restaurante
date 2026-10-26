@@ -3,6 +3,7 @@
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
+use super::permisos_automaticos::motivo_bloqueo;
 use super::BdpWriteGuard;
 use crate::models::ConfiguracionRestaurante;
 use crate::services::BdpBackupService;
@@ -118,6 +119,7 @@ impl BdpWriteGuard {
         bloquear_escritura(&mut tx, escritura).await?;
         comprobar_sin_pendiente(&mut tx, escritura).await?;
         comprobar_config_automatica(&mut tx, escritura, config).await?;
+        comprobar_permiso_categoria(&mut tx, escritura).await?;
         let audit_id =
             registrar_intencion(&mut tx, escritura, snapshot_pre_id, "modo_automatico").await?;
         /* [D-auto-push] El armado ya cumplió su función (destino, alcance y
@@ -223,6 +225,19 @@ async fn comprobar_config_automatica(
         );
     }
     Ok(())
+}
+
+/// [26AA-3] Cada categoría del modo automático tiene su interruptor. La
+/// comprobación va en la misma transacción que la autorización, para que un
+/// cambio de permiso no llegue a mitad de una escritura.
+async fn comprobar_permiso_categoria(
+    tx: &mut Transaction<'_, Postgres>,
+    e: Escritura<'_>,
+) -> Result<(), String> {
+    match motivo_bloqueo(&mut **tx, e.user_id, e.scope).await? {
+        Some(motivo) => Err(format!("Escritura BDP bloqueada: {motivo}")),
+        None => Ok(()),
+    }
 }
 
 /// Consume una unidad del armado vigente para este alcance, entidad y destino

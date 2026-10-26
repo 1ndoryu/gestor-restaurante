@@ -365,6 +365,21 @@ impl BdpPushService {
         Ok(())
     }
 
+    /// [26AA-3] Deja el motivo de un bloqueo por permiso sin tocar el estado,
+    /// los reintentos ni `updated_at`: la fila sigue esperando a que se encienda
+    /// la categoría. Solo escribe si el motivo cambia.
+    pub async fn anotar_motivo(pool: &PgPool, fila_id: Uuid, motivo: &str) -> Result<(), String> {
+        sqlx::query(
+            "UPDATE bdp_push_pendientes SET ultimo_error = $2              WHERE id = $1 AND ultimo_error IS DISTINCT FROM $2",
+        )
+        .bind(fila_id)
+        .bind(motivo)
+        .execute(pool)
+        .await
+        .map(|_| ())
+        .map_err(|e| format!("No se pudo anotar el motivo del bloqueo: {e}"))
+    }
+
     /// Lista las filas activas pendientes. Orden por dependencia de dominio
     /// (M12): departamento y familia antes que artículo, para que el push de un
     /// artículo no falle porque su departamento aún no existe en BDP.
