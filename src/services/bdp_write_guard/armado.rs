@@ -8,7 +8,7 @@ use crate::models::ConfiguracionRestaurante;
 use crate::services::{BdpBackupService, ModoEfectivo, ServicioModoOperacion};
 
 /* [C1-2] Scopes de escritura BDP válidos. */
-const VALID_BDP_WRITE_SCOPES: &[&str] = &[
+pub(super) const VALID_BDP_WRITE_SCOPES: &[&str] = &[
     "create_order",
     "add_payment",
     "invoice",

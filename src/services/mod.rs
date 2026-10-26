@@ -87,6 +87,10 @@ pub use bdp_weblink_catalog::{
     BdpExportArticlesRequest, BdpExportCustomersRequest, BdpGetPricesArticlesResponse,
     BdpGetRoomTablesResponse, BdpGetRoomsTablesResponse, BdpRoomData,
 };
+pub use bdp_write_guard::permisos_automaticos::{
+    categoria_automatica_valida, categoria_de_scope, fijar_permiso, listar_permisos,
+    motivo_bloqueo, PermisoCategoria,
+};
 pub use bdp_write_guard::{
     alcance_usa_uuid_propio, entidad_uuid, tipo_destino_de_alcance, BdpWriteGuard,
     EscrituraAutorizar,
