@@ -68,9 +68,9 @@ todo lo pendiente dependía del entorno. No era exacto:
 - **Licencia (WebLinkRestAPI de pago).** Afecta a más operaciones que pagos y facturas:
   propinas, lectura completa y actualización de comandas, salones y mesas y llamar al
   camarero. Hasta activarla, esas pruebas no demuestran el flujo de producción.
-- **Automatización que faltaba.** Las formas de pago y los empleados solo se consultaban
-  a mano (`26AA-2`), y el modo automático concede permiso a todas las escrituras sin poder
-  separarlas por tipo, lo que impide un despliegue por etapas (`26AA-3`).
+- **Automatización.** Las formas de pago y los empleados tienen lectura programada en
+  código (`26AA-2`); falta comprobarla en vivo. El modo automático tiene permisos por
+  categoría, todos apagados de fábrica (`26AA-3`, hecho en código y con tests).
 - **Pruebas que se pueden hacer en local** y se enviaron al piloto sin necesidad
   (`26AA-4`, `26AA-5`).
 - **Hardware y terceros.** Impresora de cocina, reinicio real de BDP.NET, dirección del
@@ -128,9 +128,11 @@ administrador.
 
 Dos precisiones que importan en la práctica:
 
-- Hasta que exista el permiso por categoría (`26AA-3`), el modo automático **no se puede limitar por tipo de operación**: da permiso a
-  todas. Por eso la recomendación es activarlo solo después de haber ensayado a
-  mano cada operación que se vaya a usar.
+- Cada categoría del modo automático (comandas, artículos y clientes, propinas y puntos,
+  pagos, facturas, stock y camarero) nace **apagada** (`26AA-3`). Una categoría apagada
+  deja la operación en espera con su motivo visible, y activar una sola no permite
+  escribir las demás. Aun así, la recomendación es activar cada categoría solo después
+  de haber ensayado a mano esa operación.
 - «Llamar al camarero» está permitido en los dos modos con escritura, pero **no
   gasta autorización** porque no cambia ningún dato del TPV: es un aviso al
   terminal. Lo único que exige es que la cuenta no esté en solo lectura.
@@ -221,7 +223,7 @@ web. **Se envía** = de la web al TPV. **Automático** = viaja solo, sin pulsar 
 | Clientes | Sí | Sí | Sí | **Hecho.** Importación sola con su propia cadencia (cada 15 min por cuenta); el botón con confirmación queda para forzar el cambio en el momento |
 | Plano de sala | Sí | — | Lectura sí | **Hecho.** Salones, zonas y mesas se releen solos con su cadencia; la lectura no mueve ni renombra nada |
 | Departamentos | Sí | Sí | Sí | **Hecho.** Se refrescan solos con su propia cadencia, aparte de la del catálogo |
-| Formas de pago, empleados | Sí | — | Lectura sí | **Pendiente.** Hoy se consultan al abrir la pantalla o forzar la comparación; falta la lectura programada (`26AA-2`) |
+| Formas de pago, empleados | Sí | — | Lectura sí | **Hecho en código, sin comprobar en vivo.** Lectura programada por cuenta (apagada de fábrica), sin escribir en el TPV. Falta ver un cambio del TPV llegar a la web sin abrir la pantalla (`26AA-2`) |
 | Albaranes de compra | Sí | — | Por exportación | **Hecho.** Importación automática cada 5 min, últimos 31 días |
 | Detalle de comanda / stock | Sí | — | Sí | **Hecho.** Se lee tras cada aviso y con los documentos de venta |
 | Crear comanda | Sí | Sí | Sí | **Hecho en local.** Falta el envío a cocina, que necesita la impresora |
@@ -398,11 +400,12 @@ se ejecutan pagos, facturas ni stock en el restaurante.
 
 Orden de trabajo:
 
-1. **Estados corregidos** (§1) — `26AA-1`.
+1. **Estados corregidos** (§1) — hecho (`26AA-1`).
 2. **Licencia:** activar WebLinkRestAPI de pago en el BDP local y repetir allí las
    pruebas afectadas; decisión del cliente y trato con BDP.
-3. **Automatización:** lectura programada de formas de pago y empleados (`26AA-2`) y
-   permisos automáticos por categoría, todos apagados de fábrica (`26AA-3`).
+3. **Automatización:** comprobar en vivo la lectura programada de formas de pago y
+   empleados (`26AA-2`). Los permisos automáticos por categoría, todos apagados de
+   fábrica, están hechos (`26AA-3`).
 4. **Pruebas locales:** D21 reformulada (`26AA-4`), concurrencia, reinicio, traspaso,
    batería de stock, factura completa y actualización de comandas (`26AA-5`).
 5. **Dependencias externas:** D31 (terminal) y D32 (responsables aprobados).
