@@ -55,10 +55,10 @@ evidencia (`26AA-6`).
 
 | Estado | Fichas |
 |---|---|
-| **Cerrada** (prueba real y evidencia) | D02, D03, D04, D09, D10, D12a, D12b, D12c, D22, D23a, D24a, D24b, D24c, D25, D26b, D28, D28-auto, D28-auto-R, D28a. D26d, D26f y D26g se mantienen cerradas y se repiten dentro de la batería de stock (`26AA-5`) |
+| **Cerrada** (prueba real y evidencia) | D02, D03, D04, D09, D10, D12a, D12b, D12c, D22, D23a, D24a, D24b, D24c, D25, D26b, D28, D28-auto, D28-auto-R, D28a. D08, D24-m, D26, D26c, D26e (pruebas locales del 26/10/2026, ver filas). D26d, D26f y D26g se mantienen cerradas |
 | **Pendiente de licencia** (WebLinkRestAPI de pago, servicio 84) | D01 (el diagnóstico devuelve «sin licencia»); D05, D06, D07 (modificar comanda existente: la edición gratuita lo bloquea, no es un límite del TPV); D11a, D11b, D11c (propinas); D13, D13a, D14, D14s, D15, D15t, D16, D17 (pagos); D18, D18a, D18b, D18c, D18d, D19, D19t, D20 (facturación; D18d además debe emitir una factura nueva con datos fiscales); D24-p (salones, zonas y mesas); D31 (llamar al camarero) |
 | **Pendiente de configuración** | D21 (reformulada: cambio de estado de comanda pendiente de validación, sin dar por hecho el Monitor de Cocina); D31 (dirección del servidor de mensajes en el terminal) |
-| **Pendiente de prueba local** (se puede hacer en el BDP local) | D08 (dos peticiones simultáneas), D21a (traspaso desde la interfaz local), D22a (falta el testigo de la línea movida), D26, D26c, D26e, D27 (batería de stock), D29 (reinicio del BDP local), D24-m (formas de pago y empleados: hasta que exista la lectura programada de `26AA-2` solo se consultan a mano) |
+| **Pendiente de prueba local** (se puede hacer en el BDP local) | D21a (traspaso desde la interfaz local), D22a (falta el testigo de la línea movida), D27 (venta de caja: tras un ticket cobrado el BDP local seguía con el mismo stock; falta el cierre de turno o la configuración de descuento), D29 (reinicio del BDP local) |
 | **Pendiente de piloto** (hardware o terceros) | D03a y D09a (impresora de cocina), D26a (error con almacén inexistente en el TPV del cliente), D30 (piloto), D32 (responsables y procedimientos nominales aprobados por Guillermo y el restaurante; la pantalla existe, la ficha no está cerrada) |
 | **Límite confirmado** (el TPV no ofrece el servicio) | D23-m (sin listado de comandas por API), D23b (solo se recupera lo localizable), D24d (sin servicio de borrado; lo cubre D32) |
 
@@ -269,7 +269,7 @@ no se ha hecho, aunque el código esté implementado.
 | D03a | Crear con envío a cocina. **Pendiente de piloto.** Necesita la impresora de cocina |
 | D04 | Respuesta perdida al crear: se recupera la misma, no otra. **Cerrada en vivo.** Se cortó la respuesta con un proxy: la app no reenvió a ciegas, la relectura recogió la misma comanda (nº 60) y un reintento devolvió el mismo identificador con una sola entrada de auditoría |
 | D05–D07 | Añadir, cambiar o retirar línea de una comanda. **Pendiente de licencia.** El manual indica que la edición gratuita bloquea actualizar una comanda existente y que la de pago lo permite. Se prueba con WebLinkRestAPI de pago. |
-| D08 | Toque simultáneo en caja y web. **Pendiente de prueba local.** Exige dos personas a la vez: una en la caja y otra en la web |
+| D08 | Toque simultáneo en caja y web. **Cerrada (26/10/2026, BDP local).** Peticiones paralelas reales sobre el mismo artículo: el stock final fue exactamente el esperado (+3), sin pérdida ni duplicado; además, tests de bloqueo y unicidad 5/5 |
 | D09 | Anular desde la web anula en caja. **Cerrada.** La anulación llegó al TPV y la comanda desapareció de su tabla |
 | D09a | Efecto en cocina de esa anulación. **Pendiente de piloto.** Necesita testigo de impresora auxiliar |
 | D10 | Anular en caja se refleja en la web. **Cerrada en vivo.** La comanda 46 pasó a anulada en la web con fecha y motivo; un aviso repetido no la vuelve a tocar; el sondeo también la anula |
@@ -292,20 +292,20 @@ no se ha hecho, aunque el código esté implementado.
 | D23-m | Comanda manual con aviso perdido. **Límite confirmado.** El TPV no ofrece listado de comandas por API, así que una comanda de caja sin aviso no se recupera sola; queda el procedimiento escrito para que una persona la resuelva |
 | D23a | Trabajador caído con receptor operativo. **Cerrada.** El aviso espera en el buzón y se procesa al arrancar |
 | D23b | Receptor inaccesible. **Límite confirmado.** Solo se recupera lo que se puede localizar por su identificador de pedido |
-| D24-m | Formas de pago y empleados leídos. **Pendiente de prueba local.** Existe la lectura programada (`26AA-2`); falta comprobar en vivo que un cambio hecho en el BDP local llega a la web sin abrir la pantalla. |
+| D24-m | Formas de pago y empleados leídos. **Cerrada (26/10/2026, BDP local).** Lectura programada (`26AA-2`) de formas de pago y empleados sin abrir la pantalla; empleados en la web = 3 = WebLink. |
 | D24-p | Plano leído sin mover posiciones. **Pendiente de licencia.** Comprobación del terminal, empleado y perfil contra el TPV |
 | D24a, D24b, D24c | Alta, modificación y desactivación de artículos. **Cerradas** contra el TPV, con el artículo leído después en su maestro |
 | D24d | Borrado. **Límite confirmado.** El TPV no tiene servicio de borrado: la web muestra el procedimiento y el responsable |
 | D25 | Clientes, con y sin sobrescritura. **Cerrada.** La sobrescritura es explícita y solo se aprobó en el TPV local |
-| D26 | Ajuste de stock desde la web: un solo movimiento. **Pendiente de prueba local.** Corrida completa de escritura de stock contra el BDP local. |
+| D26 | Ajuste de stock desde la web: un solo movimiento. **Cerrada (26/10/2026, BDP local).** Escritura completa con copia previa; un solo movimiento por ajuste. Se corrigió un fallo real: el reintento con la misma clave reencolaba el movimiento (`fed7ddd`, test `reintento_idempotente_no_reencola_el_ajuste`, 25/25). |
 | D26a | Consulta unitaria y error con almacén inexistente. **Pendiente de piloto.** La lectura es correcta; el caso de error se confirma en el TPV del cliente. |
 | D26b | Consulta en lista por almacén. **Cerrada** con botón propio y llamador en producción |
-| D26c | Regularización con motivo válido e inválido. **Pendiente de prueba local.** Se relee el stock después de cada paso. |
+| D26c | Regularización con motivo válido e inválido. **Cerrada (26/10/2026, BDP local).** Motivo válido aplica y motivo inválido se rechaza; el stock se relee tras cada paso. |
 | D26d | Traspaso entre almacenes. **Cerrada** con traspaso real de ida y vuelta |
-| D26e | Ajuste por diferencia (inventario absoluto). **Pendiente de prueba local.** La regularización normal no prueba el inventario absoluto, que calcula la diferencia respecto al stock existente. |
+| D26e | Ajuste por diferencia (inventario absoluto). **Cerrada (26/10/2026, BDP local).** El inventario absoluto calcula la diferencia respecto al stock existente y el BDP queda en el valor pedido. |
 | D26f | Inventario absoluto. **Cerrada.** Nunca envía cantidad vacía; la misma cantidad da diferencia cero |
 | D26g | Sin respuesta en stock. **Cerrada.** Si hay duda, no se reintenta a ciegas; si el TPV rechazó con un motivo claro, ya no se marca «ambiguo» |
-| D27 | La venta de caja no descuenta dos veces. **Pendiente de prueba local.** No basta decir que no existe un proceso de venta que mueva stock: hay que confirmar en local que la venta lo mueve una sola vez. |
+| D27 | La venta de caja no descuenta dos veces. **Pendiente de prueba local.** Venta real en el TPV local (ticket 00001TB00000036, COCA-COLA, efectivo): el BDP seguía en 7 tras varias lecturas y un artículo inventariable. Falta saber si descuenta al cerrar turno o requiere configuración; hasta entonces no se afirma el comportamiento. |
 | D28, D28-auto, D28-auto-R | Documentos, exportación programada y reinicio a mitad. **Cerradas y vivas.** Cadencia y perfil por cuenta. Se descubrió que un ajuste del TPV devolvía vacío y se fijó correctamente |
 | D28a | Albaranes automáticos. **Cerrada.** Importación completa sin botón |
 | D29 | Tres reinicios en mitad de una operación. **Pendiente de prueba local.** Dos de tres comprobados por inyección (proceso de sincronización y caída del WebLink), sin pérdida ni duplicado. Falta el reinicio real del BDP local. |
@@ -347,8 +347,8 @@ de la edición gratuita del TPV, de su configuración o de lo que falta probar.
 8. **Sobrescritura de clientes (D25):** se aprobó únicamente en el TPV local. En
    producción viene desactivada por defecto.
 9. **Stock (D26, D26c, D26e, D27):** la regularización, el ajuste y el inventario
-   absoluto están implementados, pero la batería completa con su relectura no se ha
-   ejecutado. Pendiente de prueba local.
+   absoluto están probados en el BDP local (26/10/2026) salvo D27, que sigue
+   pendiente de prueba local.
 
 ---
 
