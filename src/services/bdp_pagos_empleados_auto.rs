@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 //! [26AA-2] Lectura programada de formas de pago y empleados del BDP.
 //!
 //! Antes solo se consultaban a mano. El barrido decide *cuándo* (cadencia por
