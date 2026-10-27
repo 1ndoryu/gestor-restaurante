@@ -4,27 +4,22 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- Siguiente en orden: la pendiente de pruebas en el BDP local (ver Pendientes); requiere el BDP local operativo.
+- Ninguno por nuestra parte: esperar la licencia de WebLinkRestAPI y el piloto con hardware.
 
 ## Pendientes
 
-- [ ] `26AA-2` — **Comprobar en vivo la lectura programada de formas de pago y empleados.** El código está (commit `4fcb3a0`, cadencia apagada de fábrica, no escribe en BDP); falta que un cambio hecho en el BDP local llegue a la web sin abrir la pantalla, en la cadencia configurada.
-  · prioridad: alta · urgencia: normal
-- [ ] `26AA-4` — **Probar D21 como cambio de estado de comanda pendiente de validación.** Ya reformulada en el informe; falta la prueba con `OrderEndType=1`: aviso de espera, aceptación desde BDP, avisos 0 y 1 sin duplicados y en orden. Hecho cuando se reciben ambos o BDP confirma por escrito la dependencia.
-  · prioridad: media · urgencia: normal
-- [ ] `26AA-5` — **Ejecutar en el BDP local las pruebas reproducibles.** D08 con peticiones paralelas, D29 reiniciando el BDP local, D21a, la batería completa de stock (D26, D26c, D26e, D27), D18d con factura nueva, D05–D07, D22a y D24-m. Lo que exija la edición de pago queda preparado y marcado pendiente de licencia. Hecho cuando cada ficha tiene evidencia o una dependencia concreta.
-  · prioridad: alta · urgencia: normal
-- [ ] `26AA-6` — **Entregar una ficha de evidencia por prueba y actualizar el informe de cierre.** Código, fecha, entorno, versión, licencia, petición, respuesta, resultado en web y BDP, identificadores y estado final. Hecho cuando el informe cuenta pruebas superadas, no funciones programadas.
-  · prioridad: media · urgencia: normal · depende-de: 26AA-5
+_Sin tareas abiertas por nuestra parte; lo que queda depende de la licencia o del piloto (ver Bloqueos)._
 
 ## Bloqueos
 
 - Licencia de pago de WebLinkRestAPI (servicio 84) sin activar: bloquea las pruebas de propinas, pagos, facturación, comandas existentes, salones y mesas, y camarero. Decisión del cliente y trato con BDP.
+- D21 (comanda pendiente de validación) pasa a licencia: la consola de autocomanda no responde en la edición gratuita.
+- Piloto con hardware: D03a y D09a (impresora de cocina) y D27 (el cierre de turno no movió el stock).
 - D31 necesita la dirección del servidor de mensajes en el terminal; D32 necesita responsables nominales aprobados por Guillermo y el restaurante.
 
 ## Planes activos
 
-- `Agente/planes/plan-correcciones-piloto-bdp-2026-10-26.md` — `26AA-2`, `26AA-4`, `26AA-5`, `26AA-6` — correcciones antes del piloto BDP (F1 y F3 hechas).
+- `Agente/planes/plan-correcciones-piloto-bdp-2026-10-26.md` — correcciones antes del piloto BDP (todas las pruebas locales hechas; faltan licencia y piloto).
 - `Agente/planes/anexo-b8-aceptacion-2026-10-08.md` — `anexo-b8-aceptacion-2026-10-08` — fichas de aceptación D, pendientes de ejecución.
 - `Agente/planes/plan-50k-2026-09-16.md` — `169A-5` — escalar a 50.000 personas con caché, CDN y re-medición.
 - `Agente/planes/plan-alcance-local-bdp-2026-10-01.md` — `01AA-1` — alcance real con el TPV local licenciado.
