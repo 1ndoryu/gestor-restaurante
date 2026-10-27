@@ -55,11 +55,11 @@ evidencia (`26AA-6`).
 
 | Estado | Fichas |
 |---|---|
-| **Cerrada** (prueba real y evidencia) | D02, D03, D04, D09, D10, D12a, D12b, D12c, D22, D23a, D24a, D24b, D24c, D25, D26b, D28, D28-auto, D28-auto-R, D28a. D08, D22a, D24-m, D26, D26c, D26e (pruebas locales del 26/10/2026, ver filas). D26d, D26f y D26g se mantienen cerradas |
+| **Cerrada** (prueba real y evidencia) | D02, D03, D04, D09, D10, D12a, D12b, D12c, D22, D23a, D24a, D24b, D24c, D25, D26b, D28, D28-auto, D28-auto-R, D28a. D08, D21a, D22a, D24-m, D26, D26a, D26c, D26e (pruebas locales del 26 y 27/10/2026, ver filas). D26d, D26f y D26g se mantienen cerradas |
 | **Pendiente de licencia** (WebLinkRestAPI de pago, servicio 84) | D01 (el diagnóstico devuelve «sin licencia»); D05, D06, D07 (modificar comanda existente: la edición gratuita lo bloquea, no es un límite del TPV); D11a, D11b, D11c (propinas); D13, D13a, D14, D14s, D15, D15t, D16, D17 (pagos); D18, D18a, D18b, D18c, D18d, D19, D19t, D20 (facturación; D18d además debe emitir una factura nueva con datos fiscales); D24-p (salones, zonas y mesas); D31 (llamar al camarero) |
-| **Pendiente de configuración** | D21 (reformulada: cambio de estado de comanda pendiente de validación, sin dar por hecho el Monitor de Cocina) y D21a (el traspaso se hizo, pero el aviso no llega: el BDP local no apunta al receptor de la web); D31 (dirección del servidor de mensajes en el terminal) |
-| **Pendiente de prueba local** (se puede hacer en el BDP local) | D27 (venta de caja: tras un ticket cobrado el BDP local seguía con el mismo stock; falta el cierre de turno o la configuración de descuento), D29 (reinicio del BDP local) |
-| **Pendiente de piloto** (hardware o terceros) | D03a y D09a (impresora de cocina), D26a (error con almacén inexistente en el TPV del cliente), D30 (piloto), D32 (responsables y procedimientos nominales aprobados por Guillermo y el restaurante; la pantalla existe, la ficha no está cerrada) |
+| **Pendiente de configuración** | D31 (dirección del servidor de mensajes en el terminal; cuenta también en licencia) |
+| **Pendiente de prueba local** (se puede hacer en el BDP local) | D21 (la comanda pendiente 72 existe en el BDP local; falta aceptarla en la consola de autocomanda del TPV para ver el aviso de cambio de estado), D27 (venta de caja: tras un ticket cobrado el BDP local seguía con el mismo stock; falta el cierre de turno o la configuración de descuento), D29 (reinicio del BDP local) |
+| **Pendiente de piloto** (hardware o terceros) | D03a y D09a (impresora de cocina), D30 (piloto), D32 (responsables y procedimientos nominales aprobados por Guillermo y el restaurante; la pantalla existe, la ficha no está cerrada) |
 | **Límite confirmado** (el TPV no ofrece el servicio) | D23-m (sin listado de comandas por API), D23b (solo se recupera lo localizable), D24d (sin servicio de borrado; lo cubre D32) |
 
 **Qué falta.** El 22 de octubre este apartado decía que no faltaba automatismo y que
@@ -285,10 +285,10 @@ no se ha hecho, aunque el código esté implementado.
 | D18d | Factura completa con NIF. **Pendiente de licencia.** Hoy solo se comprueba la exportación de una factura existente, que no prueba la emisión: falta facturar una comanda de prueba con los datos fiscales y comparar el documento. |
 | D19, D19t | Respuesta perdida al facturar. **Pendiente de licencia.** Número único, sin segunda factura |
 | D20 | Aviso y documento enlazados en una sola venta. **Pendiente de licencia.** Se enlazan por el número de factura, con índice único que impide duplicar |
-| D21 | Avisos del cambio de estado de una comanda pendiente de validación (OrderEndType 1 y 0). **Pendiente de configuración.** La prueba es de la comanda y su aviso; la documentación no vincula este aviso al Monitor de Cocina. |
-| D21a | Aviso de traspaso de comanda completa. **Pendiente de configuración.** Traspaso real en el TPV local de la mesa 5 a la 6: `GetOrder` da la comanda 66 en la mesa 6 con la línea COCA-COLA y la mesa 5 vacía. El aviso `Traspasar` no llegó al buzón de la web (sigue en 31 avisos): el BDP local no tiene configurada la dirección del receptor (como D21 y D31). |
+| D21 | Avisos del cambio de estado de una comanda pendiente de validación (OrderEndType 1 y 0). **Pendiente de prueba local (27/10/2026).** Una venta registrada desde la web con `bdp_order_end_type = 1` creó en el BDP local la comanda 72 en estado pendiente (la escritura funciona); aceptarla exige el botón «Consola Autocom.» del TPV, que el controlador no consiguió abrir. La documentación no vincula este aviso al Monitor de Cocina. Falta aceptar la comanda a mano y comprobar el aviso en el buzón. |
+| D21a | Aviso de traspaso de comanda completa. **Cerrada (27/10/2026, BDP local).** Traspasos reales en el TPV local (mesa 5→6, comanda 66): el aviso `Traspasar` llegó al buzón de la web y se procesó a la primera (intentos 1). El 26/10 no llegaba por una causa distinta de la supuesta: el receptor resolvía la cuenta destino y, con más de una cuenta con sincronización activa y credenciales completas, respondía 503 (falla cerrado). Se desactivó la sincronización en las dos cuentas de prueba (`fase-d@prueba.test`, `d26g-evidencia@restaurante.test`) y quedó una sola. Un aviso se marcó `requiere_revision` mientras el túnel 8071 estaba caído (se reabre con `bdp-local.sh tunel abrir`). |
 | D22 | Aviso repetido o desordenado. **Cerrada.** Repetido = ignorado; desordenado = aceptado y ordenado. Traspaso de línea real (comanda 47) reenviado: idéntico → «duplicado», con fecha anterior → aceptado. |
-| D22a | Traspaso de línea movida. **Cerrada en el testigo (26/10/2026, BDP local).** Traspaso de línea de la mesa 6 a la 7: `GetOrder` da la línea una sola vez en destino (comanda 67) y la mesa 6 ya no tiene comanda. La repetición y el orden inverso del aviso están cubiertos por los tests del receptor (D22); el aviso real no llega hasta configurar el receptor. |
+| D22a | Traspaso de línea movida. **Cerrada en el testigo (26/10/2026, BDP local).** Traspaso de línea de la mesa 6 a la 7: `GetOrder` da la línea una sola vez en destino (comanda 67) y la mesa 6 ya no tiene comanda. La repetición y el orden inverso del aviso están cubiertos por los tests del receptor (D22); el aviso real `traspasar-linea` del TPV llegó y se procesó (27/10/2026, intentos 1). |
 | D23-m | Comanda manual con aviso perdido. **Límite confirmado.** El TPV no ofrece listado de comandas por API, así que una comanda de caja sin aviso no se recupera sola; queda el procedimiento escrito para que una persona la resuelva |
 | D23a | Trabajador caído con receptor operativo. **Cerrada.** El aviso espera en el buzón y se procesa al arrancar |
 | D23b | Receptor inaccesible. **Límite confirmado.** Solo se recupera lo que se puede localizar por su identificador de pedido |
@@ -298,7 +298,7 @@ no se ha hecho, aunque el código esté implementado.
 | D24d | Borrado. **Límite confirmado.** El TPV no tiene servicio de borrado: la web muestra el procedimiento y el responsable |
 | D25 | Clientes, con y sin sobrescritura. **Cerrada.** La sobrescritura es explícita y solo se aprobó en el TPV local |
 | D26 | Ajuste de stock desde la web: un solo movimiento. **Cerrada (26/10/2026, BDP local).** Escritura completa con copia previa; un solo movimiento por ajuste. Se corrigió un fallo real: el reintento con la misma clave reencolaba el movimiento (`fed7ddd`, test `reintento_idempotente_no_reencola_el_ajuste`, 25/25). |
-| D26a | Consulta unitaria y error con almacén inexistente. **Pendiente de piloto.** La lectura es correcta; el caso de error se confirma en el TPV del cliente. |
+| D26a | Consulta unitaria y error con almacén inexistente. **Cerrada (27/10/2026, BDP local).** La lectura es correcta y el almacén 99 (inexistente) devuelve el error 200005 del propio TPV, sin reintento ciego. |
 | D26b | Consulta en lista por almacén. **Cerrada** con botón propio y llamador en producción |
 | D26c | Regularización con motivo válido e inválido. **Cerrada (26/10/2026, BDP local).** Motivo válido aplica y motivo inválido se rechaza; el stock se relee tras cada paso. |
 | D26d | Traspaso entre almacenes. **Cerrada** con traspaso real de ida y vuelta |
@@ -325,9 +325,9 @@ Todas las de esta lista están declaradas. Ninguna es un fallo de la web: son l�
 de la edición gratuita del TPV, de su configuración o de lo que falta probar.
 
 1. **Tres pruebas exigen hardware o una persona en el terminal físico.** D03a y D09a
-   (impresora de cocina) y D29, en su reinicio real de BDP.NET. D08 y D22a ya se
-   ejecutaron en el BDP local (26/10/2026); D21a quedó a la espera de configurar el
-   receptor de avisos.
+   (impresora de cocina) y D29, en su reinicio real de BDP.NET. D08, D21a y D22a ya se
+   ejecutaron en el BDP local (26 y 27/10/2026). D21 espera a que se acepte a mano
+   la comanda pendiente 72 en el TPV.
 2. **La edición gratuita bloquea modificar una comanda existente** (D05–D07). Según el
    manual, la edición de pago lo permite. Pendiente de licencia, no límite confirmado.
 3. **El TPV no permite borrar artículos por API** (D24d). Se resuelve por D32: la
