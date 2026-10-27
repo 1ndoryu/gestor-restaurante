@@ -55,10 +55,10 @@ evidencia (`26AA-6`).
 
 | Estado | Fichas |
 |---|---|
-| **Cerrada** (prueba real y evidencia) | D02, D03, D04, D09, D10, D12a, D12b, D12c, D22, D23a, D24a, D24b, D24c, D25, D26b, D28, D28-auto, D28-auto-R, D28a. D08, D21a, D22a, D24-m, D26, D26a, D26c, D26e (pruebas locales del 26 y 27/10/2026, ver filas). D26d, D26f y D26g se mantienen cerradas |
+| **Cerrada** (prueba real y evidencia) | D02, D03, D04, D09, D10, D12a, D12b, D12c, D22, D23a, D24a, D24b, D24c, D25, D26b, D28, D28-auto, D28-auto-R, D28a. D08, D21a, D22a, D24-m, D26, D26a, D26c, D26e, D29 (pruebas locales del 26 y 27/10/2026, ver filas). D26d, D26f y D26g se mantienen cerradas |
 | **Pendiente de licencia** (WebLinkRestAPI de pago, servicio 84) | D01 (el diagnóstico devuelve «sin licencia»); D05, D06, D07 (modificar comanda existente: la edición gratuita lo bloquea, no es un límite del TPV); D11a, D11b, D11c (propinas); D13, D13a, D14, D14s, D15, D15t, D16, D17 (pagos); D18, D18a, D18b, D18c, D18d, D19, D19t, D20 (facturación; D18d además debe emitir una factura nueva con datos fiscales); D24-p (salones, zonas y mesas); D31 (llamar al camarero); D21 (la consola de autocomanda no responde en la edición gratuita) |
 | **Pendiente de configuración** | D31 (dirección del servidor de mensajes en el terminal; cuenta también en licencia) |
-| **Pendiente de prueba local** (se puede hacer en el BDP local) | D29 (reinicio del BDP local) |
+| **Pendiente de prueba local** (se puede hacer en el BDP local) | ninguna |
 | **Pendiente de piloto** (hardware o terceros) | D03a y D09a (impresora de cocina), D27 (descuento de stock por venta, según la configuración del restaurante), D30 (piloto), D32 (responsables y procedimientos nominales aprobados por Guillermo y el restaurante; la pantalla existe, la ficha no está cerrada) |
 | **Límite confirmado** (el TPV no ofrece el servicio) | D23-m (sin listado de comandas por API), D23b (solo se recupera lo localizable), D24d (sin servicio de borrado; lo cubre D32) |
 
@@ -308,7 +308,7 @@ no se ha hecho, aunque el código esté implementado.
 | D27 | La venta de caja no descuenta dos veces. **Pendiente de piloto (27/10/2026).** Venta real en el TPV local (ticket 00001TB00000036, COCA-COLA, efectivo) y turno cerrado después: el BDP sigue en 7 (1002 en 4). Este BDP de pruebas no descuenta stock por venta, ni siquiera al cerrar turno, así que no hay doble descuento posible aquí; si el restaurante configura descuento por venta, se comprueba en el piloto que la web no descuente además. |
 | D28, D28-auto, D28-auto-R | Documentos, exportación programada y reinicio a mitad. **Cerradas y vivas.** Cadencia y perfil por cuenta. Se descubrió que un ajuste del TPV devolvía vacío y se fijó correctamente |
 | D28a | Albaranes automáticos. **Cerrada.** Importación completa sin botón |
-| D29 | Tres reinicios en mitad de una operación. **Pendiente de prueba local.** Dos de tres comprobados por inyección (proceso de sincronización y caída del WebLink), sin pérdida ni duplicado. Falta el reinicio real del BDP local. |
+| D29 | Tres reinicios en mitad de una operación. **Cerrada (27/10/2026).** Proceso de sincronización y caída del WebLink, por inyección; BDP.NET, de forma real: se paró TpvNet y, con él caído, se creó la venta web `c3c31bcd…` (modo automático): quedó pendiente en la web (`bdp_synced=false`) y el sondeo de comandas registró los errores de conexión. Se relanzó TpvNet (PID nuevo 12624; el túnel 8071 siguió abierto). El reenvío manual falló una vez con «caja cerrada» (301400) porque el turno estaba cerrado; tras abrir turno creó la comanda 73 una sola vez, y un segundo reenvío no creó la 74. Cola de avisos sin cambios (30 procesados, 4 rechazados, 2 en revisión) y cursor de documentos intacto (`hasta` 2026-10-22). Nota de diseño: la web no reenvía sola las ventas pendientes; hace falta el botón o la llamada de reenvío. |
 | D30 | Piloto y despliegue por etapas. **Pendiente de piloto.** Requiere permiso y un TPV en producción. |
 | D31 | Llamar al camarero desde una mesa. **Pendiente de licencia y de configuración.** El aviso llega al TPV y el TPV lo rechaza por su configuración (falta la dirección del servidor de mensajes). Con licencia de pago, CallWaiter y ventana visible en BDP. |
 | D32 | Procedimiento y responsable de lo que la API no hace. **Pendiente de piloto.** La pantalla existe con responsable por defecto y editable; falta que Guillermo y el restaurante aprueben los responsables nominales. |
@@ -324,10 +324,9 @@ aviso al cambiar de pestaña con cambios sin guardar.
 Todas las de esta lista están declaradas. Ninguna es un fallo de la web: son límites
 de la edición gratuita del TPV, de su configuración o de lo que falta probar.
 
-1. **Tres pruebas exigen hardware o una persona en el terminal físico.** D03a y D09a
-   (impresora de cocina) y D29, en su reinicio real de BDP.NET. D08, D21a y D22a ya se
-   ejecutaron en el BDP local (26 y 27/10/2026). D21 espera a que se acepte a mano
-   la comanda pendiente 72 en el TPV.
+1. **Dos pruebas exigen hardware:** D03a y D09a (impresora de cocina). D29, D08,
+   D21a y D22a ya se ejecutaron en el BDP local (26 y 27/10/2026). D21 pasa a
+   licencia: la consola de autocomanda no responde en la edición gratuita.
 2. **La edición gratuita bloquea modificar una comanda existente** (D05–D07). Según el
    manual, la edición de pago lo permite. Pendiente de licencia, no límite confirmado.
 3. **El TPV no permite borrar artículos por API** (D24d). Se resuelve por D32: la
