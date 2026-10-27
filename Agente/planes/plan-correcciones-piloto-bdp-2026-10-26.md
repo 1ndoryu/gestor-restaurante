@@ -31,8 +31,8 @@
 ## Checklist de cierre
 
 - [x] F1 estados corregidos en informe, cobertura y anexo (informe alineado; anexo B8 remite a §1)
-- [x] F2 código (`4fcb3a0`, con test) y prueba viva en el BDP local (24-m, punto 5)
+- [x] F2 código (`4fcb3a0`, con test) y prueba viva en el BDP local (24-m, punto 5); lectura programada repetida sola cada 60 s el 27/10
 - [x] F3 permisos por categoría, con migración, UI, servidor y cola (`dfa3716`, `cfa42de`, `4b43aaf`, `c82c713`; gate cerrado: 0 nuevos)
-- [~] F4 D21 reformulada en el informe; tests del receptor 26/26 en la 89 (`bdp_avisos_worker`); comanda pendiente 72 creada en el BDP local, la consola de autocomanda no responde en la edición gratuita (pendiente de licencia o piloto)
-- [~] F5 hechas en el BDP local: D08 (concurrencia real), D26, D26c, D26e, punto 9 y arreglo de idempotencia (`fed7ddd`); D21a, D22a y D26a cerradas el 27/10 (el aviso no llegaba por el 503 de cuentas múltiples, no por el receptor); pendientes: D21 (pasa a licencia o piloto), D27 (el cierre de turno tampoco movió el stock: pasa a piloto); D29 cerrada el 27/10 (reinicio real de TpvNet); D18d y D05–D07 esperan licencia
-- [~] F6 informe actualizado con recuentos reales (26/10/2026); PDF regenerado el 27/10 con D29 cerrada
+- [x] F4 cerrada por nuestra parte (D21 pasa a licencia): D21 reformulada en el informe; tests del receptor 26/26 en la 89 (`bdp_avisos_worker`); comanda pendiente 72 creada en el BDP local, la consola de autocomanda no responde en la edición gratuita (pendiente de licencia o piloto)
+- [x] F5 cerrada por nuestra parte; D26e probada con suma y resta reales el 27/10 (escandallo al piloto). Hechas en el BDP local: D08 (concurrencia real), D26, D26c, D26e, punto 9 y arreglo de idempotencia (`fed7ddd`); D21a, D22a y D26a cerradas el 27/10 (el aviso no llegaba por el 503 de cuentas múltiples, no por el receptor); pendientes: D21 (pasa a licencia o piloto), D27 (el cierre de turno tampoco movió el stock: pasa a piloto); D29 cerrada el 27/10 (reinicio real de TpvNet); D18d y D05–D07 esperan licencia
+- [x] F6 informe actualizado con recuentos reales (26/10/2026); PDF regenerado el 27/10 con D29 cerrada
