@@ -302,7 +302,7 @@ no se ha hecho, aunque el código esté implementado.
 | D26b | Consulta en lista por almacén. **Cerrada** con botón propio y llamador en producción |
 | D26c | Regularización con motivo válido e inválido. **Cerrada (26/10/2026, BDP local).** Motivo válido aplica y motivo inválido se rechaza; el stock se relee tras cada paso. |
 | D26d | Traspaso entre almacenes. **Cerrada** con traspaso real de ida y vuelta |
-| D26e | Ajuste por diferencia (inventario absoluto). **Cerrada (26/10/2026, BDP local).** El inventario absoluto calcula la diferencia respecto al stock existente y el BDP queda en el valor pedido. |
+| D26e | Ajuste por diferencia (suma o resta). **Cerrada salvo escandallo (27/10/2026, BDP local).** Con el artículo 1002 en el almacén 1: +1 llevó el BDP de 4 a 5 y −1 lo devolvió a 4, un solo movimiento cada vez y estable en tres lecturas. **Sin probar:** el descuento por escandallo, porque el BDP local no tiene ningún artículo con escandallo (la API no expone esa marca); pasa a piloto. |
 | D26f | Inventario absoluto. **Cerrada.** Nunca envía cantidad vacía; la misma cantidad da diferencia cero |
 | D26g | Sin respuesta en stock. **Cerrada.** Si hay duda, no se reintenta a ciegas; si el TPV rechazó con un motivo claro, ya no se marca «ambiguo» |
 | D27 | La venta de caja no descuenta dos veces. **Pendiente de piloto (27/10/2026).** Venta real en el TPV local (ticket 00001TB00000036, COCA-COLA, efectivo) y turno cerrado después: el BDP sigue en 7 (1002 en 4). Este BDP de pruebas no descuenta stock por venta, ni siquiera al cerrar turno, así que no hay doble descuento posible aquí; si el restaurante configura descuento por venta, se comprueba en el piloto que la web no descuente además. |
