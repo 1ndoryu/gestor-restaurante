@@ -58,8 +58,8 @@ evidencia (`26AA-6`).
 | **Cerrada** (prueba real y evidencia) | D02, D03, D04, D09, D10, D12a, D12b, D12c, D22, D23a, D24a, D24b, D24c, D25, D26b, D28, D28-auto, D28-auto-R, D28a. D08, D21a, D22a, D24-m, D26, D26a, D26c, D26e (pruebas locales del 26 y 27/10/2026, ver filas). D26d, D26f y D26g se mantienen cerradas |
 | **Pendiente de licencia** (WebLinkRestAPI de pago, servicio 84) | D01 (el diagnóstico devuelve «sin licencia»); D05, D06, D07 (modificar comanda existente: la edición gratuita lo bloquea, no es un límite del TPV); D11a, D11b, D11c (propinas); D13, D13a, D14, D14s, D15, D15t, D16, D17 (pagos); D18, D18a, D18b, D18c, D18d, D19, D19t, D20 (facturación; D18d además debe emitir una factura nueva con datos fiscales); D24-p (salones, zonas y mesas); D31 (llamar al camarero); D21 (la consola de autocomanda no responde en la edición gratuita) |
 | **Pendiente de configuración** | D31 (dirección del servidor de mensajes en el terminal; cuenta también en licencia) |
-| **Pendiente de prueba local** (se puede hacer en el BDP local) | D27 (venta de caja: tras un ticket cobrado el BDP local seguía con el mismo stock; falta el cierre de turno o la configuración de descuento), D29 (reinicio del BDP local) |
-| **Pendiente de piloto** (hardware o terceros) | D03a y D09a (impresora de cocina), D30 (piloto), D32 (responsables y procedimientos nominales aprobados por Guillermo y el restaurante; la pantalla existe, la ficha no está cerrada) |
+| **Pendiente de prueba local** (se puede hacer en el BDP local) | D29 (reinicio del BDP local) |
+| **Pendiente de piloto** (hardware o terceros) | D03a y D09a (impresora de cocina), D27 (descuento de stock por venta, según la configuración del restaurante), D30 (piloto), D32 (responsables y procedimientos nominales aprobados por Guillermo y el restaurante; la pantalla existe, la ficha no está cerrada) |
 | **Límite confirmado** (el TPV no ofrece el servicio) | D23-m (sin listado de comandas por API), D23b (solo se recupera lo localizable), D24d (sin servicio de borrado; lo cubre D32) |
 
 **Qué falta.** El 22 de octubre este apartado decía que no faltaba automatismo y que
@@ -305,7 +305,7 @@ no se ha hecho, aunque el código esté implementado.
 | D26e | Ajuste por diferencia (inventario absoluto). **Cerrada (26/10/2026, BDP local).** El inventario absoluto calcula la diferencia respecto al stock existente y el BDP queda en el valor pedido. |
 | D26f | Inventario absoluto. **Cerrada.** Nunca envía cantidad vacía; la misma cantidad da diferencia cero |
 | D26g | Sin respuesta en stock. **Cerrada.** Si hay duda, no se reintenta a ciegas; si el TPV rechazó con un motivo claro, ya no se marca «ambiguo» |
-| D27 | La venta de caja no descuenta dos veces. **Pendiente de prueba local.** Venta real en el TPV local (ticket 00001TB00000036, COCA-COLA, efectivo): el BDP seguía en 7 tras varias lecturas y un artículo inventariable. Falta saber si descuenta al cerrar turno o requiere configuración; hasta entonces no se afirma el comportamiento. |
+| D27 | La venta de caja no descuenta dos veces. **Pendiente de piloto (27/10/2026).** Venta real en el TPV local (ticket 00001TB00000036, COCA-COLA, efectivo) y turno cerrado después: el BDP sigue en 7 (1002 en 4). Este BDP de pruebas no descuenta stock por venta, ni siquiera al cerrar turno, así que no hay doble descuento posible aquí; si el restaurante configura descuento por venta, se comprueba en el piloto que la web no descuente además. |
 | D28, D28-auto, D28-auto-R | Documentos, exportación programada y reinicio a mitad. **Cerradas y vivas.** Cadencia y perfil por cuenta. Se descubrió que un ajuste del TPV devolvía vacío y se fijó correctamente |
 | D28a | Albaranes automáticos. **Cerrada.** Importación completa sin botón |
 | D29 | Tres reinicios en mitad de una operación. **Pendiente de prueba local.** Dos de tres comprobados por inyección (proceso de sincronización y caída del WebLink), sin pérdida ni duplicado. Falta el reinicio real del BDP local. |
@@ -347,8 +347,9 @@ de la edición gratuita del TPV, de su configuración o de lo que falta probar.
 8. **Sobrescritura de clientes (D25):** se aprobó únicamente en el TPV local. En
    producción viene desactivada por defecto.
 9. **Stock (D26, D26c, D26e, D27):** la regularización, el ajuste y el inventario
-   absoluto están probados en el BDP local (26/10/2026) salvo D27, que sigue
-   pendiente de prueba local.
+   absoluto están probados en el BDP local (26/10/2026) salvo D27: el BDP de
+   pruebas no descuenta stock por venta ni al cerrar turno (27/10/2026), así que
+   queda para el piloto con la configuración real.
 
 ---
 
