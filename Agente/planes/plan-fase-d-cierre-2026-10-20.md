@@ -44,6 +44,7 @@
   - **L8** — D24a–c cerrados el 2026-10-21 (§4.1); D24-m (`Tenders/GetList`) sigue sin lector en la app (`...-05:62`); D28-auto-R sin evidencia de reinicio a mitad de exportación (`...-05:67`).
   - **L9** — D29 sin corrida (necesita reiniciar servicios del PC); D23b cerrado el 2026-10-21 (límite declarado, `tareas-2026-10-21.md`); D10, D31 y D08 sin prueba viva (`plan-fase-d-bdp-local-2026-10-10.md:21`); D22a sin disparo real de traspaso (`...-10-cobertura-fichas.md:22`); D23-m sin decisión sobre comandas abiertas (`...-05:80`).
   - **L10** — D02 cerrado el 2026-10-21 (§4.1); D30 (piloto y despliegue por etapas) va fuera de la fase.
+  - **Reconciliación 2026-10-28.** El informe `informe-fase-d-pdf-2026-10-22.html` manda sobre el estado. Según él, D10, D11a/b/c, D24-m, D26d y D28-auto-R están cerrados, así que las menciones de L6–L9 son de la auditoría del 21/10. D21 queda 6/7 (el séptimo necesita Monitor de Cocina). D27 y D23-m no aparecen ni cerrados ni pendientes en el informe; pendiente de decidir su estado.
 
 ## 2.1 D24 no es de caja: los cuatro casos son servicios WebLink
 
