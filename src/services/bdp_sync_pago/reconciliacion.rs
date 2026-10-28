@@ -145,13 +145,11 @@ pub(super) fn payment_id_determinista(venta_id: Uuid, key: &str) -> String {
     if id.len() <= LONGITUD_MAX_PAYMENT_ID {
         return id;
     }
-    let resumen = Sha256::digest(key.as_bytes())
-        .iter()
-        .take(16)
-        .fold(String::new(), |mut hex, b| {
-            let _ = write!(hex, "{b:02x}");
-            hex
-        });
+    let digest = Sha256::digest(key.as_bytes());
+    let resumen = digest.iter().take(16).fold(String::new(), |mut hex, b| {
+        let _ = write!(hex, "{b:02x}");
+        hex
+    });
     format!("P{}-{resumen}", &prefijo[..14])
 }
 
@@ -200,7 +198,11 @@ mod tests_reconciliacion {
         let clave = Uuid::new_v4().to_string();
         let id = payment_id_determinista(venta, &clave);
         assert!(id.len() <= 50, "PaymentId de {} caracteres", id.len());
-        assert_eq!(id, payment_id_determinista(venta, &clave), "debe ser determinístico");
+        assert_eq!(
+            id,
+            payment_id_determinista(venta, &clave),
+            "debe ser determinístico"
+        );
     }
 
     #[test]

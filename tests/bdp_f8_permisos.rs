@@ -289,12 +289,20 @@ async fn reintento_idempotente_no_reencola_el_ajuste(pool: PgPool) {
         .unwrap()
     };
 
-    let primera = ajustar_stock(State(state.clone()), make_auth(user_id, UserRole::Admin), Json(peticion()))
-        .await
-        .expect("primer ajuste");
-    let segunda = ajustar_stock(State(state), make_auth(user_id, UserRole::Admin), Json(peticion()))
-        .await
-        .expect("reintento idempotente");
+    let primera = ajustar_stock(
+        State(state.clone()),
+        make_auth(user_id, UserRole::Admin),
+        Json(peticion()),
+    )
+    .await
+    .expect("primer ajuste");
+    let segunda = ajustar_stock(
+        State(state),
+        make_auth(user_id, UserRole::Admin),
+        Json(peticion()),
+    )
+    .await
+    .expect("reintento idempotente");
 
     assert_eq!(primera.0.stock, segunda.0.stock, "el stock local no cambia");
     assert_eq!(sumar_cola().await, 1, "una sola fila en la cola");

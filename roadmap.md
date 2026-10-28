@@ -10,7 +10,6 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 - [ ] `28AA-2` — **Probar en el BDP local salones y mesas, camarero, D21 y modificar comanda.** Evidencia por ficha (caja o stock antes y después) y sin segundo cobro ni segunda factura tras doble clic, pérdida de respuesta o reinicio; la modificación sin ruta en la app se implementa o se declara como límite.
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** Web conectada al BDP local, usable como propietaria en un día normal; el enlace se le envía con tu autorización.
-- [ ] `28AA-5` — **Dejar en verde el gate de RESTAURANTE.** `rustfmt` falla en `src/services/venta.rs` (test «reintento idempotente»), archivo heredado y sin cambios en 28AA-2; formatear ese archivo y `Arranque gate "RESTAURANTE" --cierre` sin fallos.
 - [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Definir cómo llega la web al BDP del restaurante (etapa 0) y probar el conflicto web contra TPV sobre la misma comanda con el TPV local; el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
 ## Bloqueos
