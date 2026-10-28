@@ -4,17 +4,18 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `28AA-2`: ejecutar por la app las operaciones que esperaban la licencia (la versión 84 ya responde; ver Bloqueos).
+- `28AA-2`: salones y mesas, camarero y D21 en el BDP local; modificar comanda sin ruta en la app (ver Bloqueos).
 
 ## Pendientes
 
-- [ ] `28AA-2` — **Ejecutar en el BDP local las fichas que esperaban la licencia.** Propinas, pagos, facturas, modificar comanda, salones y mesas, camarero y D21; evidencia por ficha (stock o caja antes y después) y sin segundo cobro ni segunda factura tras doble clic, pérdida de respuesta o reinicio.
+- [ ] `28AA-2` — **Probar en el BDP local salones y mesas, camarero, D21 y modificar comanda.** Evidencia por ficha (caja o stock antes y después) y sin segundo cobro ni segunda factura tras doble clic, pérdida de respuesta o reinicio; la modificación sin ruta en la app se implementa o se declara como límite.
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** Web conectada al BDP local, usable como propietaria en un día normal; el enlace se le envía con tu autorización.
+- [ ] `28AA-5` — **Dejar en verde el gate de RESTAURANTE.** `rustfmt` falla en `src/services/venta.rs` (test «reintento idempotente»), archivo heredado y sin cambios en 28AA-2; formatear ese archivo y `Arranque gate "RESTAURANTE" --cierre` sin fallos.
 - [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Definir cómo llega la web al BDP del restaurante (etapa 0) y probar el conflicto web contra TPV sobre la misma comanda con el TPV local; el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
 ## Bloqueos
 
-- Licencia de WebLinkRestAPI (servicio 84): BDP confirmó el 28/10/2026 que la suscripción 751080-84 es la completa. Verificado en el BDP local el mismo día: `GetApplicationVersion` con `Application: 84` devuelve «WeblinkRestAPI» sin error y `Orders/Get` devuelve la comanda completa (la sonda con cuerpo vacío daba 01, que es el valor por defecto, no un fallo). Propinas, pagos, facturación, modificar comanda, salones y mesas, y camarero siguen sin probar (`28AA-2`).
+- Licencia de WebLinkRestAPI (servicio 84): BDP confirmó el 28/10/2026 que la suscripción 751080-84 es la completa. Verificado en el BDP local el mismo día: `GetApplicationVersion` con `Application: 84` devuelve «WeblinkRestAPI» sin error y `Orders/Get` devuelve la comanda completa (la sonda con cuerpo vacío daba 01, que es el valor por defecto, no un fallo). Propina, pago y factura probados el 28/10 (`Agente/completados/tareas-2026-10-28.md`). La factura de la comanda 72 y 73 da 301300 («tipo de comanda no válido») por EndType 1 en esas comandas, no por licencia. Modificar comanda, salones y mesas y camarero siguen sin probar (`28AA-2`).
 - D21 (comanda pendiente de validación) depende de la licencia: se reintenta en `28AA-2`.
 - Piloto con hardware: D03a y D09a (impresora de cocina) y D27 (el cierre de turno no movió el stock).
 - D31 necesita la dirección del servidor de mensajes en el terminal; D32 necesita responsables nominales aprobados por Guillermo y el restaurante.
