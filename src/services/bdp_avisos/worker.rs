@@ -266,6 +266,58 @@ async fn cruzar_documento(
     }
 }
 
+/// [28AA-6] Lee las líneas locales de la venta de esa comanda y las compara con el
+/// pedido de BDP. Devuelve la nota de conflicto, o `None` si no hay venta local.
+async fn conflicto_con_venta(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    comanda: i64,
+    pedido: &Value,
+) -> Result<Option<String>, String> {
+    let (lineas, unidades): (i64, f64) = sqlx::query_as(
+        r"SELECT COUNT(l.id), COALESCE(SUM(l.cantidad), 0)::float8
+            FROM venta_lineas l
+            JOIN ventas v ON v.id = l.venta_id
+           WHERE v.user_id = $1 AND v.bdp_order_id = $2",
+    )
+    .bind(user_id)
+    .bind(comanda)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(|error| format!("No se pudieron leer las líneas de la venta: {error}"))?;
+    Ok(conflicto_lineas(comanda, pedido, lineas, unidades))
+}
+
+/// [28AA-6] Compara las unidades del pedido de BDP con las de la venta local. Solo
+/// unidades, no número de líneas: BDP puede partir una línea de cantidad 2 en dos
+/// ítems y eso no es un cambio. Sin líneas locales (venta legacy) o sin ítems en el
+/// pedido no hay nada que contradecir, así que no hay conflicto.
+fn conflicto_lineas(
+    comanda: i64,
+    pedido: &Value,
+    lineas_locales: i64,
+    unidades_locales: f64,
+) -> Option<String> {
+    if lineas_locales == 0 {
+        return None;
+    }
+    let items = pedido
+        .get("Order")
+        .unwrap_or(pedido)
+        .get("Items")?
+        .as_array()?;
+    let unidades_bdp: f64 = items
+        .iter()
+        .map(|item| item.get("Units").and_then(Value::as_f64).unwrap_or(0.0))
+        .sum();
+    if (unidades_bdp - unidades_locales).abs() < 0.001 {
+        return None;
+    }
+    Some(format!(
+        "Conflicto web–TPV en la comanda {comanda}: el TPV tiene {unidades_bdp} uds y la venta local {unidades_locales}. La venta no se modifica; revisar cuál es la correcta."
+    ))
+}
+
 /// Escribe la decisión y, si hay pedido, enlaza su venta. Va en una transacción:
 /// el aviso nunca queda `procesado` sin que la venta de su comanda esté al día.
 /// `procesado_en` solo se marca cuando el aviso sale de la cola.
@@ -295,6 +347,14 @@ async fn aplicar(
             cruzar_documento(&mut tx, user_id, factura, comanda).await?
         }
         _ => None,
+    };
+    /* [28AA-6] Sin incidencia de documento, se compara el pedido con las líneas de la
+     * venta: si el TPV cambió las líneas, el aviso queda en revisión y la venta no se toca. */
+    let incidencia = match (incidencia, decision.estado, vinculo) {
+        (None, "procesado", Some((comanda, pedido))) => {
+            conflicto_con_venta(&mut tx, user_id, comanda, pedido).await?
+        }
+        (nota, _, _) => nota,
     };
     let (estado, error, enlazar) = match incidencia {
         Some(nota) => ("requiere_revision", Some(nota), false),
@@ -453,6 +513,43 @@ pub async fn procesar_pendientes(pool: &PgPool, modo: &ServicioModoOperacion) ->
         }
     }
     total
+}
+
+#[cfg(test)]
+mod pruebas_conflicto_lineas {
+    use super::conflicto_lineas;
+    use serde_json::json;
+
+    fn pedido(unidades: &[f64]) -> serde_json::Value {
+        let items: Vec<_> = unidades.iter().map(|u| json!({ "Units": u })).collect();
+        json!({ "Order": { "Items": items } })
+    }
+
+    #[test]
+    fn cuadrar_unidades_no_es_conflicto() {
+        assert_eq!(conflicto_lineas(7, &pedido(&[1.0, 2.0]), 2, 3.0), None);
+    }
+
+    #[test]
+    fn partir_una_linea_en_items_no_es_conflicto() {
+        assert_eq!(conflicto_lineas(7, &pedido(&[1.0, 1.0]), 1, 2.0), None);
+    }
+
+    #[test]
+    fn linea_añadida_en_el_tpv_es_conflicto() {
+        let nota = conflicto_lineas(7, &pedido(&[1.0, 2.0, 1.0]), 2, 3.0).unwrap();
+        assert!(nota.contains("comanda 7") && nota.contains("4 uds"));
+    }
+
+    #[test]
+    fn venta_sin_lineas_locales_no_se_compara() {
+        assert_eq!(conflicto_lineas(7, &pedido(&[5.0]), 0, 0.0), None);
+    }
+
+    #[test]
+    fn pedido_sin_items_no_se_compara() {
+        assert_eq!(conflicto_lineas(7, &json!({ "Status": 2 }), 2, 3.0), None);
+    }
 }
 
 #[cfg(test)]

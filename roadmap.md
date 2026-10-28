@@ -4,13 +4,12 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `28AA-6`: conflicto web–TPV sobre la misma comanda (docx §4.3). Hoy el aviso de comanda solo copia el estado; un cambio de líneas hecho en el TPV no llega a la web y no muestra conflicto. Abierto en la fase D junto con §4.5 (reinicios) y D15/D15t/D19/D19t.
+- `28AA-4`: cerrar los huecos del plan de Guillermo (ver Pendientes); incluye probar el conflicto web–TPV con el TPV local.
 - `28AA-3`: entorno de pruebas para Guillermo (ver Pendientes).
 
 ## Pendientes
 
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** Web conectada al BDP local, usable como propietaria en un día normal; el enlace se le envía con tu autorización.
-- [ ] `28AA-6` — **Resolver el conflicto web–TPV sobre la misma comanda.** Criterio: un cambio de líneas hecho en el TPV aparece en la web con aviso de conflicto o con una regla visible; nunca desaparece sin aviso (docx §4.3). Evidencia de partida: `src/services/bdp_avisos/worker.rs` (`enlazar_venta` copia solo estado y anulación).
 - [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Definir cómo llega la web al BDP del restaurante (etapa 0) y probar el conflicto web contra TPV sobre la misma comanda con el TPV local; el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
 ## Bloqueos

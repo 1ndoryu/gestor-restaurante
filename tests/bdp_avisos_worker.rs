@@ -837,3 +837,56 @@ async fn otras_acciones_no_cruzan_documento(pool: PgPool) {
         Some("00001TB00000017")
     );
 }
+
+/// [28AA-6] Añade una línea local a la venta de una comanda.
+async fn linea_local(pool: &PgPool, venta: Uuid, cantidad: f64) {
+    sqlx::query(
+        r"INSERT INTO venta_lineas (venta_id, descripcion, cantidad, precio_unitario)
+          VALUES ($1, 'Línea de prueba', $2, 1.00)",
+    )
+    .bind(venta)
+    .bind(cantidad)
+    .execute(pool)
+    .await
+    .expect("insertar línea");
+}
+
+/// [28AA-6] Un cambio de líneas en el TPV no se copia en silencio: el aviso queda en
+/// revisión con la nota de conflicto y la venta conserva su estado.
+#[sqlx::test(migrations = "./migrations")]
+async fn cambio_de_lineas_en_el_tpv_queda_en_revision(pool: PgPool) {
+    let user = cuenta(&pool).await;
+    let venta = venta_con_bdp(&pool, user, 98).await;
+    linea_local(&pool, venta, 2.0).await;
+    let id = aviso(&pool, user, "modificar", payload_comanda("98"), 0).await;
+    let doble = DobleBdp::con(vec![(
+        98,
+        Consulta::Encontrado(json!({ "Order": { "Items": [{ "Units": 1.0 }, { "Units": 2.0 }] } })),
+    )]);
+
+    procesar_lote(&pool, user, &doble, 10).await.expect("lote");
+
+    let (estado, _, error, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "requiere_revision");
+    assert!(error.unwrap_or_default().contains("Conflicto web–TPV"));
+    assert_eq!(estado_venta(&pool, venta).await, (None, false));
+}
+
+/// [28AA-6] Si las unidades cuadran, el aviso se procesa como siempre.
+#[sqlx::test(migrations = "./migrations")]
+async fn lineas_que_cuadran_no_generan_conflicto(pool: PgPool) {
+    let user = cuenta(&pool).await;
+    let venta = venta_con_bdp(&pool, user, 99).await;
+    linea_local(&pool, venta, 2.0).await;
+    let id = aviso(&pool, user, "modificar", payload_comanda("99"), 0).await;
+    let doble = DobleBdp::con(vec![(
+        99,
+        Consulta::Encontrado(json!({ "Order": { "Items": [{ "Units": 1.0 }, { "Units": 1.0 }] } })),
+    )]);
+
+    procesar_lote(&pool, user, &doble, 10).await.expect("lote");
+
+    let (estado, _, error, _, _) = fila(&pool, id).await;
+    assert_eq!(estado, "procesado");
+    assert!(error.is_none());
+}
