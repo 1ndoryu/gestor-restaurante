@@ -4,18 +4,17 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `28AA-1`: comprobar la licencia 84 en el BDP local y repetir las cinco operaciones que daban «sin licencia». Necesita TpvNet abierto (UAC).
+- `28AA-2`: ejecutar por la app las operaciones que esperaban la licencia (la versión 84 ya responde; ver Bloqueos).
 
 ## Pendientes
 
-- [ ] `28AA-1` — **Verificar la licencia 84 en el BDP local.** `GetApplicationVersion` devuelve `Application: "84"` y se repiten obtener comanda completa, modificar comanda existente, propina, añadir pago y facturar; cada una responde sin error de licencia, o se manda a Guillermo función, petición, respuesta y código (sin credenciales).
 - [ ] `28AA-2` — **Ejecutar en el BDP local las fichas que esperaban la licencia.** Propinas, pagos, facturas, modificar comanda, salones y mesas, camarero y D21; evidencia por ficha (stock o caja antes y después) y sin segundo cobro ni segunda factura tras doble clic, pérdida de respuesta o reinicio.
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** Web conectada al BDP local, usable como propietaria en un día normal; el enlace se le envía con tu autorización.
 - [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Definir cómo llega la web al BDP del restaurante (etapa 0) y probar el conflicto web contra TPV sobre la misma comanda con el TPV local; el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
 ## Bloqueos
 
-- Licencia de WebLinkRestAPI (servicio 84): BDP confirmó el 28/10/2026 que la suscripción 751080-84 ya es la completa, sin reactivar nada. Falta comprobar que el TpvNet local la refleje (`28AA-1`); hasta entonces, propinas, pagos, facturación, comandas existentes, salones y mesas, y camarero siguen sin probar.
+- Licencia de WebLinkRestAPI (servicio 84): BDP confirmó el 28/10/2026 que la suscripción 751080-84 es la completa. Verificado en el BDP local el mismo día: `GetApplicationVersion` con `Application: 84` devuelve «WeblinkRestAPI» sin error y `Orders/Get` devuelve la comanda completa (la sonda con cuerpo vacío daba 01, que es el valor por defecto, no un fallo). Propinas, pagos, facturación, modificar comanda, salones y mesas, y camarero siguen sin probar (`28AA-2`).
 - D21 (comanda pendiente de validación) depende de la licencia: se reintenta en `28AA-2`.
 - Piloto con hardware: D03a y D09a (impresora de cocina) y D27 (el cierre de turno no movió el stock).
 - D31 necesita la dirección del servidor de mensajes en el terminal; D32 necesita responsables nominales aprobados por Guillermo y el restaurante.
