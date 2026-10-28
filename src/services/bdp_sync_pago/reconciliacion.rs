@@ -5,9 +5,11 @@
  * mantener el archivo bajo el umbral de god-object del gate. */
 
 use std::collections::HashMap;
+use std::fmt::Write;
 
 use rust_decimal::prelude::Decimal;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -131,10 +133,26 @@ impl BdpSyncService {
     }
 }
 
-/* [D15] ID de pago determinístico por venta e idempotencia: un reintento reutiliza el mismo. */
+/* [D15] ID de pago determinístico por venta e idempotencia: un reintento reutiliza el mismo.
+ * BDP y bdp_pagos.bdp_payment_id admiten 50 caracteres. Con una clave UUID (36) el ID
+ * pasaba de 50: BDP lo truncaba, el ledger local no podía guardarlo y la reconciliación
+ * no lo encontraba. Si no cabe, se usa un resumen de la clave (32 hex). */
+const LONGITUD_MAX_PAYMENT_ID: usize = 50;
+
 pub(super) fn payment_id_determinista(venta_id: Uuid, key: &str) -> String {
     let prefijo = venta_id.simple().to_string();
-    format!("P{}-{key}", &prefijo[..14])
+    let id = format!("P{}-{key}", &prefijo[..14]);
+    if id.len() <= LONGITUD_MAX_PAYMENT_ID {
+        return id;
+    }
+    let resumen = Sha256::digest(key.as_bytes())
+        .iter()
+        .take(16)
+        .fold(String::new(), |mut hex, b| {
+            let _ = write!(hex, "{b:02x}");
+            hex
+        });
+    format!("P{}-{resumen}", &prefijo[..14])
 }
 
 /* [D15] Resultado de cruzar un intento ambiguo con los Payments remotos. */
@@ -174,6 +192,15 @@ mod tests_reconciliacion {
             payment_id_determinista(venta, "d15-pago-1"),
             "P6aa916e1ca9e41-d15-pago-1"
         );
+    }
+
+    #[test]
+    fn clave_uuid_no_supera_los_50_caracteres() {
+        let venta = Uuid::parse_str("4cf3165a-df61-4570-99e1-6005f3a29549").expect("uuid");
+        let clave = Uuid::new_v4().to_string();
+        let id = payment_id_determinista(venta, &clave);
+        assert!(id.len() <= 50, "PaymentId de {} caracteres", id.len());
+        assert_eq!(id, payment_id_determinista(venta, &clave), "debe ser determinístico");
     }
 
     #[test]
