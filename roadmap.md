@@ -14,9 +14,8 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 ## Bloqueos
 
 - Licencia de WebLinkRestAPI (servicio 84): BDP confirmó el 28/10/2026 que la suscripción 751080-84 es la completa. Verificado en el BDP local el mismo día: `GetApplicationVersion` con `Application: 84` devuelve «WeblinkRestAPI» sin error y `Orders/Get` devuelve la comanda completa (la sonda con cuerpo vacío daba 01, que es el valor por defecto, no un fallo). Propina, pago y factura probados el 28/10 (`Agente/completados/tareas-2026-10-28.md`). La factura de la comanda 72 y 73 da 301300 («tipo de comanda no válido») por EndType 1 en esas comandas, no por licencia. Salones (lectura) y camarero se probaron el 28/10; modificar comanda no tiene servicio en el TPV (`28AA-2`).
-- Límites declarados por la usuaria el 28/10/2026 (con motivo, fuera de esta fase de código): D27 (cierre de turno sin movimiento de stock en el TPV del cliente); D23-m (comandas abiertas, sin decisión de producto).
+- Límites declarados por la usuaria el 28/10/2026 (con motivo, fuera de esta fase de código): D21 séptimo aviso «cambiar estado» (necesita el Monitor de Cocina); modificar comanda (el TPV no tiene servicio para cambiar líneas); D27 (cierre de turno sin movimiento de stock en el TPV del cliente); D23-m (comandas abiertas, sin decisión de producto).
 - Piloto con hardware: D03a y D09a (impresora de cocina).
-- Pendiente de decisión de la usuaria: D21 séptimo aviso «cambiar estado» (necesita el Monitor de Cocina) y modificar comanda (el TPV no tiene servicio para cambiar líneas): declarar límite o probar con licencia.
 - D31 necesita la dirección del servidor de mensajes en el terminal; D32 necesita responsables nominales aprobados por Guillermo y el restaurante.
 
 ## Planes activos
