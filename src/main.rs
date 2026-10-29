@@ -5,6 +5,10 @@ use glory_backend::services::{
     ServicioModoOperacion,
 };
 
+/* [por que] sqlx::migrate! embebe un array de migraciones en el stack de main; con 188
+ * migraciones clippy (large_stack_arrays, -D warnings) lo marca. Es el tamaño de la
+ * tabla de migraciones, no un problema de ejecución. */
+#[allow(clippy::large_stack_arrays)]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();

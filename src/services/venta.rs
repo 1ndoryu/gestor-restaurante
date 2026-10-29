@@ -52,8 +52,14 @@ impl VentaService {
                 let (num_mesa, num_salon) =
                     PlanoSalaRepository::codigos_mesa_para_bdp(pool, mesa_id, user_id)
                         .await?
-                        .ok_or_else(|| AppError::Validation("La mesa no existe en el plano".into()))?;
-                Some(MesaVenta { id: mesa_id, num_mesa, num_salon })
+                        .ok_or_else(|| {
+                            AppError::Validation("La mesa no existe en el plano".into())
+                        })?;
+                Some(MesaVenta {
+                    id: mesa_id,
+                    num_mesa,
+                    num_salon,
+                })
             }
             None => None,
         };
