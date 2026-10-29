@@ -17,9 +17,8 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 - Licencia WebLinkRestAPI (servicio 84): resuelta el 28/10/2026 (`Agente/completados/tareas-2026-10-28.md`).
 - `28AA-4` 4.3: el teclado del TPV no responde tras pulsar «Mesa» (`scripts/pc/tpv.mjs`), así que no se puede cambiar unidades en la mesa 5. Estado en `Agente/documentacion/bdp/informe-fase-d-pdf-2026-10-22.html` §7.
 - `28AA-4` 4.5: hecho el 29/10 (reinicio manual decidido por la usuaria). Pendiente: WebLinkRestAPI no tiene proceso propio (sirve HTTP.sys) y BDP.NET es límite de hardware.
-- Mesa 1 (`cd4224d1`, error 300033 en OnlyCheck): no verificado; en mesa 5 la misma venta se acepta.
+- Mesa 1 (`cd4224d1`): BDP responde 300033 («total no coincide con el teórico») en los dos intentos del 29/10 (`bdp_audit_log`). Mismo importe (2,27 + 0,23) que la venta de mesa 5, que se acepta; la causa está en el estado de la mesa 1 en BDP demo, no verificado.
 - 24 `.sqlx` tracked y borrados en disco en la 89 (`git status` ` D`): la réplica de la 89 tiene historia distinta (HEAD `02ee3c5` no contiene `e8d4e23`). Causa no determinada; la réplica no se toca.
-- Coautoría de `09a5c22` (Co-Authored-By de Haiku no deseado): reescribir historia requiere tu decisión.
 - Piloto con hardware: D03a y D09a (impresora de cocina); D31 necesita la dirección del servidor de mensajes en el terminal; D32 necesita responsables nominales aprobados por Guillermo y el restaurante.
 - Límites declarados por la usuaria el 28/10/2026: D21 séptimo aviso «cambiar estado» (Monitor de Cocina); modificar comanda (el TPV no tiene servicio para cambiar líneas); D27 (cierre de turno sin movimiento de stock en el TPV del cliente); D23-m (comandas abiertas, sin decisión de producto).
 
