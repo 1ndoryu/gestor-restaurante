@@ -11,4 +11,4 @@ mod sincronizacion;
 mod tipos;
 
 pub use listado::FiltrosListadoVentas;
-pub use tipos::{ActualizarVentaData, NuevaVenta, VentaRepository};
+pub use tipos::{ActualizarVentaData, MesaVenta, NuevaVenta, VentaRepository};

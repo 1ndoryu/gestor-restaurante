@@ -10,9 +10,12 @@ use crate::errors::AppError;
 use crate::models::{
     ActualizarVentaRequest, AnularVentaRequest, BdpPago, CrearVentaRequest, Venta, VentasPaginadas,
 };
-use crate::repositories::venta::{ActualizarVentaData, FiltrosListadoVentas, NuevaVenta};
+use crate::repositories::venta::{
+    ActualizarVentaData, FiltrosListadoVentas, MesaVenta, NuevaVenta,
+};
 use crate::repositories::{
-    BdpPagoRepository, ConfiguracionRepository, VentaLineaRepository, VentaRepository,
+    BdpPagoRepository, ConfiguracionRepository, PlanoSalaRepository, VentaLineaRepository,
+    VentaRepository,
 };
 
 use super::bdp_push::{DOMINIO_VENTA, OPERACION_CANCELAR};
@@ -42,6 +45,19 @@ impl VentaService {
             .and_then(|v| v.as_str().map(String::from))
             .unwrap_or_else(|| "efectivo".into());
 
+        /* [F3] La mesa se resuelve a sus códigos BDP (mesa y salón) con la foto del plano
+         * en este momento: BDP recibe Type 1 con esos números, no una orden de barra. */
+        let mesa = match req.mesa_id {
+            Some(mesa_id) => {
+                let (num_mesa, num_salon) =
+                    PlanoSalaRepository::codigos_mesa_para_bdp(pool, mesa_id, user_id)
+                        .await?
+                        .ok_or_else(|| AppError::Validation("La mesa no existe en el plano".into()))?;
+                Some(MesaVenta { id: mesa_id, num_mesa, num_salon })
+            }
+            None => None,
+        };
+
         let descripcion = req.descripcion.as_deref().unwrap_or("");
         let data = NuevaVenta {
             user_id,
@@ -57,6 +73,7 @@ impl VentaService {
             /* [034A-5] Ventas manuales no tienen reserva ni cliente asociado */
             reserva_id: None,
             cliente_id: None,
+            mesa,
         };
 
         let mut tx = pool.begin().await?;

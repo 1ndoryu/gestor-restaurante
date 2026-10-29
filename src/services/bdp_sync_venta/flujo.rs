@@ -473,6 +473,9 @@ mod tests {
             factura_numero: None,
             factura_fecha: None,
             propina: Decimal::ZERO,
+            mesa_id: None,
+            num_mesa: None,
+            num_salon: None,
         }
     }
 

@@ -175,6 +175,13 @@ impl BdpSyncService {
          * una escritura que sí se aplicó pero cuya respuesta se perdió. */
         let marketplace_order_id = Self::marketplace_order_id(venta.id);
 
+        /* [F3] Con mesa real, BDP recibe Type 1 con su salón y su número de mesa, para que
+         * el TPV la muestre en el plano. Sin mesa, sigue siendo orden de barra (0, 0). */
+        let (tipo, salon, mesa) = match (venta.num_salon, venta.num_mesa) {
+            (Some(salon), Some(mesa)) => (1, salon, mesa),
+            _ => (order_ctx.order_type, 0, 0),
+        };
+
         /* [F3.1-3.3] Construir order JSON con campos opcionales */
         let mut order = json!({
             "MarketplaceOrderId": &marketplace_order_id[..15.min(marketplace_order_id.len())],
@@ -183,9 +190,9 @@ impl BdpSyncService {
             "PreparationTime": now,
             "OrderId": 0,
             "PosId": config.bdp_pos_id,
-            "Type": order_ctx.order_type,
-            "RoomNumber": 0,
-            "TableNumber": 0,
+            "Type": tipo,
+            "RoomNumber": salon,
+            "TableNumber": mesa,
             "Items": items,
             "Discount": 0.0,
             "DiscountPct": false,

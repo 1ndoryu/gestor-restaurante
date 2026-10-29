@@ -17,6 +17,16 @@ pub struct NuevaVenta<'a> {
     /* [034A-5] Relaciones opcionales */
     pub reserva_id: Option<Uuid>,
     pub cliente_id: Option<Uuid>,
+    /* [F3] Mesa real: id del plano y su número y salón BDP (foto en el momento de crear). */
+    pub mesa: Option<MesaVenta>,
+}
+
+/* [F3] Mesa del plano resuelta a sus códigos BDP (mesa, salón). */
+#[derive(Debug, Clone, Copy)]
+pub struct MesaVenta {
+    pub id: Uuid,
+    pub num_mesa: i32,
+    pub num_salon: i32,
 }
 
 /* [283A-22] Datos para actualizar parcialmente una venta. */

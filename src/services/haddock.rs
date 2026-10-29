@@ -454,6 +454,9 @@ mod tests {
             factura_numero: None,
             factura_fecha: None,
             propina: Decimal::ZERO,
+            mesa_id: None,
+            num_mesa: None,
+            num_salon: None,
         }
     }
 
@@ -1349,6 +1352,7 @@ mod tests {
             importe_iva: Decimal::from_str("3.00").unwrap(),
             reserva_id: None,
             cliente_id: None,
+            mesa: None,
         };
         VentaRepository::create(pool, &data).await.unwrap()
     }

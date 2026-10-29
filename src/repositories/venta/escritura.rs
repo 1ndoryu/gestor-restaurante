@@ -24,8 +24,9 @@ impl VentaRepository {
         let id = Uuid::new_v4();
         sqlx::query_as::<_, Venta>(
             "INSERT INTO ventas (id, user_id, fecha, comensales, descripcion, iva_porcentaje, \
-             turno, canal, metodo_pago, importe_base, importe_iva, reserva_id, cliente_id) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) \
+             turno, canal, metodo_pago, importe_base, importe_iva, reserva_id, cliente_id, \
+             mesa_id, num_mesa, num_salon) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) \
              RETURNING *",
         )
         .bind(id)
@@ -41,6 +42,9 @@ impl VentaRepository {
         .bind(data.importe_iva)
         .bind(data.reserva_id)
         .bind(data.cliente_id)
+        .bind(data.mesa.map(|m| m.id))
+        .bind(data.mesa.map(|m| m.num_mesa))
+        .bind(data.mesa.map(|m| m.num_salon))
         .fetch_one(executor)
         .await
     }

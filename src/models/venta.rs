@@ -97,6 +97,13 @@ pub struct Venta {
      * con columnas explícitas (que no la incluyen) sigan mapeando. */
     #[sqlx(default)]
     pub propina: rust_decimal::Decimal,
+    /* [F3] Mesa real: `mesa_id` del plano y la foto de sus códigos BDP (mesa y salón). */
+    #[sqlx(default)]
+    pub mesa_id: Option<Uuid>,
+    #[sqlx(default)]
+    pub num_mesa: Option<i32>,
+    #[sqlx(default)]
+    pub num_salon: Option<i32>,
 }
 
 /// Request para crear una venta
@@ -116,6 +123,8 @@ pub struct CrearVentaRequest {
      * Si se proporcionan, bdp_sync usará estas líneas para construir un pedido multi-item.
      * Si es None o vacío, se usa el comportamiento legacy (1 artículo genérico). */
     pub lineas: Option<Vec<CrearVentaLineaRequest>>,
+    /// [F3] Mesa real del plano (BDP Type 1). Sin ella, la venta sale como barra.
+    pub mesa_id: Option<Uuid>,
 }
 
 /* [283A-22] Request para actualizar una venta — todos los campos opcionales
@@ -193,6 +202,13 @@ pub struct VentaConCliente {
     /* [198A-1/D8] Propina — mismos campos que `Venta`. */
     #[sqlx(default)]
     pub propina: rust_decimal::Decimal,
+    /* [F3] Mesa real — mismos campos que `Venta`. */
+    #[sqlx(default)]
+    pub mesa_id: Option<Uuid>,
+    #[sqlx(default)]
+    pub num_mesa: Option<i32>,
+    #[sqlx(default)]
+    pub num_salon: Option<i32>,
 }
 
 /* [128A-1/F4] Request de anulación local de ventas.

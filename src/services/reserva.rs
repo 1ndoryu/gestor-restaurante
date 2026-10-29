@@ -578,6 +578,7 @@ impl ReservaService {
             /* [034A-5] Vincular venta con reserva y cliente de origen */
             reserva_id: Some(reserva.id),
             cliente_id: reserva.cliente_id,
+            mesa: None,
         };
 
         match VentaRepository::create(pool, &data).await {
