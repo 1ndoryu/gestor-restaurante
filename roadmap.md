@@ -4,23 +4,24 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `28AA-4`: cerrar los huecos del plan de Guillermo (ver Pendientes); incluye probar el conflicto web–TPV con el TPV local.
+- `28AA-4`: cerrar el conflicto web–TPV con mesa 5 (venta b0a190f2, comanda 81) cuando el teclado del TPV vuelva a responder en modo MESA.
 - `28AA-3`: entorno de pruebas para Guillermo (ver Pendientes).
 
 ## Pendientes
 
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** Web conectada al BDP local, usable como propietaria en un día normal; el enlace se le envía con tu autorización.
-- [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Definir cómo llega la web al BDP del restaurante (etapa 0) y probar el conflicto web contra TPV sobre la misma comanda con el TPV local; el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
+- [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Probar el conflicto web contra TPV sobre la comanda 81 (mesa 5) y decidir cómo llega la web al BDP del restaurante (etapa 0); el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
 ## Bloqueos
 
-- Licencia de WebLinkRestAPI (servicio 84): BDP confirmó el 28/10/2026 que la suscripción 751080-84 es la completa. Verificado en el BDP local el mismo día: `GetApplicationVersion` con `Application: 84` devuelve «WeblinkRestAPI» sin error y `Orders/Get` devuelve la comanda completa (la sonda con cuerpo vacío daba 01, que es el valor por defecto, no un fallo). Propina, pago y factura probados el 28/10 (`Agente/completados/tareas-2026-10-28.md`). La factura de la comanda 72 y 73 da 301300 («tipo de comanda no válido») por EndType 1 en esas comandas, no por licencia. Salones (lectura) y camarero se probaron el 28/10; modificar comanda no tiene servicio en el TPV (`28AA-2`).
-- Límites declarados por la usuaria el 28/10/2026 (con motivo, fuera de esta fase de código): D21 séptimo aviso «cambiar estado» (necesita el Monitor de Cocina); modificar comanda (el TPV no tiene servicio para cambiar líneas); D27 (cierre de turno sin movimiento de stock en el TPV del cliente); D23-m (comandas abiertas, sin decisión de producto).
-- `28AA-4` sin cerrar. 4.3 (TPV local sobre la misma comanda): el conflicto solo salta si el TPV cambia unidades de una comanda ya enlazada a una venta web (`worker.rs`, `conflicto_con_venta`). La comanda 72 (venta 3550115e, 1 COCA-COLA) es la candidata, pero el TPV no la tiene abierta; su pantalla de barra muestra otra comanda sin enviar y un aviso «EMITA TICKET PENDIENTE» (descartado sin emitir nada). La comanda de barra pendiente se anuló sin ticket (29/10). La orden 72 es de barra (`PosId 1`, `TableNumber 0`): «Aparcar Ticket» con 72 dice «inexistente», «Recup. Comand.» no responde a los clics y el plano de «Mesa» no la muestra. Falta una vía del TPV para abrirla sin emitir nada; no hecho. 4.5 (reinicios), parte sincronización: hecha el 29/10 con reinicio manual decidido por la usuaria (glory-backend del 3105, PID 2938965 → 3542747; `Arranque` no existe en la 89). La cola de push quedó igual antes y después (13 descartado, 1 error, 53 sincronizado), sin duplicados. El poller tenía la URL BDP 8070 (muerta en la 89) en `configuracion_restaurante`; se pasó a 8071 (3 filas) y reconectó. Pendiente: WebLinkRestAPI no tiene proceso propio (el 8070 lo sirve HTTP.sys, PID 4, en el laptop) y BDP.NET es límite de hardware. Los avisos «[301000] NO EXISTE NINGUNA COMANDA» del poller son ventas cuya comanda ya no existe en BDP demo.
-4.3, estado: la venta web 80a22a20 se sincroniza (BDP 80, `accepted`), pero la orden sale con `TableNumber 0` (barra), que el TPV no muestra. El conflicto necesita una venta con mesa: añadir mesa a la venta (migración, API y formulario), decidido por la usuaria. Sin hacer.
-- `28AA-3`: enlace a Guillermo pendiente de tu autorización.
-- Piloto con hardware: D03a y D09a (impresora de cocina).
-- D31 necesita la dirección del servidor de mensajes en el terminal; D32 necesita responsables nominales aprobados por Guillermo y el restaurante.
+- Licencia WebLinkRestAPI (servicio 84): resuelta el 28/10/2026 (`Agente/completados/tareas-2026-10-28.md`).
+- `28AA-4` 4.3: el teclado del TPV no responde tras pulsar «Mesa» (`scripts/pc/tpv.mjs`), así que no se puede cambiar unidades en la mesa 5. Estado en `Agente/documentacion/bdp/informe-fase-d-pdf-2026-10-22.html` §7.
+- `28AA-4` 4.5: hecho el 29/10 (reinicio manual decidido por la usuaria). Pendiente: WebLinkRestAPI no tiene proceso propio (sirve HTTP.sys) y BDP.NET es límite de hardware.
+- Mesa 1 (`cd4224d1`, error 300033 en OnlyCheck): no verificado; en mesa 5 la misma venta se acepta.
+- 24 `.sqlx` tracked y borrados en disco en la 89 (`git status` ` D`): la réplica de la 89 tiene historia distinta (HEAD `02ee3c5` no contiene `e8d4e23`). Causa no determinada; la réplica no se toca.
+- Coautoría de `09a5c22` (Co-Authored-By de Haiku no deseado): reescribir historia requiere tu decisión.
+- Piloto con hardware: D03a y D09a (impresora de cocina); D31 necesita la dirección del servidor de mensajes en el terminal; D32 necesita responsables nominales aprobados por Guillermo y el restaurante.
+- Límites declarados por la usuaria el 28/10/2026: D21 séptimo aviso «cambiar estado» (Monitor de Cocina); modificar comanda (el TPV no tiene servicio para cambiar líneas); D27 (cierre de turno sin movimiento de stock en el TPV del cliente); D23-m (comandas abiertas, sin decisión de producto).
 
 ## Planes activos
 
