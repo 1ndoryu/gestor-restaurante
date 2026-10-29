@@ -3,7 +3,7 @@
  * [283A-22] Soporte edición — acepta venta opcional para pre-rellenar y usar PUT.
  * [147A-F6] Integración multi-item: LineasVentaEditor para artículos individuales. */
 
-import { Turno, CanalVenta, Venta } from '../api/generated';
+import { Turno, CanalVenta, Venta, useObtenerPlano } from '../api/generated';
 import useFormularioVenta, { calcularIva } from '../hooks/useFormularioVenta';
 import LineasVentaEditor from '../components/lineas-venta-editor';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,12 @@ interface Props {
 
 function FormularioVenta({ onExito, venta }: Props) {
     const { campos, cambiarCampo, toggleTurno, cambiarDetalle, error, manejarEnvio, cargando, esEdicion, lineasHook } = useFormularioVenta(onExito, venta);
+    const { data: planoData } = useObtenerPlano();
+    /* Mesas activas del plano, por zona; la venta en barra no lleva mesa */
+    const mesas = planoData?.status === 200
+        ? planoData.data.zonas.flatMap(z => z.mesas.filter(m => m.activa).map(m => ({ id: m.id, numero: m.numero, zona: z.nombre, orden: z.orden })))
+            .sort((a, b) => a.orden - b.orden || a.numero - b.numero)
+        : [];
 
     return (
         <div>
@@ -81,6 +87,22 @@ function FormularioVenta({ onExito, venta }: Props) {
                         </SelectContent>
                     </Select>
                 </div>
+
+                {/* Solo en alta: el PUT de edición no cambia la mesa */}
+                {!esEdicion && (
+                    <div className="flex flex-col gap-2">
+                        <Label htmlFor="mesa">Mesa</Label>
+                        <Select value={campos.mesaId || 'ninguna'} onValueChange={v => cambiarCampo('mesaId', v === 'ninguna' ? '' : v)}>
+                            <SelectTrigger id="mesa"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ninguna">Barra (sin mesa)</SelectItem>
+                                {mesas.map(m => (
+                                    <SelectItem key={m.id} value={m.id}>{`${m.zona} · Mesa ${m.numero}`}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
 
                 {campos.turnos.map(t => {
                     const d = campos.detalles[t];

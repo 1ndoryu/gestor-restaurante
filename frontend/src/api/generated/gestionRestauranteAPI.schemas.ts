@@ -1571,6 +1571,7 @@ export interface CrearVentaRequest {
   iva_porcentaje: string;
   /** @nullable */
   lineas?: CrearVentaLineaRequest[] | null;
+  mesa_id?: string | null;
   metodo_pago: MetodoPago;
   turno: Turno;
 }
@@ -2348,6 +2349,9 @@ export interface Venta {
   importe_iva: string;
   iva_porcentaje: string;
   metodo_pago: string;
+  mesa_id?: string | null;
+  num_mesa?: number | null;
+  num_salon?: number | null;
   /** @nullable */
   reserva_id?: string | null;
   turno: string;
@@ -2392,6 +2396,9 @@ export interface VentaConCliente {
   importe_iva: string;
   iva_porcentaje: string;
   metodo_pago: string;
+  mesa_id?: string | null;
+  num_mesa?: number | null;
+  num_salon?: number | null;
   /** @nullable */
   nombre_cliente?: string | null;
   /** @nullable */

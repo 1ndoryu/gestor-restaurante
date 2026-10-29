@@ -16,6 +16,8 @@ export interface CamposVenta {
   turnos: Turno[];
   canal: CanalVenta;
   detalles: Record<Turno, DetalleTurno>;
+  /* Mesa real del plano; vacío = barra (sin mesa) */
+  mesaId: string;
 }
 
 export const detallePorDefecto = (): DetalleTurno => ({ importeBase: '', metodoPago: MetodoPago.efectivo });
@@ -39,6 +41,7 @@ export function camposIniciales(ventaInicial?: Venta): CamposVenta {
       ivaPorcentaje: ventaInicial.iva_porcentaje,
       turnos: [turno],
       canal: (ventaInicial.canal as CanalVenta) || CanalVenta.comedor,
+      mesaId: ventaInicial.mesa_id ?? '',
       detalles: {
         [Turno.manana]: turno === Turno.manana ? det : detallePorDefecto(),
         [Turno.mediodia]: turno === Turno.mediodia ? det : detallePorDefecto(),
@@ -53,6 +56,7 @@ export function camposIniciales(ventaInicial?: Venta): CamposVenta {
     ivaPorcentaje: '10',
     turnos: [Turno.mediodia],
     canal: CanalVenta.comedor,
+    mesaId: '',
     detalles: {
       [Turno.manana]: detallePorDefecto(),
       [Turno.mediodia]: detallePorDefecto(),

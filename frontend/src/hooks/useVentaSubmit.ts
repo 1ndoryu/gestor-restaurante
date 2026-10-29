@@ -78,6 +78,8 @@ export function useVentaSubmit(
           importe_base: tieneLineas ? String(lineasHook.totalBase) : d.importeBase,
           importe_iva: tieneLineas ? String(lineasHook.totalIva) : calcularIva(d.importeBase, campos.ivaPorcentaje),
           lineas: tieneLineas ? lineasHook.lineasRequest : undefined,
+          /* Mesa real del plano: BDP la recibe como Type 1 y el TPV la muestra */
+          mesa_id: campos.mesaId || null,
         };
         return crearVenta(req);
       }));
