@@ -1,0 +1,4 @@
+ALTER TABLE ventas
+    DROP COLUMN IF EXISTS num_salon,
+    DROP COLUMN IF EXISTS num_mesa,
+    DROP COLUMN IF EXISTS mesa_id;
