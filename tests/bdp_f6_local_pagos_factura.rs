@@ -47,6 +47,7 @@ async fn create_test_venta(pool: &PgPool, user_id: Uuid) -> Uuid {
         importe_iva: Decimal::from_str("10.00").unwrap(),
         reserva_id: None,
         cliente_id: None,
+        mesa: None,
     };
     VentaRepository::create(pool, &data)
         .await

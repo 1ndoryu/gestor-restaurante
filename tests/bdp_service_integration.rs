@@ -293,6 +293,9 @@ async fn seed_venta(pool: &PgPool, user_id: Uuid) -> Venta {
         factura_numero: None,
         factura_fecha: None,
         propina: Decimal::ZERO,
+        mesa_id: None,
+        num_mesa: None,
+        num_salon: None,
     }
 }
 
@@ -579,6 +582,9 @@ async fn svc_add_payment_full_flow(pool: PgPool) {
         factura_numero: None,
         factura_fecha: None,
         propina: Decimal::ZERO,
+        mesa_id: None,
+        num_mesa: None,
+        num_salon: None,
     };
 
     seed_arming(&pool, &config, venta_id, "add_payment").await;
@@ -686,6 +692,9 @@ async fn svc_invoice_order_full_flow(pool: PgPool) {
         factura_numero: None,
         factura_fecha: None,
         propina: Decimal::ZERO,
+        mesa_id: None,
+        num_mesa: None,
+        num_salon: None,
     };
 
     seed_arming(&pool, &config, venta_id, "invoice").await;

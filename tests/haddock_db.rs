@@ -46,6 +46,7 @@ fn nueva_venta(user_id: Uuid) -> NuevaVenta<'static> {
         importe_iva: Decimal::from_str("4.50").expect("decimal válido"),
         reserva_id: None,
         cliente_id: None,
+        mesa: None,
     }
 }
 
