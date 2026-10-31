@@ -4,23 +4,22 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `28AA-4`: cerrar el conflicto web–TPV con mesa 5 (venta b0a190f2, comanda 81) cuando el teclado del TPV vuelva a responder en modo MESA.
+- `28AA-4`: decidir cómo llega la web al BDP del restaurante (etapa 0).
 - `28AA-3`: entorno de pruebas para Guillermo (ver Pendientes).
 
 ## Pendientes
 
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** Web conectada al BDP local, usable como propietaria en un día normal; el enlace se le envía con tu autorización.
-- [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Probar el conflicto web contra TPV sobre la comanda 81 (mesa 5) y decidir cómo llega la web al BDP del restaurante (etapa 0); el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
+- [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Decidir cómo llega la web al BDP del restaurante (etapa 0); el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
 ## Bloqueos
 
 - Licencia WebLinkRestAPI (servicio 84): resuelta el 28/10/2026 (`Agente/completados/tareas-2026-10-28.md`).
-- `28AA-4` 4.3: el teclado del TPV no responde tras pulsar «Mesa» (`scripts/pc/tpv.mjs`), así que no se puede cambiar unidades en la mesa 5. Estado en `Agente/documentacion/bdp/informe-fase-d-pdf-2026-10-22.html` §7.
 - `28AA-4` 4.5: hecho el 29/10 (reinicio manual decidido por la usuaria). Pendiente: WebLinkRestAPI no tiene proceso propio (sirve HTTP.sys) y BDP.NET es límite de hardware.
-- Mesa 1 (`cd4224d1`): BDP responde 300033 («total no coincide con el teórico») en los dos intentos del 29/10 (`bdp_audit_log`). Mismo importe (2,27 + 0,23) que la venta de mesa 5, que se acepta; la causa está en el estado de la mesa 1 en BDP demo, no verificado.
-- 24 `.sqlx` tracked y borrados en disco en la 89 (`git status` ` D`): la réplica de la 89 tiene historia distinta (HEAD `02ee3c5` no contiene `e8d4e23`). Causa no determinada; la réplica no se toca.
+- Mesa 1 (`cd4224d1`): BDP responde 300033 en los dos intentos del 29/10. Causa no verificada (29/10): la suscripción de BDP demo no expone GetRoomsTables (snapshots con Tables: []), así que no hay lectura del estado de la mesa 1. La única vía sería una variante OnlyCheck con Type 1, sin probar; el comentario de payload.rs indica que Type 1 falló con 300008 en otro POS. Límite declarado.
+- 24 `.sqlx` «D» en la 89: causa determinada (réplica atrasada en `02ee3c5`, anterior a `e8d4e23`; sin pérdida). Pendiente solo sincronizar la réplica con `main` (la usuaria decide cuándo; no se toca por iniciativa propia).
 - Piloto con hardware: D03a y D09a (impresora de cocina); D31 necesita la dirección del servidor de mensajes en el terminal; D32 necesita responsables nominales aprobados por Guillermo y el restaurante.
-- Límites declarados por la usuaria el 28/10/2026: D21 séptimo aviso «cambiar estado» (Monitor de Cocina); modificar comanda (el TPV no tiene servicio para cambiar líneas); D27 (cierre de turno sin movimiento de stock en el TPV del cliente); D23-m (comandas abiertas, sin decisión de producto).
+- Límites declarados por la usuaria el 28/10/2026: D21 séptimo aviso «cambiar estado» (Monitor de Cocina); modificar comanda (el TPV no tiene servicio para cambiar líneas); D27 (cierre de turno sin movimiento de stock en el TPV del cliente); D23-m (comandas abiertas, sin decisión de producto); 4.3, conflicto web–TPV por cambio de líneas (el TPV no emite aviso, probado el 29/10 en la mesa 5).
 
 ## Planes activos
 
