@@ -44,6 +44,7 @@ impl utoipa::Modify for SecurityAddon {
 #[openapi(
     paths(
         health::health_check,
+        health::entorno,
         auth::register,
         auth::login,
         auth::forgot_password,
@@ -227,6 +228,7 @@ impl utoipa::Modify for SecurityAddon {
     ),
     components(schemas(
         health::HealthResponse,
+        health::EntornoResponse,
         crate::models::RegisterRequest,
         crate::models::LoginRequest,
         crate::models::AuthResponse,
