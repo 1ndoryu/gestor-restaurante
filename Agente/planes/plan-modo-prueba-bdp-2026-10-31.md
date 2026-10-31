@@ -29,9 +29,9 @@ conectado al BDP del portátil. Producción queda con el mecanismo apagado.
 - Frontend: `BannerEntorno` en `components/layout.tsx` (encima de `SiteHeader`) y en `Login.tsx`: franja
   fija, ámbar (distinta del rojo de errores), con la etiqueta y una segunda línea «Los datos de aquí son de
   prueba; no afectan al restaurante». Sin botón de cerrar. Si no hay etiqueta, no renderiza nada.
-- El indicador BDP de la cabecera (`site-header.tsx`) muestra en el tooltip el host al que apunta.
-- Si el BDP del portátil no responde (portátil apagado o túnel caído), el indicador ya degrada; el aviso
-  añade «BDP sin respuesta» usando ese estado, para que el cliente sepa que no es un fallo suyo.
+- Descartado al implementar: tooltip del host en el indicador BDP y texto «BDP sin respuesta» en la franja.
+  El indicador de la cabecera ya degrada solo cuando el BDP no responde; duplicarlo en la franja sumaba
+  ruido sin información nueva.
 
 El código es el mismo para 89 y 66: cuando se despliegue producción por otro motivo, el cambio va inerte.
 
@@ -60,7 +60,7 @@ un solo uso que llega a su email, sesión de 24 h) y darle un usuario en la web.
 1. `Arranque gate "RESTAURANTE" --inicio` (hay código).
 2. Backend: lectura de la variable, `GET /api/entorno`, OpenAPI y cliente generado; test unitario
    (con y sin variable, texto vacío = apagado).
-3. Frontend: `BannerEntorno` en layout y login, tooltip del host, estado «BDP sin respuesta». Revisión real
+3. Frontend: `BannerEntorno` en layout y login. Revisión real
    en el navegador: responsive, tema claro/oscuro, contraste, con y sin variable.
 4. Definir la variable en el `.env` del laptop y reiniciar en la 89 (`stop` + `up --sin-bd`); comprobar por
    `rest-dev` (Access activo) que la franja sale en login y en todas las pantallas, y que **sin** la variable
@@ -75,11 +75,11 @@ un solo uso que llega a su email, sesión de 24 h) y darle un usuario en la web.
 
 ## Hecho cuando
 
-- `rest-dev.wandori.us` muestra la franja de pruebas en login y en cada pantalla; con la variable quitada no
-  hay franja (probado ambas).
-- Una comanda de prueba sale al BDP del portátil y la base de producción no cambia (producción no se tocó).
-- Tras `stop` + `up --sin-bd`, los datos de prueba siguen ahí.
-- Gate sin hallazgos nuevos, pruebas verdes en la 89, docs al día, commit en `main`.
+- [x] `rest-dev.wandori.us` muestra la franja de pruebas en login y en cada pantalla; con la variable quitada no hay franja (probado ambas, 2026-10-31).
+- [x] Una comanda de prueba sale al BDP del portátil y la base de producción no cambia (producción no se tocó).
+- [x] Tras `stop` + `up --sin-bd`, los datos de prueba siguen ahí.
+- [ ] Gate sin hallazgos nuevos, pruebas verdes en la 89, docs al día, commit en `main`.
+- [ ] Correos del cliente en Access y usuario de la web creado (cierra la parte técnica de `28AA-3`).
 
 ## Fuera de este plan (reservado a la usuaria)
 
