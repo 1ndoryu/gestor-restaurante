@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { BannerEntorno } from '@/components/banner-entorno';
 
 function Login() {
   const {
@@ -23,7 +24,9 @@ function Login() {
       : 'Inicia sesión para continuar';
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen flex-col bg-background">
+      <BannerEntorno />
+      <div className="flex flex-1 items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Gestión Restaurante</CardTitle>
@@ -92,6 +95,7 @@ function Login() {
           )}
         </CardFooter>
       </Card>
+      </div>
     </div>
   );
 }

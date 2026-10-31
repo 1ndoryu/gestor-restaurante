@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/authStore"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
+import { BannerEntorno } from "@/components/banner-entorno"
 
 export default function Layout() {
   const autenticado = useAuthStore((s) => s.estaAutenticado)()
@@ -18,6 +19,7 @@ export default function Layout() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
+        <BannerEntorno />
         <SiteHeader />
         <div className="flex flex-1 flex-col gap-4 p-4">
           <Outlet />
