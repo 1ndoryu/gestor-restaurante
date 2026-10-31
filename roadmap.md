@@ -4,15 +4,13 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `31AA-1`: entorno de pruebas en la 89 (BDP del portátil) con aviso fijo; producción no se toca.
 - `28AA-4`: decidir cómo llega la web al BDP del restaurante (etapa 0).
 - `28AA-3`: entorno de pruebas para Guillermo (ver Pendientes).
 
 ## Pendientes
 
-- [ ] `31AA-1` — **Entorno de pruebas en la 89 con aviso fijo.** `rest-dev` (ya conectado al BDP del portátil) muestra una franja de pruebas por variable de entorno, ausente en producción; hecho cuando sale en login y en todas las pantallas, no sale sin la variable y una comanda de prueba llega al BDP demo. Acceso del cliente (Access + usuario) y despliegue, de la usuaria.
 
-- [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** Web conectada al BDP local, usable como propietaria en un día normal; el enlace se le envía con tu autorización.
+- [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** `rest-dev.wandori.us` ya está listo (franja de pruebas, BDP del portátil; manual en `Agente/documentacion/bdp/entorno-pruebas-2026-10-31.md`); faltan los correos del cliente en la política de Access, su usuario de la web y que la usuaria le envíe el enlace.
 - [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Decidir cómo llega la web al BDP del restaurante (etapa 0); el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
 ## Bloqueos
