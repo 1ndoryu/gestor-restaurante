@@ -4,13 +4,13 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `31AA-1`: modo de prueba de producción contra el BDP del portátil (plan activo).
+- `31AA-1`: entorno de pruebas en la 89 (BDP del portátil) con aviso fijo; producción no se toca.
 - `28AA-4`: decidir cómo llega la web al BDP del restaurante (etapa 0).
 - `28AA-3`: entorno de pruebas para Guillermo (ver Pendientes).
 
 ## Pendientes
 
-- [ ] `31AA-1` — **Modo de prueba temporal en producción.** Interruptor de Admin que conecta la web al BDP del portátil, con aviso rojo fijo arriba que indica a qué BDP está conectada; hecho cuando activar/apagar restaura la configuración real idéntica y una comanda de prueba sale al BDP del portátil (probado en la 89). Desplegar a producción y la ruta de red a la 66, de la usuaria.
+- [ ] `31AA-1` — **Entorno de pruebas en la 89 con aviso fijo.** `rest-dev` (ya conectado al BDP del portátil) muestra una franja de pruebas por variable de entorno, ausente en producción; hecho cuando sale en login y en todas las pantallas, no sale sin la variable y una comanda de prueba llega al BDP demo. Acceso del cliente (Access + usuario) y despliegue, de la usuaria.
 
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** Web conectada al BDP local, usable como propietaria en un día normal; el enlace se le envía con tu autorización.
 - [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Decidir cómo llega la web al BDP del restaurante (etapa 0); el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
@@ -26,7 +26,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Planes activos
 
-- `Agente/planes/plan-modo-prueba-bdp-2026-10-31.md` — `31AA-1` — modo de prueba: producción conectada al BDP del portátil con aviso fijo.
+- `Agente/planes/plan-modo-prueba-bdp-2026-10-31.md` — `31AA-1` — entorno de pruebas en la 89 conectado al BDP del portátil, con aviso fijo.
 - `Agente/planes/plan-correcciones-piloto-bdp-2026-10-26.md` — correcciones antes del piloto BDP (pruebas locales sin licencia hechas; falta repetir con la licencia 84 y el piloto). Guía de Guillermo: `Agente/usuario/plan-practico-avance-bdp-guillermo-2026-10-28.docx` (piloto por etapas 0–5).
 - `Agente/planes/anexo-b8-aceptacion-2026-10-08.md` — `anexo-b8-aceptacion-2026-10-08` — fichas de aceptación D, pendientes de ejecución.
 - `Agente/planes/plan-50k-2026-09-16.md` — `169A-5` — escalar a 50.000 personas con caché, CDN y re-medición.
