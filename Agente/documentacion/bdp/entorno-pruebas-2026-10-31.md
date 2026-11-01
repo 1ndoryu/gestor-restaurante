@@ -57,6 +57,12 @@ Producción (VPS 66) no la tiene: sin la variable, el mecanismo está apagado.
   Es el guarda de escritura (`bdp_write_guard`): con el BDP en «Solo lectura» no se empuja nada hasta armar la escritura.
   Para que el cliente vea comandas en el TPV hay que armar la escritura del BDP demo; hoy el entorno solo lee.
 
+- Desborde horizontal a 880 px de escritorio (13 de 23 rutas): `<main data-slot="sidebar-inset">` no tenía `min-w-0` y su
+  contenido mínimo ensanchaba la página a 1030 px. Corregido en `components/ui/sidebar.tsx`; tras el despliegue, 0 desbordes en las 23 rutas.
+- IVA 8 % en la venta nueva: no es un fallo; `demo@restaurante.com` tiene `iva_por_defecto` 8.00 en su configuración y
+  `useFormularioVenta` lo antepone al 10 % del formulario. Decisión pendiente de la usuaria.
+- **No confirmado:** escritura real de una venta en el BDP (exige armar `unidirectional` con confirmaciones y snapshot fresco).
+
 ## Pendiente de la usuaria
 
 Enviar el enlace y las credenciales al cliente (`28AA-3`). Queda un usuario vacío `guillermo.autoia@gmail.com` en la base de la 89, sin uso.
