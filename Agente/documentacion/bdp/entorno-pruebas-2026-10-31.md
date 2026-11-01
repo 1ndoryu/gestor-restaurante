@@ -50,6 +50,13 @@ Producción (VPS 66) no la tiene: sin la variable, el mecanismo está apagado.
   del `.env` del portátil; cambiarla con `PUT /api/auth/password`.
 - Recorrido real con el BDP conectado: franja en todas las pantallas, plano de sala (6 mesas), catálogo, sincronización.
 
+## Prueba completa para entrega (2026-11-01)
+
+- Móvil 375 px y tema claro/oscuro, 12 rutas cada uno: sin desbordes y con la franja visible (rutas inexistentes redirigen a `/`).
+- Venta con Mesa 5 y una línea por API: se crea (201) con `num_mesa` 5 y **no** se envía al BDP (`bdp_synced` falso, sin error).
+  Es el guarda de escritura (`bdp_write_guard`): con el BDP en «Solo lectura» no se empuja nada hasta armar la escritura.
+  Para que el cliente vea comandas en el TPV hay que armar la escritura del BDP demo; hoy el entorno solo lee.
+
 ## Pendiente de la usuaria
 
 Enviar el enlace y las credenciales al cliente (`28AA-3`). Queda un usuario vacío `guillermo.autoia@gmail.com` en la base de la 89, sin uso.
