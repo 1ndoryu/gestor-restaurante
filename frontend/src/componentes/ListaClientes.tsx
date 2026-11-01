@@ -108,7 +108,7 @@ function ListaClientes() {
             <span className="text-xs text-muted-foreground">Selecciona otro cliente para fusionar</span>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <TooltipButton variant="outline" tooltip="Importar clientes desde BDP a la Aplicación Web. Solo lectura BDP." onClick={() => { setImportarBdpAbierto(true); setPreviewImportar(null); setConfirmacionImportar(''); }}><Download className="size-4 mr-1" />Importar del BDP</TooltipButton>
           <TooltipButton variant="outline" tooltip="Subir los clientes locales sin vincular al BDP. Arranca en simulación: no escribe nada hasta que desactives la simulación y confirmes." onClick={exportar.abrirExportar}><Upload className="size-4 mr-1" />Exportar a BDP</TooltipButton>
           <Button onClick={() => setModalCrear(true)}>+ Nuevo Cliente</Button>

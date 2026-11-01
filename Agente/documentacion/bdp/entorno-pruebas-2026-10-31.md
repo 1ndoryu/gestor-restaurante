@@ -59,8 +59,16 @@ Producción (VPS 66) no la tiene: sin la variable, el mecanismo está apagado.
 
 - Desborde horizontal a 880 px de escritorio (13 de 23 rutas): `<main data-slot="sidebar-inset">` no tenía `min-w-0` y su
   contenido mínimo ensanchaba la página a 1030 px. Corregido en `components/ui/sidebar.tsx`; tras el despliegue, 0 desbordes en las 23 rutas.
-- IVA 8 % en la venta nueva: no es un fallo; `demo@restaurante.com` tiene `iva_por_defecto` 8.00 en su configuración y
-  `useFormularioVenta` lo antepone al 10 % del formulario. Decisión pendiente de la usuaria.
+- IVA 8 % en la venta nueva: no es un fallo; `demo@restaurante.com` tenía `iva_por_defecto` 8.00 en su configuración y
+  `useFormularioVenta` lo antepone al 10 % del formulario. Puesto a 10 por la UI de Configuración (2026-11-01).
+- Desborde a 375 px en cabecera (`site-header.tsx`), barras de acciones (Clientes, Plano de sala, Campañas, Plantillas WA)
+  y campos de hora de «Horarios de turnos» (recortaban «12:00 a. m.» en locales de 12 h): `min-w-0`/`truncate`, `flex-wrap`
+  y rejilla de una columna hasta `2xl` con `w-36`. Verificado a 375 y 880 px.
+- Flujos creados a mano con éxito: venta, gasto, reserva, cliente, búsqueda vacía, validaciones y teclado (Tab/Escape).
+- **Túneles:** `Arranque up` solo gestiona el túnel directo 3105 (lo retiene el supervisor del workspace-manager y `up`
+  acaba en «tunel ssh no levanto…», aunque el backend de la 89 sirve el build nuevo). El túnel inverso 89:8071→portátil:8070
+  del BDP **no** lo gestiona el wrapper: es un `ssh -N -f -R 127.0.0.1:8071:127.0.0.1:8070 dev89` manual; hay que
+  recrearlo tras reiniciar el portátil o cortarse el ssh.
 - **No confirmado:** escritura real de una venta en el BDP (exige armar `unidirectional` con confirmaciones y snapshot fresco).
 
 ## Pendiente de la usuaria

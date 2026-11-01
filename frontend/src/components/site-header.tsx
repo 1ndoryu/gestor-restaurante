@@ -178,15 +178,16 @@ export function SiteHeader() {
 
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
-      <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
-        <SidebarTrigger className="-ml-1" />
+      <div className="flex w-full min-w-0 items-center gap-1 px-4 lg:gap-2 lg:px-6">
+        <SidebarTrigger className="-ml-1 shrink-0" />
         {/* [149A-1/P1.1] La rayita divisoria del encabezado se dibuja con un div y no con
             <Separator orientation="vertical">: el primitivo aplica self-stretch, y con un
             alto fijo (h-4) eso la pega al borde superior en vez de centrarla en la fila.
             El padre ya centra con items-center, así que aquí basta el alto explícito. */}
         <div aria-hidden className="mx-2 h-4 w-px shrink-0 bg-border" />
-        <h1 className="text-base font-medium">{titulo}</h1>
-        <div className="ml-auto flex items-center gap-2">
+        {/* Título recortable y acciones fijas: en móvil el título cede en vez de ensanchar la página. */}
+        <h1 className="min-w-0 truncate text-base font-medium">{titulo}</h1>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           <BdpStatusIndicator />
           <NotificationBell />
         </div>

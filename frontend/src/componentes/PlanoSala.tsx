@@ -112,7 +112,7 @@ function PlanoSala() {
             <TooltipButton size="sm" variant="destructive" onClick={handleEliminarZona} tooltip="Eliminar la zona activa y todas sus mesas. No se puede deshacer."><Trash2 className="size-4 mr-1" />Zona</TooltipButton>
           </>
         )}
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap gap-2">
           <TooltipButton size="sm" variant="ghost" onClick={handleExportar} tooltip="Guardar el plano de sala en un archivo JSON"><Download className="size-4 mr-1" />Guardar archivo</TooltipButton>
           <TooltipButton size="sm" variant="ghost" onClick={handleImportar} tooltip="Cargar un plano de sala desde un archivo JSON"><Upload className="size-4 mr-1" />Cargar archivo</TooltipButton>
           {/* [039A-1/H-P1-02] "Importar del BDP" exige modo BDP efectivo (mismo criterio
