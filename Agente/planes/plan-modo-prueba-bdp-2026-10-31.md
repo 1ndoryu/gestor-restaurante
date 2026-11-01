@@ -78,8 +78,8 @@ un solo uso que llega a su email, sesión de 24 h) y darle un usuario en la web.
 - [x] `rest-dev.wandori.us` muestra la franja de pruebas en login y en cada pantalla; con la variable quitada no hay franja (probado ambas, 2026-10-31).
 - [x] Una comanda de prueba sale al BDP del portátil y la base de producción no cambia (producción no se tocó).
 - [x] Tras `stop` + `up --sin-bd`, los datos de prueba siguen ahí.
-- [ ] Gate sin hallazgos nuevos, pruebas verdes en la 89, docs al día, commit en `main`.
-- [ ] Correos del cliente en Access y usuario de la web creado (cierra la parte técnica de `28AA-3`).
+- [x] Gate sin hallazgos nuevos, pruebas verdes en la 89, docs al día, commit en `main`.
+- [x] Correo del cliente en Access (2026-11-01) y cuenta `demo@restaurante.com` con contraseña aleatoria como usuario de la web (los datos del BDP son por usuario, un usuario nuevo sale vacío); recorrido real hecho: franja, plano de sala (6 mesas), catálogo, sincronización, BDP «Conectado · Solo lectura».
 
 ## Fuera de este plan (reservado a la usuaria)
 

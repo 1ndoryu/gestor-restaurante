@@ -10,7 +10,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 ## Pendientes
 
 
-- [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** `rest-dev.wandori.us` ya está listo (franja de pruebas, BDP del portátil; manual en `Agente/documentacion/bdp/entorno-pruebas-2026-10-31.md`); faltan los correos del cliente en la política de Access, su usuario de la web y que la usuaria le envíe el enlace.
+- [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** `rest-dev.wandori.us` ya está listo (franja de pruebas, BDP del portátil; manual en `Agente/documentacion/bdp/entorno-pruebas-2026-10-31.md`); el correo de Guillermo ya está en Access y la cuenta `demo@restaurante.com` es su usuario; falta solo que la usuaria le envíe el enlace y las credenciales (`C:	mpestaurante-clienteedenciales.txt`).
 - [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Decidir cómo llega la web al BDP del restaurante (etapa 0); el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
 ## Bloqueos

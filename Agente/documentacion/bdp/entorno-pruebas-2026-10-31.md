@@ -42,6 +42,14 @@ Producción (VPS 66) no la tiene: sin la variable, el mecanismo está apagado.
 - Sin la variable: `/api/entorno` → `null` y sin franja.
 - `rest-dev.wandori.us` redirige a Cloudflare Access (302); hoy solo `andoryyu@gmail.com`.
 
+## Acceso del cliente (2026-11-01)
+
+- Cloudflare Access: `guillermo.autoia@gmail.com` añadido a la política Allow de `rest-dev` (código por correo, 24 h).
+- Usuario web: `demo@restaurante.com` (los datos del BDP, catálogo y ventas son **por usuario**: un usuario recién
+  registrado sale vacío y con «BDP Desconectado»). Contraseña aleatoria, fuera del repo, en `DEMO_RESTAURANTE_PASSWORD`
+  del `.env` del portátil; cambiarla con `PUT /api/auth/password`.
+- Recorrido real con el BDP conectado: franja en todas las pantallas, plano de sala (6 mesas), catálogo, sincronización.
+
 ## Pendiente de la usuaria
 
-Correos del cliente para la política Allow de Access y entrega de usuario/contraseña de la web (`28AA-3`).
+Enviar el enlace y las credenciales al cliente (`28AA-3`). Queda un usuario vacío `guillermo.autoia@gmail.com` en la base de la 89, sin uso.
