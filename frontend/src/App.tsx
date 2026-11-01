@@ -3,7 +3,8 @@
  * Se eliminó el import de global.css — Tailwind maneja todos los estilos ahora.
  * [283A-26] ErrorBoundary global para capturar errores y reportarlos por email. */
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -52,6 +53,14 @@ const esErrorTransitorio = (fallos: number, error: unknown): boolean => {
 };
 
 const queryClient = new QueryClient({
+  // Un fallo de carga no debe parecer una lista vacía: avisa una sola vez (id fijo evita la avalancha).
+  queryCache: new QueryCache({
+    onError: (error) => {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 401) return; // la sesión caducada ya redirige al login
+      toast.error('No se pudieron cargar los datos. Revisa la conexión e inténtalo de nuevo.', { id: 'error-carga' });
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,
