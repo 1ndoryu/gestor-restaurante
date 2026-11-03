@@ -11,9 +11,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** `rest-dev.wandori.us` ya está listo (franja de pruebas, BDP del portátil; manual en `Agente/documentacion/bdp/entorno-pruebas-2026-10-31.md`); el correo de Guillermo ya está en Access y la cuenta `demo@restaurante.com` es su usuario; falta solo que la usuaria le envíe el enlace y las credenciales (`C:/tmp/restaurante-cliente/credenciales.txt`).
-- [ ] `02AB-1` — **D05–D07: enviar a BDP las modificaciones de una comanda existente.** Probado el 02/11 (`Agente/documentacion/bdp/sondas-modificar-comanda-y-mesas-2026-11-02.md`): `CreateOrder` con `OrderId` añade las líneas enviadas y `Total` es el total final; cambiar o quitar = línea de ajuste con unidades negativas. Falta implementarlo en `update_order` (delta contra `GetOrder`), probarlo en la web y ver la línea negativa en el TPV y en cocina; hecho cuando web y BDP coinciden en contenido y total. Guillermo, 02/11.
-- [ ] `02AB-2` — **Detectar cambios hechos en el TPV releyendo con GetOrder.** `Orders/Get` por mesa u `OrderId` devuelve el contenido en el demo (02/11). Falta: relectura periódica de comandas abiertas y justo antes de modificar, cobrar o facturar; conflicto visible sin sobrescribir; hecho cuando una comanda creada en la web y cambiada en BDP se detecta sin aviso del TPV. Sustituye el límite 4.3.
-- [ ] `02AB-3` — **Mesa ocupada: comprobar antes de crear y mostrar un error comprensible.** Causa hallada el 02/11: el rechazo era 300033 por mesa con comanda abierta (mesas 1, 3 y 7 del demo), no el tipo de comanda; OnlyCheck no lo detecta. Falta: `GetOrder` por salón y mesa antes de crear (añadir líneas o avisar), mensaje claro y probar varias mesas y tipos de pedido del restaurante. Ya no vale «límite declarado».
+- [ ] `02AB-2` — **Detectar cambios hechos en el TPV releyendo con GetOrder: falta el sondeo periódico y la relectura antes de cobrar o facturar.** La relectura antes de modificar ya está (conflicto 409 sin sobrescribir, 02/11); hecho cuando una comanda creada en la web y cambiada en BDP se detecta sin aviso del TPV, también al cobrar y facturar. Sustituye el límite 4.3.
 - [ ] `02AB-4` — **D18d: factura emitida correcta.** Facturar una comanda de prueba con nombre, NIF y dirección, recuperar el documento y comparar número, serie, cliente, NIF, líneas, impuestos y total; repetir la petición y comprobar que no genera otra factura.
 - [ ] `02AB-5` — **Reinicio de BDP.NET en local.** Cerrar y reabrir BDP.NET con una prueba preparada; la integración recupera conexión, cola y comandas sin perder ni duplicar (o evidencia concreta de que D29 ya lo cubrió).
 - [ ] `02AB-6` — **Sincronización automática de formas de pago y empleados.** Cambio controlado en el BDP local, esperar la cadencia programada sin pulsar nada y comprobar que la web se actualiza sola.
@@ -25,10 +23,10 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 - Licencia WebLinkRestAPI (servicio 84): resuelta el 28/10/2026 (`Agente/completados/tareas-2026-10-28.md`).
 - `28AA-4` 4.5: hecho el 29/10 (reinicio manual decidido por la usuaria). Pendiente: WebLinkRestAPI no tiene proceso propio (sirve HTTP.sys) y BDP.NET es límite de hardware.
-- Mesa 1 (`cd4224d1`): causa hallada el 02/11, ver `02AB-3` (mesa con comanda abierta, no tipo de comanda).
+- Mesa 1 (`cd4224d1`): era mesa con comanda abierta (300033), no tipo de comanda; ya se comprueba antes de crear (02/11).
 - 24 `.sqlx` «D» en la 89: causa determinada (réplica atrasada en `02ee3c5`, anterior a `e8d4e23`; sin pérdida). Pendiente solo sincronizar la réplica con `main` (la usuaria decide cuándo; no se toca por iniciativa propia).
 - Piloto con hardware: D03a y D09a (impresora de cocina); D31 necesita la dirección del servidor de mensajes en el terminal; D32 necesita responsables nominales aprobados por Guillermo y el restaurante.
-- Límites declarados por la usuaria el 28/10/2026: D21 séptimo aviso «cambiar estado» (Monitor de Cocina); modificar comanda (el TPV no tiene servicio para cambiar líneas); D27 (cierre de turno sin movimiento de stock en el TPV del cliente); D23-m (comandas abiertas, sin decisión de producto); 4.3, conflicto web–TPV por cambio de líneas (el TPV no emite aviso, probado el 29/10 en la mesa 5).
+- Límites declarados por la usuaria el 28/10/2026: D21 séptimo aviso «cambiar estado» (Monitor de Cocina); D27 (cierre de turno sin movimiento de stock en el TPV del cliente); D23-m (comandas abiertas, sin decisión de producto); el TPV no emite aviso al cambiar líneas (4.3): ver `02AB-2`.
 
 ## Planes activos
 
