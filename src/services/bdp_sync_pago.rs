@@ -213,6 +213,17 @@ impl BdpSyncService {
                 .ok_or_else(|| "Pago bloqueado: GetOrder no devolvió Total".to_string())?,
             "Total",
         )?;
+        /* [02AB-2] Antes de cobrar, el total de BDP debe ser el que la web conoce:
+         * si el TPV cambió la comanda no se cobra sobre un importe desactualizado. */
+        let lineas = crate::repositories::VentaLineaRepository::listar_por_venta(pool, venta.id)
+            .await
+            .map_err(|e| format!("Pago bloqueado: no se pudieron leer las líneas: {e}"))?;
+        let total_web = Self::total_pedido(venta, (!lineas.is_empty()).then_some(&lineas[..]));
+        let total_bdp = rust_decimal::prelude::ToPrimitive::to_f64(&total);
+        if let Some(conflicto) = crate::services::mensaje_conflicto(order_id, total_bdp, total_web)
+        {
+            return Err(format!("Pago bloqueado. {conflicto}"));
+        }
         let payments = order
             .get("Payments")
             .and_then(Value::as_array)

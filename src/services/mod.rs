@@ -80,6 +80,7 @@ pub use bdp_push::{listar_revisiones_stock, resolver_revision_stock};
 pub use bdp_sync::BdpSyncService;
 pub use bdp_sync_catalogo::SyncTablesResult;
 pub use bdp_sync_preflight::{BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncPreflightService};
+pub(crate) use bdp_sync_venta::mensaje_conflicto;
 pub use bdp_throttle::{BdpThrottleManager, BDP_THROTTLE};
 pub use bdp_weblink::{BdpVersionResponse, BdpWeblinkClient};
 pub use bdp_weblink_catalog::{

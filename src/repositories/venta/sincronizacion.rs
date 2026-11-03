@@ -53,6 +53,24 @@ impl VentaRepository {
         Ok(())
     }
 
+    /* [02AB-2] Marca (o limpia) el conflicto web–TPV en `bdp_sync_error` sin tocar
+     * `bdp_synced`. Solo se borra un mensaje que empiece por «Conflicto:», para no
+     * pisar otros errores de sincronización. */
+    pub async fn marcar_bdp_conflicto(
+        pool: &PgPool,
+        id: Uuid,
+        mensaje: Option<&str>,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE ventas SET bdp_sync_error = $2::text WHERE id = $1              AND ($2::text IS NOT NULL OR bdp_sync_error LIKE 'Conflicto:%')              AND bdp_sync_error IS DISTINCT FROM $2::text",
+        )
+        .bind(id)
+        .bind(mensaje)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
     /* [276A-4.2] Actualiza bdp_order_status de una venta — polling/endpoint manual.
      * [F8.4] Si el status es "invoiced", también marca bdp_invoiced = true.
      * [D10] Si BDP dice `cancelled`, la venta queda anulada aquí también: el

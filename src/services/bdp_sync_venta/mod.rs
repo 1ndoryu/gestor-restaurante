@@ -7,6 +7,7 @@ mod contexto;
 mod envio;
 mod flujo;
 mod modificacion;
+pub(crate) use modificacion::mensaje_conflicto;
 mod payload;
 mod utilidades;
 mod validacion;

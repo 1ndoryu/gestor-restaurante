@@ -62,7 +62,7 @@ impl BdpSyncService {
      * Evidencia: dry-run real (2026-06-01) pasó validación de totales con
      * Item.Total=Price y Order.Total=Price (sin IVA). En fallback legacy, el item
      * usa base+iva como precio y el total coincide con ese mismo valor. */
-    pub(super) fn total_pedido(venta: &Venta, lineas: Option<&[VentaLinea]>) -> f64 {
+    pub(crate) fn total_pedido(venta: &Venta, lineas: Option<&[VentaLinea]>) -> f64 {
         match lineas {
             Some(ls) => ls
                 .iter()

@@ -58,6 +58,23 @@ pub(crate) fn delta_lineas(
     Ok(ajustes)
 }
 
+/* [02AB-2] Texto del conflicto cuando el total de BDP no es el que la web
+ * conoce (el TPV cambió la comanda); `None` si coinciden. Lo comparten la
+ * modificación, el cobro y el sondeo periódico. */
+pub(crate) fn mensaje_conflicto(
+    order_id: i64,
+    total_bdp: Option<f64>,
+    total_web: f64,
+) -> Option<String> {
+    if total_bdp.is_some_and(|t| (t - total_web).abs() <= 0.005) {
+        return None;
+    }
+    Some(format!(
+        "Conflicto: la comanda {order_id} ya no coincide con la web (total en BDP {}, en la web {total_web:.2}). Se cambió en el TPV; revísela allí o concilie antes de continuar.",
+        total_bdp.map_or_else(|| "desconocido".into(), |t| format!("{t:.2}"))
+    ))
+}
+
 impl BdpSyncService {
     /* [02AB-2] Releer antes de escribir: si el TPV cambió la comanda (total
      * distinto del que la web conoce) no se sobrescribe nada. */
@@ -75,14 +92,10 @@ impl BdpSyncService {
             .map_err(|e| format!("No se pudo releer la comanda {order_id} en BDP: {e}"))?;
         let orden = respuesta.get("Order").unwrap_or(&respuesta);
         let total_bdp = orden.get("Total").and_then(Value::as_f64);
-        let total_web = Self::total_pedido(venta, Some(antes));
-        if total_bdp.is_none_or(|t| (t - total_web).abs() > 0.005) {
-            return Err(format!(
-                "Conflicto: la comanda {order_id} ya no coincide con la web (total en BDP {}, en la web {total_web:.2}). Se cambió en el TPV; revísela allí o concilie antes de modificar.",
-                total_bdp.map_or_else(|| "desconocido".into(), |t| format!("{t:.2}"))
-            ));
+        match mensaje_conflicto(order_id, total_bdp, Self::total_pedido(venta, Some(antes))) {
+            Some(m) => Err(m),
+            None => Ok(()),
         }
-        Ok(())
     }
 
     /// Envía a BDP la diferencia entre las líneas guardadas y las nuevas de una
@@ -214,6 +227,17 @@ mod tests {
             descuento: Decimal::from_str(descuento).unwrap(),
             created_at: Utc::now(),
         }
+    }
+
+    #[test]
+    fn conflicto_solo_si_los_totales_difieren() {
+        assert!(mensaje_conflicto(1, Some(8.70), 8.70).is_none());
+        assert!(mensaje_conflicto(1, Some(9.70), 8.70)
+            .unwrap()
+            .contains("9.70"));
+        assert!(mensaje_conflicto(1, None, 8.70)
+            .unwrap()
+            .contains("desconocido"));
     }
 
     #[test]

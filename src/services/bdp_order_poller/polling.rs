@@ -5,9 +5,10 @@ use tracing::{info, warn};
 
 use super::BdpOrderPollerService;
 use crate::models::ConfiguracionRestaurante;
-use crate::repositories::VentaRepository;
+use crate::repositories::{VentaLineaRepository, VentaRepository};
 use crate::services::bdp_weblink::BdpWeblinkClient;
 use crate::services::bdp_weblink_catalog::{BdpGetOrderRequest, BdpOrderIdentifier};
+use crate::services::BdpSyncService;
 use crate::services::{ModoEfectivo, ServicioModoOperacion};
 
 /* Ciclo de polling: decide qué configuración sondear, reclama el turno y
@@ -379,12 +380,55 @@ impl BdpOrderPollerService {
             .bdp_order_id
             .ok_or_else(|| format!("Venta {} no tiene bdp_order_id", venta.id))?;
         let client = client.ok_or_else(|| "Cliente BDP no disponible".to_string())?;
-        let status = Self::check_order_status(client, order_id).await?;
+        let resp = client
+            .get_order(&BdpGetOrderRequest {
+                order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+            })
+            .await
+            .map_err(|e| format!("Error BDP GetOrder: {e}"))?;
+        let status = Self::map_status(Self::parse_status(&resp)?);
+        Self::vigilar_conflicto(pool, venta, order_id, &status, &resp).await;
         VentaRepository::update_bdp_order_status(pool, venta.id, &status)
             .await
             .map_err(|e| format!("Error actualizando estado local BDP: {e}"))?;
         info!("Venta {} → bdp_order_status = {status}", venta.id);
         Ok(true)
+    }
+
+    /* [02AB-2] Compara el total que BDP tiene con el que la web conoce: si el TPV
+     * cambió la comanda lo deja visible en la venta, sin corregir nada. Solo en
+     * comandas abiertas y cuando GetOrder trae el pedido completo. */
+    async fn vigilar_conflicto(
+        pool: &PgPool,
+        venta: &crate::models::Venta,
+        order_id: i64,
+        status: &str,
+        resp: &serde_json::Value,
+    ) {
+        let Some(total_bdp) = resp
+            .get("Order")
+            .and_then(|o| o.get("Total"))
+            .and_then(serde_json::Value::as_f64)
+        else {
+            return;
+        };
+        if matches!(status, "cancelled" | "invoiced") {
+            return;
+        }
+        let lineas = VentaLineaRepository::listar_por_venta(pool, venta.id)
+            .await
+            .unwrap_or_default();
+        let total_web =
+            BdpSyncService::total_pedido(venta, (!lineas.is_empty()).then_some(&lineas[..]));
+        let mensaje = crate::services::mensaje_conflicto(order_id, Some(total_bdp), total_web);
+        if let Err(e) =
+            VentaRepository::marcar_bdp_conflicto(pool, venta.id, mensaje.as_deref()).await
+        {
+            warn!(
+                "[02AB-2] No se pudo anotar el conflicto de la venta {}: {e}",
+                venta.id
+            );
+        }
     }
 
     /// Consulta `GetOrder` para un `order_id` específico y devuelve el status como string.
