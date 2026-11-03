@@ -5,7 +5,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 ## Siguiente bloque
 
 - `02AB-8`: responder a Guillermo (lo demás de su mensaje del 02/11 está hecho o bloqueado).
-- `28AA-4`: decidir cómo llega la web al BDP del restaurante (etapa 0).
+- `28AA-4`: instalar Tailscale con el restaurante (etapa 0 decidida) y recoger su cuestionario.
 - `28AA-3`: entorno de pruebas para Guillermo (ver Pendientes).
 
 ## Pendientes
@@ -14,7 +14,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** `rest-dev.wandori.us` ya está listo (franja de pruebas, BDP del portátil; manual en `Agente/documentacion/bdp/entorno-pruebas-2026-10-31.md`); el correo de Guillermo ya está en Access y la cuenta `demo@restaurante.com` es su usuario; falta solo que la usuaria le envíe el enlace y las credenciales (`C:/tmp/restaurante-cliente/credenciales.txt`).
 - [ ] `02AB-7` — **Guardar la respuesta de GetApplicationVersion de producción (`Application: 84`).** Solo lectura; necesita acceso al BDP del restaurante. Bloqueada hasta tener acceso al BDP del restaurante.
 - [ ] `02AB-8` — **Responder a Guillermo y recabar sus datos.** Contestar si podrá ver el BDP además de la web, proponer fecha y hora de pruebas, y pedirle: datos de hosting/panel de Entre Tenedores (no los encuentra; buscar antes en Fiverr), formas de pago, tipos de pedido, perfil de documentos y responsables para D32. Stock, cocina, llamada al camarero e inventarios quedan opcionales y desactivados hasta que confirme su uso.
-- [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Decidir cómo llega la web al BDP del restaurante (etapa 0); el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
+- [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Etapa 0 decidida (Tailscale, 03/11/2026); falta instalarlo con el restaurante; el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
 ## Bloqueos
 
