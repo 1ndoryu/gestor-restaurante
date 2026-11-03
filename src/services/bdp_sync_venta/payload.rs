@@ -62,7 +62,7 @@ impl BdpSyncService {
      * Evidencia: dry-run real (2026-06-01) pasó validación de totales con
      * Item.Total=Price y Order.Total=Price (sin IVA). En fallback legacy, el item
      * usa base+iva como precio y el total coincide con ese mismo valor. */
-    fn total_pedido(venta: &Venta, lineas: Option<&[VentaLinea]>) -> f64 {
+    pub(super) fn total_pedido(venta: &Venta, lineas: Option<&[VentaLinea]>) -> f64 {
         match lineas {
             Some(ls) => ls
                 .iter()
@@ -82,7 +82,7 @@ impl BdpSyncService {
      * mapeo se usa el artículo por defecto. El cast `Lin` es seguro: nº de líneas
      * de una venta muy por debajo de i32::MAX. */
     #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-    fn items_de_lineas(
+    pub(super) fn items_de_lineas(
         lineas: &[VentaLinea],
         line_article_ids: Option<&[i64]>,
         article: &ResolvedArticle,
@@ -161,7 +161,7 @@ impl BdpSyncService {
     }
 
     /* Objeto `Order` de CreateOrder con los campos opcionales ya resueltos. */
-    fn json_pedido(
+    pub(super) fn json_pedido(
         config: &ConfiguracionRestaurante,
         venta: &Venta,
         order_ctx: &OrderContext,
