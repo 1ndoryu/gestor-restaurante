@@ -409,11 +409,14 @@ impl BdpSyncService {
 
         Self::verificar_saldo_facturable(pool, venta, &order).await?;
 
+        /* [02AB-4] Los datos fiscales se validan ANTES de autorizar: un fallo aquí
+         * no debe dejar una auditoría pendiente que bloquee el reintento. */
+        let invoice_parameters = Self::parametros_factura(pool, venta, config).await?;
+
         /* [187A-1] Snapshot obligatorio + autorización de un solo uso. */
         let audit_id =
             Self::autorizar_factura(pool, venta, config, order_id, idempotency_key).await?;
 
-        let invoice_parameters = Self::parametros_factura(pool, venta, config).await?;
         let (response, invoice_number) = Self::ejecutar_factura(
             &client,
             config,

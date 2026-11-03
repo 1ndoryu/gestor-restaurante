@@ -4,6 +4,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
+- `02AB-8`: responder a Guillermo (lo demás de su mensaje del 02/11 está hecho o bloqueado).
 - `28AA-4`: decidir cómo llega la web al BDP del restaurante (etapa 0).
 - `28AA-3`: entorno de pruebas para Guillermo (ver Pendientes).
 
@@ -11,16 +12,14 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** `rest-dev.wandori.us` ya está listo (franja de pruebas, BDP del portátil; manual en `Agente/documentacion/bdp/entorno-pruebas-2026-10-31.md`); el correo de Guillermo ya está en Access y la cuenta `demo@restaurante.com` es su usuario; falta solo que la usuaria le envíe el enlace y las credenciales (`C:/tmp/restaurante-cliente/credenciales.txt`).
-- [ ] `02AB-2` — **Detectar cambios hechos en el TPV releyendo con GetOrder: falta el sondeo periódico y la relectura antes de cobrar o facturar.** La relectura antes de modificar ya está (conflicto 409 sin sobrescribir, 02/11); hecho cuando una comanda creada en la web y cambiada en BDP se detecta sin aviso del TPV, también al cobrar y facturar. Sustituye el límite 4.3.
-- [ ] `02AB-4` — **D18d: factura emitida correcta.** Facturar una comanda de prueba con nombre, NIF y dirección, recuperar el documento y comparar número, serie, cliente, NIF, líneas, impuestos y total; repetir la petición y comprobar que no genera otra factura.
-- [ ] `02AB-5` — **Reinicio de BDP.NET en local.** Cerrar y reabrir BDP.NET con una prueba preparada; la integración recupera conexión, cola y comandas sin perder ni duplicar (o evidencia concreta de que D29 ya lo cubrió).
-- [ ] `02AB-6` — **Sincronización automática de formas de pago y empleados.** Cambio controlado en el BDP local, esperar la cadencia programada sin pulsar nada y comprobar que la web se actualiza sola.
-- [ ] `02AB-7` — **Guardar la respuesta de GetApplicationVersion de producción (`Application: 84`).** Solo lectura; necesita acceso al BDP del restaurante.
+- [ ] `02AB-4` — **D18d: comparar la factura emitida con lo enviado.** El flujo y la idempotencia están probados (03/11, `00001TB00000042`); falta recuperar el documento en BDP (el export de documentos del demo no pasa del nº 41): probar tras cerrar día en el TPV demo, o con el BDP del restaurante, y comparar número, serie, cliente, NIF, líneas, impuestos y total.
+- [ ] `02AB-7` — **Guardar la respuesta de GetApplicationVersion de producción (`Application: 84`).** Solo lectura; necesita acceso al BDP del restaurante. Bloqueada hasta tener acceso al BDP del restaurante.
 - [ ] `02AB-8` — **Responder a Guillermo y recabar sus datos.** Contestar si podrá ver el BDP además de la web, proponer fecha y hora de pruebas, y pedirle: datos de hosting/panel de Entre Tenedores (no los encuentra; buscar antes en Fiverr), formas de pago, tipos de pedido, perfil de documentos y responsables para D32. Stock, cocina, llamada al camarero e inventarios quedan opcionales y desactivados hasta que confirme su uso.
 - [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Decidir cómo llega la web al BDP del restaurante (etapa 0); el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
 ## Bloqueos
 
+- `Arranque up` imprime «túnel ssh no levantó» aunque el servicio esté sano si el túnel permanente ya ocupa el 3105 (falso negativo; comprobar con `curl 127.0.0.1:3105/api/health`). Corregir en el wrapper `Arranque`, no en el proyecto.
 - Licencia WebLinkRestAPI (servicio 84): resuelta el 28/10/2026 (`Agente/completados/tareas-2026-10-28.md`).
 - `28AA-4` 4.5: hecho el 29/10 (reinicio manual decidido por la usuaria). Pendiente: WebLinkRestAPI no tiene proceso propio (sirve HTTP.sys) y BDP.NET es límite de hardware.
 - Mesa 1 (`cd4224d1`): era mesa con comanda abierta (300033), no tipo de comanda; ya se comprueba antes de crear (02/11).
