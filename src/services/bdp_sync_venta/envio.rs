@@ -141,6 +141,46 @@ impl BdpSyncService {
         }
     }
 
+    /* [02AB-3] GetOrder por salón y mesa: libre = 301003; ocupada por otra
+     * comanda = rechazo claro. Si la comanda es la propia (reintento tras
+     * pérdida de respuesta), se deja pasar para que BDP deduplique. */
+    async fn comprobar_mesa_libre(
+        client: &BdpWeblinkClient<'_>,
+        venta: &Venta,
+    ) -> Result<(), OrderSendFailure> {
+        let (Some(salon), Some(mesa)) = (venta.num_salon, venta.num_mesa) else {
+            return Ok(());
+        };
+        let request = BdpGetOrderRequest {
+            order_identifier: BdpOrderIdentifier::by_table(salon, mesa),
+        };
+        match client.get_order(&request).await {
+            Ok(respuesta) => {
+                let orden = respuesta.get("Order").unwrap_or(&respuesta);
+                let abierta = orden.get("OrderId").and_then(Value::as_i64).unwrap_or(0);
+                let propia = orden
+                    .get("MarketplaceOrderId")
+                    .and_then(Value::as_str)
+                    .is_some_and(|id| id == Self::marketplace_order_id(venta.id));
+                if abierta > 0 && !propia {
+                    return Err(OrderSendFailure::Rejected(format!(
+                        "La mesa {mesa} del salón {salon} ya tiene una comanda abierta en el TPV (nº {abierta}). Cóbrela o ciérrela allí, o use otra mesa."
+                    )));
+                }
+                Ok(())
+            }
+            /* 301003 = «no existe ninguna comanda en la mesa»: está libre. */
+            Err(crate::services::bdp_weblink::BdpWeblinkError::Remote(m))
+                if m.contains("301003") =>
+            {
+                Ok(())
+            }
+            Err(error) => Err(OrderSendFailure::Rejected(format!(
+                "No se pudo comprobar si la mesa {mesa} del salón {salon} está libre: {error}"
+            ))),
+        }
+    }
+
     /* [R5] Fase HTTP de sync_venta: resolve artículo, contexto, líneas y envío.
      * Se extrae a una función para poder aplicar timeout global con
      * `tokio::time::timeout` sin perder claridad. */
@@ -177,6 +217,11 @@ impl BdpSyncService {
                 }
             }
         }
+
+        /* [02AB-3] Una mesa con comanda abierta en el TPV no admite un CreateOrder
+         * nuevo (BDP lo trata como añadir líneas y responde 300033): se avisa
+         * antes de enviar, con un mensaje que el operador entienda. */
+        Self::comprobar_mesa_libre(&client, venta).await?;
 
         /* [F3.1] Resolver contexto del pedido: tender, order type, customer. */
         let order_ctx = Self::resolve_order_context(pool, venta, config).await;
