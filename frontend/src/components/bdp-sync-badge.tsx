@@ -2,7 +2,7 @@
  * Muestra estado visual (synced/error/pendiente/cancelled/invoiced) con tooltip.
  * Usa los mismos tokens de color del sistema de diseño (variables CSS). */
 
-import { Check, X, Minus, Clock, Ban, FileText } from 'lucide-react';
+import { Check, X, Minus, Clock, Ban, FileText, TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { BdpStatus } from '../api/bdp';
@@ -18,7 +18,12 @@ interface Props {
   orderId?: string | null;
 }
 
-function getDisplayStatus(synced: boolean, orderStatus?: string | null, syncError?: string | null): BdpStatus {
+/* [02AB-2] Estado visual: BdpStatus más «conflict» (el TPV cambió la comanda). */
+type BadgeKey = BdpStatus | 'conflict';
+
+function getDisplayStatus(synced: boolean, orderStatus?: string | null, syncError?: string | null): BadgeKey {
+  /* Una venta ya sincronizada cuyo error empieza por «Conflicto:» no falló al enviarse: difiere del TPV. */
+  if (synced && syncError?.startsWith('Conflicto:')) return 'conflict';
   if (syncError) return 'error';
   if (!synced) return 'none';
   if (!orderStatus) return 'pending';
@@ -41,33 +46,37 @@ function BdpSyncBadge({ synced, orderStatus, syncError, orderId }: Props) {
     cancelled: <Ban className="size-3" />,
     invoiced: <FileText className="size-3" />,
     error: <X className="size-3" />,
+    conflict: <TriangleAlert className="size-3" />,
   };
 
-  const variantMap: Record<BdpStatus, string> = {
+  const variantMap: Record<BadgeKey, string> = {
     none: 'text-muted-foreground',
     pending: 'bg-amber-50 text-amber-700 border-amber-200',
     accepted: 'bg-green-50 text-green-700 border-green-200',
     cancelled: 'bg-red-50 text-red-700 border-red-200',
     invoiced: 'bg-blue-50 text-blue-700 border-blue-200',
     error: 'bg-red-50 text-red-700 border-red-200',
+    conflict: 'bg-orange-50 text-orange-700 border-orange-300',
   };
 
-  const labelMap: Record<BdpStatus, string> = {
+  const labelMap: Record<BadgeKey, string> = {
     none: 'No enviada',
     pending: 'Pendiente',
     accepted: 'Aceptada',
     cancelled: 'Cancelada',
     invoiced: 'Facturada',
     error: 'Error',
+    conflict: 'Conflicto',
   };
 
-  const descriptionMap: Record<BdpStatus, string> = {
+  const descriptionMap: Record<BadgeKey, string> = {
     none: 'Esta venta aún no se ha enviado al BDP.',
     pending: 'Enviada al BDP, a la espera de que el terminal la valide.',
     accepted: 'El BDP aceptó esta venta.',
     cancelled: 'Esta venta fue cancelada en el BDP.',
     invoiced: 'Esta venta ya está facturada en el BDP.',
     error: `No se pudo sincronizar: ${syncError ?? 'error desconocido'}. Usa «Reintentar» en la fila.`,
+    conflict: syncError ?? 'La comanda cambió en el TPV.',
   };
 
   return (
