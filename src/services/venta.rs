@@ -134,12 +134,20 @@ impl VentaService {
         let actual = VentaRepository::find_by_id(pool, id, user_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
-        if actual.bdp_synced {
+        /* [02AB-1] Una comanda ya creada en BDP solo se edita cambiando sus líneas:
+         * la diferencia se envía a BDP (OrderId existente) y, si BDP la rechaza o
+         * la comanda cambió en el TPV, la edición local se revierte. */
+        if actual.bdp_synced && req.lineas.is_none() {
             return Err(AppError::Conflict(
-                "La venta ya fue creada en BDP. Su edición está bloqueada porque WebLink no ofrece una actualización idempotente confirmada; concilie la comanda antes de modificarla."
+                "La venta ya fue creada en BDP; solo se pueden modificar sus líneas. Concilie la comanda antes de cambiar otros datos."
                     .into(),
             ));
         }
+        let lineas_antes = if actual.bdp_synced {
+            VentaLineaRepository::listar_por_venta(pool, id).await?
+        } else {
+            Vec::new()
+        };
 
         let turno = req.turno.as_ref().and_then(|t| {
             serde_json::to_value(t)
@@ -177,9 +185,26 @@ impl VentaService {
             .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
 
         if let Some(ref lineas) = req.lineas {
-            VentaLineaRepository::reemplazar_conn(&mut tx, venta.id, lineas).await?;
+            let nuevas = VentaLineaRepository::reemplazar_conn(&mut tx, venta.id, lineas).await?;
+            if actual.bdp_synced {
+                /* Antes del commit: si BDP no acepta el cambio, `tx` se descarta y
+                 * la web conserva el estado que sigue coincidiendo con el TPV. */
+                let config = ConfiguracionRepository::obtener_o_crear(pool, user_id).await?;
+                crate::services::bdp_sync::BdpSyncService::modificar_comanda(
+                    pool,
+                    &venta,
+                    &lineas_antes,
+                    &nuevas,
+                    &config,
+                )
+                .await
+                .map_err(AppError::Conflict)?;
+            }
         }
         tx.commit().await?;
+        if actual.bdp_synced {
+            return Ok(venta);
+        }
 
         /* [064A-5] Re-sincronizar con Haddock tras actualización */
         Self::spawn_haddock_sync(pool.clone(), user_id, venta.clone(), true);
