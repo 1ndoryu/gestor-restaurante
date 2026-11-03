@@ -16,6 +16,8 @@ Hola Guillermo, perdona la tardanza. Resumen de tu mensaje del 2 de noviembre:
 
 **Sí podrás ver el BDP además de la web**, mientras el PC de pruebas y el túnel estén encendidos. ¿Qué día y hora te va bien para una prueba conjunta?
 
+Sobre tus audios del 27 y 28/10: las licencias las llevas tú, de acuerdo; la prueba como propietario en un día normal la podemos hacer contra el BDP del portátil (`rest-dev.wandori.us`, te paso el enlace y las credenciales). De la URL y el JSON del chatbot, dime en qué página del restaurante va; para integrarlo necesito el acceso al hosting (punto 1).
+
 Para avanzar necesitamos de tu parte:
 
 1. Acceso al hosting/panel de Entre Tenedores.
