@@ -2,7 +2,7 @@
 
 Para enviar por la usuaria (no se ha enviado nada).
 
-Hola Guillermo, perdona la tardanza. Resumen de tu mensaje del 2 de noviembre:
+Hola Guillermo, te digo resumidamente.
 
 - **Modificar una comanda (1):** ya funciona. Si se cambia una comanda desde la web, llega al TPV con las líneas añadidas o quitadas y el total correcto.
 - **Cambios hechos en el TPV (2):** la web los detecta sola; si la comanda ya no coincide, avisa con «Conflicto» y no deja cobrar hasta revisarla.
@@ -15,9 +15,9 @@ Hola Guillermo, perdona la tardanza. Resumen de tu mensaje del 2 de noviembre:
 - **Stock, cocina, llamada al camarero e inventarios (8–9):** quedan apagados hasta que confirmes que los usáis.
 - **Piloto por etapas (11):** de acuerdo.
 
-**Sí podrás ver el BDP además de la web**, mientras el PC de pruebas y el túnel estén encendidos. ¿Qué día y hora te va bien para una prueba conjunta?
+**Sí podrás ver el BDP además de la web, y te puedes conectar siempre**: dejo mi portátil encendido, así que el entorno de pruebas estará disponible a cualquier hora, sin que tengamos que quedar.
 
-Sobre tus audios del 27 y 28/10: las licencias las llevas tú, de acuerdo; la prueba como propietario en un día normal la podemos hacer contra el BDP del portátil (`rest-dev.wandori.us`, te paso el enlace y las credenciales).
+Sobre tus audios del 27 y 28/10: las licencias las llevas tú, de acuerdo; la prueba como propietario en un día normal la puedes hacer tú cuando quieras contra el BDP del portátil (`rest-dev.wandori.us`, te paso el enlace y las credenciales).
 
 **Chatbot de entretenedores.net:** ya está puesto el nuevo (n8n) en lugar del de uchat, que he quitado. Aparece en toda la web, pero todavía no responde: tu n8n rechaza las peticiones de la web por CORS. En el nodo del chat, en «Allowed Origins (CORS)», tienes `https://www.entretenedores.net/` con la barra final; debe ser `https://www.entretenedores.net` (sin barra; si quieres admitir también la versión sin www, añade `https://entretenedores.net`). Cuando lo cambies me avisas y compruebo que contesta; si prefieres volver al anterior, es devolver una línea en el panel de la web.
 
