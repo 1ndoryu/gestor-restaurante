@@ -12,7 +12,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** `rest-dev.wandori.us` ya está listo (franja de pruebas, BDP del portátil; manual en `Agente/documentacion/bdp/entorno-pruebas-2026-10-31.md`); el correo de Guillermo ya está en Access y la cuenta `demo@restaurante.com` es su usuario; falta solo que la usuaria le envíe el enlace y las credenciales (`C:/tmp/restaurante-cliente/credenciales.txt`).
-- [ ] `02AB-8` — **Responder a Guillermo y recabar sus datos.** Contestar si podrá ver el BDP además de la web, proponer fecha y hora de pruebas, y pedirle: datos de hosting/panel de Entre Tenedores (no los encuentra; buscar antes en Fiverr), formas de pago, tipos de pedido, perfil de documentos y responsables para D32. Stock, cocina, llamada al camarero e inventarios quedan opcionales y desactivados hasta que confirme su uso.
+- [ ] `02AB-8` — **Responder a Guillermo y recabar sus datos.** Contestar si podrá ver el BDP además de la web, proponer fecha y hora de pruebas, y pedirle los datos de hosting/panel de Entre Tenedores (no los encuentra; buscar antes en Fiverr). Formas de pago, tipos de pedido, perfil de documentos y responsables de D32 los configura el restaurante en Configuración → BDP (delegado en el borrador; falta abrir esas pantallas una vez en el navegador). Stock, cocina, llamada al camarero e inventarios quedan opcionales y desactivados hasta que confirme su uso.
 - [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Etapa 0 resuelta el 03/11/2026 (Tailscale ya conecta producción con el BDP del restaurante); el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
 ## Bloqueos
