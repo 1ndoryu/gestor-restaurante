@@ -17,12 +17,13 @@ Hola Guillermo, perdona la tardanza. Resumen de tu mensaje del 2 de noviembre:
 
 **Sí podrás ver el BDP además de la web**, mientras el PC de pruebas y el túnel estén encendidos. ¿Qué día y hora te va bien para una prueba conjunta?
 
-Sobre tus audios del 27 y 28/10: las licencias las llevas tú, de acuerdo; la prueba como propietario en un día normal la podemos hacer contra el BDP del portátil (`rest-dev.wandori.us`, te paso el enlace y las credenciales). De la URL y el JSON del chatbot, dime en qué página del restaurante va; para integrarlo necesito el acceso al hosting (punto 1).
+Sobre tus audios del 27 y 28/10: las licencias las llevas tú, de acuerdo; la prueba como propietario en un día normal la podemos hacer contra el BDP del portátil (`rest-dev.wandori.us`, te paso el enlace y las credenciales).
+
+**Chatbot de entretenedores.net:** ya está puesto el nuevo (n8n) en lugar del de uchat, que he quitado. Aparece en toda la web, pero todavía no responde: tu n8n rechaza las peticiones de la web por CORS. En el nodo del chat, en «Allowed Origins (CORS)», tienes `https://www.entretenedores.net/` con la barra final; debe ser `https://www.entretenedores.net` (sin barra; si quieres admitir también la versión sin www, añade `https://entretenedores.net`). Cuando lo cambies me avisas y compruebo que contesta; si prefieres volver al anterior, es devolver una línea en el panel de la web.
 
 Para avanzar necesitamos de tu parte:
 
-1. Acceso al hosting/panel de Entre Tenedores.
-2. Las formas de pago del restaurante.
-3. Los tipos de pedido que usan.
-4. El perfil de documentos que usa su BDP.
-5. Los responsables que aprobarán los controles (D32).
+1. Las formas de pago del restaurante.
+2. Los tipos de pedido que usan.
+3. El perfil de documentos que usa su BDP.
+4. Los responsables que aprobarán los controles (D32).
