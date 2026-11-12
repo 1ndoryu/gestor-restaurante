@@ -64,6 +64,7 @@ pub use bdp_explorer::{BdpExploracionResultado, BdpExplorerService, ExploracionC
 pub use bdp_import_departamentos::aplanar_departamentos;
 pub use bdp_import_departamentos::{BdpImportDepartamentosResult, BdpImportDepartamentosService};
 pub use bdp_order_poller::BdpOrderPollerService;
+pub(crate) use bdp_order_poller::{bdp_estado_nombre, bdp_estado_orden};
 pub use bdp_push::{
     payload_cancelar, payload_crear_articulo, payload_crear_departamento, payload_crear_familia,
     payload_inventario, payload_modificar_articulo, payload_propina, payload_puntos,

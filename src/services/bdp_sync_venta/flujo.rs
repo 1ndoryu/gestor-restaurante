@@ -15,6 +15,7 @@ use super::OrderSendFailure;
 use crate::models::{ConfiguracionRestaurante, Venta};
 use crate::repositories::VentaRepository;
 use crate::services::bdp_sync::{BdpSyncService, SyncLockGuard, SYNC_LOCKS};
+use crate::services::bdp_weblink::BdpWeblinkClient;
 use crate::services::{ModoEfectivo, ServicioModoOperacion};
 
 impl BdpSyncService {
@@ -44,6 +45,56 @@ impl BdpSyncService {
         )
         .await;
         Self::cerrar_sync_venta(pool, venta, audit_id, http_result).await;
+    }
+
+    /* [M21] Preflight de la comanda en el aire. Solo se pregunta a BDP cuando
+     * hay una auditoría `create_order` sin cerrar para esta venta (hubo un
+     * intento real):
+     *   - Existe    → se recupera sin reenviar.
+     *   - No existe → el guard deja pasar y el envío sigue su curso normal.
+     *   - En duda   → se para aquí; reenviar a ciegas es lo que se evita.
+     * Devuelve `false` cuando hay que abandonar el envío. */
+    async fn preflight_comanda(
+        pool: &PgPool,
+        venta: &Venta,
+        config: &ConfiguracionRestaurante,
+    ) -> bool {
+        if !Self::tiene_auditoria_abierta(pool, venta).await {
+            return true;
+        }
+        let client = BdpWeblinkClient::new(config);
+        match Self::estado_comanda(&client, venta.id).await {
+            super::reactivacion::EstadoComanda::Existe(order_id, respuesta) => {
+                Self::recuperar_comanda(pool, venta.user_id, venta, order_id, &respuesta).await;
+                false
+            }
+            super::reactivacion::EstadoComanda::NoExiste => {
+                /* BDP no la tiene: se cierra la auditoría muerta para que el
+                 * guard deje pasar este envío —el único—. */
+                Self::liberar_auditoria_abierta(pool, venta.user_id, venta.id).await
+            }
+            super::reactivacion::EstadoComanda::Desconocido => {
+                info!(
+                    "[M21] No se pudo comprobar si BDP tiene la comanda de {}: no se reenvía",
+                    venta.id
+                );
+                false
+            }
+        }
+    }
+
+    /// ¿Quedó un envío de esta venta sin resultado (`pendiente`/`ambiguo`)?
+    async fn tiene_auditoria_abierta(pool: &PgPool, venta: &Venta) -> bool {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM bdp_audit_log \
+             WHERE user_id = $1 AND target_entity_type = 'venta' AND target_entity_id = $2 \
+               AND operacion = 'create_order' AND resultado IN ('pendiente', 'ambiguo')",
+        )
+        .bind(venta.user_id)
+        .bind(venta.id)
+        .fetch_one(pool)
+        .await
+        .is_ok_and(|filas| filas > 0)
     }
 
     /* [267A-8] Guardias de entrada de sync_venta: modo, read_only, backup,
@@ -108,6 +159,16 @@ impl BdpSyncService {
         }
 
         if !Self::revisar_estado_y_lock_distribuido(pool, venta, is_update).await {
+            return false;
+        }
+
+        /* [M21] Un envío anterior sin cerrar (respuesta perdida, timeout, 5xx)
+         * bloquea el guard: se pregunta a BDP antes de que bloquee. Va aquí,
+         * después de las guardias que no gastan red, para que `read_only` o una
+         * venta anulada no pregunten nada. Sin auditoría abierta no hay intento
+         * previo del que dudar y tampoco se gasta un `GetOrder`. */
+        if !is_update && !Self::preflight_comanda(pool, venta, config).await {
+            Self::cleanup_lock(venta.id);
             return false;
         }
 

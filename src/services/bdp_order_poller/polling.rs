@@ -186,6 +186,15 @@ impl BdpOrderPollerService {
             }
         }
 
+        /* [M21] Las comandas en el aire se resuelven preguntando una vez por
+         * `MarketplaceOrderId`; va después del cierre de auditorías para no
+         * repetir el mismo `GetOrder` en la misma pasada. */
+        let (resueltas, pregunto) =
+            Self::resolver_comandas_en_vuelo(pool, user_id, config, &client, en_vuelo, &ventas)
+                .await;
+        llamo_bdp |= pregunto;
+        updated += resueltas;
+
         if !orphaned.is_empty() {
             llamo_bdp = true;
             let (reconciliadas, fallo) =
@@ -196,28 +205,11 @@ impl BdpOrderPollerService {
 
         updated += Self::cerrar_auditorias_clientes(pool, user_id, &orphaned_customers).await;
 
-        if !ventas.is_empty() {
-            info!("[276A-4.2] Polling BDP: {} ventas pendientes", ventas.len());
-            for venta in &ventas {
-                match Self::poll_one(pool, venta, config, Some(&client)).await {
-                    Ok(true) => {
-                        llamo_bdp = true;
-                        updated += 1;
-                    }
-                    Ok(false) => {
-                        llamo_bdp = true;
-                    }
-                    Err(e) => {
-                        llamo_bdp = true;
-                        fallo_bdp = true;
-                        warn!(
-                            "[276A-4.2] Error consultando GetOrder para venta {}: {e}",
-                            venta.id
-                        );
-                    }
-                }
-            }
-        }
+        let (actualizadas, hubo_fallo) =
+            Self::consultar_ventas_pendientes(pool, config, &client, &ventas).await;
+        updated += actualizadas;
+        llamo_bdp |= !ventas.is_empty();
+        fallo_bdp |= hubo_fallo;
 
         /* [128A-1/F1-2] M2: alimentar la histéresis del conmutador. Solo se
          * registra si realmente se intentó llamar a BDP (no-op no altera el
@@ -231,6 +223,59 @@ impl BdpOrderPollerService {
         }
 
         Ok(updated)
+    }
+
+    /* [276A-4.2] Consulta el estado de cada venta pendiente. Devuelve cuántas
+     * cambiaron y si algún `GetOrder` falló (para la histéresis del conmutador). */
+    async fn consultar_ventas_pendientes(
+        pool: &PgPool,
+        config: &ConfiguracionRestaurante,
+        client: &BdpWeblinkClient<'_>,
+        ventas: &[crate::models::Venta],
+    ) -> (usize, bool) {
+        if ventas.is_empty() {
+            return (0, false);
+        }
+        info!("[276A-4.2] Polling BDP: {} ventas pendientes", ventas.len());
+        let (mut actualizadas, mut fallo) = (0, false);
+        for venta in ventas {
+            match Self::poll_one(pool, venta, config, Some(client)).await {
+                Ok(true) => actualizadas += 1,
+                Ok(false) => {}
+                Err(e) => {
+                    fallo = true;
+                    warn!(
+                        "[276A-4.2] Error consultando GetOrder para venta {}: {e}",
+                        venta.id
+                    );
+                }
+            }
+        }
+        (actualizadas, fallo)
+    }
+
+    /* [M21] Ventas con la comanda en el aire: se recuperan si BDP la tiene y se
+     * reenvían una sola vez si BDP dice que no. Las que el cierre de auditorías
+     * acaba de recuperar se descartan de la lista para no pedir dos veces la
+     * misma comanda en la misma pasada. */
+    async fn resolver_comandas_en_vuelo(
+        pool: &PgPool,
+        user_id: uuid::Uuid,
+        config: &ConfiguracionRestaurante,
+        client: &BdpWeblinkClient<'_>,
+        en_vuelo: Vec<crate::models::Venta>,
+        ventas: &[crate::models::Venta],
+    ) -> (usize, bool) {
+        let en_vuelo: Vec<_> = en_vuelo
+            .into_iter()
+            .filter(|venta| !ventas.iter().any(|fresca| fresca.id == venta.id))
+            .collect();
+        if en_vuelo.is_empty() {
+            return (0, false);
+        }
+        let resueltas =
+            BdpSyncService::recuperar_lista_en_vuelo(pool, user_id, config, client, en_vuelo).await;
+        (resueltas, true)
     }
 
     /* [AUDIT-2.11b] Reconcilia ventas huérfanas consultando GetOrder. Devuelve

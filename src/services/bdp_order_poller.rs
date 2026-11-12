@@ -29,6 +29,16 @@ mod reconciliacion;
 
 pub struct BdpOrderPollerService;
 
+/* [M21] La recuperación de comandas cuenta con la misma lectura de estado que
+ * el sondeo: la venta recuperada debe quedar con el estado que BDP ya tenía. */
+pub(crate) fn bdp_estado_orden(resp: &serde_json::Value) -> Result<i64, String> {
+    BdpOrderPollerService::parse_status(resp)
+}
+
+pub(crate) fn bdp_estado_nombre(codigo: i64) -> String {
+    BdpOrderPollerService::map_status(codigo)
+}
+
 #[cfg(test)]
 mod tests {
     use super::reconciliacion::{json_f64, json_i64};

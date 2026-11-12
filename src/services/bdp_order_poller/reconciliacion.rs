@@ -21,6 +21,19 @@ impl BdpOrderPollerService {
         config: &ConfiguracionRestaurante,
         client: &BdpWeblinkClient<'_>,
     ) -> Result<usize, String> {
+        /* [M21] El `create_order` no se decide aquí: `recuperar_lista_en_vuelo`
+         * lo resuelve con una sola pregunta y, si la comanda no existe en BDP,
+         * la reenvía. Antes esta función solo sabía cerrar las que sí existían y
+         * las demás se quedaban bloqueadas para siempre. */
+        Self::reconciliar_pagos_facturas(pool, user_id, config, client).await
+    }
+
+    async fn reconciliar_pagos_facturas(
+        pool: &PgPool,
+        user_id: uuid::Uuid,
+        config: &ConfiguracionRestaurante,
+        client: &BdpWeblinkClient<'_>,
+    ) -> Result<usize, String> {
         /* [D23b] También las `pendiente`: son las que quedaron abiertas cuando el
          * proceso murió entre el HTTP y el cierre de la auditoría, y nadie las
          * miraba. Preguntar por su `MarketplaceOrderId` es inocuo: si la comanda
@@ -30,7 +43,7 @@ impl BdpOrderPollerService {
                FROM bdp_audit_log
                WHERE user_id = $1
                  AND resultado IN ('ambiguo', 'pendiente')
-                 AND operacion IN ('create_order', 'add_payment', 'invoice')
+                 AND operacion IN ('add_payment', 'invoice')
                ORDER BY created_at DESC
                LIMIT 100",
         )
@@ -42,10 +55,6 @@ impl BdpOrderPollerService {
         let mut reconciled = 0;
         for (audit_id, operacion, target_entity_id, datos_enviados) in rows {
             let result = match operacion.as_str() {
-                "create_order" => {
-                    Self::reconcile_create_order(pool, client, audit_id, user_id, target_entity_id)
-                        .await
-                }
                 "add_payment" => {
                     Self::reconcile_add_payment(
                         pool,
@@ -161,98 +170,6 @@ impl BdpOrderPollerService {
             }
         }
         Ok(reconciled)
-    }
-
-    async fn reconcile_create_order(
-        pool: &PgPool,
-        client: &BdpWeblinkClient<'_>,
-        audit_id: uuid::Uuid,
-        user_id: uuid::Uuid,
-        venta_id: uuid::Uuid,
-    ) -> Result<bool, String> {
-        let marketplace_id =
-            crate::services::bdp_sync::BdpSyncService::marketplace_order_id(venta_id);
-        let request = BdpGetOrderRequest {
-            order_identifier: BdpOrderIdentifier::by_market(
-                crate::services::bdp_sync::BDP_SYNC_MARKET_ID,
-                marketplace_id.clone(),
-            ),
-        };
-        match client.get_order(&request).await {
-            Ok(response) => {
-                let order_id = response
-                    .get("OrderId")
-                    .and_then(serde_json::Value::as_i64)
-                    .or_else(|| response.get("Order")?.get("OrderId")?.as_i64())
-                    .filter(|id| *id > 0);
-                if let Some(order_id) = order_id {
-                    let respuesta = serde_json::json!({ "order_id": order_id });
-                    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
-                    sqlx::query(
-                        "UPDATE ventas SET bdp_synced = true, bdp_synced_at = NOW(), bdp_order_id = $2, bdp_sync_error = NULL WHERE id = $1"
-                    )
-                    .bind(venta_id)
-                    .bind(order_id)
-                    .execute(&mut *tx)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                    /* [D10] La comanda se recuperó con su estado delante: si BDP
-                     * la da por cancelada, la venta queda anulada en la web en la
-                     * misma transacción. Antes se recuperaba el `OrderId` y el
-                     * estado se quedaba sin leer. */
-                    if let Ok(status) = Self::parse_status(&response) {
-                        crate::repositories::VentaRepository::update_bdp_order_status(
-                            &mut *tx,
-                            venta_id,
-                            &Self::map_status(status),
-                        )
-                        .await
-                        .map_err(|e| e.to_string())?;
-                    }
-                    sqlx::query(
-                        r"UPDATE bdp_audit_log
-                        SET resultado = 'exito', datos_respuesta = $2, error_mensaje = NULL, updated_at = NOW()
-                        WHERE id = $1"
-                    )
-                    .bind(audit_id)
-                    .bind(Some(&respuesta))
-                    .execute(&mut *tx)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                    /* [D04] La comanda recuperada deja el mismo vínculo que si la
-                     * respuesta hubiera llegado: sin esta fila, `bdp_id_map` solo
-                     * tenía las ventas confirmadas en línea y la auditoría por
-                     * OrderId se quedaba incompleta. Upsert para no duplicar si
-                     * el poller la vuelve a ver. */
-                    sqlx::query(
-                        r"INSERT INTO bdp_id_map (id, user_id, entidad, glory_id, bdp_id, market_id, marketplace_order_id)
-                        VALUES ($1, $2, 'venta', $3, $4, $5, $6)
-                        ON CONFLICT (user_id, entidad, glory_id)
-                        DO UPDATE SET bdp_id = EXCLUDED.bdp_id, market_id = EXCLUDED.market_id,
-                                      marketplace_order_id = EXCLUDED.marketplace_order_id,
-                                      actualizado_en = NOW()",
-                    )
-                    .bind(uuid::Uuid::new_v4())
-                    .bind(user_id)
-                    .bind(venta_id.to_string())
-                    .bind(order_id.to_string())
-                    .bind(crate::services::bdp_sync::BDP_SYNC_MARKET_ID.to_string())
-                    .bind(&marketplace_id)
-                    .execute(&mut *tx)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                    tx.commit().await.map_err(|e| e.to_string())?;
-                    info!("[R1] Comanda reconciliada para venta {venta_id} → OrderId={order_id}");
-                    Ok(true)
-                } else {
-                    Ok(false)
-                }
-            }
-            Err(e) => {
-                warn!("[R1] GetOrder falló para reconciliar comanda {venta_id}: {e}");
-                Ok(false)
-            }
-        }
     }
 
     async fn reconcile_add_payment(
