@@ -25,6 +25,9 @@ pub struct BdpPushPendiente {
     /// Marca de la fila al leerla: `marcar_resultado` solo la cierra si sigue
     /// intacta, para no pisar una fusión que haya entrado durante el envío.
     pub updated_at: chrono::DateTime<chrono::Utc>,
+    /// [M21] Momento del último intento: decide la espera de la fila, porque
+    /// `updated_at` también se mueve al fusionar o re-editar, no solo al enviar.
+    pub proximo_intento_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Datos de la fila a actualizar tras procesarla. Agrupados para que
@@ -38,6 +41,9 @@ pub struct MarcarResultado<'a> {
     pub estado: &'a str,
     pub error: Option<&'a str>,
     pub incrementar_reintento: bool,
+    /// [M21] Segundos de espera antes del próximo intento; `None` = puede
+    /// intentarse ya (éxito o fin de la serie de reintentos seguidos).
+    pub espera_segundos: Option<i64>,
 }
 
 /// Identificación de la fila activa de un dominio/entidad/operación.
@@ -291,11 +297,17 @@ impl BdpPushService {
             estado,
             error,
             incrementar_reintento,
+            espera_segundos,
         } = datos;
+        /* [M21] `updated_at` sigue siendo la marca de concurrencia; la espera va
+         * en su propia columna y `NOW()` en una expresión aparte para que la
+         * consulta no necesite dos escrituras ni otra lectura del reloj. */
         let cerradas = sqlx::query_scalar::<_, Uuid>(
             "UPDATE bdp_push_pendientes \
              SET estado = $3, ultimo_error = $4, updated_at = NOW(), \
-                 reintentos = reintentos + CASE WHEN $5 THEN 1 ELSE 0 END \
+                 reintentos = reintentos + CASE WHEN $5 THEN 1 ELSE 0 END, \
+                 proximo_intento_at = CASE WHEN $6::BIGINT IS NULL THEN NOW() \
+                                           ELSE NOW() + ($6::BIGINT * INTERVAL '1 second') END \
              WHERE id = $1 AND updated_at = $2 \
              RETURNING id",
         )
@@ -304,6 +316,7 @@ impl BdpPushService {
         .bind(estado)
         .bind(error)
         .bind(incrementar_reintento)
+        .bind(espera_segundos)
         .fetch_all(pool)
         .await
         .map_err(|error| format!("No se pudo actualizar estado de push: {error}"))?;
@@ -316,8 +329,11 @@ impl BdpPushService {
             "El envío anterior terminó como {estado}, pero la fila cambió mientras \
              se enviaba; lo nuevo se enviará en el próximo flush"
         );
+        /* [M21] Sin heredar la espera de la serie anterior: lo fusionado es
+         * nuevo y debe salir en el próximo barrido. */
         sqlx::query(
-            "UPDATE bdp_push_pendientes SET estado = $2, ultimo_error = $3, updated_at = NOW() \
+            "UPDATE bdp_push_pendientes SET estado = $2, ultimo_error = $3, updated_at = NOW(), \
+                    proximo_intento_at = NOW() \
              WHERE id = $1",
         )
         .bind(fila_id)
@@ -349,7 +365,7 @@ impl BdpPushService {
             incrementar_reintento,
         } = datos;
         sqlx::query(
-            "UPDATE bdp_push_pendientes              SET estado = $6, ultimo_error = $7, updated_at = NOW(),                  reintentos = reintentos + CASE WHEN $8 THEN 1 ELSE 0 END              WHERE user_id = $1 AND dominio = $2 AND entidad_id = $3 AND operacion = $4                AND estado = ANY($5)",
+            "UPDATE bdp_push_pendientes              SET estado = $6, ultimo_error = $7, updated_at = NOW(),                  reintentos = reintentos + CASE WHEN $8 THEN 1 ELSE 0 END,                  proximo_intento_at = NOW()              WHERE user_id = $1 AND dominio = $2 AND entidad_id = $3 AND operacion = $4                AND estado = ANY($5)",
         )
         .bind(user_id)
         .bind(dominio)
@@ -363,6 +379,24 @@ impl BdpPushService {
         .await
         .map_err(|error| format!("No se pudo actualizar estado de push: {error}"))?;
         Ok(())
+    }
+
+    /// [M21] Empieza una serie nueva de reintentos en una fila que agotó el
+    /// tope. Solo cuando ya pasó su espera: si dos instancias llegan a la vez,
+    /// la segunda no encuentra la fila en la ventana y no hace nada.
+    pub async fn reabrir_serie(pool: &PgPool, pendiente: &BdpPushPendiente) -> Result<(), String> {
+        sqlx::query(
+            "UPDATE bdp_push_pendientes SET reintentos = 0, updated_at = NOW() \
+             WHERE id = $1 AND updated_at = $2 AND reintentos >= $3 \
+               AND (proximo_intento_at IS NULL OR proximo_intento_at <= NOW())",
+        )
+        .bind(pendiente.id)
+        .bind(pendiente.updated_at)
+        .bind(super::constantes::REINTENTOS_MAX)
+        .execute(pool)
+        .await
+        .map(|_| ())
+        .map_err(|error| format!("No se pudo reabrir la serie de reintentos: {error}"))
     }
 
     /// [26AA-3] Deja el motivo de un bloqueo por permiso sin tocar el estado,
@@ -389,7 +423,7 @@ impl BdpPushService {
     ) -> Result<Vec<BdpPushPendiente>, String> {
         let rows: Vec<BdpPushPendiente> = sqlx::query_as::<_, BdpPushPendiente>(
             "SELECT id, dominio, entidad_id, operacion, payload_json, estado, reintentos, \
-                    updated_at \
+                    updated_at, proximo_intento_at \
              FROM bdp_push_pendientes \
              WHERE user_id = $1 AND estado = ANY($2) \
              ORDER BY CASE dominio \
@@ -457,7 +491,7 @@ impl BdpPushService {
     ) -> Result<Option<BdpPushPendiente>, String> {
         sqlx::query_as::<_, BdpPushPendiente>(
             "SELECT id, dominio, entidad_id, operacion, payload_json, estado, reintentos, \
-                    updated_at \
+                    updated_at, proximo_intento_at \
              FROM bdp_push_pendientes \
              WHERE id = $1 AND user_id = $2",
         )
@@ -662,6 +696,7 @@ mod tests_inventario {
                 estado: ESTADO_SINCRONIZADO,
                 error: None,
                 incrementar_reintento: false,
+                espera_segundos: None,
             },
         )
         .await

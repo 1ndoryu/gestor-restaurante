@@ -266,20 +266,6 @@ fn sanitize_body(body: &str) -> String {
     format!("cuerpo BDP omitido ({} bytes)", body.len())
 }
 
-#[cfg(test)]
-mod tests_timeout {
-    use super::*;
-
-    #[test]
-    fn solo_venta_pago_y_puntos_usan_timeout_largo() {
-        assert!(es_escritura_venta(BDP_PATH_CREATE_ORDER));
-        assert!(es_escritura_venta(BDP_PATH_ORDER_PAYMENT_ADD));
-        assert!(es_escritura_venta(BDP_PATH_ADD_POINTS));
-        assert!(!es_escritura_venta("/API/Orders/Get"));
-        assert!(!es_escritura_venta("/API/Loyalty/GetPoints"));
-    }
-}
-
 pub fn response_error_message(value: &Value) -> Option<String> {
     value
         .get("ErrorMessage")
@@ -335,4 +321,18 @@ pub fn ensure_embedded_errors_empty(value: &Value) -> Result<(), BdpWeblinkError
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests_timeout {
+    use super::*;
+
+    #[test]
+    fn solo_venta_pago_y_puntos_usan_timeout_largo() {
+        assert!(es_escritura_venta(BDP_PATH_CREATE_ORDER));
+        assert!(es_escritura_venta(BDP_PATH_ORDER_PAYMENT_ADD));
+        assert!(es_escritura_venta(BDP_PATH_ADD_POINTS));
+        assert!(!es_escritura_venta("/API/Orders/Get"));
+        assert!(!es_escritura_venta("/API/Loyalty/GetPoints"));
+    }
 }

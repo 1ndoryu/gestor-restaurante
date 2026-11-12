@@ -130,6 +130,45 @@ pub async fn flush_manual(
     Ok(Json(resumen))
 }
 
+/// Listar las filas de la cola de sincronización (visibilidad D5).
+pub async fn listar_pendientes(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<Json<Vec<BdpPushFila>>, AppError> {
+    /* Acción de sincronización BDP: solo Admin (misma política que flush). */
+    auth.require_role(&[UserRole::Admin])?;
+    let filas = BdpPushService::listar_filas(&state.pool, auth.user_id, 100)
+        .await
+        .map_err(AppError::Internal)?;
+    Ok(Json(filas))
+}
+
+/// Reintentar individualmente una fila de la cola (decisión D5, regla D2).
+pub async fn reintentar_fila(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<BdpPushFlushResumen>, AppError> {
+    auth.require_role(&[UserRole::Admin])?;
+    let fila = BdpPushService::obtener_fila(&state.pool, auth.user_id, id)
+        .await
+        .map_err(AppError::Internal)?;
+    let Some(fila) = fila else {
+        return Err(AppError::NotFound(
+            "Fila de sincronización no encontrada".into(),
+        ));
+    };
+    if matches!(fila.estado.as_str(), "sincronizado" | "descartado") {
+        return Err(AppError::Validation(
+            "La fila ya está sincronizada o descartada".into(),
+        ));
+    }
+    let resumen = BdpPushFlushService::reintentar_uno(&state.pool, auth.user_id, id)
+        .await
+        .map_err(AppError::Internal)?;
+    Ok(Json(resumen))
+}
+
 #[cfg(test)]
 mod tests {
     use super::dominios_de_query;
@@ -171,43 +210,4 @@ mod tests {
             Some(vec!["cliente_puntos".to_string()])
         );
     }
-}
-
-/// Listar las filas de la cola de sincronización (visibilidad D5).
-pub async fn listar_pendientes(
-    State(state): State<AppState>,
-    auth: AuthUser,
-) -> Result<Json<Vec<BdpPushFila>>, AppError> {
-    /* Acción de sincronización BDP: solo Admin (misma política que flush). */
-    auth.require_role(&[UserRole::Admin])?;
-    let filas = BdpPushService::listar_filas(&state.pool, auth.user_id, 100)
-        .await
-        .map_err(AppError::Internal)?;
-    Ok(Json(filas))
-}
-
-/// Reintentar individualmente una fila de la cola (decisión D5, regla D2).
-pub async fn reintentar_fila(
-    State(state): State<AppState>,
-    auth: AuthUser,
-    Path(id): Path<Uuid>,
-) -> Result<Json<BdpPushFlushResumen>, AppError> {
-    auth.require_role(&[UserRole::Admin])?;
-    let fila = BdpPushService::obtener_fila(&state.pool, auth.user_id, id)
-        .await
-        .map_err(AppError::Internal)?;
-    let Some(fila) = fila else {
-        return Err(AppError::NotFound(
-            "Fila de sincronización no encontrada".into(),
-        ));
-    };
-    if matches!(fila.estado.as_str(), "sincronizado" | "descartado") {
-        return Err(AppError::Validation(
-            "La fila ya está sincronizada o descartada".into(),
-        ));
-    }
-    let resumen = BdpPushFlushService::reintentar_uno(&state.pool, auth.user_id, id)
-        .await
-        .map_err(AppError::Internal)?;
-    Ok(Json(resumen))
 }

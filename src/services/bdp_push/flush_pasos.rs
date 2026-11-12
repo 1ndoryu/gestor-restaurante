@@ -17,7 +17,8 @@ use super::constantes::{
     DOMINIO_PROPINA, DOMINIO_STOCK, DOMINIO_VENTA, ESTADO_ERROR, ESTADO_RECHAZADO,
     ESTADO_SINCRONIZADO, OPERACION_CANCELAR, OPERACION_CREAR, OPERACION_INVENTARIO,
     OPERACION_MODIFICAR, OPERACION_PRECIOS, OPERACION_PROPINA, OPERACION_PUNTOS,
-    OPERACION_REGULARIZAR, OPERACION_TRASPASAR,
+    OPERACION_REGULARIZAR, OPERACION_TRASPASAR, REINTENTOS_MAX, SEGUNDOS_ESPERA_BLOQUEO,
+    SEGUNDOS_ESPERA_REINTENTOS,
 };
 use super::enriquecimiento::enriquecer_payload_modificar_articulo;
 use super::ledger::{self, AccionLibro, LibroAbierto};
@@ -79,6 +80,7 @@ pub(super) async fn registrar_exito(
             estado: ESTADO_SINCRONIZADO,
             error: None,
             incrementar_reintento: false,
+            espera_segundos: None,
         },
     )
     .await?;
@@ -114,6 +116,18 @@ pub(super) async fn registrar_fallo(
     };
     BdpBackupService::actualizar_resultado(pool, audit_id, resultado_audit, None, Some(&mensaje))
         .await?;
+    /* [M21] Tras el tope, la fila descansa en vez de morir; un rechazo funcional
+     * se vuelve a probar una vez al día. Fuera de esos dos casos no hay espera:
+     * el barrido de 60 s ya es la pausa, y los tests que encadenan marcas
+     * siguen comportándose igual. */
+    let serie_agotada = incrementar && pendiente.reintentos + 1 >= REINTENTOS_MAX;
+    let espera_segundos = if serie_agotada {
+        Some(SEGUNDOS_ESPERA_REINTENTOS.cast_signed())
+    } else if estado == ESTADO_RECHAZADO {
+        Some(SEGUNDOS_ESPERA_BLOQUEO.cast_signed())
+    } else {
+        None
+    };
     BdpPushService::marcar_resultado(
         pool,
         MarcarResultado {
@@ -122,6 +136,7 @@ pub(super) async fn registrar_fallo(
             estado,
             error: Some(&mensaje),
             incrementar_reintento: incrementar,
+            espera_segundos,
         },
     )
     .await?;
@@ -171,6 +186,15 @@ pub(super) async fn registrar_fallo_de_stock(
     };
     BdpBackupService::actualizar_resultado(pool, audit_id, resultado_audit, None, Some(&nota))
         .await?;
+    /* [M21] Misma cadencia que el resto de la cola: el libro decide cuándo se
+     * puede volver a probar, y tras el tope la fila descansa en vez de morir. */
+    let espera_segundos = if incrementar && pendiente.reintentos + 1 >= REINTENTOS_MAX {
+        Some(SEGUNDOS_ESPERA_REINTENTOS.cast_signed())
+    } else if estado == ESTADO_RECHAZADO {
+        Some(SEGUNDOS_ESPERA_BLOQUEO.cast_signed())
+    } else {
+        None
+    };
     BdpPushService::marcar_resultado(
         pool,
         MarcarResultado {
@@ -179,6 +203,7 @@ pub(super) async fn registrar_fallo_de_stock(
             estado,
             error: Some(&nota),
             incrementar_reintento: incrementar,
+            espera_segundos,
         },
     )
     .await?;

@@ -41,6 +41,11 @@ pub struct BdpPushFlushResumen {
     pub omitidos_manual: usize,
     /// [26AA-3] Filas que esperan a que se encienda su categoría automática.
     pub bloqueados_permiso: usize,
+    /// [M21] Filas que esperan su hueco (tope de reintentos o bloqueo funcional).
+    pub en_espera: usize,
+    /// [M21] BDP no respondió a `Health`: la pasada no envió nada y las filas
+    /// conservan sus intentos. 1 si ocurrió, 0 si no.
+    pub bdp_no_disponible: usize,
 }
 
 pub struct BdpPushFlushService;
@@ -89,18 +94,22 @@ impl BdpPushFlushService {
 
         let pendientes = BdpPushService::listar_pendientes(pool, user_id).await?;
         let client = BdpWeblinkClient::new(&config);
+        /* [M21] Una fila se salta sola mientras espera su próximo intento, así
+         * que en la mayoría de los barridos no hay nada que enviar: sin sondear
+         * el TPV para averiguar si está vivo. */
+        let mut bdp_vivo: Option<bool> = None;
 
         for pendiente in pendientes {
             /* [159A-2/F1] Filtro por dominio del botón Exportar por sección. */
             if !Self::dominio_en_filtro(&pendiente.dominio, dominios) {
                 continue;
             }
-            /* D2: bloqueo por suscripción -> solo reintento manual. */
+            /* D2: bloqueo por suscripción -> reintento automático diario o manual. */
             if pendiente.estado == ESTADO_PENDIENTE_SUSCRIPCION && !forzar_manual {
                 resumen.pendientes_suscripcion += 1;
                 continue;
             }
-            /* [049A-1/S5] Rechazo definitivo (4xx) -> solo reintento manual. */
+            /* [049A-1/S5] Rechazo funcional (4xx) -> reintento automático diario o manual. */
             if pendiente.estado == ESTADO_RECHAZADO && !forzar_manual {
                 resumen.rechazados += 1;
                 continue;
@@ -113,10 +122,43 @@ impl BdpPushFlushService {
                 resumen.bloqueados_permiso += 1;
                 continue;
             }
-            /* M21: no reintentar indefinidamente errores transitorios. */
+            /* [M21] Tope de reintentos seguidos: la fila descansa, no muere. */
             if pendiente.reintentos >= REINTENTOS_MAX {
-                resumen.errores += 1;
-                continue;
+                /* El botón manual es el respaldo: no espera. */
+                if !forzar_manual {
+                    if pendiente.proximo_intento_at.unwrap_or_default() > chrono::Utc::now() {
+                        resumen.en_espera += 1;
+                        continue;
+                    }
+                    /* Agotada la espera, se empieza una serie nueva: sin esto el
+                     * contador llegaría siempre al tope y no se reintentaría. */
+                    if let Err(error) = BdpPushService::reabrir_serie(pool, &pendiente).await {
+                        Self::registrar_fallo_previo(pool, &pendiente, &error).await;
+                        resumen.errores += 1;
+                        continue;
+                    }
+                }
+            }
+            /* [M21] TPV caído: no se quema un reintento por fila. Se pregunta una
+             * vez por cuenta y, si no responde, la pasada termina en espera con
+             * las filas intactas. La pregunta solo se toma como «caído» cuando el
+             * fallo es de red: un 4xx de `Health` con `IsAlive` es un TPV que
+             * habla y rechaza, y eso lo decide el libro de stock con lecturas
+             * reales (`GetStock`); cortar ahí dejaría la cola parada sin motivo. */
+            if !forzar_manual {
+                if let Some(vivo) = bdp_vivo {
+                    if !vivo {
+                        resumen.bdp_no_disponible = 1;
+                        break;
+                    }
+                } else {
+                    let vivo = Self::tpv_responde(&client).await;
+                    bdp_vivo = Some(vivo);
+                    if !vivo {
+                        resumen.bdp_no_disponible = 1;
+                        break;
+                    }
+                }
             }
             resumen.procesados += 1;
             match Self::procesar_uno(pool, &config, &client, user_id, &pendiente, forzar_manual)
@@ -133,6 +175,20 @@ impl BdpPushFlushService {
             }
         }
         Ok(resumen)
+    }
+
+    /// [M21] ¿Contesta el TPV? Solo un fallo de red o un 429 lo dan por caído: un
+    /// 4xx con respuesta es un TPV que habla y rechaza, y eso lo decide el libro
+    /// de stock con lecturas reales; cortar ahí dejaría la cola parada sin motivo.
+    async fn tpv_responde(client: &BdpWeblinkClient<'_>) -> bool {
+        match client.health().await {
+            Ok(health) => health.is_alive,
+            Err(
+                crate::services::bdp_weblink::BdpWeblinkError::Http(_)
+                | crate::services::bdp_weblink::BdpWeblinkError::Throttled(_),
+            ) => false,
+            Err(_) => true,
+        }
     }
 
     /// [26AA-3] Motivo por el que el modo automático no puede escribir esta fila.
@@ -174,6 +230,7 @@ impl BdpPushFlushService {
                 estado: ESTADO_ERROR,
                 error: Some(mensaje),
                 incrementar_reintento: true,
+                espera_segundos: None,
             },
         )
         .await;
@@ -472,9 +529,13 @@ mod tests_permiso {
     use crate::services::fijar_permiso;
     use rust_decimal::Decimal;
     use serde_json::json;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    /* Cuenta en modo BDP con escritura automática: el único filtro que queda es el permiso. */
-    async fn usuario_automatico(pool: &PgPool) -> Uuid {
+    /* Cuenta en modo BDP con escritura automática: el único filtro que queda es el permiso.
+     * La URL apunta a un TPV que contesta `IsAlive` porque [M21] un TPV mudo detiene la
+     * pasada antes de permiso alguno — así el test sigue midiendo lo que dice medir. */
+    async fn usuario_automatico(pool: &PgPool, base_url: &str) -> Uuid {
         let user_id = Uuid::new_v4();
         sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
             .bind(user_id)
@@ -486,10 +547,11 @@ mod tests_permiso {
         ConfiguracionService::obtener(pool, user_id).await.unwrap();
         sqlx::query(
             "UPDATE configuracion_restaurante SET modo_operacion = 'bdp', bdp_sync_enabled = TRUE, \
-             bdp_base_url = 'http://127.0.0.1:1', bdp_sync_mode = 'automatic', \
+             bdp_base_url = $2, bdp_sync_mode = 'automatic', \
              push_modalidad = 'automatico' WHERE user_id = $1",
         )
         .bind(user_id)
+        .bind(base_url)
         .execute(pool)
         .await
         .unwrap();
@@ -509,11 +571,26 @@ mod tests_permiso {
         .unwrap()
     }
 
+    /* [M21] TPV que contesta `IsAlive`: sin él la pasada se detendría antes de
+     * mirar permisos, y este test mide el permiso. */
+    async fn tpv_vivo() -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/Service/Health"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "IsAlive": true })),
+            )
+            .mount(&server)
+            .await;
+        server
+    }
+
     /* [26AA-3] Categoría apagada: la fila espera con su motivo sin gastar reintentos
      * ni enviar nada; al encenderla, el mismo flush ya la procesa. */
     #[sqlx::test(migrations = "./migrations")]
     async fn categoria_apagada_deja_la_fila_en_espera_con_motivo(pool: PgPool) {
-        let user_id = usuario_automatico(&pool).await;
+        let server = tpv_vivo().await;
+        let user_id = usuario_automatico(&pool, &server.uri()).await;
         BdpPushService::acumular_puntos(
             &pool,
             user_id,
