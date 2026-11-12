@@ -185,9 +185,16 @@ async fn flush_timeout_mid_write_estado_ambiguo_y_reintento_acotado(pool: PgPool
             .unwrap();
     assert_eq!(reintentos_max, REINTENTOS_MAX);
 
+    /* [M21] El botón manual es el respaldo: no espera la cadencia, así que la
+     * fila sí se procesa. Lo que sigue frenando el envío es la auditoría
+     * ambigua del intento anterior (guarda fail-closed), no el contador: por eso
+     * cuenta como error y no sale un segundo HTTP. */
     let resumen_final = BdpPushFlushService::flush(&pool, user, true).await.unwrap();
-    assert_eq!(resumen_final.procesados, 0);
-    assert_eq!(resumen_final.errores, 1);
+    assert_eq!(
+        resumen_final.procesados, 1,
+        "el manual no espera la cadencia"
+    );
+    assert_eq!(resumen_final.errores, 1, "la guarda de ambigüedad lo frena");
     /* Sin nuevos envíos: el límite detiene el reintento (nunca bucle infinito). */
     let envios_finales = server
         .received_requests()

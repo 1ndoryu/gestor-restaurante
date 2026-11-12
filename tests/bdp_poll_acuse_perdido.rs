@@ -231,11 +231,12 @@ async fn con_el_receptor_arriba_la_recupera_y_lo_cuenta(pool: PgPool) {
     assert_eq!(resultado, "exito", "el guard deja de bloquear la venta");
 }
 
-/// El límite declarado de D23b: si la comanda **no** existe en BDP, el polling
-/// no inventa nada. La auditoría sigue ambigua y la venta pendiente: no se da por
-/// recuperado lo que no está.
+/// Un 404 de `GetOrder` **no** es la respuesta de negocio «no la tengo»: BDP no
+/// contesta así en su contrato (el simulador devuelve 200 con `ErrorMessage`).
+/// Sin esa evidencia no se reenvía: la auditoría sigue abierta y la venta
+/// pendiente.
 #[sqlx::test(migrations = "./migrations")]
-async fn si_la_comanda_no_existe_no_se_da_por_recuperada(pool: PgPool) {
+async fn un_404_de_get_order_no_autoriza_a_reenviar(pool: PgPool) {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .respond_with(|request: &wiremock::Request| match request.url.path() {
@@ -282,8 +283,137 @@ async fn si_la_comanda_no_existe_no_se_da_por_recuperada(pool: PgPool) {
     assert_eq!(resultado, "ambiguo");
 }
 
-/// El otro borde del mismo límite: BDP contesta 200 sin comanda (`ErrorMessage`
-/// vacío y sin `OrderId`). No es un error de red ni un 404: es «no la encuentro».
+/// [M21] El caso que pidió el cliente: BDP dice por `GetOrder` que no tiene la
+/// comanda (`ErrorMessage` de negocio con `Health` vivo). Entonces se cierra la
+/// auditoría muerta y se envía **una sola vez**; la venta sale del limbo.
+#[sqlx::test(migrations = "./migrations")]
+async fn si_bdp_dice_que_no_la_tiene_se_reenvia_una_vez(pool: PgPool) {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(|request: &wiremock::Request| {
+            let cuerpo: serde_json::Value =
+                serde_json::from_slice(&request.body).unwrap_or_default();
+            match request.url.path() {
+                "/Auth/Login" => ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "ErrorMessage": "",
+                    "AuthSession": { "Token": "token-bdp", "ExpiresIn_InSecconds": 3540 }
+                })),
+                "/Service/Health" => {
+                    ResponseTemplate::new(200).set_body_json(serde_json::json!({ "IsAlive": true }))
+                }
+                /* La comanda no está: error de negocio, como el TPV real. */
+                "/API/Orders/Get" => ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "ErrorMessage": "comanda inexistente" })),
+                "/API/Orders/Create" => {
+                    let pedido = cuerpo
+                        .get("Order")
+                        .and_then(|o| o.get("MarketplaceOrderId"))
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or_default()
+                        .to_string();
+                    ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                        "OrderId": 5555,
+                        "Order": { "OrderId": 5555, "MarketplaceOrderId": pedido },
+                        "ErrorMessage": ""
+                    }))
+                }
+                _ => ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "ErrorMessage": "" })),
+            }
+        })
+        .mount(&server)
+        .await;
+
+    let (user_id, _) = usuario_con_bdp_roto(&pool).await;
+    /* Modo `automatic` con la categoría de comandas encendida: sin esto el
+     * reenvío que se prueba aquí se quedaría en el armado y no llegaría a BDP. */
+    sqlx::query(
+        "UPDATE configuracion_restaurante SET bdp_base_url = $2, bdp_sync_mode = 'automatic' \
+         WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .bind(server.uri())
+    .execute(&pool)
+    .await
+    .expect("apuntar al BDP disponible");
+    glory_backend::services::fijar_permiso(&pool, user_id, "comandas", true)
+        .await
+        .expect("encender la categoría de comandas");
+    let config = ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("releer configuración");
+
+    let venta_id = venta_con_acuse_perdido(&pool, user_id).await;
+    let recuperadas =
+        BdpOrderPollerService::poll_pending(&pool, user_id, &config, &ServicioModoOperacion::new())
+            .await
+            .expect("el polling no revienta");
+    assert_eq!(recuperadas, 1, "la venta se reabrió y se envió");
+
+    let venta = VentaRepository::find_by_id(&pool, venta_id, user_id)
+        .await
+        .expect("leer venta")
+        .expect("la venta existe");
+    assert!(venta.bdp_synced, "el reenvío confirmó la comanda");
+    assert_eq!(venta.bdp_order_id, Some(5555));
+
+    /* La auditoría vieja queda cerrada como `error` (no se reenvió «a ciegas ni
+     * dos veces»: BDP dijo que no la tenía) y la nueva como `exito`. */
+    let abiertas: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bdp_audit_log \
+         WHERE user_id = $1 AND target_entity_id = $2 AND operacion = 'create_order' \
+           AND resultado IN ('pendiente', 'ambiguo')",
+    )
+    .bind(user_id)
+    .bind(venta_id)
+    .fetch_one(&pool)
+    .await
+    .expect("contar auditorías abiertas");
+    assert_eq!(abiertas, 0, "ninguna auditoría queda bloqueando la venta");
+
+    let envios = server
+        .received_requests()
+        .await
+        .iter()
+        .flatten()
+        .filter(|req| req.url.path() == "/API/Orders/Create")
+        .count();
+    assert_eq!(envios, 1, "se envía una sola vez");
+}
+
+/// El límite del reenvío: con el TPV caído no hay evidencia de nada, así que la
+/// auditoría sigue abierta y **no** se envía. Reenviar a ciegas es justo lo que
+/// esta pieza evita.
+#[sqlx::test(migrations = "./migrations")]
+async fn con_bdp_caido_no_se_reenvia(pool: PgPool) {
+    let (user_id, config) = usuario_con_bdp_roto(&pool).await;
+    let venta_id = venta_con_acuse_perdido(&pool, user_id).await;
+
+    let recuperadas =
+        BdpOrderPollerService::poll_pending(&pool, user_id, &config, &ServicioModoOperacion::new())
+            .await
+            .expect("el polling no revienta con el receptor caído");
+    assert_eq!(recuperadas, 0);
+
+    let (resultado,): (String,) = sqlx::query_as(
+        "SELECT resultado FROM bdp_audit_log \
+         WHERE user_id = $1 AND target_entity_id = $2 AND operacion = 'create_order'",
+    )
+    .bind(user_id)
+    .bind(venta_id)
+    .fetch_one(&pool)
+    .await
+    .expect("leer auditoría");
+    assert_eq!(resultado, "ambiguo", "sin respuesta de BDP no se decide");
+    let venta = VentaRepository::find_by_id(&pool, venta_id, user_id)
+        .await
+        .expect("leer venta")
+        .expect("la venta existe");
+    assert!(!venta.bdp_synced);
+}
+
+/// El otro borde: BDP contesta 200 sin comanda (`ErrorMessage` vacío y sin
+/// `OrderId`). No es un error de red ni un 404: es «no la encuentro».
 /// Se trata igual: la auditoría sigue abierta y la venta pendiente.
 #[sqlx::test(migrations = "./migrations")]
 async fn si_bdp_contesta_sin_comanda_no_se_da_por_recuperada(pool: PgPool) {
