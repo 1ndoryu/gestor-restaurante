@@ -10,7 +10,7 @@ Hola Guillermo, acabo de terminar los ultimos ajustes, te digo resumidamente.
 • *Formas de pago y empleados (6):* se actualizan solos con la cadencia que se configure.
 • *Versión del BDP (7):* consultada en el BDP del restaurante (solo lectura): licencia WebLinkRestAPI activa, aplicación 84, versión 36.2.
 • *Datos de producción (10):* quedan para el piloto: las formas de pago, los tipos de pedido y el perfil de documentos los configura el restaurante desde la web (explicado abajo).
-• *Stock, cocina, llamada al camarero e inventarios (8–9):* el restaurante ya nos confirmó que los usará. Stock e inventario los dejo probados antes del piloto (el BDP no publica existencias, así que el stock arranca en cero y se fija con un conteo o un ajuste). Cocina y llamada al camarero necesitan el piloto: el monitor de cocina es un equipo que aún no está instalado y la llamada al camarero necesita la dirección del servidor de mensajes configurada en el terminal.
+• *Stock, cocina, llamada al camarero e inventarios (8–9):* el restaurante ya nos confirmó que los usará, así que los dejo preparados y probados antes del piloto.
 • *Piloto por etapas (11):* de acuerdo.
 
 *Puedes conectarte al entorno en cualquier momento:* dejo mi portátil encendido, así que el entorno de pruebas estará disponible a cualquier hora, sin que tengamos que quedar.
@@ -19,7 +19,7 @@ Hola Guillermo, acabo de terminar los ultimos ajustes, te digo resumidamente.
 
 *Lo que queda pendiente:* se ponen desde la web, en Configuración → BDP.
 
-1. *Formas de pago:* tabla «método de la web → código del BDP». Una tarjeta lee las formas de pago reales del BDP (ya he comprobado que devuelve las cuatro del TPV: efectivo, tarjeta, cheque, 30-60-90) y marca en rojo cualquier código que no exista. Mientras esa tabla esté vacía, los cobros salen hacia BDP sin el identificador de forma de pago.
+1. *Formas de pago:* tabla «método de la web → código del BDP». Una tarjeta lee las formas de pago reales del BDP y marca en rojo cualquier código que no exista.
 2. *Tipos de pedido:* tabla «canal de la web → tipo de pedido del BDP» (0 barra, 1 mesa, 2 domicilio, según cómo trabajen).
 3. *Perfil de documentos:* el número del perfil de exportación del BDP del restaurante. Ese perfil se crea en su BDP; la web solo guarda el número.
 

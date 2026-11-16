@@ -1,0 +1,28 @@
+Hola Guillermo, acabo de terminar los ultimos ajustes, te digo resumidamente.
+
+• *Modificar una comanda (1):* ya funciona. Si se cambia una comanda desde la web, llega al TPV con las líneas añadidas o quitadas y el total correcto.
+• *Cambios hechos en el TPV (2):* la web los detecta sola; si la comanda ya no coincide, avisa con «Conflicto» y no deja cobrar hasta revisarla.
+• *Mesa ocupada (3):* ya se comprueba antes de enviar y el mensaje dice qué mesa está ocupada y por qué comanda.
+• *Factura con nombre, NIF y dirección (4):* probada de principio a fin y, al repetir la petición, no se genera otra factura. Comparado el documento dentro del TPV (consulta de documentos): coincide en cliente, mesa, camarero, base, IVA y total.
+• *Reinicio de BDP.NET (5):* ya se recupera solo, como pedías. Cuando el TPV vuelve, la web pregunta a BDP por el identificador de cada comanda que se quedó a medias: si ya existe, la recupera sin reenviarla; si BDP dice que no la tiene, la envía una sola vez; si no puede comprobarlo (TPV aún caído), no reenvía nada y lo reintenta en la siguiente pasada. Los errores funcionales no se reintentan en bucle: quedan bloqueados con el aviso en la cola. El botón manual sigue ahí como respaldo.
+• *Cola con el TPV apagado:* un TPV caído ya no gasta reintentos; la cola espera sin tocar las filas y sigue sola cuando vuelve. Un cierre de fin de semana ya no deja la cola muerta.
+• *Modificar una comanda:* se pueden cambiar artículos, cantidades y precios. Los comentarios de texto libre no: la línea de venta no tiene ese campo, así que un comentario puesto en la web no viaja al TPV.
+• *Formas de pago y empleados (6):* se actualizan solos con la cadencia que se configure.
+• *Versión del BDP (7):* consultada en el BDP del restaurante (solo lectura): licencia WebLinkRestAPI activa, aplicación 84, versión 36.2.
+• *Datos de producción (10):* quedan para el piloto: las formas de pago, los tipos de pedido y el perfil de documentos los configura el restaurante desde la web (explicado abajo).
+• *Stock, cocina, llamada al camarero e inventarios (8–9):* el restaurante ya nos confirmó que los usará, así que los dejo preparados y probados antes del piloto.
+• *Piloto por etapas (11):* de acuerdo.
+
+*Puedes conectarte al entorno en cualquier momento:* dejo mi portátil encendido, así que el entorno de pruebas estará disponible a cualquier hora, sin que tengamos que quedar.
+
+*Chatbot de entretenedores.net:* ya funciona. El nuevo (n8n) está puesto en lugar del de uchat, que he quitado, y tras quitar la barra final del origen permitido contesta en toda la web.
+
+*Lo que queda pendiente:* se ponen desde la web, en Configuración → BDP.
+
+1. *Formas de pago:* tabla «método de la web → código del BDP». Una tarjeta lee las formas de pago reales del BDP y marca en rojo cualquier código que no exista.
+2. *Tipos de pedido:* tabla «canal de la web → tipo de pedido del BDP» (0 barra, 1 mesa, 2 domicilio, según cómo trabajen).
+3. *Perfil de documentos:* el número del perfil de exportación del BDP del restaurante. Ese perfil se crea en su BDP; la web solo guarda el número.
+
+Prueba todo y me comentas cualquier detalle.
+
+Estoy atenta a cualquier otra cosa.
