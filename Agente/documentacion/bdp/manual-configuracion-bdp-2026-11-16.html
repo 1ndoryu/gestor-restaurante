@@ -244,6 +244,7 @@
 
 <h2>15. Qué no se configura aquí</h2>
 <p>Para evitar búsquedas inútiles: la dirección del servicio, la licencia WebLinkRestAPI del terminal, el perfil de exportación y los códigos de IVA <strong>se crean y se ven en el TPV</strong>, no en la web. La web solo guarda el número que ya existe allí. Tampoco se configura en esta pantalla el modo en que el terminal avisa de cambios: eso vive en la configuración del propio BDP, y si está mal, los avisos llegan rechazados con su motivo escrito.</p>
+<p>Uno de esos ajustes es la <strong>dirección del servidor de mensajes</strong>. Está en el terminal, dentro de «Configuración de Servicios Web del terminal», y es el sitio al que el TPV entrega los avisos que van a cocina y a los camareros. No la inventa el restaurante ni se obtiene en la web: la pone quien instaló BDP al configurar el terminal, y lo normal es que sea la propia IP del ordenador donde corre el TPV. Si falta, el terminal rechaza los avisos con el texto «No se ha establecido una IP de Servidor de Mensajes» y la web solo puede mostrarlo. Hace falta únicamente si se van a usar cocina y llamada al camarero; el resto funciona sin ella.</p>
 
 <h2>16. Lo que no es del restaurante</h2>
 <p>Todo lo de las secciones anteriores lo puede hacer el restaurante desde su propia cuenta. Esto no: son cosas que viven en los servidores donde está instalada la aplicación web, y hoy <strong>solo las administra la persona que ha montado la integración</strong>, porque el restaurante todavía no tiene hosting ni servidor propio.</p>
