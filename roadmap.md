@@ -17,7 +17,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Bloqueos
 
-- El TPV demo del portátil avisa «sin conexión con el servidor de subscripción», con límite de uso el 09/11/2026 12:42; «Volver a validar» no lo resuelve. Guillermo debe validarlo con BDP; si caduca, rest-dev pierde el WebLink.
+- El TPV demo del portátil avisa «sin conexión con el servidor de subscripción», con límite de uso el 09/11/2026 12:42; «Volver a validar» no lo resuelve. Guillermo debe validarlo con BDP; si caduca, rest-dev pierde el WebLink. Comprobado el 15/11: el 09/11 no lo tumbó nada; la caída del 04/11 era el servidor WebLink REST parado (`LogServidoresRestFullWeblinkRestAPI.log`: «Parando Servidor Weblink REST API: 8070» a las 15:15). Arrancar el TPV y entrar con usuario/5555 lo levanta; el túnel inverso `ssh -N -f -R 127.0.0.1:8071:127.0.0.1:8070 dev89` es manual y hay que rehacerlo tras reiniciar el portátil.
 - `Arranque up` imprime «túnel ssh no levantó» aunque el servicio esté sano si el túnel permanente ya ocupa el 3105 (falso negativo; comprobar con `curl 127.0.0.1:3105/api/health`). Corregir en el wrapper `Arranque`, no en el proyecto.
 - Licencia WebLinkRestAPI (servicio 84): resuelta el 28/10/2026 (`Agente/completados/tareas-2026-10-28.md`).
 - `28AA-4` 4.5: hecho el 29/10 (reinicio manual decidido por la usuaria). Pendiente: WebLinkRestAPI no tiene proceso propio (sirve HTTP.sys) y BDP.NET es límite de hardware.
