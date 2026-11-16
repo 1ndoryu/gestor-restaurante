@@ -1,0 +1,15 @@
+BORRADOR — respuesta a Guillermo, 2026-11-16 (WhatsApp, sin enviar)
+
+Hola Guillermo, ya estoy de vuelta. Te contesto a lo de los últimos días.
+
+*Google Drive:* el párrafo ya está en la política de privacidad de guillechatbots.es, en «Uso de Google Drive en automatizaciones internas». Comprobado en la web publicada.
+
+*Cola al volver BDP (tu corrección del 05/11):* hecha. Mientras BDP está caído no gasta reintentos. Al volver, primero pregunta a BDP por el identificador de cada comanda: si existe la recupera sin reenviarla, si no existe la envía una sola vez, y si no puede comprobarlo espera a la pasada siguiente. Los errores funcionales quedan bloqueados con aviso. El botón manual sigue como respaldo.
+
+*Lo que me falta de ti:* cómo aparecen en su BDP las formas de pago que usa (efectivo, tarjeta, transferencia, plataformas de reparto, invitación). El propietario no conoce los nombres; sin ellos no puedo mapearlas.
+
+*Lo que he decidido con sus respuestas:* stock e inventarios los deja «para cuando esté implantado», así que no entran en el piloto: quedan preparados para después. Cocina y llamada al camarero no los doy por confirmados; si no los vais a usar, quedan apagados, y si sí, necesito la dirección del servidor de mensajes del terminal. El perfil de factura completa lo dejo fuera: solo usan ticket.
+
+*Entorno de pruebas:* está abierto y preparado para que entres cuando quieras, a cualquier hora, sin avisar. Mismo enlace y mismo usuario que te pasé. He activado la escritura completa contra el BDP de pruebas, así que puedes crear comandas, cobrar, facturar y tocar artículos: es una copia, lo que hagas ahí se queda ahí. El TPV ya se abre solo al encender el portátil; si alguna vez la web no conecta, es que el TPV se cerró, y con volver a abrirlo y entrar basta.
+
+Gracias por preocuparte, estoy a tope otra vez.
