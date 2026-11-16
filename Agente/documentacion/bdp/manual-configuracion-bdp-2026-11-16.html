@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 14mm;
+    @bottom-left { content: none; } @bottom-center { content: none; }
+    @bottom-right { content: none; } @top-left { content: none; }
+    @top-center { content: none; } @top-right { content: none; }
+  }
+  *, *:before, *:after { box-sizing: border-box; }
+  body {
+    font-family: "Times New Roman", Times, "Liberation Serif", serif;
+    font-size: 8.2pt; line-height: 1.28; color: #000; background: #fff;
+    text-align: justify; text-justify: inter-word; margin: 0; padding: 0;
+  }
+  h1 { font-size: 11pt; font-weight: bold; text-transform: uppercase; text-align: center;
+       margin: 0 0 6pt 0; line-height: 1.25; letter-spacing: 0.2pt;
+       page-break-after: avoid; break-after: avoid; }
+  h2 { font-size: 8.8pt; font-weight: bold; text-transform: uppercase; margin: 14pt 0 5pt 0;
+       line-height: 1.2; letter-spacing: 0.15pt; page-break-after: avoid; break-after: avoid; }
+  h3 { font-size: 8.3pt; font-weight: bold; margin: 9pt 0 3pt 0; line-height: 1.22;
+       page-break-after: avoid; break-after: avoid; }
+  p { margin: 0 0 3.5pt 0; text-indent: 0; }
+  .sub { text-align: center; margin-bottom: 10pt; }
+  .table-note { font-size: 7.8pt; line-height: 1.22; margin: 0 0 5pt 0; }
+  table { width: 100%; border-collapse: collapse; margin: 6pt 0 12pt 0; font-size: 7.1pt; line-height: 1.16;
+          border: none; }
+  tr { page-break-inside: avoid; break-inside: avoid; }
+  thead { display: table-header-group; }
+  th { border-top: 1.2pt solid #000; border-bottom: 0.75pt solid #000; border-left: none;
+       border-right: none; padding: 2.4pt 3.5pt; font-weight: bold; text-transform: uppercase;
+       font-size: 7.2pt; letter-spacing: 0.1pt; text-align: left; }
+  td { border: none; padding: 1.6pt 3.5pt; vertical-align: top; text-align: left; }
+  tbody tr:last-child td { border-bottom: 1.2pt solid #000; }
+  table.orden th:nth-child(1), table.orden td:nth-child(1) { width: 5%; white-space: nowrap; text-align: center; }
+  table.orden th:nth-child(2), table.orden td:nth-child(2) { width: 27%; }
+  table.orden th:nth-child(3), table.orden td:nth-child(3) { width: 40%; }
+  table.orden th:nth-child(4), table.orden td:nth-child(4) { width: 15%; text-align: center; }
+  table.orden th:nth-child(5), table.orden td:nth-child(5) { width: 13%; text-align: center; }
+  table.campos th:nth-child(1), table.campos td:nth-child(1) { width: 30%; }
+  table.campos th:nth-child(2), table.campos td:nth-child(2) { width: 14%; text-align: center; }
+  table.campos th:nth-child(3), table.campos td:nth-child(3) { width: 56%; }
+  ul, ol { margin: 3pt 0 6pt 0; padding-left: 15pt; }
+  li { margin-bottom: 4.5pt; text-align: justify; page-break-inside: avoid; break-inside: avoid; }
+  li:last-child { margin-bottom: 2pt; }
+  strong, b { font-weight: bold; }
+  .box { display: inline-block; width: 7pt; height: 7pt; border: 0.6pt solid #000; }
+  code { font-family: "Courier New", monospace; font-size: 7.4pt; }
+  .nueva { break-before: page; page-break-before: always; }
+</style>
+</head>
+<body>
+
+<h1>Puesta en marcha del TPV BDP: lo que falta por configurar</h1>
+<p class="sub"><strong>Aplicación web del restaurante · manual de puesta en marcha.</strong> 16 de noviembre de 2026.</p>
+
+<h2>1. Para qué sirve este manual y qué falta</h2>
+<p>La integración con el TPV está terminada y probada en sentido web&nbsp;→&nbsp;BDP: las comandas, los cobros, las facturas, las cancelaciones y los movimientos de stock se envían al terminal y su resultado vuelve a la web. Lo que queda no es código: son <strong>datos del TPV</strong> que la aplicación no puede adivinar. Cada BDP numera sus formas de pago, sus canales de pedido, sus tipos de IVA y sus perfiles de exportación a su manera; un mismo número puede significar cosas distintas en dos restaurantes.</p>
+<p>Este manual recorre, una por una, las pantallas donde se rellenan esos datos. Ninguna requiere conocimientos técnicos: se trata de emparejar nombres con números, y la propia aplicación enseña los números reales del TPV para que no haya que buscarlos a mano.</p>
+<p><strong>La regla que resuelve casi todo:</strong> donde aparezca un botón de <em>consultar</em>, <em>comprobar</em> o <em>leer</em>, púlsalo primero. La aplicación pregunta al TPV y te muestra lo que hay. Después solo hay que elegir de esa lista. Ninguno de esos botones escribe nada en el TPV: solo leen.</p>
+
+<h2>2. Dónde está todo y cómo se guarda</h2>
+<p>Toda la configuración vive en <strong>Configuración</strong>, en la barra de pestañas de arriba, dentro de <strong>«A qué se conecta»</strong>. Algunas piezas de control están en la pestaña <strong>«Avanzado»</strong>, y este manual lo indica en cada caso.</p>
+<p>El guardado no está en cada tarjeta, sino en una <strong>barra flotante abajo a la derecha</strong> que aparece en cuanto se toca cualquier campo. Mientras haya cambios sin guardar, la pestaña muestra una etiqueta ámbar <em>«sin guardar»</em>. La barra tiene tres elementos: el estado, el botón <strong>«Deshacer»</strong> y el botón <strong>«Guardar»</strong>. Si se sale de la pantalla sin pulsarlo, los cambios se pierden.</p>
+<p>Dos excepciones: la pestaña «Avanzado» guarda sola al instante —allí no hay botón, y por eso no lo hay— y la elección de cadencia de las lecturas automáticas se guarda en el momento de elegirla.</p>
+
+<table class="orden">
+<thead><tr><th>N.º</th><th>Qué se configura</th><th>Para qué sirve</th><th>Sin esto</th><th>Prioridad</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Datos de conexión</td><td>Que la web pueda entrar al TPV</td><td>No hay integración de ningún tipo</td><td>Impuesta</td></tr>
+<tr><td>2</td><td>Modo de operaciones</td><td>Decidir si la web solo lee o también escribe</td><td>Queda en solo lectura</td><td>Impuesta</td></tr>
+<tr><td>3</td><td>Formas de pago</td><td>Traducir el método de cobro al código del TPV</td><td>El cobro falla o se envía sin forma de pago</td><td>Alta</td></tr>
+<tr><td>4</td><td>Canales de pedido</td><td>Que la comanda salga en mesa, barra o domicilio</td><td>La comanda no aparece donde debe</td><td>Alta</td></tr>
+<tr><td>5</td><td>Tipos de IVA</td><td>Que el TPV acepte crear artículos</td><td>El alta de artículos se rechaza</td><td>Alta</td></tr>
+<tr><td>6</td><td>Artículo y cliente por defecto</td><td>Qué se envía cuando un plato no existe en el TPV</td><td>Se factura un artículo equivocado</td><td>Alta</td></tr>
+<tr><td>7</td><td>Perfil de documentos</td><td>Leer las facturas y tickets que emite el TPV</td><td>No se ven los documentos emitidos</td><td>Media</td></tr>
+<tr><td>8</td><td>Funciones avanzadas</td><td>Pagos parciales, cancelar comandas, compras</td><td>Esas operaciones no están disponibles</td><td>Media</td></tr>
+<tr><td>9</td><td>Operaciones sin API</td><td>Quién hace en el terminal lo que la web no puede</td><td>La web avisa de que está sin asignar</td><td>Baja</td></tr>
+<tr><td>10</td><td>Permisos y lecturas automáticas</td><td>Afinar qué puede escribir la web y cada cuánto relee</td><td>Todo apagado: nada se actualiza solo</td><td>Baja</td></tr>
+</tbody>
+</table>
+
+<h2>3. Datos de conexión (imprescindible)</h2>
+<p>Está en la primera tarjeta de la pestaña, con el título <strong>«Conexión BDP»</strong>. Estos datos <strong>no se inventan</strong>: los deja puestos el instalador de BDP al montar el terminal. Si alguno no se conoce, hay que pedírselo a quien instaló el TPV.</p>
+
+<table class="campos">
+<thead><tr><th>Campo</th><th>Tipo</th><th>Qué es</th></tr></thead>
+<tbody>
+<tr><td>URL pública BDP</td><td>Texto</td><td>Dirección del servicio del terminal, con su puerto. En el ejemplo del formulario, <code>https://ip-o-dominio:8080</code>.</td></tr>
+<tr><td>Login</td><td>Texto</td><td>Usuario con el que la integración entra al TPV. No es el cajero.</td></tr>
+<tr><td>Password</td><td>Oculto</td><td>Contraseña de ese usuario.</td></tr>
+<tr><td>Código integrador</td><td>Oculto</td><td>Clave que BDP entrega a la aplicación que se conecta. Sin ella el terminal rechaza la sesión.</td></tr>
+<tr><td>Terminal POS</td><td>Número</td><td>Qué caja del restaurante recibe las comandas.</td></tr>
+<tr><td>Empleado</td><td>Número</td><td>Con qué empleado del TPV quedan registradas las ventas de la web.</td></tr>
+<tr><td>Perfil artículos</td><td>Número</td><td>Qué perfil del TPV manda el catálogo de artículos que puede usar la web.</td></tr>
+</tbody>
+</table>
+
+<p>Los tres últimos son números y es donde más se falla, porque no se saben de memoria. Justo debajo hay un botón, <strong>«Comprobar contra BDP»</strong>, que lee del terminal los terminales, empleados y perfiles reales y los compara con los números escritos arriba. Cada fila sale con su nombre al lado —por ejemplo «Terminal POS → Caja 1»— o con el aviso <strong>«no existe en BDP»</strong> si el número no corresponde a nada. Al final de la lista aparece cuántos hay de cada cosa en el terminal, para saber si falta alguno.</p>
+<p>Al lado de ese botón hay un selector, <strong>«Lectura automática»</strong>, con las opciones <em>«Solo al pulsar»</em>, 5, 15 y 30 minutos, y 1 hora. Decide cada cuánto la web vuelve a leer esos tres datos del TPV por su cuenta. <strong>Cada 15 minutos</strong> es el equilibrio razonable: cada minuto carga el terminal sin ganar nada útil.</p>
+<p>En la misma tarjeta hay dos interruptores. <strong>«Integración BDP activa»</strong> es el interruptor general; activarlo <em>no</em> concede permiso para escribir, solo permite conectar. <strong>«Actualizar estados automáticamente»</strong> hace que la web vuelva a preguntar al TPV por el estado de cada comanda enviada; se enciende sola al elegir el envío automático de la cola, y se puede apagar aquí. Debajo, <strong>«Frecuencia de actualización»</strong> admite entre 10 y 600 segundos.</p>
+<p>Por último, dos botones de prueba: <strong>«Probar conexión»</strong> comprueba que el terminal responde, y <strong>«Probar envío (no crea comanda)»</strong> manda una comanda de prueba marcada para que el TPV no la guarde. Ninguno de los dos deja rastro en el terminal.</p>
+
+<h2>4. Modo de operaciones: leer, pedir permiso o escribir (imprescindible)</h2>
+<p>La tarjeta <strong>«Modo de operaciones BDP»</strong> es el ajuste de seguridad más importante de toda la integración. Tiene tres tarjetas, y solo una está activa a la vez:</p>
+<ul>
+<li><strong>Solo lectura (BDP → Aplicación Web).</strong> Permite consultas e importaciones. No se puede crear ni modificar nada en el TPV. Es el modo seguro de fábrica.</li>
+<li><strong>Autorización manual (Aplicación Web → BDP).</strong> Cada operación de escritura exige escribirse una confirmación de texto y un permiso temporal; al terminar, vuelve sola a solo lectura.</li>
+<li><strong>Automático (Aplicación Web → BDP).</strong> Las escrituras se envían sin pedir confirmación cada vez; solo la activación y la vuelta a solo lectura piden confirmación.</li>
+</ul>
+<p>Pasar a cualquiera de los dos modos de escritura pide tres cosas, y sin las tres no se activa: escribir el destino exacto del TPV como confirmación, tener el <strong>respaldo automático antes de escribir</strong> encendido y disponer de una copia completa del catálogo hecha en las últimas 24 horas. Si la copia es más antigua, la aplicación se niega; hay que crear una nueva desde la pestaña «Avanzado» antes de continuar. Esto no es un obstáculo burocrático: es lo que permite deshacer.</p>
+<p>Además, en modo automático existe una segunda barrera: la tarjeta <strong>«Permisos del modo automático»</strong>, también dentro de la tarjeta de conexión. Enciende o apaga cada categoría por separado —comandas; artículos, departamentos, familias y clientes; propinas y puntos; pagos; facturas; stock; llamadas al camarero— y <strong>todas nacen apagadas</strong>. Con todas apagadas, el modo automático no escribe nada: una categoría apagada deja la operación en espera con su motivo y sin gastar reintentos. Cada cambio de permiso queda registrado con fecha, quién lo hizo y por qué.</p>
+
+<h2 class="nueva">5. Formas de pago del TPV (prioridad alta)</h2>
+<p>Cuando alguien cobra desde la web, la aplicación no puede enviar «tarjeta»: tiene que enviar el <strong>número</strong> que el TPV tiene para tarjeta. Ese número es la forma de pago del terminal, y cada restaurante lo numera a su gusto. Hay dos pasos, y el orden importa.</p>
+<h3>5.1 Primero, ver qué formas de pago tiene el terminal</h3>
+<p>En la pestaña «A qué se conecta», casi al final de la tarjeta de BDP, está la tarjeta <strong>«Formas de pago del BDP»</strong>. Pulsa <strong>«Consultar BDP»</strong>: aparece la lista real del terminal, cada forma con su número, su nombre y su tipo. Un ejemplo de un TPV recién instalado: <em>1 Efectivo</em>, <em>2 Tarjeta</em>, <em>3 Cheque</em>, <em>4 A 30-60-90</em>. Esa lista es la que manda; la que hay que copiar es la del restaurante, no este ejemplo.</p>
+<h3>5.2 Después, emparejar</h3>
+<p>Sube dentro de la misma tarjeta hasta el final y abre el desplegable <strong>«Correspondencias Glory ↔ BDP (solo soporte)»</strong>. Dentro hay dos tablas que se editan por filas, sin escribir llaves ni comas. La primera es <strong>«Forma de pago de la web → código BDP»</strong>, con dos columnas: a la izquierda el nombre que se usa al cobrar —«Efectivo», «Tarjeta», «Bizum»— y a la derecha el número del TPV.</p>
+<ol>
+<li>Pulsa <strong>«Añadir pareja»</strong> para añadir una fila; la papelera de cada fila la elimina.</li>
+<li>Escribe el nombre en la columna izquierda y el número en la derecha. Los números son los que acaba de dar «Consultar BDP».</li>
+<li>Repite para cada forma de cobro que se vaya a usar desde la web. No hace falta darlas todas: solo las que se usen.</li>
+<li>Vuelve arriba, dentro de la misma tarjeta, y <strong>guarda</strong> con la barra flotante.</li>
+</ol>
+<p>La comprobación es automática: en la tarjeta «Formas de pago del BDP», cada pareja configurada sale como una etiqueta con el formato <em>Efectivo → 1</em>. Si el número no existe en el terminal, la etiqueta sale <strong>en rojo</strong> con el texto <em>«no existe en BDP»</em>. Si el mapa está vacío, la tarjeta avisa de que los cobros se enviarán sin forma de pago. Un código equivocado no falla al guardar: falla al cobrar, así que conviene mirar esta tarjeta antes del primer cobro real.</p>
+
+<h2>6. Canales de pedido (prioridad alta)</h2>
+<p>El TPV clasifica cada comanda por el sitio donde se consume, y para la integración eso son solo tres números: <strong>0 barra, 1 mesa, 2 domicilio</strong>. La segunda tabla del desplegable, <strong>«Canal de pedido de la web → tipo de pedido BDP»</strong>, traduce el nombre del canal en la web a uno de esos tres números.</p>
+<p>Se rellena igual que la anterior: «Añadir pareja», nombre a la izquierda, número a la derecha. La decisión es del restaurante, no del TPV:</p>
+<ul>
+<li><strong>Comedor y terraza</strong> suelen ir los dos al <strong>1</strong>, si el TPV trata mesa y terraza igual y solo cambia la zona.</li>
+<li><strong>Barra</strong> va al <strong>0</strong>.</li>
+<li><strong>Reparto a domicilio</strong> va al <strong>2</strong>.</li>
+</ul>
+<p>A diferencia de las formas de pago, aquí no hay lista que consultar: el terminal no publica sus canales como hace con las formas de cobro. Si el restaurante no está seguro de qué número usa para terraza, la prueba es sencilla y no destructiva: crear una comanda de prueba en la web, mirar dónde aparece en el TPV y corregir la pareja si salió en el sitio equivocado.</p>
+
+<h2>7. Tipos de IVA: sin esto no se pueden crear artículos (prioridad alta)</h2>
+<p>Está en la tarjeta <strong>«Lo que hace falta para crear artículos y mover stock en el TPV»</strong>. Si el mapa de IVA está vacío, la tarjeta lo avisa en ámbar: <em>«Falta el mapeo de IVA: sin él, BDP rechaza el alta de artículos con «el código de IVA de venta 0 no existe»»</em>. No es un aviso teórico: es el error exacto que devuelve el terminal.</p>
+<p>La tabla <strong>«IVA de la web → código de IVA de venta del BDP»</strong> funciona como las demás: porcentaje a la izquierda, código del TPV a la derecha. Los códigos no se consultan desde la web; se ven en el propio TPV, abriendo la ficha de <strong>cualquier artículo ya creado</strong> y mirando el campo «IVA de venta». Un ejemplo habitual es 10&nbsp;%&nbsp;→&nbsp;1, 4&nbsp;%&nbsp;→&nbsp;3 y 21&nbsp;%&nbsp;→&nbsp;2, pero los códigos reales dependen del terminal.</p>
+<p>La misma tarjeta tiene tres campos más, todos numéricos y todos del TPV:</p>
+<table class="campos">
+<thead><tr><th>Campo</th><th>Tipo</th><th>Qué es y qué pasa si falta</th></tr></thead>
+<tbody>
+<tr><td>Cuándo se envía la cola</td><td>Desplegable</td><td><em>Automático</em>: cada cambio se envía al TPV al momento. <em>Manual</em>: espera a que alguien pulse «Enviar a BDP». En automático se enciende sola la actualización de estados.</td></tr>
+<tr><td>Primer código reservado para artículos nuevos</td><td>Número</td><td>Desde qué código se numeran los artículos que la web cree en el TPV. Si choca con uno existente, el alta falla.</td></tr>
+<tr><td>Almacén por defecto (ajustes y traspasos)</td><td>Número</td><td>En qué almacén se aplican los movimientos de stock cuando no se indica otro. Debe ser uno real del terminal.</td></tr>
+<tr><td>Motivo por defecto de regularización</td><td>Número</td><td>Con qué motivo quedan los ajustes de stock. Es un código del TPV; si no existe, el movimiento se rechaza.</td></tr>
+</tbody>
+</table>
+
+<h2>8. Artículo y cliente por defecto (prioridad alta)</h2>
+<p>En el mismo desplegable de correspondencias, debajo de las dos tablas, hay cuatro campos que deciden qué ocurre cuando la web manda algo que el catálogo del TPV no tiene.</p>
+<p><strong>«Artículo BDP usado si no hay equivalencia»</strong> es el más delicado. Cuando un plato de la web no existe en el catálogo del terminal, la comanda se envía igual, pero con ese artículo en su lugar. Si el campo está mal puesto, el restaurante factura una cosa por otra: todos los platos sin equivalencia salen como el mismo producto en el TPV, con su precio y su IVA. Por eso conviene elegir un artículo neutro —uno creado para esto, del tipo «Varios» o «Venta aplicación web», a precio cero— y no un producto real de la carta. El campo de al lado, <strong>«Nombre visible de ese artículo»</strong>, es solo el texto que se muestra en la web mientras se configura.</p>
+<p><strong>«Código cliente BDP por defecto»</strong> hace lo mismo con el cliente: cuando una venta no lleva cliente con código en el TPV, se usa este. Es un número real del terminal, no el nombre «Consumidor final», y el campo lo advierte expresamente.</p>
+<p>El interruptor <strong>«Exigir cliente BDP confirmado»</strong>, activado, bloquea cualquier venta cuyo cliente no tenga código en el TPV, en lugar de usar el genérico. Es lo correcto si el restaurante factura con datos fiscales y quiere que no se escape ninguna factura sin cliente identificado; es un estorbo si se cobra a mostrador todo el día.</p>
+
+<h2>9. Documentos de venta: leer las facturas y tickets del TPV (prioridad media)</h2>
+<p>Tarjeta <strong>«Documentos de venta del BDP»</strong>, en la misma pestaña. Sirve para traer a la web las facturas y tickets que ha emitido el terminal. <strong>Esta lectura no escribe nada</strong> en el TPV.</p>
+<p>El campo que hay que rellenar es <strong>«Perfil de exportación»</strong>, un número con el aviso <em>«Sin configurar»</em> mientras esté vacío. Ese número identifica un perfil de exportación que se crea en el propio TPV, no en la web: lo deja configurado el instalador de BDP. Sin él, el botón «Leer ahora» no funciona y la tarjeta lo dice.</p>
+<p>Encima está <strong>«Lectura automática»</strong>: <em>«No se lee sola»</em>, cada 5, 15 o 30 minutos, o cada hora. Elegir una cadencia no basta por sí sola: hace falta el perfil. Después de configurarlo, pulsar <strong>«Leer ahora»</strong> una vez sirve para comprobar que llegan documentos.</p>
+<p>Si el restaurante solo emite ticket y no factura en el TPV, esta tarjeta se puede dejar sin configurar sin consecuencias: no afecta a la creación de comandas ni a los cobros.</p>
+
+<h2>10. Funciones avanzadas: qué capacidades se abren (prioridad media)</h2>
+<p>Tarjeta <strong>«Qué funciones avanzadas del TPV se usan»</strong>. Son interruptores y <strong>todos vienen apagados</strong>, porque cada uno abre una escritura real sobre el terminal.</p>
+<table class="campos">
+<thead><tr><th>Interruptor</th><th>Estado</th><th>Qué abre</th></tr></thead>
+<tbody>
+<tr><td>Auto-arming</td><td>Apagado</td><td>Permite que una escritura active su propio permiso temporal sin pasar por Configuración. Al terminar, vuelve a solo lectura.</td></tr>
+<tr><td>Pagos parciales</td><td>Apagado</td><td>Pagar una comanda en varios pagos en vez de uno solo. Cada pago queda en un registro local con su clave, para no duplicarlo al reintentar.</td></tr>
+<tr><td>Cancelar comandas</td><td>Apagado</td><td>Anular comandas directamente en el TPV. Verificado contra el terminal el 18 de septiembre de 2026.</td></tr>
+<tr><td>Compras: lectura</td><td>Apagado</td><td>Sincronizar albaranes de compra desde el TPV.</td></tr>
+<tr><td>Compras: borradores</td><td>Apagado</td><td>Crear borradores de compra locales, sin escribir en el TPV.</td></tr>
+<tr><td>Compras: conciliación</td><td>Apagado</td><td>Recepcionar y conciliar compras con los gastos existentes o con gastos nuevos.</td></tr>
+</tbody>
+</table>
+<p>Se activa lo que el restaurante vaya a usar, y solo después de haberlo probado una vez contra su terminal. Activar uno sin probar puede provocar escrituras que después hay que deshacer a mano en el TPV.</p>
+
+<h2>11. Operaciones que la web no puede hacer (prioridad baja)</h2>
+<p>Tarjeta <strong>«Operaciones que BDP no expone por API»</strong>. Algunas cosas solo se pueden hacer en el terminal, no desde la web. La aplicación no las ejecuta: solo deja escrito <strong>quién</strong> las hace y <strong>cómo</strong>, y muestra ese texto al personal cuando se topa con una.</p>
+<p>Se rellena un <strong>«Responsable por defecto»</strong> —el nombre de quien atiende esas operaciones si no hay uno concreto— y, por cada operación de la lista, un responsable y un procedimiento propios, que sustituyen al general. Mientras alguno quede sin asignar, la tarjeta muestra un aviso ámbar con cuántas operaciones faltan y cada fila lleva una etiqueta <em>«Sin responsable»</em>. No bloquea nada; es una lista de quién hace qué.</p>
+
+<h2>12. Respaldos, avisos y stock pendiente (pestaña «Avanzado»)</h2>
+<p>Todo lo de esta pestaña guarda al instante, sin botón. Tres tarjetas conciernen a la integración:</p>
+<ul>
+<li><strong>Seguridad, respaldos e historial BDP.</strong> Aquí se crean las copias completas del catálogo del TPV, se consulta cada escritura autorizada con su resultado y se cambia el permiso de operación. Si una escritura queda en «parcial» o «error», aquí está el mensaje exacto que devolvió el terminal. Una copia completa es requisito para activar cualquier modo de escritura.</li>
+<li><strong>Libro de stock.</strong> Recoge los movimientos de stock cuyo resultado no se pudo confirmar porque la respuesta del TPV se perdió. Mientras un movimiento no se dictamine, ese artículo y ese almacén quedan bloqueados para nuevas operaciones. Se resuelve uno a uno: se mira el artículo en el TPV, se escribe qué se ha visto y se elige <em>«Ya está aplicado»</em> o <em>«No se aplicó»</em>. Si está vacía —lo normal— no hay nada que hacer.</li>
+<li><strong>Avisos del TPV.</strong> Lo que el terminal manda a la web —comandas creadas o modificadas, traspasos, cobros— esperando a cruzarse con BDP. El botón <em>«Procesar lote»</em> solo lee: no cambia nada en el TPV. Un aviso rechazado lleva el motivo del propio terminal, por ejemplo «no se ha establecido una IP de Servidor de Mensajes», que se arregla en el terminal y no en la web.</li>
+</ul>
+
+<h2>13. Orden recomendado y comprobación final</h2>
+<p>El orden que evita rehacer trabajo es: conexión, modo de escritura, formas de pago y canales, IVA, artículo y cliente por defecto, y después el resto. Las cuatro primeras son las que impiden cobrar; las demás mejoran la operación pero no la bloquean.</p>
+<table class="orden">
+<thead><tr><th>N.º</th><th>Comprobación</th><th>Qué debe verse</th><th>Dónde</th><th>Hecho</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>El terminal responde</td><td>Resultado correcto al pulsar «Probar conexión»</td><td>Conexión BDP</td><td><span class="box"></span></td></tr>
+<tr><td>2</td><td>Terminal, empleado y perfil existen</td><td>Nombre al lado de cada número, sin «no existe en BDP»</td><td>Comprobar contra BDP</td><td><span class="box"></span></td></tr>
+<tr><td>3</td><td>Modo de escritura activo</td><td>La tarjeta del modo elegido marcada como activa</td><td>Modo de operaciones</td><td><span class="box"></span></td></tr>
+<tr><td>4</td><td>Formas de pago emparejadas</td><td>Etiquetas sin rojo y sin «no existe en BDP»</td><td>Formas de pago del BDP</td><td><span class="box"></span></td></tr>
+<tr><td>5</td><td>Canales emparejados</td><td>Al menos comedor, barra y domicilio, si se usan</td><td>Correspondencias</td><td><span class="box"></span></td></tr>
+<tr><td>6</td><td>IVA emparejado</td><td>Sin el aviso ámbar de «Falta el mapeo de IVA»</td><td>Crear artículos y mover stock</td><td><span class="box"></span></td></tr>
+<tr><td>7</td><td>Artículo por defecto neutro</td><td>Un artículo del TPV que no sea un plato de la carta</td><td>Correspondencias</td><td><span class="box"></span></td></tr>
+<tr><td>8</td><td>Comanda de prueba</td><td>La comanda sale en el TPV con sus líneas y su total</td><td>Prueba envío / web</td><td><span class="box"></span></td></tr>
+<tr><td>9</td><td>Cobro de prueba</td><td>El pago aparece en el TPV con la forma correcta</td><td>Web → cobrar</td><td><span class="box"></span></td></tr>
+<tr><td>10</td><td>Documento emitido</td><td>El ticket o la factura aparece en Documentos de venta</td><td>Documentos de venta</td><td><span class="box"></span></td></tr>
+</tbody>
+</table>
+<p class="table-note"><strong>Cómo leer la tabla.</strong> Las comprobaciones 1 a 7 son de configuración y se hacen una sola vez. Las 8 a 10 son la prueba real y conviene repetirlas después de cualquier cambio en las correspondencias. Si la 8 falla pero la 1 responde, el problema está en el mapeo de canales o en el artículo por defecto; si falla la 9 con la 8 bien, el problema está en las formas de pago.</p>
+
+<h2>14. Qué no se configura aquí</h2>
+<p>Para evitar búsquedas inútiles: la dirección del servicio, la licencia WebLinkRestAPI del terminal, el perfil de exportación y los códigos de IVA <strong>se crean y se ven en el TPV</strong>, no en la web. La web solo guarda el número que ya existe allí. Tampoco se configura en esta pantalla el modo en que el terminal avisa de cambios: eso vive en la configuración del propio BDP, y si está mal, los avisos llegan rechazados con su motivo escrito.</p>
+<p>Lo que sí queda de este lado y no depende del restaurante: la conexión con el BDP, las pruebas, la cola de envíos, la recuperación cuando el terminal se cae y la vuelta al estado correcto cuando vuelve. Eso ya está hecho y probado; lo de este manual es lo que solo el restaurante puede rellenar.</p>
+
+</body>
+</html>
