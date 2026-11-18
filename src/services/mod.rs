@@ -37,6 +37,8 @@ mod etiqueta;
 mod gasto;
 mod haddock;
 mod integracion_marketing;
+/* [18AB-4] Frontera de la invitación: rechaza lo que la ficha BDP prohíbe. */
+mod invitacion;
 mod meta_whatsapp;
 mod modo_operacion;
 mod notificacion;
@@ -111,6 +113,7 @@ pub use etiqueta::EtiquetaService;
 pub use gasto::GastoService;
 pub use haddock::HaddockService;
 pub use integracion_marketing::IntegracionMarketingService;
+pub use invitacion::InvitacionService;
 pub use meta_whatsapp::MetaWhatsappService;
 pub use modo_operacion::{
     ModoEfectivo, ServicioModoOperacion, MODO_AUTO, MODO_BDP, MODO_STANDALONE,

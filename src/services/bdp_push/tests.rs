@@ -121,6 +121,7 @@ mod article_data_merge_tests {
             ultima_sync_at: None,
             stock_actual: Decimal::ZERO,
             inventariable: Some(true),
+            invitacion_prohibida: None,
         }
     }
 

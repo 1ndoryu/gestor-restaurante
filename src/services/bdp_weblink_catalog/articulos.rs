@@ -141,6 +141,12 @@ pub struct BdpExportArticleItem {
         alias = "IsInventoriable"
     )]
     pub is_inventoriable: Option<bool>,
+    /* [18AB-4] «No permitir como invitación» de la ficha del artículo.
+     * `GetPOSList` (el perfil, que es el fallback del catálogo) lo manda;
+     * `ExportArticles` **no** lo incluye (comprobado contra el BDP demo el
+     * 2026-11-18): si no viene, queda `None` y la web no bloquea. */
+    #[serde(default)]
+    pub not_allowed_as_invitation: Option<bool>,
 }
 
 impl BdpExportArticleItem {
@@ -288,6 +294,9 @@ fn map_article_essential(item: &Value) -> Option<BdpExportArticleItem> {
             &["Is_Invontariable", "Is_Inventoriable", "IsInventoriable"],
         ),
         current_stock: field_decimal(item, &["CurrentStock", "Stock"]),
+        /* [18AB-4] `GetPOSList` manda `NotAllowedAsInvitation`; el parseo laxo
+         * también tiene que leerlo o la marca se perdería justo en el fallback. */
+        not_allowed_as_invitation: field_bool(item, &["NotAllowedAsInvitation"]),
         prices_table_data: Vec::new(),
     })
 }

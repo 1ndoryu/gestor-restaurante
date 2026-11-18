@@ -22,8 +22,8 @@ impl VentaLineaRepository {
         for linea in lineas {
             let id = Uuid::new_v4();
             let linea_db = sqlx::query_as::<_, VentaLinea>(
-                "INSERT INTO venta_lineas (id, venta_id, articulo_codigo, descripcion, cantidad, precio_unitario, iva_pct, descuento) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+                "INSERT INTO venta_lineas (id, venta_id, articulo_codigo, descripcion, cantidad, precio_unitario, iva_pct, descuento, invitacion) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
                  RETURNING *",
             )
             .bind(id)
@@ -34,6 +34,7 @@ impl VentaLineaRepository {
             .bind(linea.precio_unitario)
             .bind(linea.iva_pct.unwrap_or(rust_decimal::Decimal::ZERO))
             .bind(linea.descuento.unwrap_or(rust_decimal::Decimal::ZERO))
+            .bind(linea.invitacion.unwrap_or(false))
             .fetch_one(pool)
             .await?;
             resultado.push(linea_db);
@@ -51,8 +52,8 @@ impl VentaLineaRepository {
         let mut resultado = Vec::with_capacity(lineas.len());
         for linea in lineas {
             let linea_db = sqlx::query_as::<_, VentaLinea>(
-                "INSERT INTO venta_lineas (id, venta_id, articulo_codigo, descripcion, cantidad, precio_unitario, iva_pct, descuento) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+                "INSERT INTO venta_lineas (id, venta_id, articulo_codigo, descripcion, cantidad, precio_unitario, iva_pct, descuento, invitacion) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
             )
             .bind(Uuid::new_v4())
             .bind(venta_id)
@@ -62,6 +63,7 @@ impl VentaLineaRepository {
             .bind(linea.precio_unitario)
             .bind(linea.iva_pct.unwrap_or(rust_decimal::Decimal::ZERO))
             .bind(linea.descuento.unwrap_or(rust_decimal::Decimal::ZERO))
+            .bind(linea.invitacion.unwrap_or(false))
             .fetch_one(&mut *conn)
             .await?;
             resultado.push(linea_db);

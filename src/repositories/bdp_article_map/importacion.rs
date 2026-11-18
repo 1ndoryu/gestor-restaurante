@@ -46,8 +46,8 @@ impl BdpArticleMapRepository {
             "INSERT INTO bdp_article_map \
                 (id, user_id, articulo_glory_codigo, articulo_bdp_codigo, articulo_bdp_nombre, \
                  descripcion, precio_tarifa1, iva_pct, departamento, familia, subfamilia, \
-                 activo, barcode, stock_actual, inventariable, origen, local_dirty, ultima_sync_at, created_at, updated_at) \
-             VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'bdp', false, NOW(), NOW(), NOW()) \
+                 activo, barcode, stock_actual, inventariable, invitacion_prohibida, origen, local_dirty, ultima_sync_at, created_at, updated_at) \
+             VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'bdp', false, NOW(), NOW(), NOW()) \
              ON CONFLICT (user_id, articulo_glory_codigo) DO UPDATE SET \
                 articulo_bdp_nombre = EXCLUDED.articulo_bdp_nombre, \
                 descripcion = EXCLUDED.descripcion, \
@@ -61,6 +61,8 @@ impl BdpArticleMapRepository {
                 stock_actual = EXCLUDED.stock_actual, \
                 /* Si BDP no envía la marca en una sincronización, se conserva la última conocida. */ \
                 inventariable = COALESCE(EXCLUDED.inventariable, bdp_article_map.inventariable), \
+                /* [18AB-4] Igual que inventariable: si la fuente no la trae, se conserva. */ \
+                invitacion_prohibida = COALESCE(EXCLUDED.invitacion_prohibida, bdp_article_map.invitacion_prohibida), \
                 ultima_sync_at = NOW(), \
                 updated_at = NOW() \
              WHERE \
@@ -73,7 +75,8 @@ impl BdpArticleMapRepository {
                 OR bdp_article_map.activo IS DISTINCT FROM EXCLUDED.activo \
                 OR bdp_article_map.barcode IS DISTINCT FROM EXCLUDED.barcode \
                 OR bdp_article_map.stock_actual IS DISTINCT FROM EXCLUDED.stock_actual \
-                OR COALESCE(EXCLUDED.inventariable, bdp_article_map.inventariable) IS DISTINCT FROM bdp_article_map.inventariable",
+                OR COALESCE(EXCLUDED.inventariable, bdp_article_map.inventariable) IS DISTINCT FROM bdp_article_map.inventariable \
+                OR COALESCE(EXCLUDED.invitacion_prohibida, bdp_article_map.invitacion_prohibida) IS DISTINCT FROM bdp_article_map.invitacion_prohibida",
         )
         .bind(Uuid::new_v4())
         .bind(user_id)
@@ -88,6 +91,7 @@ impl BdpArticleMapRepository {
         .bind(data.barcode)
         .bind(data.stock_actual)
         .bind(data.inventariable)
+        .bind(data.invitacion_prohibida)
         .execute(pool)
         .await?;
 

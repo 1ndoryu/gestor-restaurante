@@ -60,6 +60,7 @@ fn linea_req(codigo: &str, desc: &str, qty: &str, price: &str) -> CrearVentaLine
         precio_unitario: Decimal::from_str(price).unwrap(),
         iva_pct: Some(Decimal::from(10)),
         descuento: Some(Decimal::ZERO),
+        invitacion: None,
     }
 }
 
@@ -112,6 +113,7 @@ async fn test_crear_batch_con_descuento(pool: PgPool) {
         precio_unitario: Decimal::from_str("12.00").unwrap(),
         iva_pct: Some(Decimal::from(10)),
         descuento: Some(Decimal::from_str("4.00").unwrap()),
+        invitacion: None,
     }];
 
     let created = VentaLineaRepository::crear_batch(&pool, venta_id, &lineas)

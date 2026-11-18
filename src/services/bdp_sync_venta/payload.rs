@@ -77,6 +77,12 @@ impl BdpSyncService {
             Some(ls) => Self::centimos(
                 ls.iter()
                     .map(|linea| {
+                        /* [18AB-4] La línea invitada suma cero, igual que su
+                         * `Item.Total`: si no, el `Order.Total` no cuadraría con
+                         * la suma de los ítems y BDP rechazaría con 300033. */
+                        if linea.invitacion {
+                            return 0.0;
+                        }
                         Self::centimos(
                             Self::decimal_to_f64(&linea.precio_unitario)
                                 * Self::decimal_to_f64(&linea.cantidad)
@@ -94,7 +100,10 @@ impl BdpSyncService {
 
     /* [F2.7] Un item por línea. [F2.8] El ID BDP sale del mapeo por línea; sin
      * mapeo se usa el artículo por defecto. El cast `Lin` es seguro: nº de líneas
-     * de una venta muy por debajo de i32::MAX. */
+     * de una venta muy por debajo de i32::MAX.
+     * [18AB-4] Una línea invitada viaja con `Invitation: true`, precio y total
+     * 0: BDP no comprueba `NotAllowedAsInvitation` (probado el 18/11), así que
+     * el total lo fija el servidor y no el precio que traiga la línea. */
     #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
     pub(super) fn items_de_lineas(
         lineas: &[VentaLinea],
@@ -115,7 +124,11 @@ impl BdpSyncService {
                         linea.descripcion, precio, cantidad
                     );
                 }
-                let linea_total = Self::centimos((precio * cantidad) - descuento);
+                let linea_total = if linea.invitacion {
+                    0.0
+                } else {
+                    Self::centimos((precio * cantidad) - descuento)
+                };
                 /* [F2.8] Usar artículo BDP mapeado por línea, o fallback al default */
                 let line_article_id = line_article_ids
                     .and_then(|ids| ids.get(i))
@@ -131,6 +144,7 @@ impl BdpSyncService {
                     "Discount": descuento,
                     "DiscountPct": false,
                     "Total": linea_total,
+                    "Invitation": linea.invitacion,
                     "VatPct": Self::decimal_to_f64(&linea.iva_pct),
                     "Comments": [],
                     "Supplements": [],
@@ -162,6 +176,8 @@ impl BdpSyncService {
             "Discount": 0.0,
             "DiscountPct": false,
             "Total": total,
+            /* [18AB-4] El fallback legacy es el total de la venta: nunca invitación. */
+            "Invitation": false,
             "VatPct": Self::decimal_to_f64(&venta.iva_porcentaje),
             "Comments": [],
             "Supplements": [],

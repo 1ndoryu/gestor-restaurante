@@ -60,4 +60,6 @@ pub struct BdpArticleUpsertData<'a> {
     pub stock_actual: Decimal,
     /* [D26d] Marca inventariable de BDP; None si la respuesta no la trae. */
     pub inventariable: Option<bool>,
+    /* [18AB-4] «No permitir como invitación»; None si la fuente no la trae. */
+    pub invitacion_prohibida: Option<bool>,
 }

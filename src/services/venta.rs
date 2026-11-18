@@ -20,8 +20,8 @@ use crate::repositories::{
 
 use super::bdp_push::{DOMINIO_VENTA, OPERACION_CANCELAR};
 use super::{
-    payload_cancelar, BdpPushService, BdpSyncService, HaddockService, ModoEfectivo,
-    ServicioModoOperacion,
+    payload_cancelar, BdpPushService, BdpSyncService, HaddockService, InvitacionService,
+    ModoEfectivo, ServicioModoOperacion,
 };
 
 pub struct VentaService;
@@ -63,6 +63,13 @@ impl VentaService {
             }
             None => None,
         };
+
+        /* [18AB-4] Antes de escribir nada: un artículo con «No permitir como
+         * invitación» no se puede invitar. BDP acepta la línea (probado el
+         * 18/11), así que el rechazo tiene que ser nuestro y síncrono. */
+        if let Some(ref lineas) = req.lineas {
+            InvitacionService::validar_lineas(pool, user_id, lineas).await?;
+        }
 
         let descripcion = req.descripcion.as_deref().unwrap_or("");
         let data = NuevaVenta {
@@ -148,6 +155,11 @@ impl VentaService {
         } else {
             Vec::new()
         };
+        /* [18AB-4] Misma frontera que en el alta: reemplazar líneas tampoco
+         * puede invitar un artículo que BDP prohíbe. */
+        if let Some(ref lineas) = req.lineas {
+            InvitacionService::validar_lineas(pool, user_id, lineas).await?;
+        }
 
         let turno = req.turno.as_ref().and_then(|t| {
             serde_json::to_value(t)

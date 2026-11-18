@@ -27,13 +27,17 @@ pub(crate) fn delta_lineas(
     let mut mapa: BTreeMap<String, (VentaLinea, Decimal)> = BTreeMap::new();
     for (lineas, signo) in [(antes, -Decimal::ONE), (despues, Decimal::ONE)] {
         for linea in lineas {
+            /* [18AB-4] La invitación entra en la clave: una línea invitada y
+             * otra cobrada del mismo artículo no pueden fundirse en un ajuste,
+             * porque BDP las trata distinto (`Invitation` y total 0). */
             let clave = format!(
-                "{}|{}|{}|{}|{}",
+                "{}|{}|{}|{}|{}|{}",
                 linea.articulo_codigo,
                 linea.descripcion,
                 linea.precio_unitario.normalize(),
                 linea.iva_pct.normalize(),
-                linea.descuento.normalize()
+                linea.descuento.normalize(),
+                linea.invitacion
             );
             let entrada = mapa
                 .entry(clave)
@@ -258,6 +262,7 @@ mod tests {
             precio_unitario: Decimal::from_str(precio).unwrap(),
             iva_pct: Decimal::from(10),
             descuento: Decimal::from_str(descuento).unwrap(),
+            invitacion: false,
             created_at: Utc::now(),
         }
     }

@@ -305,6 +305,7 @@ mod tests {
                 precio_unitario: Decimal::from_str("5.00").unwrap(),
                 iva_pct: Decimal::from_str("10.0").unwrap(),
                 descuento: Decimal::from_str("0.00").unwrap(),
+                invitacion: false,
                 created_at: Utc::now(),
             },
             VentaLinea {
@@ -316,6 +317,7 @@ mod tests {
                 precio_unitario: Decimal::from_str("3.50").unwrap(),
                 iva_pct: Decimal::from_str("10.0").unwrap(),
                 descuento: Decimal::from_str("0.50").unwrap(),
+                invitacion: false,
                 created_at: Utc::now(),
             },
         ];
@@ -779,6 +781,7 @@ mod tests {
             precio_unitario: Decimal::from_str("1.05").unwrap(),
             iva_pct: Decimal::from_str("10.0").unwrap(),
             descuento: Decimal::ZERO,
+            invitacion: false,
             created_at: Utc::now(),
         };
         let lineas = [linea];
@@ -946,6 +949,7 @@ mod tests {
             precio_unitario: Decimal::from_str("8.50").unwrap(),
             iva_pct: Decimal::from_str("10.0").unwrap(),
             descuento: Decimal::from_str("0.00").unwrap(),
+            invitacion: false,
             created_at: Utc::now(),
         }];
 
@@ -989,6 +993,7 @@ mod tests {
                 precio_unitario: Decimal::from_str("5.00").unwrap(),
                 iva_pct: Decimal::from_str("10.0").unwrap(),
                 descuento: Decimal::from_str("0.00").unwrap(),
+                invitacion: false,
                 created_at: Utc::now(),
             },
             VentaLinea {
@@ -1000,6 +1005,7 @@ mod tests {
                 precio_unitario: Decimal::from_str("3.50").unwrap(),
                 iva_pct: Decimal::from_str("10.0").unwrap(),
                 descuento: Decimal::from_str("0.50").unwrap(),
+                invitacion: false,
                 created_at: Utc::now(),
             },
             VentaLinea {
@@ -1011,6 +1017,7 @@ mod tests {
                 precio_unitario: Decimal::from_str("2.00").unwrap(),
                 iva_pct: Decimal::from_str("10.0").unwrap(),
                 descuento: Decimal::from_str("0.00").unwrap(),
+                invitacion: false,
                 created_at: Utc::now(),
             },
         ];
@@ -1063,6 +1070,7 @@ mod tests {
             precio_unitario: Decimal::from_str("12.00").unwrap(),
             iva_pct: Decimal::from_str("10.0").unwrap(),
             descuento: Decimal::from_str("4.00").unwrap(),
+            invitacion: false,
             created_at: Utc::now(),
         }];
 
@@ -1079,6 +1087,60 @@ mod tests {
         /* Total = (12.00 * 2) - 4.00 = 20.00 */
         assert!((items[0].get("Total").unwrap().as_f64().unwrap() - 20.00).abs() < 0.01);
         assert!((items[0].get("Discount").unwrap().as_f64().unwrap() - 4.00).abs() < 0.01);
+    }
+
+    /* [18AB-4] Una línea invitada viaja con `Invitation: true` y total 0, y el
+     * `Order.Total` la cuenta como cero: si no, BDP rechaza con 300033 porque
+     * el total no coincide con la suma de los ítems. */
+    #[test]
+    fn build_order_linea_invitada_viaja_con_invitation_y_cero() {
+        let config = test_config();
+        let venta = test_venta();
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "CAFE BOMBON".into(),
+            price: 5.0,
+            vat_pct: 10.0,
+        };
+        let mut linea = VentaLinea {
+            id: uuid::Uuid::new_v4(),
+            venta_id: venta.id,
+            articulo_codigo: "1002".into(),
+            descripcion: "Copa invitada".into(),
+            cantidad: Decimal::from_str("2").unwrap(),
+            precio_unitario: Decimal::from_str("6.00").unwrap(),
+            iva_pct: Decimal::from_str("10.0").unwrap(),
+            descuento: Decimal::ZERO,
+            invitacion: true,
+            created_at: Utc::now(),
+        };
+        let mut lineas = vec![linea.clone()];
+        /* Segunda línea cobrada: el total del pedido debe ser solo su importe. */
+        linea.id = uuid::Uuid::new_v4();
+        linea.articulo_codigo = "2002".into();
+        linea.descripcion = "Tostada".into();
+        linea.cantidad = Decimal::ONE;
+        linea.precio_unitario = Decimal::from_str("3.50").unwrap();
+        linea.invitacion = false;
+        lineas.push(linea);
+
+        let order = BdpSyncService::build_order(
+            &config,
+            &venta,
+            &article,
+            Some(&lineas),
+            Some(&[1002, 2002]),
+            &test_order_ctx(),
+        );
+        let items = order.order.get("Items").and_then(|v| v.as_array()).unwrap();
+        assert_eq!(items[0].get("Invitation").unwrap().as_bool(), Some(true));
+        assert_eq!(items[0].get("Total").unwrap().as_f64(), Some(0.0));
+        assert_eq!(items[1].get("Invitation").unwrap().as_bool(), Some(false));
+        assert_eq!(
+            order.order.get("Total").unwrap().as_f64(),
+            Some(3.50),
+            "la invitada no suma al total del pedido"
+        );
     }
 
     /* build_order sin line_article_ids usa article.id como fallback */
@@ -1102,6 +1164,7 @@ mod tests {
             precio_unitario: Decimal::from_str("3.00").unwrap(),
             iva_pct: Decimal::from_str("10.0").unwrap(),
             descuento: Decimal::from_str("0.00").unwrap(),
+            invitacion: false,
             created_at: Utc::now(),
         }];
 
@@ -1134,6 +1197,7 @@ mod tests {
             precio_unitario: Decimal::from_str("2.00").unwrap(),
             iva_pct: Decimal::from_str("10").unwrap(),
             descuento: Decimal::ZERO,
+            invitacion: false,
             created_at: Utc::now(),
         }];
         assert!(BdpSyncService::validate_order_lines(&lineas).is_err());
@@ -1152,6 +1216,7 @@ mod tests {
                 precio_unitario: Decimal::from_str(price).unwrap(),
                 iva_pct: Decimal::from_str("10").unwrap(),
                 descuento: Decimal::from_str(discount).unwrap(),
+                invitacion: false,
                 created_at: Utc::now(),
             }];
             assert!(BdpSyncService::validate_order_lines(&lineas).is_err());
@@ -1275,6 +1340,7 @@ mod tests {
             precio_unitario: Decimal::from_str("2.00").unwrap(),
             iva_pct: Decimal::from_str("10").unwrap(),
             descuento: Decimal::from_str("2.01").unwrap(),
+            invitacion: false,
             created_at: Utc::now(),
         }];
         assert!(BdpSyncService::validate_order_lines(&lineas).is_err());

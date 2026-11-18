@@ -45,6 +45,8 @@ pub struct BdpArticleMap {
     pub stock_actual: Decimal,
     /* [D26d] Marca «Inventariable» de BDP. NULL = BDP aún no la ha informado. */
     pub inventariable: Option<bool>,
+    /* [18AB-4] «No permitir como invitación» de la ficha BDP. NULL = sin dato. */
+    pub invitacion_prohibida: Option<bool>,
 }
 
 /// Request para crear un mapeo de artículo

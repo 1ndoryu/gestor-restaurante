@@ -20,6 +20,8 @@ pub struct VentaLinea {
     pub precio_unitario: rust_decimal::Decimal,
     pub iva_pct: rust_decimal::Decimal,
     pub descuento: rust_decimal::Decimal,
+    /* [18AB-4] Línea marcada como invitación (precio 0 ante el cliente). */
+    pub invitacion: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -40,4 +42,8 @@ pub struct CrearVentaLineaRequest {
     pub iva_pct: Option<rust_decimal::Decimal>,
     /// Descuento aplicado a esta línea
     pub descuento: Option<rust_decimal::Decimal>,
+    /* [18AB-4] `true` si la línea va como invitación: se envía `Invitation`
+     * en el ítem BDP y la web la rechaza si el artículo no lo permite. */
+    #[serde(default)]
+    pub invitacion: Option<bool>,
 }
