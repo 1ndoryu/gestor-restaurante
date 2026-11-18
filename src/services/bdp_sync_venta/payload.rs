@@ -207,16 +207,14 @@ impl BdpSyncService {
             order["TenderId"] = json!(tender_id);
         }
         /* [169A-2] Payments — pago total dentro de la creación.
-         * [18AA-8] PaymentId propio del armado, no el `MarketplaceOrderId`:
-         * BDP 36.2 no deduplica pagos por id (probado el 18/11/2026), así que
-         * un id reutilizado por otro cobro real se sumaría como un segundo
-         * cobro. El `MarketplaceOrderId` sigue siendo el estable de la comanda
-         * y es lo que consulta la reconciliación. */
+         * [18AB-1] El `PaymentId` identifica el pago, no el envío: sale de la
+         * venta y es el mismo si la comanda se reenvía, para que la
+         * reconciliación lo reconozca en vez de sumar un segundo cobro. */
         if pago_incluido {
             order["Payments"] = json!([{
                 "TenderId": order_ctx.tender_id,
                 "Amount": total,
-                "PaymentId": crate::services::bdp_sync_pago::payment_id_intento(venta.id),
+                "PaymentId": crate::services::bdp_sync_pago::payment_id_de_pago(venta.id, "create"),
             }]);
         }
         /* [169A-2] Tip — propina de la venta, solo si positiva. */

@@ -4,7 +4,6 @@
  * (solo lectura) antes de permitir otra escritura. Extraído de bdp_sync_pago.rs para
  * mantener el archivo bajo el umbral de god-object del gate. */
 
-use std::collections::HashMap;
 use std::fmt::Write;
 
 use rust_decimal::prelude::Decimal;
@@ -46,7 +45,7 @@ impl BdpSyncService {
 
     /* [D15] Solo lectura en BDP (GetOrder). Aplicado: registra el pago en el ledger local
      * con el cierre atómico de un éxito. No aplicado: marca `error` para permitir el
-     * reintento con el mismo PaymentId determinístico. Otro caso: deja el bloqueo. */
+     * reintento con el mismo PaymentId del pago. Otro caso: deja el bloqueo. */
     async fn reconciliar_pago_ambiguo(
         client: &BdpWeblinkClient<'_>,
         pool: &PgPool,
@@ -79,14 +78,15 @@ impl BdpSyncService {
                 .and_then(Value::as_bool)
                 .unwrap_or(false),
         };
-        /* [18AA-8] El id del intento, guardado al armarlo; si la auditoría es
-         * anterior a `18AA-8`, se deriva de la clave como entonces se hizo. */
+        /* [18AB-1] El id viene de la auditoría, donde lo guardó el armado. Las
+         * auditorías anteriores a `18AB-1` no lo tienen: se deriva de la clave,
+         * igual que entonces. */
         let payment_id = datos
             .get("payment_id")
             .and_then(Value::as_str)
             .filter(|id| !id.trim().is_empty())
             .map_or_else(
-                || payment_id_determinista(venta.id, key),
+                || payment_id_de_pago(venta.id, key),
                 |id| id.trim().to_string(),
             );
 
@@ -103,10 +103,9 @@ impl BdpSyncService {
             .and_then(|orden| orden.get("Payments"))
             .and_then(Value::as_array)
             .ok_or("Pago bloqueado: GetOrder no devolvió Payments para reconciliar")?;
-        let (montos, _) = Self::parse_remote_payments(payments)?;
 
-        match decidir_reconciliacion(&montos, &payment_id, intento.amount) {
-            DecisionPago::Aplicado => {
+        match estado_pago_remoto(payments, &payment_id, intento.amount, intento.tender_id)? {
+            PagoRemoto::Aplicado => {
                 let respuesta = json!({
                     "reconciliado": true,
                     "PaymentId": payment_id,
@@ -123,7 +122,7 @@ impl BdpSyncService {
                 )
                 .await
             }
-            DecisionPago::NoAplicado => {
+            PagoRemoto::Ausente => {
                 let msg =
                     format!("Reconciliado: BDP no tiene el pago {payment_id}; reintento permitido");
                 crate::services::BdpBackupService::actualizar_resultado(
@@ -135,36 +134,24 @@ impl BdpSyncService {
                 )
                 .await
             }
-            DecisionPago::Discordante => Err(format!(
-                "Pago bloqueado: PaymentId {payment_id} no cuadra con BDP; revisión manual"
-            )),
         }
     }
 }
 
-/* [18AA-8] PaymentId de un intento nuevo. Comprobado el 18/11/2026 en el demo
- * 36.2: `AddOrderPayment` **no deduplica** —dos envíos con el mismo
- * `PaymentId` dejan dos cobros— y `Orders/Create` devuelve el `PaymentId`
- * literal en `GetOrder`, así que el id llega intacto y sirve de testigo.
- * Por eso cada intento lleva un id propio: reutilizarlo confiando en que BDP
- * deduplique cobra dos veces. El id va en `datos_enviados` de la auditoría,
- * que es de donde lo lee la reconciliación. */
-pub(crate) fn payment_id_intento(venta_id: Uuid) -> String {
-    let prefijo = venta_id.simple().to_string();
-    let nonce = Uuid::new_v4().simple().to_string();
-    /* 15 (prefijo) + 1 + 16 = 32 caracteres: cabe en los 50 que admiten BDP
-     * y bdp_pagos.bdp_payment_id. */
-    format!("P{}-{}", &prefijo[..14], &nonce[..16])
-}
-
-/* [D15] ID determinístico de la clave de idempotencia. Solo se usa para
- * reconciliar auditorías ambiguas anteriores a `18AA-8`, que no guardaron su
- * PaymentId en `datos_enviados`. BDP y bdp_pagos.bdp_payment_id admiten 50
- * caracteres: con una clave UUID (36) el ID pasaba de 50, BDP lo truncaba y
- * la reconciliación no lo encontraba; si no cabe, se usa un resumen (32 hex). */
+/* [18AB-1] El `PaymentId` **identifica el pago, no el intento**: sale de la
+ * clave de idempotencia del pago y no cambia entre reintentos. Es lo que
+ * Guillermo pide el 18/11: un reintento del mismo pago no puede generar un id
+ * nuevo, porque BDP 36.2 no deduplica y dejaría dos cobros (probado el
+ * 18/11/2026, `AddOrderPayment` con el mismo `PaymentId` cobra dos veces).
+ * La protección real es la lectura previa a BDP antes de reenviar
+ * (`reconciliar_pagos_ambiguos`), no el id por sí solo.
+ *
+ * BDP y `bdp_pagos.bdp_payment_id` admiten 50 caracteres: con una clave UUID
+ * (36) el id pasaba de 50, BDP lo truncaba y la reconciliación no lo
+ * encontraba. Si no cabe, se usa un resumen (32 hex) de la clave. */
 const LONGITUD_MAX_PAYMENT_ID: usize = 50;
 
-pub(super) fn payment_id_determinista(venta_id: Uuid, key: &str) -> String {
+pub(crate) fn payment_id_de_pago(venta_id: Uuid, key: &str) -> String {
     let prefijo = venta_id.simple().to_string();
     let id = format!("P{}-{key}", &prefijo[..14]);
     if id.len() <= LONGITUD_MAX_PAYMENT_ID {
@@ -178,25 +165,67 @@ pub(super) fn payment_id_determinista(venta_id: Uuid, key: &str) -> String {
     format!("P{}-{resumen}", &prefijo[..14])
 }
 
-/* [D15] Resultado de cruzar un intento ambiguo con los Payments remotos. */
-#[derive(Debug, PartialEq, Eq)]
-enum DecisionPago {
-    Aplicado,
-    NoAplicado,
-    Discordante,
+/* [18AB-1] Pago de un intento sin clave de idempotencia. Sin clave no hay
+ * forma de reconocer un reintento del mismo cobro, así que lleva un id propio
+ * por armado; la protección sigue estando en la reconciliación del ambiguo,
+ * que lee el id guardado en la auditoría. */
+pub(crate) fn payment_id_intento(venta_id: Uuid) -> String {
+    let prefijo = venta_id.simple().to_string();
+    let nonce = Uuid::new_v4().simple().to_string();
+    format!("P{}-{}", &prefijo[..14], &nonce[..16])
 }
 
-/* [D15] Solo cuenta como aplicado si BDP tiene su PaymentId con el mismo importe. */
-fn decidir_reconciliacion(
-    montos: &HashMap<String, Decimal>,
+/* [18AB-1] Resultado de buscar nuestro pago en los `Payments` de BDP. */
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum PagoRemoto {
+    Ausente,
+    Aplicado,
+}
+
+/* [18AB-1] ¿El pago ya está en BDP? Guillermo pide no reenviar cuando aparece
+ * con el mismo identificador, importe y forma de pago. Un identificador
+ * coincidente con otro importe o con otra forma de pago no se reenvía ni se
+ * da por bueno: bloquea. BDP no siempre devuelve `TenderId` en `Payments`, así
+ * que sin él se compara solo identificador e importe. */
+pub(crate) fn estado_pago_remoto(
+    payments: &[Value],
     payment_id: &str,
     amount: Decimal,
-) -> DecisionPago {
-    match montos.get(payment_id) {
-        None => DecisionPago::NoAplicado,
-        Some(remoto) if *remoto == amount => DecisionPago::Aplicado,
-        Some(_) => DecisionPago::Discordante,
+    tender_id: i32,
+) -> Result<PagoRemoto, String> {
+    let mut encontrado = false;
+    for payment in payments {
+        let Some(id) = BdpSyncService::remote_payment_id(payment.get("PaymentId")) else {
+            continue;
+        };
+        if id != payment_id {
+            continue;
+        }
+        let remoto = BdpSyncService::parse_remote_money(
+            payment
+                .get("Amount")
+                .ok_or("Pago bloqueado: un pago remoto no contiene Amount")?,
+            "Payments.Amount",
+        )?;
+        if remoto != amount {
+            return Err(format!(
+                "Pago bloqueado: BDP ya tiene el pago {payment_id} por {remoto} y se pidió {amount}"
+            ));
+        }
+        if let Some(tender) = payment.get("TenderId").and_then(Value::as_i64) {
+            if tender != i64::from(tender_id) {
+                return Err(format!(
+                    "Pago bloqueado: el pago {payment_id} está en BDP con la forma de pago {tender} y se pidió {tender_id}"
+                ));
+            }
+        }
+        encontrado = true;
     }
+    Ok(if encontrado {
+        PagoRemoto::Aplicado
+    } else {
+        PagoRemoto::Ausente
+    })
 }
 
 #[cfg(test)]
@@ -208,18 +237,39 @@ mod tests_reconciliacion {
         Decimal::from_str(texto).expect("decimal de prueba")
     }
 
+    fn pago(id: &str, importe: serde_json::Value, tender: Option<i64>) -> Value {
+        let mut pago = json!({ "PaymentId": id, "Amount": importe });
+        if let Some(tender) = tender {
+            pago["TenderId"] = json!(tender);
+        }
+        pago
+    }
+
     #[test]
     fn payment_id_coincide_con_el_de_la_prueba_d15() {
         let venta = Uuid::parse_str("6aa916e1-ca9e-4100-8000-000000000001").expect("uuid");
         assert_eq!(
-            payment_id_determinista(venta, "d15-pago-1"),
+            payment_id_de_pago(venta, "d15-pago-1"),
             "P6aa916e1ca9e41-d15-pago-1"
         );
     }
 
-    /* [18AA-8] Cada intento lleva un id propio: repetirlo cobra dos veces. */
+    /* [18AB-1] El id identifica el pago: dos armados de la misma clave llevan
+     * el mismo, y claves distintas no colisionan. */
     #[test]
-    fn cada_intento_tiene_su_propio_payment_id() {
+    fn el_mismo_pago_conserva_su_payment_id_entre_intentos() {
+        let venta = Uuid::parse_str("4cf3165a-df61-4570-99e1-6005f3a29549").expect("uuid");
+        let uno = payment_id_de_pago(venta, "cobro-1");
+        let dos = payment_id_de_pago(venta, "cobro-1");
+        assert_eq!(uno, dos, "un reintento no puede cambiar el id del pago");
+        assert_ne!(uno, payment_id_de_pago(venta, "cobro-2"));
+        assert!(uno.len() <= LONGITUD_MAX_PAYMENT_ID);
+        assert!(uno.starts_with("P4cf3165adf614"));
+    }
+
+    /* [18AB-1] Sin clave no hay reintento reconocible: el id es del armado. */
+    #[test]
+    fn sin_clave_cada_armado_lleva_su_propio_payment_id() {
         let venta = Uuid::parse_str("4cf3165a-df61-4570-99e1-6005f3a29549").expect("uuid");
         let uno = payment_id_intento(venta);
         let dos = payment_id_intento(venta);
@@ -232,39 +282,65 @@ mod tests_reconciliacion {
     fn clave_uuid_no_supera_los_50_caracteres() {
         let venta = Uuid::parse_str("4cf3165a-df61-4570-99e1-6005f3a29549").expect("uuid");
         let clave = Uuid::new_v4().to_string();
-        let id = payment_id_determinista(venta, &clave);
+        let id = payment_id_de_pago(venta, &clave);
         assert!(id.len() <= 50, "PaymentId de {} caracteres", id.len());
-        assert_eq!(
-            id,
-            payment_id_determinista(venta, &clave),
-            "debe ser determinístico"
-        );
+        assert_eq!(id, payment_id_de_pago(venta, &clave), "determinístico");
     }
 
     #[test]
-    fn mismo_id_y_importe_se_considera_aplicado() {
-        let montos = HashMap::from([("P1-k".to_string(), d("3.00"))]);
+    fn mismo_id_e_importe_se_considera_aplicado() {
+        let payments = vec![
+            pago("otro", json!("1.00"), None),
+            pago("P1-k", json!("3.00"), Some(1)),
+        ];
         assert_eq!(
-            decidir_reconciliacion(&montos, "P1-k", d("3")),
-            DecisionPago::Aplicado
+            estado_pago_remoto(&payments, "P1-k", d("3"), 1),
+            Ok(PagoRemoto::Aplicado)
+        );
+    }
+
+    /* [18AB-1] BDP no siempre devuelve TenderId: sin él, id e importe bastan. */
+    #[test]
+    fn sin_tender_remoto_bastan_id_e_importe() {
+        let payments = vec![pago("P1-k", json!(3.0), None)];
+        assert_eq!(
+            estado_pago_remoto(&payments, "P1-k", d("3"), 1),
+            Ok(PagoRemoto::Aplicado)
         );
     }
 
     #[test]
     fn id_ausente_no_esta_aplicado() {
-        let montos = HashMap::from([("otro".to_string(), d("3"))]);
+        let payments = vec![pago("otro", json!("3.00"), None)];
         assert_eq!(
-            decidir_reconciliacion(&montos, "P1-k", d("3")),
-            DecisionPago::NoAplicado
+            estado_pago_remoto(&payments, "P1-k", d("3"), 1),
+            Ok(PagoRemoto::Ausente)
         );
     }
 
     #[test]
-    fn mismo_id_con_importe_distinto_es_discordante() {
-        let montos = HashMap::from([("P1-k".to_string(), d("5"))]);
+    fn id_repetido_se_sigue_considerando_aplicado() {
+        let payments = vec![
+            pago("P1-k", json!("3.00"), None),
+            pago("P1-k", json!("3.00"), None),
+        ];
         assert_eq!(
-            decidir_reconciliacion(&montos, "P1-k", d("3")),
-            DecisionPago::Discordante
+            estado_pago_remoto(&payments, "P1-k", d("3"), 1),
+            Ok(PagoRemoto::Aplicado)
         );
+    }
+
+    #[test]
+    fn importe_distinto_bloquea() {
+        let payments = vec![pago("P1-k", json!("5.00"), None)];
+        let error = estado_pago_remoto(&payments, "P1-k", d("3"), 1).unwrap_err();
+        assert!(error.contains("ya tiene el pago P1-k por 5"));
+    }
+
+    #[test]
+    fn forma_de_pago_distinta_bloquea() {
+        let payments = vec![pago("P1-k", json!("3.00"), Some(2))];
+        let error = estado_pago_remoto(&payments, "P1-k", d("3"), 1).unwrap_err();
+        assert!(error.contains("forma de pago 2"));
     }
 }

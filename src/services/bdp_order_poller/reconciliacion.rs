@@ -1,6 +1,5 @@
 // sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
 // [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
-use rust_decimal::prelude::ToPrimitive;
 use sqlx::PgPool;
 use tracing::{info, warn};
 
@@ -135,7 +134,9 @@ impl BdpOrderPollerService {
                         continue;
                     };
                     let matched = payments.iter().find_map(|payment| {
-                        let id = payment.get("PaymentId").and_then(serde_json::Value::as_str)?;
+                        let id = payment
+                            .get("PaymentId")
+                            .and_then(serde_json::Value::as_str)?;
                         (id.trim() == expected_id).then(|| id.to_string())
                     });
                     if let Some(payment_id) = matched {

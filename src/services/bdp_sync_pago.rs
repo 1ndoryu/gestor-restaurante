@@ -23,8 +23,11 @@ use crate::services::{ModoEfectivo, ServicioModoOperacion};
 use super::bdp_sync::{BdpSyncService, SyncLockGuard, SYNC_LOCKS};
 
 mod reconciliacion;
-/* [18AA-8] También lo usa el pago que viaja dentro de `CreateOrder`. */
-pub(crate) use reconciliacion::payment_id_intento;
+/* [18AB-1] `payment_id_de_pago` también lo usa el pago que viaja dentro de
+ * `CreateOrder`; el resto es de este submódulo. */
+pub(crate) use reconciliacion::payment_id_de_pago;
+
+use reconciliacion::{estado_pago_remoto, payment_id_intento, PagoRemoto};
 
 /* [267A-8] Intención de pago validada: lo necesario para armar y ejecutar
  * el AddOrderPayment sin arrastrar 8 parámetros (límite clippy). */
@@ -42,6 +45,21 @@ struct PagoArmado {
     intento: IntentoPago,
     payment_id: String,
     request: BdpAddOrderPaymentRequest,
+}
+
+/* [18AB-1] Pago que se busca en BDP antes de reenviarlo: su identificador
+ * estable, el importe y la forma de pago. */
+struct PagoEsperado {
+    payment_id: String,
+    amount: Decimal,
+    tender_id: i32,
+}
+
+/* [18AB-1] Resultado de la lectura previa: seguir con el pago o no enviarlo
+ * porque BDP ya lo tiene. */
+enum PrevioPago {
+    Continuar { is_partial: bool },
+    YaAplicado,
 }
 
 impl BdpSyncService {
@@ -103,15 +121,41 @@ impl BdpSyncService {
         )
         .await?;
 
+        /* [18AB-1] El id se calcula antes de consultar: la lectura previa
+         * necesita saber qué pago buscar en BDP. */
+        let esperado = PagoEsperado {
+            payment_id: idempotency_key.map_or_else(
+                || payment_id_intento(venta.id),
+                |key| payment_id_de_pago(venta.id, key),
+            ),
+            amount,
+            tender_id,
+        };
+        let payment_id = esperado.payment_id.clone();
         let is_partial =
-            Self::reconciliar_orden_pago(&client, pool, venta, config, order_id, amount).await?;
+            match Self::reconciliar_orden_pago(&client, pool, venta, config, order_id, &esperado)
+                .await?
+            {
+                /* [18AB-1] El pago ya está en BDP con ese id, importe y forma de
+                 * pago: no se reenvía. Queda sin marca local porque no hubo
+                 * escritura en este proceso. */
+                PrevioPago::YaAplicado => {
+                    info!(
+                        "[18AB-1] El pago {payment_id} ya está en BDP; no se reenvía (venta {})",
+                        venta.id
+                    );
+                    return Ok(None);
+                }
+                PrevioPago::Continuar { is_partial } => is_partial,
+            };
         let intento = IntentoPago {
             order_id,
             amount,
             tender_id,
             is_partial,
         };
-        let armado = Self::armar_pago(pool, venta, config, &intento, idempotency_key).await?;
+        let armado =
+            Self::armar_pago(pool, venta, config, &intento, &payment_id, idempotency_key).await?;
 
         Self::ejecutar_pago(&client, pool, venta, &armado, idempotency_key).await
     }
@@ -181,15 +225,16 @@ impl BdpSyncService {
 
     /* [267A-8] Reconciliación pre-pago: GetOrder remoto + unión de libros
      * local/remoto [028A-BDP-WRITE] + validación de parciales. Devuelve si
-     * el pago es parcial respecto al saldo pendiente. */
+     * el pago es parcial respecto al saldo pendiente, o si ya está en BDP. */
     async fn reconciliar_orden_pago(
         client: &BdpWeblinkClient<'_>,
         pool: &PgPool,
         venta: &Venta,
         config: &ConfiguracionRestaurante,
         order_id: i64,
-        amount: Decimal,
-    ) -> Result<bool, String> {
+        esperado: &PagoEsperado,
+    ) -> Result<PrevioPago, String> {
+        let (amount, tender_id) = (esperado.amount, esperado.tender_id);
         let current = client
             .get_order(&BdpGetOrderRequest {
                 order_identifier: BdpOrderIdentifier::by_order_id(order_id),
@@ -231,6 +276,14 @@ impl BdpSyncService {
             .ok_or_else(|| {
                 "Pago bloqueado: GetOrder no devolvió la colección Payments".to_string()
             })?;
+        /* [18AB-1] Antes de reenviar, ¿este pago ya está en BDP? Es la puerta
+         * que Guillermo pide: si no se puede leer la orden, el intento queda
+         * bloqueado y nunca se reenvía a ciegas. */
+        if estado_pago_remoto(payments, &esperado.payment_id, amount, tender_id)?
+            == PagoRemoto::Aplicado
+        {
+            return Ok(PrevioPago::YaAplicado);
+        }
         /* PaymentId puede llegar como string o número según la versión de
          * WebLink. Conservamos también su importe para detectar respuestas
          * internamente inconsistentes y no duplicar una entrada repetida.
@@ -280,22 +333,19 @@ impl BdpSyncService {
                 "Pago bloqueado: el importe {requested:.2} excede el saldo pendiente {pending:.2}"
             ));
         }
-        Ok(is_partial)
+        Ok(PrevioPago::Continuar { is_partial })
     }
 
     /* [267A-8] Arma el pago: snapshot remoto + authorize [187A-1] + PaymentId
-     * propio del intento [18AA-8] + request AddOrderPayment. */
+     * del pago [18AB-1] + request AddOrderPayment. */
     async fn armar_pago(
         pool: &PgPool,
         venta: &Venta,
         config: &ConfiguracionRestaurante,
         intento: &IntentoPago,
+        payment_id: &str,
         idempotency_key: Option<&str>,
     ) -> Result<PagoArmado, String> {
-        /* [18AA-8] Un PaymentId por intento. Se genera aquí y viaja en la
-         * auditoría: la reconciliación de un ambiguo lo busca así en BDP.
-         * Nunca se reutiliza otro: BDP no deduplica y cobraría dos veces. */
-        let payment_id = payment_id_intento(venta.id);
         /* [187A-1] El snapshot remoto debe completarse antes de consumir el
          * armado; authorize registra la intención y cierra el modo escritura. */
         let datos_pago = serde_json::json!({
@@ -304,7 +354,7 @@ impl BdpSyncService {
             "amount": intento.amount,
             "tender_id": intento.tender_id,
             "is_partial": intento.is_partial,
-            "payment_id": &payment_id
+            "payment_id": payment_id
         });
         let snapshot_pre_id = crate::services::BdpBackupService::preparar_snapshot_escritura(
             pool,
@@ -337,7 +387,7 @@ impl BdpSyncService {
             payment: BdpOrderPayment {
                 tender_id: intento.tender_id,
                 amount: intento.amount,
-                payment_id: payment_id.clone(),
+                payment_id: payment_id.to_string(),
             },
             invoice: None,
             pos_id: Some(config.bdp_pos_id),
@@ -347,7 +397,7 @@ impl BdpSyncService {
         Ok(PagoArmado {
             audit_id,
             intento: *intento,
-            payment_id,
+            payment_id: payment_id.to_string(),
             request,
         })
     }

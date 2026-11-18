@@ -603,9 +603,9 @@ mod tests {
 
     /* [169A-2] Resiliencia de la comanda: `MarketplaceOrderId` (≤15, ASCII) es
      * estable entre reintentos y es lo que la reconciliación consulta.
-     * [18AA-8] El `PaymentId` **no** puede ser ese id: BDP 36.2 no deduplica
-     * ningún pago (probado el 18/11/2026), así que reutilizarlo cobra dos
-     * veces. Cada armado lleva su propio id. */
+     * [18AB-1] El `PaymentId` tampoco cambia entre reintentos: identifica el
+     * pago. La protección contra el cobro doble es la lectura previa de BDP,
+     * no un id nuevo por envío. */
     #[test]
     fn build_order_payment_id_estable_y_acotado() {
         let config = test_config();
@@ -647,8 +647,11 @@ mod tests {
         };
         let uno = pago_id(&primero).expect("PaymentId del primer armado");
         let dos = pago_id(&segundo).expect("PaymentId del segundo armado");
-        assert_ne!(uno, dos, "cada armado lleva su propio PaymentId");
-        assert_ne!(uno, id_mercado, "PaymentId nunca reutiliza el de la comanda");
+        assert_eq!(uno, dos, "un reintento conserva el PaymentId del pago");
+        assert_ne!(
+            uno, id_mercado,
+            "PaymentId nunca reutiliza el de la comanda"
+        );
         assert!(uno.len() <= 50 && uno.is_ascii());
     }
 
