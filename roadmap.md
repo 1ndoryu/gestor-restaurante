@@ -4,12 +4,11 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `18AB-1`…`18AB-8`: los ocho puntos de la respuesta de Guillermo del 18/11, en el orden en que los pide. El correo a BDP (`18AB-9`) espera a las pruebas de los puntos 7 y 8.
+- `18AB-2`…`18AB-8`: los siete puntos restantes de la respuesta de Guillermo del 18/11, en el orden en que los pide. El correo a BDP (`18AB-9`) espera a las pruebas de los puntos 7 y 8.
 
 ## Pendientes
 
 
-- [ ] `18AB-1` — **Identificador de pago estable por pago, con consulta previa a BDP.** Revertir `18AA-8`: el `PaymentId` deja de ser nuevo por intento y pasa a derivarse de la clave de idempotencia del pago. Antes de reenviar, consultar `GetOrder`: si el pago ya está con ese identificador, importe y forma de pago, no se envía; si BDP no responde, queda pendiente y nunca se reenvía a ciegas. Hecho = tests del camino estable + reconciliación que lee el identificador del payload, no de un id nuevo.
 - [ ] `18AB-2` — **Separar pago y facturación.** Quitar `Invoice: true` del pago dentro de `Orders/Create` (`bdp_sync_venta/payload.rs`): el pago se envía sin factura, se comprueba con `GetOrder` que se guardó y, con saldo cero, se llama a `Orders/Invoice` por separado. Hecho = flujo completo probado contra el BDP demo: pago parcial, cuadre y factura con número.
 - [ ] `18AB-3` — **Bloquear la cancelación de una comanda con pagos.** `venta::anular` y el push `CancelOrder` consultan `bdp_pagos` y el estado remoto antes de cancelar; con uno o más pagos, se rechaza desde el servidor con un mensaje que dice cuánto hay cobrado. Hecho = test de la puerta y prueba contra BDP con una comanda cobrada.
 - [ ] `18AB-4` — **Aplicar `NotAllowedAsInvitation` en la web.** La web debe impedir marcar como invitación un artículo con ese campo activo, aunque BDP lo acepte. Hecho = el modelo y el editor de líneas llevan la marca, y se rechaza antes de llegar al servidor.
@@ -18,8 +17,6 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 - [ ] `18AB-7` — **Prueba del producto eliminado en el ticket.** Dejar un producto a cero y emitir ticket: comprobar si la línea aparece.
 - [ ] `18AB-8` — **Prueba del cambio de comentario de línea.** Crear una línea con comentario, cambiarlo por otro y ver cuál queda en BDP y en el ticket; si quedan los dos, buscar la forma segura de sustituirlo.
 - [ ] `18AB-9` — **Correo a BDP con copia a Guillermo.** Verificar en BDP los seis puntos que pide (dividir y unir, retirar pago parcial, anular cobro, cambio de mesa, unicidad de `MarketId` + `MarketplaceOrderId`, `Type=2` en Hostelería 01) y los tres hechos ya comprobados. Copia a `guillermo.autoia@gmail.com`. Hecho = correo enviado y respuestas registradas.
-- [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** `rest-dev.wandori.us` está abierto sin franja: `bdp_sync_mode = automatic` con las siete categorías activas y un snapshot completo del 16/11 como red de seguridad (manual en `Agente/documentacion/bdp/entorno-pruebas-2026-10-31.md`). El TPV arranca solo al iniciar sesión (`bdp-tpv-arranque.vbs` en la carpeta Inicio, espera 90 s); el túnel `-R 8071` lo supervisa el workspace-manager. Falta: comprobar que el TPV entra sin login manual; el aviso de que puede entrar cuando quiera ya salió el 16/11.
-- [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Etapa 0 resuelta el 03/11/2026 (Tailscale ya conecta producción con el BDP del restaurante); el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** `rest-dev.wandori.us` está abierto sin franja: `bdp_sync_mode = automatic` con las siete categorías activas y un snapshot completo del 16/11 como red de seguridad (manual en `Agente/documentacion/bdp/entorno-pruebas-2026-10-31.md`). El TPV arranca solo al iniciar sesión (`bdp-tpv-arranque.vbs` en la carpeta Inicio, espera 90 s); el túnel `-R 8071` lo supervisa el workspace-manager. Falta: comprobar que el TPV entra sin login manual; el aviso de que puede entrar cuando quiera ya salió el 16/11.
 - [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Etapa 0 resuelta el 03/11/2026 (Tailscale ya conecta producción con el BDP del restaurante); el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
