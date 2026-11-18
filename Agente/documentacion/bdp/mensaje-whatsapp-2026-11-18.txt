@@ -2,32 +2,30 @@ BORRADOR — mensaje completo a Guillermo por WhatsApp (sin PDF, sin enviar)
 
 ---
 
-Hola Guillermo: he hecho las seis pruebas sobre comandas abiertas en el BDP de prueba (36.2), con el TPV abierto y la licencia completa. van todas sobre comandas abiertas y sin facturar, y las cancelé al terminar.
+Hola Guillermo: ya hice las seis pruebas sobre comandas abiertas en el BDP 36.2 con la aplicación 84 completa. Todas sobre comandas abiertas, sin facturar y con AlreadyInvoiced=false, y las cancelé al terminar.
 
 *Resultados.*
 
-1. *Añadir y quitar líneas:* pasa. Se mandan solo las líneas del cambio y el total final. Quitar es una línea en negativo: la línea queda a cero, no se borra.
+1. *Añadir y eliminar productos:* bien. Se mandan solo las líneas del cambio y el total final. Eliminar es una línea en negativo: el producto queda a cero, no se borra de la comanda.
 
-2. *Cambiar cantidades y comentarios:* pasa. Se suben y bajan unidades, y los comentarios se guardan en cualquier momento. Lo que no se puede es reescribir el texto de una línea ya enviada; solo sumar o restar.
+2. *Cambiar cantidades y comentarios:* bien. Se suben y bajan unidades, y los comentarios se guardan en cualquier momento. El texto de una línea ya enviada no se puede reescribir; solo sumar o restar.
 
-3. *Descuentos e invitación:* pasa, salvo que BDP ignora el artículo «no invitables». Marqué como invitación un artículo con ese campo activo y lo aceptó con total 0.
+3. *Descuentos e invitación:* bien los tres. El descuento general y el de línea funcionan, y una línea se puede marcar como invitación. La única salvedad es *NotAllowedAsInvitation*: puse ese campo activo en un artículo y BDP lo aceptó igualmente como invitación, total 0. El campo existe en la ficha y lo devuelve la consulta de artículos, pero al crear la comanda no lo comprueba.
 
-4. *Cambiar la comanda de mesa:* no se puede. BDP no tiene esa operación. Si se reenvía la comanda con la mesa nueva, queda colocada en las dos mesas a la vez; y si la mesa de destino está ocupada y el total coincide, las líneas se funden dentro de la comanda del destino sin avisar.
+4. *Mover una comanda de mesa:* **falla.** No hay operación de cambio de mesa en la API. Reenviar la comanda con la mesa nueva conserva el mismo OrderId y no crea una segunda comanda, pero **la mesa anterior no queda libre**: la comanda aparece en las dos mesas a la vez. Y contra una mesa ocupada es peor: si el total coincide, las líneas se funden dentro de la comanda del destino, que ya estaba abierta, sin avisar; la comanda original sigue viva en su mesa. Con un total distinto sí lo bloquea, con el error de que el importe no coincide con el teórico.
 
-5. *Pagos parciales y facturación:* pasa, con dos salvedades. Pedir factura en un pago parcial se rechaza con error, aunque el pago sí queda guardado (hay que pagar hasta cuadrar y facturar después). Y repetir el mismo identificador de pago cobra dos veces: BDP no lo deduplica.
+5. *Pagos parciales:* bien, con dos salvedades. Dos pagos con formas de pago distintas se suman correctamente y la factura solo se emite cuando la suma coincide con el total. Pero *repetir el mismo PaymentId* **cobra dos veces**: BDP no lo deduplica, y la suma los cuenta como dos cobros. Y pedir factura en un pago parcial se rechaza con error aunque el pago sí queda guardado; después hay que cuadrar y facturar aparte.
 
-6. *Cancelar una comanda abierta:* pasa. Anula también el pago parcial que tuviera y no deja rastro: no hay abono ni documento.
+6. *Cancelar una comanda abierta:* se cancela, y GetOrder responde después que no existe. La salvedad es que si tenía un pago parcial, ese cobro **desaparece sin rastro**: no queda abono ni documento.
 
-*Ya está cerrado en la web.* Las dos cosas peligrosas del punto 4 y del 5 no pueden pasar por nuestra parte: no se modifica una comanda que BDP tiene en otra mesa (se bloquea y se avisa con las dos mesas), y cada intento de pago lleva su propio identificador, distinto en cada reintento, así que un reintento ya no puede cobrar dos veces. Además, el saldo pendiente ahora suma cada cobro; antes contaba una sola vez y dejaba cobrar de más. Tests y control de calidad en verde.
+*Ya cerrado en la web.* Los dos riesgos del punto 4 y del 5 no pueden ocurrir desde nuestra parte: la web no modifica una comanda que BDP tiene en otra mesa (la bloquea y avisa con las dos mesas), y cada intento de pago lleva su propio PaymentId, distinto en cada reintento, así que un reintento ya no puede cobrar dos veces. También corregí el cálculo del saldo pendiente, que contaba una sola vez un PaymentId repetido cuando BDP lo cobra dos veces.
 
-*Lo único que me falta son seis respuestas de BDP:*
+*Lo que hay que preguntar a BDP:*
 
-1. *Dividir y unir cuentas.* ¿Hay operación oficial? Si no, ¿qué procedimiento admiten (contrapartidas, varias comandas, mesa juntada)?
-2. *Retirar un pago parcial* de una comanda abierta y *anular o devolver un cobro ya emitido.* ¿Hay operación no documentada o se hace solo en el TPV?
-3. *Cambio de mesa:* cuál es el procedimiento oficial, dado que el reenvío duplica la colocación y funde líneas en mesa ocupada.
-4. *Artículo no invitables:* ¿es un defecto de la versión 36.2 o el campo solo lo aplica el terminal y nunca la API?
-5. *Comanda ya facturada:* consultarla devuelve vacío con estado 3 y escribir un pago sobre ella rompe con un error de índice. ¿Es lo previsto? Me afecta al sondeo de estado.
-6. *Duplicados:* ¿hay alguna garantía de unicidad por identificador de comanda en BDP, o la tiene que sostener el integrador?
+1. *Dividir y unir comandas:* ¿hay operación oficial en WebLinkRestAPI 1.2? Si no existe, ¿cuál es el procedimiento admitido por la API?
+2. *Pagos:* ¿cómo se retira o revierte un pago parcial de una comanda abierta, y cómo se anula o devuelve un cobro ya emitido el ticket? ¿Hay operación no documentada o es obligatorio hacerlo desde el TPV?
+3. *Cambio de mesa:* como la prueba falla (colocación en dos mesas y fusión de líneas en mesa ocupada), ¿cuál es el procedimiento oficial para mover una comanda entre mesas?
+4. *Duplicados:* al repetir una petición de comanda con el mismo MarketplaceOrderId, BDP crea una segunda comanda y la consulta por ese identificador devuelve solo una. ¿Hay alguna garantía de unicidad del lado de BDP, o la tiene que sostener el integrador?
 
 Del restaurante solo faltan tres datos: las formas de pago, los tipos de pedido y el perfil de documentos. Va todo en el manual de configuración del 16/11 y se rellena en Configuración → BDP, con los números que la propia web lee del TPV.
 
