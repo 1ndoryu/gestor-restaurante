@@ -4,12 +4,10 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `18AB-2`…`18AB-8`: los siete puntos restantes de la respuesta de Guillermo del 18/11, en el orden en que los pide. El correo a BDP (`18AB-9`) espera a las pruebas de los puntos 7 y 8.
+- `18AB-3`…`18AB-8`: los seis puntos restantes de la respuesta de Guillermo del 18/11, en el orden en que los pide. El correo a BDP (`18AB-9`) espera a las pruebas de los puntos 7 y 8.
 
 ## Pendientes
 
-
-- [ ] `18AB-2` — **Separar pago y facturación.** Quitar `Invoice: true` del pago dentro de `Orders/Create` (`bdp_sync_venta/payload.rs`): el pago se envía sin factura, se comprueba con `GetOrder` que se guardó y, con saldo cero, se llama a `Orders/Invoice` por separado. Hecho = flujo completo probado contra el BDP demo: pago parcial, cuadre y factura con número.
 - [ ] `18AB-3` — **Bloquear la cancelación de una comanda con pagos.** `venta::anular` y el push `CancelOrder` consultan `bdp_pagos` y el estado remoto antes de cancelar; con uno o más pagos, se rechaza desde el servidor con un mensaje que dice cuánto hay cobrado. Hecho = test de la puerta y prueba contra BDP con una comanda cobrada.
 - [ ] `18AB-4` — **Aplicar `NotAllowedAsInvitation` en la web.** La web debe impedir marcar como invitación un artículo con ese campo activo, aunque BDP lo acepte. Hecho = el modelo y el editor de líneas llevan la marca, y se rechaza antes de llegar al servidor.
 - [ ] `18AB-5` — **Impedir comandas duplicadas por `MarketId` + `MarketplaceOrderId`.** Índice único, bloqueo de envíos simultáneos y consulta a BDP ante respuesta dudosa antes de reenviar. Hecho = prueba con dos solicitudes simultáneas que crea una sola comanda.
