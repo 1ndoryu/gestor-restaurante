@@ -118,31 +118,26 @@ impl BdpOrderPollerService {
                         .and_then(serde_json::Value::as_array)
                         .cloned()
                         .unwrap_or_default();
-                    let expected_amount =
-                        rust_decimal::Decimal::to_f64(&pago.amount).unwrap_or(0.0);
-                    let expected_tender = i64::from(pago.tender_id);
-                    let mut matched: Option<String> = None;
-                    for payment in payments {
-                        let tender = payment
-                            .get("TenderId")
-                            .and_then(serde_json::Value::as_i64)
-                            .unwrap_or(-1);
-                        /* [D1] No usar unwrap_or(0.0) en montos financieros.
-                         * Si BDP devuelve Amount como string o null, no hacer match
-                         * con 0.0 — eso podría reconciliar un pago fantasma. */
-                        let Some(amount) =
-                            payment.get("Amount").and_then(serde_json::Value::as_f64)
-                        else {
-                            continue;
-                        };
-                        if tender == expected_tender && (amount - expected_amount).abs() < 0.005 {
-                            matched = payment
-                                .get("PaymentId")
-                                .and_then(serde_json::Value::as_str)
-                                .map(String::from);
-                            break;
-                        }
-                    }
+                    /* [18AA-8] Tender y monto ya no identifican el intento: cada
+                     * pago lleva un PaymentId propio, y el pago siguiente puede
+                     * repetir tender y monto. Solo cuenta el PaymentId que envió
+                     * nuestra auditoría (`bdp_payment_id`); sin él se queda ambiguo. */
+                    let Some(expected_id) = pago
+                        .bdp_payment_id
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|id| !id.is_empty())
+                    else {
+                        warn!(
+                            "[247A-10/P3] Pago ambiguo {} sin PaymentId propio; se mantiene ambiguo",
+                            pago.id
+                        );
+                        continue;
+                    };
+                    let matched = payments.iter().find_map(|payment| {
+                        let id = payment.get("PaymentId").and_then(serde_json::Value::as_str)?;
+                        (id.trim() == expected_id).then(|| id.to_string())
+                    });
                     if let Some(payment_id) = matched {
                         let datos =
                             serde_json::json!({ "order_id": order_id, "payment_id": payment_id });

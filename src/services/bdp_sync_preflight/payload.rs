@@ -76,9 +76,11 @@ pub(super) fn build_only_check_order_con_pago(
 ) -> BdpCreateOrderRequest {
     let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     let marketplace_order_id = format!("GDRY{:010}", Utc::now().timestamp() % 10_000_000_000);
-    /* PaymentId = MarketplaceOrderId: BDP vincula el pago a la comanda por este
-     * id estable; va clonado porque `json!` consume los valores. */
-    let payment_id = marketplace_order_id.clone();
+    /* [18AA-8] El `PaymentId` no se deriva del `MarketplaceOrderId`: BDP 36.2
+     * no deduplica pagos por id (probado el 18/11/2026). Aquí es solo una
+     * validación (`OperationType=1`, no crea nada), pero el payload debe ser
+     * el mismo que el real para que la prueba signifique algo. */
+    let payment_id = format!("GDRYP{:010}", Utc::now().timestamp() % 10_000_000_000);
     BdpCreateOrderRequest {
         employee_id: config.bdp_employee_id,
         items_profile_id: config.bdp_items_profile_id,

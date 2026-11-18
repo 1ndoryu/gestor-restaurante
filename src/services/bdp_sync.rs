@@ -601,9 +601,11 @@ mod tests {
         assert_eq!(order.invoice, Some(false));
     }
 
-    /* [169A-2] Resiliencia: PaymentId = MarketplaceOrderId (≤15, ASCII) y
-     * estable entre reintentos de la misma venta → BDP puede deduplicar si la
-     * respuesta se pierde tras aplicar la escritura. */
+    /* [169A-2] Resiliencia de la comanda: `MarketplaceOrderId` (≤15, ASCII) es
+     * estable entre reintentos y es lo que la reconciliación consulta.
+     * [18AA-8] El `PaymentId` **no** puede ser ese id: BDP 36.2 no deduplica
+     * ningún pago (probado el 18/11/2026), así que reutilizarlo cobra dos
+     * veces. Cada armado lleva su propio id. */
     #[test]
     fn build_order_payment_id_estable_y_acotado() {
         let config = test_config();
@@ -633,17 +635,21 @@ mod tests {
             Some(id_mercado),
             "mismo id entre reintentos"
         );
-        for orden in [&primero, &segundo] {
-            let pago = &orden
+        let pago_id = |orden: &crate::services::bdp_weblink_catalog::BdpCreateOrderRequest| {
+            orden
                 .order
                 .get("Payments")
                 .and_then(serde_json::Value::as_array)
-                .unwrap()[0];
-            assert_eq!(
-                pago.get("PaymentId").and_then(serde_json::Value::as_str),
-                Some(id_mercado)
-            );
-        }
+                .unwrap()[0]
+                .get("PaymentId")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        };
+        let uno = pago_id(&primero).expect("PaymentId del primer armado");
+        let dos = pago_id(&segundo).expect("PaymentId del segundo armado");
+        assert_ne!(uno, dos, "cada armado lleva su propio PaymentId");
+        assert_ne!(uno, id_mercado, "PaymentId nunca reutiliza el de la comanda");
+        assert!(uno.len() <= 50 && uno.is_ascii());
     }
 
     /* [169A-2] Resiliencia: propina negativa no pinta Tip (BDP la rechazaría;
@@ -1106,8 +1112,11 @@ mod tests {
         );
     }
 
+    /* [18AA-8] El mismo PaymentId repetido son **dos** cobros en BDP 36.2
+     * (probado el 18/11/2026): el total los suma todos, aunque el mapa deje un
+     * solo importe por id para la contribución del ledger. */
     #[test]
-    fn parse_remote_payments_deduplicates_same_id_and_amount() {
+    fn parse_remote_payments_suma_cada_entrada_aunque_repita_id() {
         let payments = vec![
             serde_json::json!({"PaymentId": "PAY-1", "Amount": "4.50"}),
             serde_json::json!({"PaymentId": "PAY-1", "Amount": 4.50}),
@@ -1121,7 +1130,7 @@ mod tests {
             Some(&Decimal::from_str("4.50").unwrap())
         );
         assert_eq!(amounts.get("42"), Some(&Decimal::from_str("2.00").unwrap()));
-        assert_eq!(total, Decimal::from_str("7.50").unwrap());
+        assert_eq!(total, Decimal::from_str("12.00").unwrap());
     }
 
     #[test]

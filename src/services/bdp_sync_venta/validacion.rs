@@ -98,8 +98,13 @@ impl BdpSyncService {
 
     /* [028A-BDP-WRITE] Normaliza y agrega Payments en una función pura para
      * que la regla financiera tenga regresiones unitarias independientes de
-     * PostgreSQL/HTTP. Un ID repetido con el mismo importe es una repetición
-     * de respuesta; el mismo ID con importe distinto es inconsistente y bloquea. */
+     * PostgreSQL/HTTP.
+     * [18AA-8] Cada entrada suma al total aunque repita `PaymentId`: el BDP
+     * 36.2 no deduplica (`Payment/Add` dos veces con el mismo ID deja dos
+     * cobros, probado el 18/11/2026), así que darlas por una sola inflaría
+     * el saldo pendiente y permitiría cobrar de más. El mapa se queda con un
+     * importe por ID —el de la primera entrada— para la contribución del
+     * ledger; el mismo ID con importes distintos se bloquea. */
     pub(crate) fn parse_remote_payments(
         payments: &[Value],
     ) -> Result<(HashMap<String, Decimal>, Decimal), String> {
@@ -112,8 +117,8 @@ impl BdpSyncService {
                 })?,
                 "Payments.Amount",
             )?;
+            total += paid;
             let Some(payment_id) = Self::remote_payment_id(payment.get("PaymentId")) else {
-                total += paid;
                 continue;
             };
             if let Some(previous) = amounts.get(&payment_id) {
@@ -125,7 +130,6 @@ impl BdpSyncService {
                 continue;
             }
             amounts.insert(payment_id, paid);
-            total += paid;
         }
         Ok((amounts, total))
     }

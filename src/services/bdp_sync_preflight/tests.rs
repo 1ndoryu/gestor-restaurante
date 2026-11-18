@@ -189,8 +189,9 @@ fn build_order_never_uses_create_operation() {
 }
 
 /* [169A-2] P1 silencioso: el OnlyCheck con pago replica el payload real
- * (EndType=1, Payments=total, PaymentId=MarketplaceOrderId, Invoice=true)
- * sin crear nada (OperationType=1). */
+ * (EndType=1, Payments=total, Invoice=true) sin crear nada (OperationType=1).
+ * [18AA-8] El PaymentId ya no es el MarketplaceOrderId: ese id se suma como
+ * un segundo cobro en BDP 36.2. */
 #[test]
 fn only_check_con_pago_replica_payload_real() {
     let config = config();
@@ -228,9 +229,10 @@ fn only_check_con_pago_replica_payload_real() {
         .get("MarketplaceOrderId")
         .and_then(Value::as_str)
         .unwrap();
-    assert_eq!(
+    assert_ne!(
         payments[0].get("PaymentId").and_then(Value::as_str),
-        Some(market_id)
+        Some(market_id),
+        "PaymentId propio, no el de la comanda"
     );
     assert!(market_id.len() <= 15);
 }
