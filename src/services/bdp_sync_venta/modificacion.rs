@@ -75,9 +75,39 @@ pub(crate) fn mensaje_conflicto(
     ))
 }
 
+/* [18AA-8] Mesa de la comanda en BDP según `GetOrder`. `None` si la respuesta
+ * no la trae (no se puede afirmar que difiera). */
+pub(crate) fn mesa_en_bdp(orden: &Value) -> Option<(i64, i64)> {
+    Some((
+        orden.get("RoomNumber")?.as_i64()?,
+        orden.get("TableNumber")?.as_i64()?,
+    ))
+}
+
+/* [18AA-8] Comprobado el 18/11/2026 en el demo 36.2: reenviar `Orders/Create`
+ * con un `OrderId` colocado en otra mesa **no** la mueve; deja la comanda en
+ * las dos y, si el total cuadra con la ocupante, fusiona las líneas en ella.
+ * Por eso no se modifica una comanda que BDP tiene en una mesa distinta de la
+ * de la venta. Sin mesa en la venta (barra) no se compara: su `RoomNumber`
+ * sale del tipo de comanda, no de un salón. */
+pub(crate) fn mensaje_mesa_distinta(venta: &Venta, orden: &Value) -> Option<String> {
+    let (Some(salon), Some(mesa)) = (venta.num_salon, venta.num_mesa) else {
+        return None;
+    };
+    match mesa_en_bdp(orden) {
+        Some((salon_bdp, mesa_bdp)) if salon_bdp != i64::from(salon) || mesa_bdp != i64::from(mesa) => {
+            Some(format!(
+                "La comanda está en BDP en el salón {salon_bdp}, mesa {mesa_bdp}, y la venta en el salón {salon}, mesa {mesa}. Modificarla así la dejaría colocada en las dos mesas; muévala en el TPV y vuelva a intentarlo."
+            ))
+        }
+        _ => None,
+    }
+}
+
 impl BdpSyncService {
     /* [02AB-2] Releer antes de escribir: si el TPV cambió la comanda (total
-     * distinto del que la web conoce) no se sobrescribe nada. */
+     * distinto del que la web conoce) no se sobrescribe nada. [18AA-8] Tampoco
+     * si la tiene en otra mesa. */
     async fn comprobar_sin_cambios_en_tpv(
         client: &BdpWeblinkClient<'_>,
         venta: &Venta,
@@ -91,6 +121,9 @@ impl BdpSyncService {
             .await
             .map_err(|e| format!("No se pudo releer la comanda {order_id} en BDP: {e}"))?;
         let orden = respuesta.get("Order").unwrap_or(&respuesta);
+        if let Some(m) = mensaje_mesa_distinta(venta, orden) {
+            return Err(m);
+        }
         let total_bdp = orden.get("Total").and_then(Value::as_f64);
         match mensaje_conflicto(order_id, total_bdp, Self::total_pedido(venta, Some(antes))) {
             Some(m) => Err(m),
@@ -262,6 +295,71 @@ mod tests {
         assert_eq!(por("Agua"), -Decimal::ONE);
         assert_eq!(por("Cafe"), Decimal::ONE);
         assert_eq!(d.len(), 3);
+    }
+
+    /* Venta mínima: solo importan la mesa de la venta y el total de `antes`. */
+    fn venta_en(salon: Option<i32>, mesa: Option<i32>) -> Venta {
+        Venta {
+            id: uuid::Uuid::nil(),
+            user_id: uuid::Uuid::nil(),
+            fecha: chrono::NaiveDate::from_ymd_opt(2026, 11, 18).expect("fecha"),
+            comensales: None,
+            descripcion: String::new(),
+            iva_porcentaje: Decimal::from(10),
+            turno: "cena".into(),
+            canal: "comedor".into(),
+            metodo_pago: "efectivo".into(),
+            importe_base: Decimal::ZERO,
+            importe_iva: Decimal::ZERO,
+            reserva_id: None,
+            cliente_id: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            haddock_synced: false,
+            haddock_synced_at: None,
+            haddock_sync_error: None,
+            bdp_synced: false,
+            bdp_synced_at: None,
+            bdp_sync_error: None,
+            bdp_order_id: None,
+            bdp_order_status: None,
+            bdp_invoiced: false,
+            anulada: false,
+            anulada_at: None,
+            anulacion_motivo: None,
+            anulacion_usuario: None,
+            facturada_local: false,
+            factura_numero: None,
+            factura_fecha: None,
+            propina: Decimal::ZERO,
+            mesa_id: None,
+            num_mesa: mesa,
+            num_salon: salon,
+        }
+    }
+
+    fn orden_en(salon: i64, mesa: i64) -> Value {
+        serde_json::json!({ "OrderId": 1, "RoomNumber": salon, "TableNumber": mesa, "Total": 1.05 })
+    }
+
+    /* [18AA-8] Reenviar con la comanda en otra mesa la duplica o fusiona líneas. */
+    #[test]
+    fn mesa_distinta_bloquea_la_modificacion() {
+        let venta = venta_en(Some(1), Some(8));
+        let mensaje = mensaje_mesa_distinta(&venta, &orden_en(1, 5)).expect("debe bloquear");
+        assert!(mensaje.contains("salón 1, mesa 5"), "{mensaje}");
+        assert!(mensaje.contains("salón 1, mesa 8"), "{mensaje}");
+    }
+
+    #[test]
+    fn misma_mesa_o_barra_no_bloquea() {
+        let venta = venta_en(Some(1), Some(8));
+        assert!(mensaje_mesa_distinta(&venta, &orden_en(1, 8)).is_none());
+        /* Barra: la venta no tiene mesa y BDP devuelve 0/0. */
+        let barra = venta_en(None, None);
+        assert!(mensaje_mesa_distinta(&barra, &orden_en(0, 0)).is_none());
+        /* Respuesta sin mesa: no se puede afirmar que difiera. */
+        assert!(mensaje_mesa_distinta(&venta, &serde_json::json!({ "OrderId": 1 })).is_none());
     }
 
     #[test]
