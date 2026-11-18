@@ -26,6 +26,7 @@ use super::flush_pasos::{
     compensar_armado, payload_final, registrar_exito, registrar_fallo, scope_para,
 };
 use super::ledger;
+use super::puerta_cancelar;
 use super::reconciliacion_puntos::resolver_intento_previo;
 
 /* ===== [198A-1/F1] Worker de flush ===== */
@@ -353,6 +354,12 @@ impl BdpPushFlushService {
             if let Some(estado) = resolver_intento_previo(pool, user_id, client, pendiente).await? {
                 return Ok(estado);
             }
+        }
+
+        /* 0b. [18AB-3] Antes de cancelar: estado y pagos en BDP. Con pagos, o
+         * con BDP sin responder, no se envía; la fila queda con su motivo. */
+        if pendiente.dominio == DOMINIO_VENTA && pendiente.operacion == OPERACION_CANCELAR {
+            puerta_cancelar::puede_cancelar(client, pendiente).await?;
         }
 
         /* 1. Arming autorizado por push_modalidad (fail-closed). */

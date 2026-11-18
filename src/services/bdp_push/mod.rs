@@ -22,6 +22,8 @@ mod flush;
 mod flush_pasos;
 mod ledger;
 mod payloads;
+/* [18AB-3] Estado y pagos remotos antes de enviar `CancelOrder`. */
+mod puerta_cancelar;
 mod reconciliacion_puntos;
 #[cfg(test)]
 mod tests;

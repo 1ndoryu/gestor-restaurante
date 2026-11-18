@@ -342,6 +342,12 @@ impl VentaService {
             ));
         }
 
+        /* [18AB-3] Antes de tocar nada: si la comanda ya existe en BDP, se
+         * consultan estado y pagos. Un cobro hecho en el TPV (o una comanda ya
+         * cerrada) bloquea la anulación; si BDP no contesta, también: anular a
+         * ciegas dejaría el cobro vivo en el TPV sin comanda que lo respalde. */
+        Self::bloquear_anulacion_con_pagos_bdp(pool, id, user_id, &config).await?;
+
         let (venta, _audit_id, resultado_previo, _ya_anulada) = VentaRepository::anular(
             pool,
             id,
@@ -473,6 +479,17 @@ impl VentaService {
                     "idempotency_key ya usada para otra venta: reintenta con una clave nueva."
                         .into(),
                 ),
+                _ if msg.starts_with("venta_con_pagos_no_anulable") => {
+                    /* [18AB-3] El importe viaja en el mensaje: «…:12.60». */
+                    let pagado = msg
+                        .split_once(':')
+                        .map(|(_, importe)| importe)
+                        .unwrap_or_default();
+                    AppError::Conflict(format!(
+                        "La comanda tiene {pagado} € cobrados y no se puede anular. Devuelve o \
+                         retira los pagos en el TPV antes de anularla."
+                    ))
+                }
                 _ => AppError::Conflict(msg.clone()),
             },
             _ => AppError::Database(err),

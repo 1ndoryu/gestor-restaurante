@@ -4,7 +4,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `18AB-3`…`18AB-8`: los seis puntos restantes de la respuesta de Guillermo del 18/11, en el orden en que los pide. El correo a BDP (`18AB-9`) espera a las pruebas de los puntos 7 y 8.
+- `18AB-4`: en curso. `18AB-5`…`18AB-8`: los cuatro puntos restantes de la respuesta de Guillermo del 18/11, en el orden en que los pide. El correo a BDP (`18AB-9`) espera a las pruebas de los puntos 7 y 8.
 
 ## Pendientes
 

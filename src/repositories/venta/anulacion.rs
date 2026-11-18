@@ -38,12 +38,15 @@ impl VentaRepository {
     ) -> Result<(Venta, Uuid, Option<String>, bool), sqlx::Error> {
         let mut tx = pool.begin().await?;
 
-        let venta_actual: Option<Venta> =
-            sqlx::query_as::<_, Venta>("SELECT * FROM ventas WHERE id = $1 AND user_id = $2")
-                .bind(id)
-                .bind(user_id)
-                .fetch_optional(&mut *tx)
-                .await?;
+        /* [18AB-3] `FOR UPDATE`: serializa esta anulación con cualquier cobro
+         * concurrente (el INSERT en `bdp_pagos` toma KEY SHARE por el FK y espera). */
+        let venta_actual: Option<Venta> = sqlx::query_as::<_, Venta>(
+            "SELECT * FROM ventas WHERE id = $1 AND user_id = $2 FOR UPDATE",
+        )
+        .bind(id)
+        .bind(user_id)
+        .fetch_optional(&mut *tx)
+        .await?;
 
         let Some(venta) = venta_actual else {
             return Err(sqlx::Error::RowNotFound);
@@ -58,6 +61,9 @@ impl VentaRepository {
                 "venta_facturada_no_anulable".to_string(),
             ));
         }
+
+        /* [18AB-3] Guillermo (18/11): una comanda con pagos no se anula. */
+        Self::bloquear_si_hay_pagos(&mut tx, id).await?;
 
         let audit_payload = serde_json::json!({
             "venta_id": id,
@@ -148,5 +154,30 @@ impl VentaRepository {
         tx.commit().await?;
 
         Ok((venta_anulada, audit_id, None, false))
+    }
+
+    /* [18AB-3] `ambiguo` cuenta: el cobro pudo entrar en BDP aunque la respuesta
+     * se perdiera. El `FOR UPDATE` de la venta (hecho antes por `anular`)
+     * bloquea el cobro simultáneo: `bdp_pagos` referencia `ventas(id)` con KEY
+     * SHARE y espera mientras esta transacción dura, así que no se cuela un pago
+     * entre la comprobación y el UPDATE. El importe viaja en el mensaje para que
+     * la web diga cuánto hay cobrado. */
+    async fn bloquear_si_hay_pagos(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        id: Uuid,
+    ) -> Result<(), sqlx::Error> {
+        let pagado: Option<rust_decimal::Decimal> = sqlx::query_scalar(
+            "SELECT SUM(amount) FROM bdp_pagos WHERE venta_id = $1 \
+              AND resultado IN ('exito', 'ambiguo')",
+        )
+        .bind(id)
+        .fetch_one(&mut **tx)
+        .await?;
+        match pagado {
+            Some(pagado) => Err(sqlx::Error::Protocol(format!(
+                "venta_con_pagos_no_anulable:{pagado}"
+            ))),
+            None => Ok(()),
+        }
     }
 }

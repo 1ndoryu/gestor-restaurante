@@ -47,6 +47,8 @@ mod recordatorio;
 mod reserva;
 mod twilio;
 mod venta;
+/* [18AB-3] Puertas de la anulación contra BDP (estado y pagos remotos). */
+mod venta_anulacion_bdp;
 
 pub use api_key::ApiKeyService;
 pub use auth::AuthService;

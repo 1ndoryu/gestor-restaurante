@@ -439,6 +439,17 @@ async fn flush_suscripcion_inactiva_marca_pendiente_sin_reintentos(pool: PgPool)
         })))
         .mount(&server)
         .await;
+    /* [18AB-3] La puerta del `CancelOrder` consulta antes `GetOrder`: comanda
+     * abierta y sin pagos, que es cuando la cancelación sí procede. */
+    Mock::given(method("POST"))
+        .and(path("/API/Orders/Get"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ErrorMessage": "",
+            "Status": 1,
+            "Order": { "OrderId": 5330, "Status": 1, "Payments": [] }
+        })))
+        .mount(&server)
+        .await;
     Mock::given(method("POST"))
         .and(path("/API/Orders/Cancel"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({

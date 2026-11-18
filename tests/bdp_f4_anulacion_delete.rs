@@ -215,3 +215,104 @@ async fn idempotency_key_reutilizada_en_otra_venta_conflicto(pool: PgPool) {
     .expect_err("reutilizar clave en otra venta debe fallar");
     assert!(matches!(err, AppError::Conflict(_)));
 }
+
+/* ── 18AB-3: una comanda con pagos no se anula ───────────────────────── */
+
+#[sqlx::test(migrations = "./migrations")]
+async fn anular_venta_con_pagos_bloqueada_con_el_importe(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let venta_id = create_test_venta(&pool, user_id).await;
+
+    sqlx::query(
+        "INSERT INTO bdp_pagos (venta_id, amount, tender_id, idempotency_key, resultado) \
+         VALUES ($1, 12.60, 2, '18ab3-pago', 'exito')",
+    )
+    .bind(venta_id)
+    .execute(&pool)
+    .await
+    .expect("registrar pago en el ledger");
+
+    let err = VentaService::anular(
+        &pool,
+        venta_id,
+        user_id,
+        AnularVentaRequest {
+            motivo: Some("Prueba".into()),
+            idempotency_key: Some("anular-18ab3".to_string()),
+        },
+    )
+    .await
+    .expect_err("una venta con pagos no se anula");
+    let AppError::Conflict(mensaje) = err else {
+        panic!("se esperaba conflicto, llegó {err:?}");
+    };
+    assert!(
+        mensaje.contains("12.60"),
+        "el mensaje dice cuánto: {mensaje}"
+    );
+
+    /* Ni se anuló ni se encoló el push: la comanda sigue viva. */
+    let venta = VentaRepository::find_by_id(&pool, venta_id, user_id)
+        .await
+        .expect("buscar venta")
+        .expect("la venta existe");
+    assert!(!venta.anulada);
+}
+
+/* `ambiguo` también cuenta: el cobro pudo entrar en BDP sin respuesta. */
+#[sqlx::test(migrations = "./migrations")]
+async fn un_pago_ambiguo_tambien_bloquea_la_anulacion(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let venta_id = create_test_venta(&pool, user_id).await;
+
+    sqlx::query(
+        "INSERT INTO bdp_pagos (venta_id, amount, tender_id, idempotency_key, resultado) \
+         VALUES ($1, 5.00, 1, '18ab3-ambiguo', 'ambiguo')",
+    )
+    .bind(venta_id)
+    .execute(&pool)
+    .await
+    .expect("registrar pago ambiguo");
+
+    let err = VentaService::anular(
+        &pool,
+        venta_id,
+        user_id,
+        AnularVentaRequest {
+            motivo: Some("Prueba".into()),
+            idempotency_key: Some("anular-18ab3-ambiguo".to_string()),
+        },
+    )
+    .await
+    .expect_err("un pago ambiguo también bloquea");
+    assert!(matches!(err, AppError::Conflict(_)));
+}
+
+/* Un pago con `resultado = 'error'` no es un cobro: no bloquea. */
+#[sqlx::test(migrations = "./migrations")]
+async fn un_pago_fallido_no_bloquea_la_anulacion(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let venta_id = create_test_venta(&pool, user_id).await;
+
+    sqlx::query(
+        "INSERT INTO bdp_pagos (venta_id, amount, tender_id, idempotency_key, resultado) \
+         VALUES ($1, 5.00, 1, '18ab3-error', 'error')",
+    )
+    .bind(venta_id)
+    .execute(&pool)
+    .await
+    .expect("registrar pago fallido");
+
+    let venta = VentaService::anular(
+        &pool,
+        venta_id,
+        user_id,
+        AnularVentaRequest {
+            motivo: Some("Prueba".into()),
+            idempotency_key: Some("anular-18ab3-error".to_string()),
+        },
+    )
+    .await
+    .expect("un pago fallido no impide anular");
+    assert!(venta.anulada);
+}
