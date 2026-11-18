@@ -1,17 +1,13 @@
-BORRADOR — mensaje corto para acompañar el PDF (WhatsApp, sin enviar)
+BORRADOR — mensaje con el PDF de una página (WhatsApp, sin enviar)
 
-Adjunto: Correcciones-piloto-BDP-y-pruebas-comandas-2026-11-18.pdf
+Adjunto: Pruebas-comandas-abiertas-2026-11-18.pdf
 
 ---
 
-Hola Guillermo: te paso el PDF actualizado, con las seis pruebas sobre comandas abiertas que pediste (sustituye al del 2/11).
+Hola Guillermo: aquí van las seis pruebas sobre comandas abiertas que pediste, en una página.
 
-Lo importante en tres líneas:
+Resumen: cuatro pasan sin peros; el cambio de mesa no se puede hacer por API, y repetir un identificador de pago cobra dos veces. Las dos cosas ya están bloqueadas en la web.
 
-- Cuatro de las seis pasan tal cual: añadir y quitar líneas, cambiar cantidades y comentarios, descuentos y cancelar una comanda.
-- Cambiar una comanda de mesa **no se puede**: BDP no tiene la operación, y reenviarla la deja en las dos mesas o funde las líneas en la comanda de la mesa ocupada. Ya está bloqueado en la web para que no ocurra.
-- Repetir un identificador de pago **cobra dos veces**. También corregido: cada intento lleva su propio identificador y un reintento ya no puede duplicar el cobro.
+Lo único que me falta son seis respuestas de BDP, al final del PDF.
 
-Al final del PDF van las seis preguntas para BDP (dividir y unir cuentas, retirar y anular pagos, cambio de mesa, artículo no invitables, comanda facturada y duplicados). Con esas respuestas cierro lo que falta del piloto.
-
-El entorno de pruebas sigue abierto para cuando queráis entrar.
+Gracias.

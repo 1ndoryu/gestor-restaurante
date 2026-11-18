@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Pruebas sobre comandas abiertas</title>
+<style>
+@page { size: A4; margin: 14mm; }
+@page { @top-left { content: none; } @top-center { content: none; } @top-right { content: none; }
+        @bottom-left { content: none; } @bottom-center { content: none; } @bottom-right { content: none; } }
+html, body { margin: 0; padding: 0; }
+body { font-family: "Times New Roman", Times, serif; font-size: 8.2pt; line-height: 1.28; color: #000; background: #fff; text-align: justify; }
+h1 { font-size: 11pt; font-weight: bold; text-transform: uppercase; text-align: center; margin: 0 0 2pt 0; }
+.sub { text-align: center; font-size: 8.2pt; margin: 0 0 8pt 0; }
+h2 { font-size: 8.8pt; font-weight: bold; text-transform: uppercase; margin: 10pt 0 3pt 0; text-align: left; }
+p { margin: 0 0 4pt 0; }
+.table-note { font-size: 7.8pt; margin: 3pt 0 6pt 0; }
+table { width: 100%; border-collapse: collapse; font-size: 7.6pt; margin: 2pt 0 6pt 0; }
+th { font-size: 7.2pt; font-weight: bold; text-transform: uppercase; text-align: left; padding: 2pt 4pt; border-top: 1.2pt solid #000; border-bottom: 0.75pt solid #000; }
+td { padding: 2pt 4pt; vertical-align: top; text-align: left; }
+tr:last-child td { border-bottom: 1.2pt solid #000; }
+td.c, th.c { text-align: center; }
+ul, ol { margin: 0 0 4pt 0; padding-left: 15pt; }
+li { margin-bottom: 4.5pt; }
+</style>
+</head>
+<body>
+
+<h1>Pruebas sobre comandas abiertas</h1>
+<p class="sub">Integraci&oacute;n web&ndash;TPV BDP &middot; Restaurante. 18 de noviembre de 2026.</p>
+
+<h2>1. Las seis pruebas</h2>
+<p>Hechas el 18/11 sobre el BDP 36.2 de prueba, con el TPV abierto y la licencia completa, sobre comandas abiertas y sin facturar. Todas se cancelaron al terminar.</p>
+
+<table>
+<thead><tr><th class="c" style="width:4%">N.&ordm;</th><th style="width:24%">Prueba</th><th style="width:72%">Resultado</th></tr></thead>
+<tbody>
+<tr><td class="c">1</td><td>A&ntilde;adir y quitar l&iacute;neas</td><td><strong>Pasa.</strong> Se env&iacute;an solo las l&iacute;neas del cambio y el total final. Quitar es una contrapartida negativa: la l&iacute;nea queda a cero, no se borra.</td></tr>
+<tr><td class="c">2</td><td>Cambiar cantidades y comentarios</td><td><strong>Pasa.</strong> Se suben y bajan unidades y los comentarios se guardan en cualquier momento. El texto de una l&iacute;nea ya enviada no se puede reescribir.</td></tr>
+<tr><td class="c">3</td><td>Descuentos e invitaci&oacute;n</td><td><strong>Pasa, salvo el art&iacute;culo no invitables.</strong> BDP lo ignora: se invit&oacute; un art&iacute;culo con ese campo activo y lo acept&oacute; con total 0.</td></tr>
+<tr><td class="c">4</td><td>Cambiar la comanda de mesa</td><td><strong>No se puede.</strong> BDP no tiene la operaci&oacute;n. Reenviar la comanda la deja en las dos mesas; y contra una mesa ocupada cuyo total coincide, <strong>funde las l&iacute;neas en la comanda del destino sin avisar</strong>.</td></tr>
+<tr><td class="c">5</td><td>Pagos parciales y facturaci&oacute;n</td><td><strong>Pasa, con dos salvedades:</strong> pedir factura en un pago parcial se rechaza aunque el pago s&iacute; queda guardado; y repetir un identificador de pago <strong>cobra dos veces</strong>.</td></tr>
+<tr><td class="c">6</td><td>Cancelar una comanda abierta</td><td><strong>Pasa.</strong> Anula tambi&eacute;n el pago parcial que tuviera y no deja rastro: no hay abono ni documento.</td></tr>
+</tbody>
+</table>
+
+<h2>2. Lo que ya est&aacute; cerrado en la web</h2>
+<ul>
+<li><strong>Cambio de mesa.</strong> La web no modifica una comanda que BDP tiene en otra mesa: la bloquea y avisa con las dos mesas. La fusi&oacute;n de l&iacute;neas ya no puede ocurrir.</li>
+<li><strong>Identificador de pago.</strong> Cada intento lleva el suyo, distinto en cada reintento. Un reintento ya no puede cobrar dos veces.</li>
+<li><strong>Saldo pendiente.</strong> Ahora suma cada cobro; antes contaba una sola vez y dejaba cobrar de m&aacute;s.</li>
+</ul>
+<p>Estas tres partes pasan sus tests autom&aacute;ticos y el control de calidad del proyecto, sin hallazgos.</p>
+
+<h2>3. Lo &uacute;nico que falta</h2>
+<p>Seis respuestas de BDP. Con ellas cierro lo que queda del piloto por mi parte.</p>
+<ol>
+<li><strong>Dividir y unir cuentas:</strong> &iquest;hay operaci&oacute;n oficial? Si no, &iquest;qu&eacute; procedimiento admiten?</li>
+<li><strong>Retirar un pago parcial</strong> y <strong>anular un cobro ya emitido</strong>: &iquest;operaci&oacute;n no documentada o solo desde el TPV?</li>
+<li><strong>Cambio de mesa:</strong> cu&aacute;l es el procedimiento oficial, dado que el reenv&iacute;o duplica la colocaci&oacute;n y fusiona l&iacute;neas.</li>
+<li><strong>Art&iacute;culo no invitables:</strong> &iquest;defecto de la 36.2 o el campo solo lo aplica el terminal?</li>
+<li><strong>Comanda ya facturada:</strong> consultarla devuelve vac&iacute;o con estado 3 y escribir un pago sobre ella rompe. &iquest;Es lo previsto?</li>
+<li><strong>Duplicados:</strong> &iquest;hay unicidad por identificador de comanda del lado de BDP o la sostiene el integrador?</li>
+</ol>
+<p class="table-note"><strong>Y del restaurante:</strong> solo las formas de pago, los tipos de pedido y el perfil de documentos. Van en el manual de configuraci&oacute;n del 16/11; se rellenan en Configuraci&oacute;n &rarr; BDP, con los n&uacute;meros que la propia web lee del TPV.</p>
+
+</body>
+</html>
