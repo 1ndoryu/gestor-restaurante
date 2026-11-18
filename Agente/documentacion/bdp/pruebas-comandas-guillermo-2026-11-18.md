@@ -12,7 +12,7 @@ Convención de las tablas: **Enviado** es el cuerpo relevante de la petición, *
 | 2 | Cambiar cantidades y comentarios | Pasa |
 | 3 | Descuentos e invitación | Pasa, salvo `NotAllowedAsInvitation`, que **BDP no comprueba** |
 | 4 | Cambiar la comanda de mesa | **Falla**: no existe operación; reenviar deja la comanda en las dos mesas, y contra una mesa ocupada fusiona las líneas en la comanda del destino sin avisar |
-| 5 | Pagos parciales y facturación | Pasa con dos salvedades: `Invoice:true` con pago parcial se rechaza, y repetir `PaymentId` **duplica el cobro** |
+| 5 | Pagos parciales y facturación | Pasa con tres salvedades: `Invoice:true` con pago parcial se rechaza; repetir `PaymentId` **duplica el cobro**; y ni `Orders/Create` ni `GetOrder` deduplican por `MarketplaceOrderId` |
 | 6 | Cancelar comanda abierta | Pasa, pero anula también el pago parcial que tuviera, sin dejar rastro por API |
 
 ---
@@ -77,12 +77,14 @@ Comanda 106 y 107, mesa 5, 4 ud × 1,05 = 4,20.
 |---|---|---|---|
 | 5.1 Pago de 2,00 efectivo con `Invoice: true` | `TenderId` 1, `Amount` 2,00, `PaymentId` `PAGO-A1` | `[301301]-EL IMPORTE DE LOS PAGOS ES INFERIOR AL TOTAL DE LA COMANDA` | El **pago sí se guarda**; lo que se rechaza es facturar. `Invoice: true` no puede usarse en un pago parcial |
 | 5.2 Pago de 2,20 tarjeta con `Invoice: true` (suma exacta) | `TenderId` 2, `Amount` 2,20, `PaymentId` `PAGO-B1` | vacío, `InvoiceNumber` `00001TB00000043` | Facturada al cuadrar |
-| 5.3 `GetOrder` tras facturar | — | — | **Rompe**: «El índice estaba fuera del intervalo…» (índice dentro de la colección de pagos). Defecto de la propia API de BDP |
-| 5.4 Repetir el mismo `PaymentId` sin facturar | Dos veces `PAGO-A1`, 2,00 cada una | vacío las dos veces | **Duplica el cobro**: dos pagos de 2,00 con el mismo `PaymentId`. No hay idempotencia |
+| 5.3 `GetOrder` de una comanda facturada | `OrderId` de la 106 ya facturada | **vacío** | Devuelve `{"Order": null, "Status": 3}` y nada más: la comanda facturada deja de ser legible por la API. **Corregido el 18/11**: la versión anterior de esta fila decía que `GetOrder` rompía con «El índice estaba fuera del intervalo…». Ese error lo da `Payment/Add` **sobre una comanda facturada**, no la lectura |
+| 5.4 Repetir el mismo `PaymentId` sin facturar | Dos veces `PAGO-A1`, 2,00 cada una, sobre la comanda 116 (4,20) | vacío las dos veces | **Duplica el cobro**: dos pagos de 2,00 con el mismo `PaymentId`, y `GetOrder` los devuelve como dos entradas. No hay idempotencia. El `[301201]` de 5.5 solo salta cuando la suma **excede** el total: con hueco, el duplicado entra |
+| 5.4 bis `Orders/Create` duplicado: mismo `MarketplaceOrderId` | Dos `Create` idénticos, mismo `MarketplaceOrderId` `GPRUEBAT12`, 1 ud de 1,05, sin pagos | vacío las dos veces | **Crea dos comandas** (117 y 118), las dos con el mismo `MarketplaceOrderId` y las dos con su pago de 1,05. La comanda tampoco se deduplica por id de mercado |
+| 5.4 ter `GetOrder` por `MarketplaceOrderId` con duplicados | `{MarketId: 9900, MarketplaceOrderId}` con 119 y 120 existiendo | vacío | Devuelve **una sola** (la 119) y oculta la otra. La consulta que usa la reconciliación no detecta el duplicado |
 | 5.5 Pagar de más | 3,00 con 2,00 + 2,00 ya pagados | `[301201]-IMPORTE INCORRECTO` | Correcto |
 | 5.6 Cuadrar exacto sin facturar y facturar después | 0,20 hasta 4,20; luego `Orders/Invoice` | vacío, `InvoiceNumber` `00001TB00000044` | Correcto |
 
-**Para la aplicación:** `PaymentId` debe ser único por intento y la aplicación no puede reintentar un pago con el mismo identificador; BDP lo cobraría dos veces. Y no se debe mezclar `Invoice: true` con un pago que no cuadre: devuelve error aunque el pago ya esté guardado, así que un reintento a ciegas duplicaría.
+**Para la aplicación:** `PaymentId` debe ser único por intento (nunca el `MarketplaceOrderId`, que se repite si se reenvía la comanda) y no se puede reintentar un pago con el mismo identificador: BDP lo cobraría dos veces. Y no se debe mezclar `Invoice: true` con un pago que no cuadre: devuelve error aunque el pago ya esté guardado, así que un reintento a ciegas duplicaría. Aplicado en `18AA-8`: `payment_id_intento` genera un id por armado y la reconciliación de un ambiguo lo busca en la auditoría, no por tender y monto.
 
 ## 6. Cancelar una comanda abierta
 
@@ -104,8 +106,9 @@ Comanda 106 y 107, mesa 5, 4 ud × 1,05 = 4,20.
 2. **Retirar un pago parcial de una comanda abierta** y **anular o devolver un cobro ya emitido.** ¿Hay operación no documentada o se hace en el TPV?
 3. **`NotAllowedAsInvitation`** (añadido a la petición, no a la pregunta original): el campo existe en `Articles/Get` y en la ficha, `Orders/Create` lo ignora. ¿Es un defecto de la versión 36.2 o el campo solo lo aplica el terminal y no la API?
 4. **Cambio de mesa**: procedimiento oficial, dado que el reenvío duplica la colocación y la fusión silenciosa en mesa ocupada.
-5. **`GetOrder` tras facturar** devuelve un error de índice en la colección de pagos. ¿Se corrige en una versión posterior? Afecta a cualquier consulta de estado posterior a la facturación.
+5. **`GetOrder` de una comanda facturada** devuelve `{"Order": null, "Status": 3}`: la comanda deja de ser legible por la API, y `Payment/Add` sobre ella rompe con «El índice estaba fuera del intervalo…». ¿Es el comportamiento previsto? Afecta a cualquier consulta de estado posterior a la facturación, y a nuestro sondeo.
+6. **Duplicados sin control**: `Orders/Create` no deduplica por `MarketplaceOrderId` (dos `Create` idénticos → dos comandas) y `GetOrder` por `MarketplaceOrderId` devuelve solo una, ocultando la otra. ¿Hay alguna garantía de unicidad del lado de BDP, o la debe sostener el integrador?
 
 ## Limpieza
 
-Comandas 89 a 112 canceladas; mesas 4, 5, 6 y 8 libres al terminar. Artículo 1002 devuelto a `NotAllowedAsInvitation = false` por API y en la base del demo.
+Comandas 89 a 120 canceladas; mesas 1, 2, 3, 5, 7 y 8 libres al terminar. Artículo 1002 devuelto a `NotAllowedAsInvitation = false` por API y en la base del demo. La 116 se facturó y cerró.
