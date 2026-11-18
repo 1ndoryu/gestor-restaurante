@@ -4,11 +4,10 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `18AB-4`: en curso. `18AB-5`…`18AB-8`: los cuatro puntos restantes de la respuesta de Guillermo del 18/11, en el orden en que los pide. El correo a BDP (`18AB-9`) espera a las pruebas de los puntos 7 y 8.
+- `18AB-5`: siguiente. `18AB-6`…`18AB-8`: los tres puntos restantes de la respuesta de Guillermo del 18/11, en el orden en que los pide. El correo a BDP (`18AB-9`) espera a las pruebas de los puntos 7 y 8.
 
 ## Pendientes
 
-- [ ] `18AB-4` — **Aplicar `NotAllowedAsInvitation` en la web.** La web debe impedir marcar como invitación un artículo con ese campo activo, aunque BDP lo acepte. Hecho = el modelo y el editor de líneas llevan la marca, y se rechaza antes de llegar al servidor.
 - [ ] `18AB-5` — **Impedir comandas duplicadas por `MarketId` + `MarketplaceOrderId`.** Índice único, bloqueo de envíos simultáneos y consulta a BDP ante respuesta dudosa antes de reenviar. Hecho = prueba con dos solicitudes simultáneas que crea una sola comanda.
 - [ ] `18AB-6` — **Pedidos a domicilio con `Type=2` en Hostelería 01.** Crear, modificar, cobrar, facturar y recuperar tras reiniciar BDP. Hecho = comanda a domicilio completa en el BDP demo, con evidencia.
 - [ ] `18AB-7` — **Prueba del producto eliminado en el ticket.** Dejar un producto a cero y emitir ticket: comprobar si la línea aparece.
