@@ -6,7 +6,10 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
-use crate::models::Venta;
+/* [18AB-4] `Venta` y `BdpPago` se importan aquí (no con ruta completa en los
+ * campos): utoipa nombra el esquema por la ruta escrita, y `crate::models::Venta`
+ * dentro de un campo produce un `$ref` a `crate.models.Venta` que no existe. */
+use crate::models::{BdpPago, Venta};
 use crate::repositories::VentaRepository;
 use crate::services::{
     payload_propina, verificar_permiso, AccionPermiso, BdpPushService, VentaService,
@@ -30,7 +33,7 @@ pub struct PagoLocalRequest {
 #[derive(serde::Serialize, utoipa::ToSchema)]
 pub struct PagoLocalResponse {
     pub venta_id: Uuid,
-    pub pago: crate::models::BdpPago,
+    pub pago: BdpPago,
     pub duplicado: bool,
     pub total: rust_decimal::Decimal,
     pub pagado: rust_decimal::Decimal,
@@ -128,7 +131,7 @@ pub struct FacturaLocalResponse {
     pub venta_id: Uuid,
     pub factura_numero: String,
     pub facturada: bool,
-    pub venta: crate::models::Venta,
+    pub venta: Venta,
 }
 
 #[utoipa::path(

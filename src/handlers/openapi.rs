@@ -427,6 +427,15 @@ impl utoipa::Modify for SecurityAddon {
         ventas::PagoLocalResponse,
         ventas::FacturaLocalRequest,
         ventas::FacturaLocalResponse,
+        /* [18AB-4] 18AB-3 añadió `anular_venta` y `PagoLocalResponse` al
+         * documento sin registrar sus esquemas: el spec salía con `$ref` rotos
+         * y Orval abortaba borrando el árbol generado. */
+        crate::models::AnularVentaRequest,
+        crate::models::BdpPago,
+        crate::models::TraspasoStockRequest,
+        crate::models::CrearBdpPurchaseNoteRequest,
+        crate::models::ActualizarBdpPurchaseNoteRequest,
+        crate::models::BdpPurchaseNoteLineaLocal,
         bdp_customer_sync::BdpCustomerSyncRequest,
         bdp_customer_sync::BdpCustomerImportRequest,
         ErrorResponse,

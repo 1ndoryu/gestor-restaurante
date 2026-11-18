@@ -67,6 +67,9 @@ async fn lectura_de(
     get,
     path = "/api/bdp/lecturas-programadas",
     tag = "BDP Backup",
+    /* [18AB-4] Igual que en `cambiar`: `bdp_permisos::listar` comparte tag y
+     * nombre y Orval generaría `useListar` dos veces. */
+    operation_id = "listar_lecturas_programadas",
     responses((status = 200, body = Vec<LecturaProgramada>)),
     security(("bearer_auth" = []))
 )]
@@ -86,6 +89,10 @@ pub async fn listar(
     put,
     path = "/api/bdp/lecturas-programadas/{maestro}",
     tag = "BDP Backup",
+    /* [18AB-4] `bdp_permisos::cambiar` comparte tag y nombre: sin un
+     * `operation_id` propio, Orval genera `useCambiar` dos veces en el mismo
+     * fichero y el type-check no compila. */
+    operation_id = "cambiar_lectura_programada",
     request_body = CambiarLectura,
     responses((status = 200, body = LecturaProgramada), (status = 400, description = "Valor no válido")),
     security(("bearer_auth" = []))

@@ -36,6 +36,8 @@ pub struct CambiarPermiso {
     get,
     path = "/api/bdp/permisos-automaticos",
     tag = "BDP Backup",
+    /* [18AB-4] Distinto de `bdp_lecturas::listar` (mismo tag ⇒ mismo fichero). */
+    operation_id = "listar_permisos_automaticos",
     responses((status = 200, body = Vec<PermisoCategoria>)),
     security(("bearer_auth" = []))
 )]
@@ -54,6 +56,9 @@ pub async fn listar(
     put,
     path = "/api/bdp/permisos-automaticos/{categoria}",
     tag = "BDP Backup",
+    /* [18AB-4] Distinto de `bdp_lecturas::cambiar` para que no colisionen en el
+     * cliente generado (mismo tag ⇒ mismo fichero). */
+    operation_id = "cambiar_permiso_automatico",
     request_body = CambiarPermiso,
     responses((status = 200, body = Vec<PermisoCategoria>), (status = 400, description = "Categoría desconocida")),
     security(("bearer_auth" = []))
