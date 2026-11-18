@@ -41,8 +41,13 @@ impl BdpSyncService {
         config: &ConfiguracionRestaurante,
     ) -> Option<i32> {
         let map = config.bdp_tender_map.as_object()?;
-        let key = venta.metodo_pago.to_lowercase();
-        let value = map.get(&key)?;
+        /* La clave del mapa puede venir en mayúsculas («Tarjeta», como en el
+         * bootstrap de demo): se compara sin distinguir mayúsculas, o el cobro
+         * no llevaría TenderId y BDP guardaría la comanda sin pago. */
+        let key = venta.metodo_pago.trim().to_lowercase();
+        let value = map
+            .iter()
+            .find_map(|(clave, valor)| (clave.trim().to_lowercase() == key).then_some(valor))?;
         let id = value
             .as_i64()
             .and_then(|id| i32::try_from(id).ok())
@@ -60,8 +65,12 @@ impl BdpSyncService {
         let Some(map) = config.bdp_order_type_map.as_object() else {
             return 0;
         };
-        let key = venta.canal.to_lowercase();
-        let Some(value) = map.get(&key) else {
+        let key = venta.canal.trim().to_lowercase();
+        /* Igual que el mapa de tenders: la clave puede venir «Comedor». */
+        let Some(value) = map
+            .iter()
+            .find_map(|(clave, valor)| (clave.trim().to_lowercase() == key).then_some(valor))
+        else {
             return 0;
         };
         match value

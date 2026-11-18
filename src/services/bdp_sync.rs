@@ -465,9 +465,9 @@ mod tests {
     }
 
     /* [169A-2] Test: con tender y total positivo, Payments va dentro del
-     * CreateOrder y la petición pide factura (pago total). */
+     * CreateOrder. [18AB-2] La creación **no** pide factura: se emite aparte. */
     #[test]
-    fn build_order_con_tender_incluye_payments_e_invoice_true() {
+    fn build_order_con_tender_incluye_payments_sin_factura() {
         let config = test_config();
         let venta = test_venta(); /* base 25 + iva 2.5 = total 27.5 */
         let article = ResolvedArticle {
@@ -510,7 +510,11 @@ mod tests {
                 .is_some_and(|id| !id.is_empty()),
             "PaymentId identificador no vacío"
         );
-        assert_eq!(order.invoice, Some(true), "pago total => pide factura");
+        assert_eq!(
+            order.invoice,
+            Some(false),
+            "el pago no pide factura: se emite aparte con Orders/Invoice"
+        );
     }
 
     /* [169A-2] Test: sin tender no hay Payments y no se pide factura
@@ -760,6 +764,48 @@ mod tests {
         );
     }
 
+    /* [18AB-2] La suma de líneas en f64 deja ruido (3 × 1.05 = 3.1500000000000004)
+     * y BDP rechaza el pago con [300036]: el total y el Amount del pago deben
+     * salir en céntimos exactos. Caso real del 2026-11-18 contra el demo. */
+    #[test]
+    fn total_pedido_redondea_a_centimos() {
+        let venta = test_venta();
+        let linea = VentaLinea {
+            id: uuid::Uuid::new_v4(),
+            venta_id: venta.id,
+            articulo_codigo: "1001".into(),
+            descripcion: "Coca-Cola".into(),
+            cantidad: Decimal::from_str("3").unwrap(),
+            precio_unitario: Decimal::from_str("1.05").unwrap(),
+            iva_pct: Decimal::from_str("10.0").unwrap(),
+            descuento: Decimal::ZERO,
+            created_at: Utc::now(),
+        };
+        let lineas = [linea];
+        let total = BdpSyncService::total_pedido(&venta, Some(&lineas));
+        assert_eq!(total, 3.15);
+
+        let config = test_config();
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "COCA-COLA".into(),
+            price: 1.05,
+            vat_pct: 10.0,
+        };
+        let order = BdpSyncService::build_order(
+            &config,
+            &venta,
+            &article,
+            Some(&lineas),
+            Some(&[1001]),
+            &test_order_ctx(),
+        )
+        .order;
+        assert_eq!(order["Total"].as_f64(), Some(3.15));
+        let pago = order["Payments"][0]["Amount"].as_f64();
+        assert_eq!(pago, Some(3.15));
+    }
+
     /* [F3.2-3.3] Test: resolve_tender_id y resolve_order_type helpers */
     #[test]
     fn resolve_tender_id_maps_metodo_pago() {
@@ -776,6 +822,22 @@ mod tests {
         assert_eq!(BdpSyncService::resolve_tender_id(&venta, &config), None);
     }
 
+    /* [18AB-2] Las claves del mapa pueden venir con mayúsculas («Tarjeta», como
+     * lo escribe el bootstrap por entorno): el cobro debe encontrar el TenderId
+     * igual, o la comanda viajaría sin pago. */
+    #[test]
+    fn resolve_tender_id_ignora_mayusculas_en_el_mapa() {
+        let mut config = test_config();
+        config.bdp_tender_map = serde_json::json!({"Tarjeta": 2, "Efectivo": "1"});
+        let mut venta = test_venta();
+
+        venta.metodo_pago = "tarjeta".into();
+        assert_eq!(BdpSyncService::resolve_tender_id(&venta, &config), Some(2));
+
+        venta.metodo_pago = "EFECTIVO".into();
+        assert_eq!(BdpSyncService::resolve_tender_id(&venta, &config), Some(1));
+    }
+
     #[test]
     fn resolve_order_type_maps_canal() {
         let config = test_config();
@@ -789,6 +851,22 @@ mod tests {
 
         venta.canal = "delivery".into(); /* no configurado, default 0 */
         assert_eq!(BdpSyncService::resolve_order_type(&venta, &config), 0);
+    }
+
+    /* [18AB-6] El mapa de tipos puede venir «Comedor»/«Delivery»: el canal de la
+     * venta en minúsculas debe encontrar igual el Type, o un domicilio saldría
+     * como Barra. */
+    #[test]
+    fn resolve_order_type_ignora_mayusculas_en_el_mapa() {
+        let mut config = test_config();
+        config.bdp_order_type_map = serde_json::json!({"Comedor": 1, "Delivery": 2});
+        let mut venta = test_venta();
+
+        venta.canal = "comedor".into();
+        assert_eq!(BdpSyncService::resolve_order_type(&venta, &config), 1);
+
+        venta.canal = "DELIVERY".into();
+        assert_eq!(BdpSyncService::resolve_order_type(&venta, &config), 2);
     }
 
     /* [BDP-TEST-A] Tests adicionales: edge cases de build_order */

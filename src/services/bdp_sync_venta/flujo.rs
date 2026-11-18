@@ -44,7 +44,7 @@ impl BdpSyncService {
             Self::run_http_phase(pool, venta, config),
         )
         .await;
-        Self::cerrar_sync_venta(pool, venta, audit_id, http_result).await;
+        Self::cerrar_sync_venta(pool, venta, config, audit_id, http_result).await;
     }
 
     /* [M21] Preflight de la comanda en el aire. Solo se pregunta a BDP cuando
@@ -66,6 +66,9 @@ impl BdpSyncService {
         match Self::estado_comanda(&client, venta.id).await {
             super::reactivacion::EstadoComanda::Existe(order_id, respuesta) => {
                 Self::recuperar_comanda(pool, venta.user_id, venta, order_id, &respuesta).await;
+                /* [18AB-2] La comanda existía con su pago ya dentro; si quedó
+                 * sin factura (respuesta perdida antes), se emite ahora. */
+                Self::facturar_orden_cobrada(pool, venta, config).await;
                 false
             }
             super::reactivacion::EstadoComanda::NoExiste => {
@@ -337,12 +340,16 @@ impl BdpSyncService {
     async fn cerrar_sync_venta(
         pool: &PgPool,
         venta: &Venta,
+        config: &ConfiguracionRestaurante,
         audit_id: Uuid,
         http_result: Result<Result<i64, OrderSendFailure>, tokio::time::error::Elapsed>,
     ) {
         match http_result {
             Ok(Ok(order_id)) => {
                 Self::confirmar_orden(pool, venta, audit_id, order_id).await;
+                /* [18AB-2] El `CreateOrder` llevó el pago pero no pidió factura:
+                 * con BDP confirmando el cobro, se emite aparte. */
+                Self::facturar_orden_cobrada(pool, venta, config).await;
             }
             Ok(Err(OrderSendFailure::Rejected(msg))) => {
                 let safe_msg = Self::sanitize_error(&msg);

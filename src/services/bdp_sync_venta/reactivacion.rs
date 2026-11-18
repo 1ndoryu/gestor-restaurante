@@ -58,6 +58,9 @@ impl BdpSyncService {
             match Self::estado_comanda(client, venta.id).await {
                 EstadoComanda::Existe(order_id, respuesta) => {
                     if Self::recuperar_comanda(pool, user_id, &venta, order_id, &respuesta).await {
+                        /* [18AB-2] Recuperada con su pago dentro: la factura,
+                         * que antes pedía el `CreateOrder`, se emite ahora. */
+                        Self::facturar_orden_cobrada(pool, &venta, config).await;
                         resueltas += 1;
                     }
                 }

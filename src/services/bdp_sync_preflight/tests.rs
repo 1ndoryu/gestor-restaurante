@@ -189,7 +189,8 @@ fn build_order_never_uses_create_operation() {
 }
 
 /* [169A-2] P1 silencioso: el OnlyCheck con pago replica el payload real
- * (EndType=1, Payments=total, Invoice=true) sin crear nada (OperationType=1).
+ * (Payments=total, Invoice=false) sin crear nada (OperationType=1).
+ * [18AB-2] La factura va aparte, así que la creación no la pide.
  * [18AA-8] El PaymentId ya no es el MarketplaceOrderId: ese id se suma como
  * un segundo cobro en BDP 36.2. */
 #[test]
@@ -208,7 +209,7 @@ fn only_check_con_pago_replica_payload_real() {
         order.order_end_type, config.bdp_order_end_type,
         "EndType configurable"
     );
-    assert_eq!(order.invoice, Some(true));
+    assert_eq!(order.invoice, Some(false), "la factura se emite aparte");
     let payments = order
         .order
         .get("Payments")
@@ -351,7 +352,8 @@ async fn check_order_only_con_pago_valido_envia_payments_en_only_check() {
         Some(0),
         "OrderEndType por defecto: factura tras pagar"
     );
-    assert_eq!(preview.get("Invoice").and_then(Value::as_bool), Some(true));
+    /* [18AB-2] La factura va aparte: la creación no la pide, ni en OnlyCheck. */
+    assert_eq!(preview.get("Invoice").and_then(Value::as_bool), Some(false));
     let payments = preview
         .get("Order")
         .and_then(|o| o.get("Payments"))

@@ -65,10 +65,10 @@ pub(super) fn build_only_check_order(
 }
 
 /* [169A-2] Variante OnlyCheck que replica el payload de pago-en-creación
- * (P1 silencioso de la prueba nocturna): EndType=1, Payments con el total,
- * PaymentId = MarketplaceOrderId (≤15), Invoice=true. OperationType=1, así que
- * BDP solo valida sin crear comanda, pago ni factura. Sin tender no hay pago:
- * usar `build_only_check_order` en ese caso. */
+ * (P1 silencioso de la prueba nocturna): Payments con el total e `Invoice=false`,
+ * como el envío real desde [18AB-2]. OperationType=1, así que BDP solo valida
+ * sin crear comanda, pago ni factura. Sin tender no hay pago: usar
+ * `build_only_check_order` en ese caso. */
 pub(super) fn build_only_check_order_con_pago(
     config: &ConfiguracionRestaurante,
     article: &BdpDryRunArticle,
@@ -86,7 +86,8 @@ pub(super) fn build_only_check_order_con_pago(
         items_profile_id: config.bdp_items_profile_id,
         order_end_type: config.bdp_order_end_type,
         order_operation_type: 1,
-        invoice: Some(true),
+        /* [18AB-2] Igual que el envío real: la factura va aparte. */
+        invoice: Some(false),
         order: json!({
             "MarketplaceOrderId": marketplace_order_id,
             "MarketId": BDP_DRY_RUN_MARKET_ID,

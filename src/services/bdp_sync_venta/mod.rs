@@ -5,6 +5,8 @@
 mod articulos;
 mod contexto;
 mod envio;
+/* [18AB-2] Factura aparte, después de que BDP confirme el cobro. */
+mod facturacion;
 mod flujo;
 mod modificacion;
 pub(crate) use modificacion::mensaje_conflicto;

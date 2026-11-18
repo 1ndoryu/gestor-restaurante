@@ -41,8 +41,10 @@ impl BdpSyncService {
         /* [169A-2] Pago dentro del CreateOrder: la gratuita solo bloquea agregar
          * pago/propina/factura a una comanda EXISTENTE; Payments/Tip/Invoice en la
          * llamada inicial sí están permitidos (manual: "Comandos quitados" vs
-         * CreateOrder/Payments/Tip). Solo con tender (venta cobrada) y total
-         * positivo: el pago es total, así que Invoice=true. Sin tender: como antes. */
+         * CreateOrder/Payments/Tip). Solo con tender (venta cobrada) y total positivo.
+         * [18AB-2] Guillermo (18/11): la creación **no** pide factura. El pago se
+         * guarda con la comanda y la factura se emite después, en `Orders/Invoice`
+         * aparte, cuando BDP confirma el cobro (`facturacion::facturar_orden_cobrada`). */
         let pago_incluido = order_ctx.tender_id.is_some() && total > 0.0;
 
         BdpCreateOrderRequest {
@@ -51,9 +53,17 @@ impl BdpSyncService {
             /* Configurable: 0 factura tras el pago (valor por defecto); 1 deja la comanda pendiente. */
             order_end_type: config.bdp_order_end_type,
             order_operation_type: 0, /* Escritura real (0=CheckAndCreate) */
-            invoice: Some(pago_incluido),
+            invoice: Some(false),
             order: Self::json_pedido(config, venta, order_ctx, &items, total, pago_incluido),
         }
+    }
+
+    /* [18AB-2] BDP valida el `Amount` de `Payments` al céntimo exacto: la suma
+     * f64 de las líneas llega con ruido (3.1500000000000004) y devuelve
+     * `[300036]-IMPORTE DE LOS PAGOS INCORRECTO` aunque `Order.Total` sí pase
+     * (evidencia 2026-11-18). Todo dinero del payload se redondea a céntimos. */
+    pub(crate) fn centimos(importe: f64) -> f64 {
+        (importe * 100.0).round() / 100.0
     }
 
     /* [048A-10] El Total del Order debe coincidir con la suma de los Item.Total
@@ -64,17 +74,21 @@ impl BdpSyncService {
      * usa base+iva como precio y el total coincide con ese mismo valor. */
     pub(crate) fn total_pedido(venta: &Venta, lineas: Option<&[VentaLinea]>) -> f64 {
         match lineas {
-            Some(ls) => ls
-                .iter()
-                .map(|linea| {
-                    Self::decimal_to_f64(&linea.precio_unitario)
-                        * Self::decimal_to_f64(&linea.cantidad)
-                        - Self::decimal_to_f64(&linea.descuento)
-                })
-                .sum(),
-            None => {
-                Self::decimal_to_f64(&venta.importe_base) + Self::decimal_to_f64(&venta.importe_iva)
-            }
+            Some(ls) => Self::centimos(
+                ls.iter()
+                    .map(|linea| {
+                        Self::centimos(
+                            Self::decimal_to_f64(&linea.precio_unitario)
+                                * Self::decimal_to_f64(&linea.cantidad)
+                                - Self::decimal_to_f64(&linea.descuento),
+                        )
+                    })
+                    .sum(),
+            ),
+            None => Self::centimos(
+                Self::decimal_to_f64(&venta.importe_base)
+                    + Self::decimal_to_f64(&venta.importe_iva),
+            ),
         }
     }
 
@@ -101,7 +115,7 @@ impl BdpSyncService {
                         linea.descripcion, precio, cantidad
                     );
                 }
-                let linea_total = (precio * cantidad) - descuento;
+                let linea_total = Self::centimos((precio * cantidad) - descuento);
                 /* [F2.8] Usar artículo BDP mapeado por línea, o fallback al default */
                 let line_article_id = line_article_ids
                     .and_then(|ids| ids.get(i))
