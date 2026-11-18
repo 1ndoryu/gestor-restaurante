@@ -21,6 +21,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  EntornoResponse,
   HealthResponse
 } from '../gestionRestauranteAPI.schemas.ts';
 
@@ -45,6 +46,118 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export type entornoResponse200 = {
+  data: EntornoResponse
+  status: 200
+}
+
+export type entornoResponseSuccess = (entornoResponse200) & {
+  headers: Headers;
+};
+;
+
+export type entornoResponse = (entornoResponseSuccess)
+
+export const getEntornoUrl = () => {
+
+
+
+
+  return `/api/entorno`
+}
+
+/**
+ * @summary Dice si esta instancia es un entorno de pruebas (público: también lo lee el login).
+ */
+export const entorno = async ( options?: RequestInit): Promise<entornoResponse> => {
+
+  return customInstance<entornoResponse>(getEntornoUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getEntornoQueryKey = () => {
+    return [
+    `/api/entorno`
+    ] as const;
+    }
+
+
+export const getEntornoQueryOptions = <TData = Awaited<ReturnType<typeof entorno>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof entorno>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getEntornoQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof entorno>>> = ({ signal }) => entorno({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof entorno>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type EntornoQueryResult = NonNullable<Awaited<ReturnType<typeof entorno>>>
+export type EntornoQueryError = unknown
+
+
+export function useEntorno<TData = Awaited<ReturnType<typeof entorno>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof entorno>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof entorno>>,
+          TError,
+          Awaited<ReturnType<typeof entorno>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useEntorno<TData = Awaited<ReturnType<typeof entorno>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof entorno>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof entorno>>,
+          TError,
+          Awaited<ReturnType<typeof entorno>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useEntorno<TData = Awaited<ReturnType<typeof entorno>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof entorno>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Dice si esta instancia es un entorno de pruebas (público: también lo lee el login).
+ */
+
+export function useEntorno<TData = Awaited<ReturnType<typeof entorno>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof entorno>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getEntornoQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
 
 export type healthCheckResponse200 = {
   data: HealthResponse

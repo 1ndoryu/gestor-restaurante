@@ -28,8 +28,14 @@ import type {
   BdpAuditEntry,
   BdpExploracionResultado,
   BdpSnapshot,
+  CambiarLectura,
+  CambiarPermiso,
+  FormaPagoBdp,
+  LecturaProgramada,
   ListarAuditParams,
   ListarSnapshotsParams,
+  MaestrosBdp,
+  PermisoCategoria,
   RestoreGloryRequest,
   RestoreResult,
   SnapshotGloryRequest,
@@ -910,7 +916,133 @@ export const useEliminarSnapshot = <TError = void,
       > => {
       return useMutation(getEliminarSnapshotMutationOptions(options), queryClient);
     }
-    export type explorarBdpResponse200 = {
+    export type departamentosDelPerfilResponse200 = {
+  data: unknown
+  status: 200
+}
+
+export type departamentosDelPerfilResponse400 = {
+  data: void
+  status: 400
+}
+
+export type departamentosDelPerfilResponse500 = {
+  data: void
+  status: 500
+}
+
+export type departamentosDelPerfilResponseSuccess = (departamentosDelPerfilResponse200) & {
+  headers: Headers;
+};
+export type departamentosDelPerfilResponseError = (departamentosDelPerfilResponse400 | departamentosDelPerfilResponse500) & {
+  headers: Headers;
+};
+
+export type departamentosDelPerfilResponse = (departamentosDelPerfilResponseSuccess | departamentosDelPerfilResponseError)
+
+export const getDepartamentosDelPerfilUrl = () => {
+
+
+
+
+  return `/api/bdp/departamentos/perfil`
+}
+
+/**
+ * [W-Q2.1/049A-1 F3] Expone `ExportDepartmentsFromProfile` para conocer los
+ * `DeptCode`/nombres válidos antes de un alta de artículo. No modifica BDP.
+ * @summary Lee los departamentos reales del perfil BDP configurado (solo lectura).
+ */
+export const departamentosDelPerfil = async ( options?: RequestInit): Promise<departamentosDelPerfilResponse> => {
+
+  return customInstance<departamentosDelPerfilResponse>(getDepartamentosDelPerfilUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDepartamentosDelPerfilQueryKey = () => {
+    return [
+    `/api/bdp/departamentos/perfil`
+    ] as const;
+    }
+
+
+export const getDepartamentosDelPerfilQueryOptions = <TData = Awaited<ReturnType<typeof departamentosDelPerfil>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof departamentosDelPerfil>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDepartamentosDelPerfilQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof departamentosDelPerfil>>> = ({ signal }) => departamentosDelPerfil({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof departamentosDelPerfil>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type DepartamentosDelPerfilQueryResult = NonNullable<Awaited<ReturnType<typeof departamentosDelPerfil>>>
+export type DepartamentosDelPerfilQueryError = void
+
+
+export function useDepartamentosDelPerfil<TData = Awaited<ReturnType<typeof departamentosDelPerfil>>, TError = void>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof departamentosDelPerfil>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof departamentosDelPerfil>>,
+          TError,
+          Awaited<ReturnType<typeof departamentosDelPerfil>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDepartamentosDelPerfil<TData = Awaited<ReturnType<typeof departamentosDelPerfil>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof departamentosDelPerfil>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof departamentosDelPerfil>>,
+          TError,
+          Awaited<ReturnType<typeof departamentosDelPerfil>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDepartamentosDelPerfil<TData = Awaited<ReturnType<typeof departamentosDelPerfil>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof departamentosDelPerfil>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Lee los departamentos reales del perfil BDP configurado (solo lectura).
+ */
+
+export function useDepartamentosDelPerfil<TData = Awaited<ReturnType<typeof departamentosDelPerfil>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof departamentosDelPerfil>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getDepartamentosDelPerfilQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export type explorarBdpResponse200 = {
   data: BdpExploracionResultado
   status: 200
 }
@@ -1024,6 +1156,659 @@ export function useExplorarBdp<TData = Awaited<ReturnType<typeof explorarBdp>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getExplorarBdpQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export type listarLecturasProgramadasResponse200 = {
+  data: LecturaProgramada[]
+  status: 200
+}
+
+export type listarLecturasProgramadasResponseSuccess = (listarLecturasProgramadasResponse200) & {
+  headers: Headers;
+};
+;
+
+export type listarLecturasProgramadasResponse = (listarLecturasProgramadasResponseSuccess)
+
+export const getListarLecturasProgramadasUrl = () => {
+
+
+
+
+  return `/api/bdp/lecturas-programadas`
+}
+
+/**
+ * @summary Cadencia y estado de la lectura de formas de pago y empleados.
+ */
+export const listarLecturasProgramadas = async ( options?: RequestInit): Promise<listarLecturasProgramadasResponse> => {
+
+  return customInstance<listarLecturasProgramadasResponse>(getListarLecturasProgramadasUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListarLecturasProgramadasQueryKey = () => {
+    return [
+    `/api/bdp/lecturas-programadas`
+    ] as const;
+    }
+
+
+export const getListarLecturasProgramadasQueryOptions = <TData = Awaited<ReturnType<typeof listarLecturasProgramadas>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarLecturasProgramadas>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListarLecturasProgramadasQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listarLecturasProgramadas>>> = ({ signal }) => listarLecturasProgramadas({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listarLecturasProgramadas>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListarLecturasProgramadasQueryResult = NonNullable<Awaited<ReturnType<typeof listarLecturasProgramadas>>>
+export type ListarLecturasProgramadasQueryError = unknown
+
+
+export function useListarLecturasProgramadas<TData = Awaited<ReturnType<typeof listarLecturasProgramadas>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarLecturasProgramadas>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listarLecturasProgramadas>>,
+          TError,
+          Awaited<ReturnType<typeof listarLecturasProgramadas>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListarLecturasProgramadas<TData = Awaited<ReturnType<typeof listarLecturasProgramadas>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarLecturasProgramadas>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listarLecturasProgramadas>>,
+          TError,
+          Awaited<ReturnType<typeof listarLecturasProgramadas>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListarLecturasProgramadas<TData = Awaited<ReturnType<typeof listarLecturasProgramadas>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarLecturasProgramadas>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Cadencia y estado de la lectura de formas de pago y empleados.
+ */
+
+export function useListarLecturasProgramadas<TData = Awaited<ReturnType<typeof listarLecturasProgramadas>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarLecturasProgramadas>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListarLecturasProgramadasQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export type cambiarLecturaProgramadaResponse200 = {
+  data: LecturaProgramada
+  status: 200
+}
+
+export type cambiarLecturaProgramadaResponse400 = {
+  data: void
+  status: 400
+}
+
+export type cambiarLecturaProgramadaResponseSuccess = (cambiarLecturaProgramadaResponse200) & {
+  headers: Headers;
+};
+export type cambiarLecturaProgramadaResponseError = (cambiarLecturaProgramadaResponse400) & {
+  headers: Headers;
+};
+
+export type cambiarLecturaProgramadaResponse = (cambiarLecturaProgramadaResponseSuccess | cambiarLecturaProgramadaResponseError)
+
+export const getCambiarLecturaProgramadaUrl = (maestro: string,) => {
+
+
+
+
+  return `/api/bdp/lecturas-programadas/${maestro}`
+}
+
+/**
+ * @summary Enciende, cambia o apaga la lectura de un maestro.
+ */
+export const cambiarLecturaProgramada = async (maestro: string,
+    cambiarLectura: CambiarLectura, options?: RequestInit): Promise<cambiarLecturaProgramadaResponse> => {
+
+  return customInstance<cambiarLecturaProgramadaResponse>(getCambiarLecturaProgramadaUrl(maestro),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(cambiarLectura)
+  }
+);}
+
+
+
+
+
+export const getCambiarLecturaProgramadaMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cambiarLecturaProgramada>>, TError,{maestro: string;data: CambiarLectura}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof cambiarLecturaProgramada>>, TError,{maestro: string;data: CambiarLectura}, TContext> => {
+
+const mutationKey = ['cambiarLecturaProgramada'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cambiarLecturaProgramada>>, {maestro: string;data: CambiarLectura}> = (props) => {
+          const {maestro,data} = props ?? {};
+
+          return  cambiarLecturaProgramada(maestro,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CambiarLecturaProgramadaMutationResult = NonNullable<Awaited<ReturnType<typeof cambiarLecturaProgramada>>>
+    export type CambiarLecturaProgramadaMutationBody = CambiarLectura
+    export type CambiarLecturaProgramadaMutationError = void
+
+    /**
+ * @summary Enciende, cambia o apaga la lectura de un maestro.
+ */
+export const useCambiarLecturaProgramada = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cambiarLecturaProgramada>>, TError,{maestro: string;data: CambiarLectura}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cambiarLecturaProgramada>>,
+        TError,
+        {maestro: string;data: CambiarLectura},
+        TContext
+      > => {
+      return useMutation(getCambiarLecturaProgramadaMutationOptions(options), queryClient);
+    }
+    export type listarMaestrosResponse200 = {
+  data: MaestrosBdp
+  status: 200
+}
+
+export type listarMaestrosResponse400 = {
+  data: void
+  status: 400
+}
+
+export type listarMaestrosResponse500 = {
+  data: void
+  status: 500
+}
+
+export type listarMaestrosResponseSuccess = (listarMaestrosResponse200) & {
+  headers: Headers;
+};
+export type listarMaestrosResponseError = (listarMaestrosResponse400 | listarMaestrosResponse500) & {
+  headers: Headers;
+};
+
+export type listarMaestrosResponse = (listarMaestrosResponseSuccess | listarMaestrosResponseError)
+
+export const getListarMaestrosUrl = () => {
+
+
+
+
+  return `/api/bdp/maestros`
+}
+
+/**
+ * @summary Terminales, empleados y perfiles dados de alta en BDP (solo lectura).
+ */
+export const listarMaestros = async ( options?: RequestInit): Promise<listarMaestrosResponse> => {
+
+  return customInstance<listarMaestrosResponse>(getListarMaestrosUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListarMaestrosQueryKey = () => {
+    return [
+    `/api/bdp/maestros`
+    ] as const;
+    }
+
+
+export const getListarMaestrosQueryOptions = <TData = Awaited<ReturnType<typeof listarMaestros>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarMaestros>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListarMaestrosQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listarMaestros>>> = ({ signal }) => listarMaestros({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listarMaestros>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListarMaestrosQueryResult = NonNullable<Awaited<ReturnType<typeof listarMaestros>>>
+export type ListarMaestrosQueryError = void
+
+
+export function useListarMaestros<TData = Awaited<ReturnType<typeof listarMaestros>>, TError = void>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarMaestros>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listarMaestros>>,
+          TError,
+          Awaited<ReturnType<typeof listarMaestros>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListarMaestros<TData = Awaited<ReturnType<typeof listarMaestros>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarMaestros>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listarMaestros>>,
+          TError,
+          Awaited<ReturnType<typeof listarMaestros>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListarMaestros<TData = Awaited<ReturnType<typeof listarMaestros>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarMaestros>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Terminales, empleados y perfiles dados de alta en BDP (solo lectura).
+ */
+
+export function useListarMaestros<TData = Awaited<ReturnType<typeof listarMaestros>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarMaestros>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListarMaestrosQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export type listarPermisosAutomaticosResponse200 = {
+  data: PermisoCategoria[]
+  status: 200
+}
+
+export type listarPermisosAutomaticosResponseSuccess = (listarPermisosAutomaticosResponse200) & {
+  headers: Headers;
+};
+;
+
+export type listarPermisosAutomaticosResponse = (listarPermisosAutomaticosResponseSuccess)
+
+export const getListarPermisosAutomaticosUrl = () => {
+
+
+
+
+  return `/api/bdp/permisos-automaticos`
+}
+
+/**
+ * @summary Interruptores de las categorías del modo automático (apagados si no hay fila).
+ */
+export const listarPermisosAutomaticos = async ( options?: RequestInit): Promise<listarPermisosAutomaticosResponse> => {
+
+  return customInstance<listarPermisosAutomaticosResponse>(getListarPermisosAutomaticosUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListarPermisosAutomaticosQueryKey = () => {
+    return [
+    `/api/bdp/permisos-automaticos`
+    ] as const;
+    }
+
+
+export const getListarPermisosAutomaticosQueryOptions = <TData = Awaited<ReturnType<typeof listarPermisosAutomaticos>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarPermisosAutomaticos>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListarPermisosAutomaticosQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listarPermisosAutomaticos>>> = ({ signal }) => listarPermisosAutomaticos({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listarPermisosAutomaticos>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListarPermisosAutomaticosQueryResult = NonNullable<Awaited<ReturnType<typeof listarPermisosAutomaticos>>>
+export type ListarPermisosAutomaticosQueryError = unknown
+
+
+export function useListarPermisosAutomaticos<TData = Awaited<ReturnType<typeof listarPermisosAutomaticos>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarPermisosAutomaticos>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listarPermisosAutomaticos>>,
+          TError,
+          Awaited<ReturnType<typeof listarPermisosAutomaticos>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListarPermisosAutomaticos<TData = Awaited<ReturnType<typeof listarPermisosAutomaticos>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarPermisosAutomaticos>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listarPermisosAutomaticos>>,
+          TError,
+          Awaited<ReturnType<typeof listarPermisosAutomaticos>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListarPermisosAutomaticos<TData = Awaited<ReturnType<typeof listarPermisosAutomaticos>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarPermisosAutomaticos>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Interruptores de las categorías del modo automático (apagados si no hay fila).
+ */
+
+export function useListarPermisosAutomaticos<TData = Awaited<ReturnType<typeof listarPermisosAutomaticos>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listarPermisosAutomaticos>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListarPermisosAutomaticosQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export type cambiarPermisoAutomaticoResponse200 = {
+  data: PermisoCategoria[]
+  status: 200
+}
+
+export type cambiarPermisoAutomaticoResponse400 = {
+  data: void
+  status: 400
+}
+
+export type cambiarPermisoAutomaticoResponseSuccess = (cambiarPermisoAutomaticoResponse200) & {
+  headers: Headers;
+};
+export type cambiarPermisoAutomaticoResponseError = (cambiarPermisoAutomaticoResponse400) & {
+  headers: Headers;
+};
+
+export type cambiarPermisoAutomaticoResponse = (cambiarPermisoAutomaticoResponseSuccess | cambiarPermisoAutomaticoResponseError)
+
+export const getCambiarPermisoAutomaticoUrl = (categoria: string,) => {
+
+
+
+
+  return `/api/bdp/permisos-automaticos/${categoria}`
+}
+
+/**
+ * @summary Enciende o apaga una categoría del modo automático.
+ */
+export const cambiarPermisoAutomatico = async (categoria: string,
+    cambiarPermiso: CambiarPermiso, options?: RequestInit): Promise<cambiarPermisoAutomaticoResponse> => {
+
+  return customInstance<cambiarPermisoAutomaticoResponse>(getCambiarPermisoAutomaticoUrl(categoria),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(cambiarPermiso)
+  }
+);}
+
+
+
+
+
+export const getCambiarPermisoAutomaticoMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cambiarPermisoAutomatico>>, TError,{categoria: string;data: CambiarPermiso}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof cambiarPermisoAutomatico>>, TError,{categoria: string;data: CambiarPermiso}, TContext> => {
+
+const mutationKey = ['cambiarPermisoAutomatico'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cambiarPermisoAutomatico>>, {categoria: string;data: CambiarPermiso}> = (props) => {
+          const {categoria,data} = props ?? {};
+
+          return  cambiarPermisoAutomatico(categoria,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CambiarPermisoAutomaticoMutationResult = NonNullable<Awaited<ReturnType<typeof cambiarPermisoAutomatico>>>
+    export type CambiarPermisoAutomaticoMutationBody = CambiarPermiso
+    export type CambiarPermisoAutomaticoMutationError = void
+
+    /**
+ * @summary Enciende o apaga una categoría del modo automático.
+ */
+export const useCambiarPermisoAutomatico = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cambiarPermisoAutomatico>>, TError,{categoria: string;data: CambiarPermiso}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cambiarPermisoAutomatico>>,
+        TError,
+        {categoria: string;data: CambiarPermiso},
+        TContext
+      > => {
+      return useMutation(getCambiarPermisoAutomaticoMutationOptions(options), queryClient);
+    }
+    export type formasPagoBdpResponse200 = {
+  data: FormaPagoBdp[]
+  status: 200
+}
+
+export type formasPagoBdpResponse400 = {
+  data: void
+  status: 400
+}
+
+export type formasPagoBdpResponse500 = {
+  data: void
+  status: 500
+}
+
+export type formasPagoBdpResponseSuccess = (formasPagoBdpResponse200) & {
+  headers: Headers;
+};
+export type formasPagoBdpResponseError = (formasPagoBdpResponse400 | formasPagoBdpResponse500) & {
+  headers: Headers;
+};
+
+export type formasPagoBdpResponse = (formasPagoBdpResponseSuccess | formasPagoBdpResponseError)
+
+export const getFormasPagoBdpUrl = () => {
+
+
+
+
+  return `/api/bdp/tenders`
+}
+
+/**
+ * [D24-m] Sirve para mapear método de pago local → `TenderId` sin adivinar.
+ * @summary Lee las formas de pago dadas de alta en BDP (solo lectura).
+ */
+export const formasPagoBdp = async ( options?: RequestInit): Promise<formasPagoBdpResponse> => {
+
+  return customInstance<formasPagoBdpResponse>(getFormasPagoBdpUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getFormasPagoBdpQueryKey = () => {
+    return [
+    `/api/bdp/tenders`
+    ] as const;
+    }
+
+
+export const getFormasPagoBdpQueryOptions = <TData = Awaited<ReturnType<typeof formasPagoBdp>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof formasPagoBdp>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getFormasPagoBdpQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof formasPagoBdp>>> = ({ signal }) => formasPagoBdp({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof formasPagoBdp>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type FormasPagoBdpQueryResult = NonNullable<Awaited<ReturnType<typeof formasPagoBdp>>>
+export type FormasPagoBdpQueryError = void
+
+
+export function useFormasPagoBdp<TData = Awaited<ReturnType<typeof formasPagoBdp>>, TError = void>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof formasPagoBdp>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof formasPagoBdp>>,
+          TError,
+          Awaited<ReturnType<typeof formasPagoBdp>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useFormasPagoBdp<TData = Awaited<ReturnType<typeof formasPagoBdp>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof formasPagoBdp>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof formasPagoBdp>>,
+          TError,
+          Awaited<ReturnType<typeof formasPagoBdp>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useFormasPagoBdp<TData = Awaited<ReturnType<typeof formasPagoBdp>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof formasPagoBdp>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Lee las formas de pago dadas de alta en BDP (solo lectura).
+ */
+
+export function useFormasPagoBdp<TData = Awaited<ReturnType<typeof formasPagoBdp>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof formasPagoBdp>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getFormasPagoBdpQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

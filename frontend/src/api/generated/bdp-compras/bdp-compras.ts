@@ -25,12 +25,14 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ActualizarBdpPurchaseNoteRequest,
   BdpPurchaseNote,
   BdpPurchaseNoteDraftRequest,
   BdpPurchaseNoteReconcileRequest,
   BdpPurchaseNoteReconcileResult,
   BdpPurchaseNoteSyncRequest,
   BdpPurchaseNoteSyncResult,
+  CrearBdpPurchaseNoteRequest,
   ErrorResponse,
   ListarPurchaseNotesParams
 } from '../gestionRestauranteAPI.schemas.ts';
@@ -188,7 +190,102 @@ export function useListarPurchaseNotes<TData = Awaited<ReturnType<typeof listarP
 
 
 
-export type sincronizarPurchaseNotesResponse200 = {
+export type crearPurchaseNoteLocalResponse200 = {
+  data: BdpPurchaseNote
+  status: 200
+}
+
+export type crearPurchaseNoteLocalResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type crearPurchaseNoteLocalResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type crearPurchaseNoteLocalResponseSuccess = (crearPurchaseNoteLocalResponse200) & {
+  headers: Headers;
+};
+export type crearPurchaseNoteLocalResponseError = (crearPurchaseNoteLocalResponse400 | crearPurchaseNoteLocalResponse401) & {
+  headers: Headers;
+};
+
+export type crearPurchaseNoteLocalResponse = (crearPurchaseNoteLocalResponseSuccess | crearPurchaseNoteLocalResponseError)
+
+export const getCrearPurchaseNoteLocalUrl = () => {
+
+
+
+
+  return `/api/bdp/purchase-notes`
+}
+
+/**
+ * flags: es CRUD local sobre `bdp_purchase_notes` con `origen='local'`.
+ * @summary Crear un albarán de compra local (F5, M18). Funciona sin BDP y sin gate de
+ */
+export const crearPurchaseNoteLocal = async (crearBdpPurchaseNoteRequest: CrearBdpPurchaseNoteRequest, options?: RequestInit): Promise<crearPurchaseNoteLocalResponse> => {
+
+  return customInstance<crearPurchaseNoteLocalResponse>(getCrearPurchaseNoteLocalUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(crearBdpPurchaseNoteRequest)
+  }
+);}
+
+
+
+
+
+export const getCrearPurchaseNoteLocalMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof crearPurchaseNoteLocal>>, TError,{data: CrearBdpPurchaseNoteRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof crearPurchaseNoteLocal>>, TError,{data: CrearBdpPurchaseNoteRequest}, TContext> => {
+
+const mutationKey = ['crearPurchaseNoteLocal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof crearPurchaseNoteLocal>>, {data: CrearBdpPurchaseNoteRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  crearPurchaseNoteLocal(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CrearPurchaseNoteLocalMutationResult = NonNullable<Awaited<ReturnType<typeof crearPurchaseNoteLocal>>>
+    export type CrearPurchaseNoteLocalMutationBody = CrearBdpPurchaseNoteRequest
+    export type CrearPurchaseNoteLocalMutationError = ErrorResponse
+
+    /**
+ * @summary Crear un albarán de compra local (F5, M18). Funciona sin BDP y sin gate de
+ */
+export const useCrearPurchaseNoteLocal = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof crearPurchaseNoteLocal>>, TError,{data: CrearBdpPurchaseNoteRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof crearPurchaseNoteLocal>>,
+        TError,
+        {data: CrearBdpPurchaseNoteRequest},
+        TContext
+      > => {
+      return useMutation(getCrearPurchaseNoteLocalMutationOptions(options), queryClient);
+    }
+    export type sincronizarPurchaseNotesResponse200 = {
   data: BdpPurchaseNoteSyncResult
   status: 200
 }
@@ -286,6 +383,207 @@ export const useSincronizarPurchaseNotes = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getSincronizarPurchaseNotesMutationOptions(options), queryClient);
+    }
+    export type actualizarPurchaseNoteLocalResponse200 = {
+  data: BdpPurchaseNote
+  status: 200
+}
+
+export type actualizarPurchaseNoteLocalResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type actualizarPurchaseNoteLocalResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type actualizarPurchaseNoteLocalResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type actualizarPurchaseNoteLocalResponseSuccess = (actualizarPurchaseNoteLocalResponse200) & {
+  headers: Headers;
+};
+export type actualizarPurchaseNoteLocalResponseError = (actualizarPurchaseNoteLocalResponse400 | actualizarPurchaseNoteLocalResponse401 | actualizarPurchaseNoteLocalResponse404) & {
+  headers: Headers;
+};
+
+export type actualizarPurchaseNoteLocalResponse = (actualizarPurchaseNoteLocalResponseSuccess | actualizarPurchaseNoteLocalResponseError)
+
+export const getActualizarPurchaseNoteLocalUrl = (id: string,) => {
+
+
+
+
+  return `/api/bdp/purchase-notes/${id}`
+}
+
+/**
+ * albaranes importados de BDP no se editan localmente.
+ * @summary Actualizar un albarán de compra local (F5). Solo `origen='local'`; los
+ */
+export const actualizarPurchaseNoteLocal = async (id: string,
+    actualizarBdpPurchaseNoteRequest: ActualizarBdpPurchaseNoteRequest, options?: RequestInit): Promise<actualizarPurchaseNoteLocalResponse> => {
+
+  return customInstance<actualizarPurchaseNoteLocalResponse>(getActualizarPurchaseNoteLocalUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(actualizarBdpPurchaseNoteRequest)
+  }
+);}
+
+
+
+
+
+export const getActualizarPurchaseNoteLocalMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof actualizarPurchaseNoteLocal>>, TError,{id: string;data: ActualizarBdpPurchaseNoteRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof actualizarPurchaseNoteLocal>>, TError,{id: string;data: ActualizarBdpPurchaseNoteRequest}, TContext> => {
+
+const mutationKey = ['actualizarPurchaseNoteLocal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof actualizarPurchaseNoteLocal>>, {id: string;data: ActualizarBdpPurchaseNoteRequest}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  actualizarPurchaseNoteLocal(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ActualizarPurchaseNoteLocalMutationResult = NonNullable<Awaited<ReturnType<typeof actualizarPurchaseNoteLocal>>>
+    export type ActualizarPurchaseNoteLocalMutationBody = ActualizarBdpPurchaseNoteRequest
+    export type ActualizarPurchaseNoteLocalMutationError = ErrorResponse
+
+    /**
+ * @summary Actualizar un albarán de compra local (F5). Solo `origen='local'`; los
+ */
+export const useActualizarPurchaseNoteLocal = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof actualizarPurchaseNoteLocal>>, TError,{id: string;data: ActualizarBdpPurchaseNoteRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof actualizarPurchaseNoteLocal>>,
+        TError,
+        {id: string;data: ActualizarBdpPurchaseNoteRequest},
+        TContext
+      > => {
+      return useMutation(getActualizarPurchaseNoteLocalMutationOptions(options), queryClient);
+    }
+    export type eliminarPurchaseNoteLocalResponse200 = {
+  data: unknown
+  status: 200
+}
+
+export type eliminarPurchaseNoteLocalResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type eliminarPurchaseNoteLocalResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type eliminarPurchaseNoteLocalResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type eliminarPurchaseNoteLocalResponseSuccess = (eliminarPurchaseNoteLocalResponse200) & {
+  headers: Headers;
+};
+export type eliminarPurchaseNoteLocalResponseError = (eliminarPurchaseNoteLocalResponse400 | eliminarPurchaseNoteLocalResponse401 | eliminarPurchaseNoteLocalResponse404) & {
+  headers: Headers;
+};
+
+export type eliminarPurchaseNoteLocalResponse = (eliminarPurchaseNoteLocalResponseSuccess | eliminarPurchaseNoteLocalResponseError)
+
+export const getEliminarPurchaseNoteLocalUrl = (id: string,) => {
+
+
+
+
+  return `/api/bdp/purchase-notes/${id}`
+}
+
+/**
+ * conciliados no se borran (D5) y los importados de BDP no se tocan.
+ * @summary Eliminar un albarán de compra local (F5). Solo `pendiente`/`borrador`; los
+ */
+export const eliminarPurchaseNoteLocal = async (id: string, options?: RequestInit): Promise<eliminarPurchaseNoteLocalResponse> => {
+
+  return customInstance<eliminarPurchaseNoteLocalResponse>(getEliminarPurchaseNoteLocalUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getEliminarPurchaseNoteLocalMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof eliminarPurchaseNoteLocal>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof eliminarPurchaseNoteLocal>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['eliminarPurchaseNoteLocal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof eliminarPurchaseNoteLocal>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  eliminarPurchaseNoteLocal(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EliminarPurchaseNoteLocalMutationResult = NonNullable<Awaited<ReturnType<typeof eliminarPurchaseNoteLocal>>>
+
+    export type EliminarPurchaseNoteLocalMutationError = ErrorResponse
+
+    /**
+ * @summary Eliminar un albarán de compra local (F5). Solo `pendiente`/`borrador`; los
+ */
+export const useEliminarPurchaseNoteLocal = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof eliminarPurchaseNoteLocal>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof eliminarPurchaseNoteLocal>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getEliminarPurchaseNoteLocalMutationOptions(options), queryClient);
     }
     export type marcarBorradorPurchaseNoteResponse200 = {
   data: BdpPurchaseNote

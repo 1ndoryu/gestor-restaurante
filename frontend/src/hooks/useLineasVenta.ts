@@ -13,6 +13,9 @@ export interface LineaVentaLocal {
   precio_unitario: string;
   iva_pct: string;
   descuento: string;
+  /* [18AB-4] Invitación: la línea no cobra y el servidor la rechaza si la
+   * ficha del artículo en BDP tiene «No permitir como invitación». */
+  invitacion: boolean;
 }
 
 const nuevaLineaId = () => Math.random().toString(36).slice(2, 10);
@@ -25,6 +28,7 @@ const lineaVacia = (): LineaVentaLocal => ({
   precio_unitario: '',
   iva_pct: '10',
   descuento: '0',
+  invitacion: false,
 });
 
 export interface UseLineasVentaReturn {
@@ -32,6 +36,7 @@ export interface UseLineasVentaReturn {
   agregarLinea: () => void;
   eliminarLinea: (id: string) => void;
   actualizarLinea: (id: string, campo: keyof Omit<LineaVentaLocal, 'id'>, valor: string) => void;
+  alternarInvitacion: (id: string) => void;
   totalBase: number;
   totalIva: number;
   totalConDescuento: number;
@@ -42,6 +47,8 @@ export interface UseLineasVentaReturn {
 function calcularTotales(lineas: LineaVentaLocal[]) {
   let b = 0, i = 0, t = 0;
   for (const l of lineas) {
+    /* [18AB-4] La invitada no suma: lo mismo que aplica el servidor. */
+    if (l.invitacion) continue;
     const qty = parseFloat(l.cantidad) || 0;
     const precio = parseFloat(l.precio_unitario) || 0;
     const base = qty * precio * (1 - (parseFloat(l.descuento) || 0) / 100);
@@ -69,6 +76,10 @@ export default function useLineasVenta(ivaDefault = '10'): UseLineasVentaReturn 
     [],
   );
 
+  const alternarInvitacion = useCallback((id: string) => {
+    setLineas(prev => prev.map(l => (l.id === id ? { ...l, invitacion: !l.invitacion } : l)));
+  }, []);
+
   const { totalBase, totalIva, totalConDescuento } = useMemo(
     () => calcularTotales(lineas),
     [lineas],
@@ -83,6 +94,7 @@ export default function useLineasVenta(ivaDefault = '10'): UseLineasVentaReturn 
         precio_unitario: l.precio_unitario,
         iva_pct: l.iva_pct || null,
         descuento: l.descuento && l.descuento !== '0' ? l.descuento : null,
+        invitacion: l.invitacion,
       })),
     [lineas],
   );
@@ -97,9 +109,10 @@ export default function useLineasVenta(ivaDefault = '10'): UseLineasVentaReturn 
         precio_unitario: r.precio_unitario,
         iva_pct: r.iva_pct || '10',
         descuento: r.descuento || '0',
+        invitacion: r.invitacion ?? false,
       })),
     );
   }, []);
 
-  return { lineas, agregarLinea, eliminarLinea, actualizarLinea, totalBase, totalIva, totalConDescuento, lineasRequest, setLineasDesdeRequest };
+  return { lineas, agregarLinea, eliminarLinea, actualizarLinea, alternarInvitacion, totalBase, totalIva, totalConDescuento, lineasRequest, setLineasDesdeRequest };
 }

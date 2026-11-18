@@ -21,8 +21,12 @@ export default function ResultadoDiagnosticoBdp({ diagnostico, dryRun }: Props) 
           <span>Aplicación: {diagnostico.application_description || diagnostico.application}</span>
           {/* [L10/D01] Cuarto valor de la ficha, junto a salud, acceso y versión. */}
           <span className={diagnostico.licencia_ok ? 'text-green-600' : 'text-destructive'}>
+            {/* [18AB-4] `BdpLicenciaResponse` es el eco crudo de
+              * `GetApplicationVersion` y su serde va en PascalCase: el cliente
+              * generado conserva esas mayúsculas. Con minúsculas el dato salía
+              * `undefined` en pantalla. */}
             Licencia 84: {diagnostico.licencia
-              ? `v${diagnostico.licencia.version}.${diagnostico.licencia.subversion} (${diagnostico.licencia.application_description})`
+              ? `v${diagnostico.licencia.Version}.${diagnostico.licencia.Subversion} (${diagnostico.licencia.ApplicationDescription})`
               : 'sin respuesta'}
           </span>
         </div>

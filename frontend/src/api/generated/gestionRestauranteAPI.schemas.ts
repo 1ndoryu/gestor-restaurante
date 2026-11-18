@@ -31,6 +31,74 @@ export interface ActualizarBdpArticleMapRequest {
   subfamilia?: number | null;
 }
 
+/**
+ * Línea de menú/pack en las peticiones de creación/edición.
+ */
+export interface BdpMenuLocalLineaRequest {
+  /**
+     * Código del artículo del catálogo local (`bdp_article_map.
+     * articulo_glory_codigo`). [128A-1/F7][F7-2] Si llega, debe existir en
+     * el catálogo del usuario (422 si no); vacío/ausente = línea "sin
+     * código" (descripción libre).
+     * @nullable
+     */
+  articulo_codigo?: string | null;
+  /** @nullable */
+  cantidad?: string | null;
+  descripcion: string;
+  /** @nullable */
+  precio_unitario?: string | null;
+}
+
+/**
+ * Request para actualizar un menú/pack local (F7).
+ */
+export interface ActualizarBdpMenuLocalRequest {
+  /** @nullable */
+  activo?: boolean | null;
+  /** @nullable */
+  descripcion?: string | null;
+  /**
+     * Si llega, se reemplazan las líneas existentes.
+     * @nullable
+     */
+  lineas?: BdpMenuLocalLineaRequest[] | null;
+  /** @nullable */
+  nombre?: string | null;
+  /** @nullable */
+  precio?: string | null;
+  /** @nullable */
+  tipo?: string | null;
+}
+
+/**
+ * Línea de un albarán local (IVA por línea — A10).
+ */
+export interface BdpPurchaseNoteLineaLocal {
+  cantidad: string;
+  descripcion: string;
+  iva_pct: string;
+  precio_unitario: string;
+}
+
+/**
+ * Request para actualizar un albarán de compra local (F5).
+ */
+export interface ActualizarBdpPurchaseNoteRequest {
+  /** @nullable */
+  codigo_proveedor?: string | null;
+  /** @nullable */
+  fecha?: string | null;
+  /** @nullable */
+  lineas?: BdpPurchaseNoteLineaLocal[] | null;
+  /** @nullable */
+  nombre_proveedor?: string | null;
+  /** @nullable */
+  numero?: string | null;
+  /** @nullable */
+  total?: string | null;
+}
+
 export interface ActualizarCampanaRequest {
   /** @nullable */
   canales?: string[] | null;
@@ -93,6 +161,10 @@ export interface ActualizarConfiguracionRequest {
   /** @nullable */
   auto_venta_reserva?: boolean | null;
   /** @nullable */
+  bdp_almacen_default?: number | null;
+  /** @nullable */
+  bdp_articulo_rango_inicial?: number | null;
+  /** @nullable */
   bdp_auto_backup_before_write?: boolean | null;
   /** @nullable */
   bdp_auto_sync_customers?: boolean | null;
@@ -101,13 +173,25 @@ export interface ActualizarConfiguracionRequest {
   /** @nullable */
   bdp_base_url?: string | null;
   /** @nullable */
+  bdp_billing_details?: boolean | null;
+  /** @nullable */
   bdp_catalog_price_type?: number | null;
+  /** @nullable */
+  bdp_clientes_auto_segundos?: number | null;
+  /** @nullable */
+  bdp_codreg_default?: number | null;
   /** @nullable */
   bdp_default_article_code?: string | null;
   /** @nullable */
   bdp_default_article_name?: string | null;
   /** @nullable */
   bdp_default_customer_code?: string | null;
+  /** @nullable */
+  bdp_departamentos_auto_segundos?: number | null;
+  /** @nullable */
+  bdp_documentos_auto_segundos?: number | null;
+  /** @nullable */
+  bdp_documentos_perfil?: number | null;
   /** @nullable */
   bdp_employee_id?: number | null;
   /** @nullable */
@@ -116,9 +200,17 @@ export interface ActualizarConfiguracionRequest {
   bdp_items_profile_id?: number | null;
   /** @nullable */
   bdp_login?: string | null;
+  /** @nullable */
+  bdp_maestros_auto_segundos?: number | null;
+  /** @nullable */
+  bdp_order_end_type?: number | null;
   bdp_order_type_map?: unknown | null;
   /** @nullable */
+  bdp_overwrite_clientes?: boolean | null;
+  /** @nullable */
   bdp_password?: string | null;
+  /** @nullable */
+  bdp_plano_auto_segundos?: number | null;
   /** @nullable */
   bdp_poll_enabled?: boolean | null;
   /** @nullable */
@@ -128,9 +220,12 @@ export interface ActualizarConfiguracionRequest {
   /** @nullable */
   bdp_purchase_notes_profile_id?: number | null;
   /** @nullable */
+  bdp_responsable_no_api?: string | null;
+  /** @nullable */
   bdp_sync_enabled?: boolean | null;
   /** @nullable */
   bdp_sync_mode?: string | null;
+  bdp_tav_map?: unknown | null;
   bdp_tender_map?: unknown | null;
   /** @nullable */
   ff_bdp_auto_arm?: boolean | null;
@@ -170,7 +265,6 @@ export interface ActualizarConfiguracionRequest {
   modo_operacion?: string | null;
   /** @nullable */
   nombre_restaurante?: string | null;
-  /* [128A-1/F8] Permisos operativos por acción (D8/M17) */
   /** @nullable */
   permisos_albaranes_gestion?: string | null;
   /** @nullable */
@@ -178,7 +272,13 @@ export interface ActualizarConfiguracionRequest {
   /** @nullable */
   permisos_catalogo_edicion?: string | null;
   /** @nullable */
+  permisos_facturacion_local?: string | null;
+  /** @nullable */
+  permisos_pagos_locales?: string | null;
+  /** @nullable */
   permisos_stock_ajuste?: string | null;
+  /** @nullable */
+  push_modalidad?: string | null;
   /** @nullable */
   reserva_apellidos_obligatorio?: boolean | null;
   /** @nullable */
@@ -469,6 +569,8 @@ export interface CrearVentaLineaRequest {
      * @nullable
      */
   descuento?: string | null;
+  /** @nullable */
+  invitacion?: boolean | null;
   /**
      * Porcentaje de IVA aplicable
      * @nullable
@@ -573,6 +675,16 @@ export interface AgrupacionTurno {
   turno: string;
 }
 
+export interface AjustarBdpArticleStockRequest {
+  articulo_glory_codigo: string;
+  delta: string;
+  /** @nullable */
+  idempotency_key?: string | null;
+  motivo: string;
+  /** @nullable */
+  warehouse_id?: string | null;
+}
+
 /**
  * Panel 3 — Analisis: efectividad, comensales, ticket medio
  */
@@ -584,6 +696,76 @@ export interface AnalisisReservas {
   /** @nullable */
   ticket_medio_reserva?: string | null;
   total_comensales: number;
+}
+
+export interface AnularVentaRequest {
+  /** @nullable */
+  idempotency_key?: string | null;
+  /** @nullable */
+  motivo?: string | null;
+}
+
+/**
+ * Venta registrada en el restaurante
+ */
+export interface Venta {
+  /** @nullable */
+  anulacion_motivo?: string | null;
+  /** @nullable */
+  anulacion_usuario?: string | null;
+  anulada: boolean;
+  /** @nullable */
+  anulada_at?: string | null;
+  bdp_invoiced: boolean;
+  /** @nullable */
+  bdp_order_id?: number | null;
+  /** @nullable */
+  bdp_order_status?: string | null;
+  /** @nullable */
+  bdp_sync_error?: string | null;
+  bdp_synced: boolean;
+  /** @nullable */
+  bdp_synced_at?: string | null;
+  canal: string;
+  /** @nullable */
+  cliente_id?: string | null;
+  /** @nullable */
+  comensales?: number | null;
+  created_at: string;
+  descripcion: string;
+  /** @nullable */
+  factura_fecha?: string | null;
+  /** @nullable */
+  factura_numero?: string | null;
+  facturada_local: boolean;
+  fecha: string;
+  /** @nullable */
+  haddock_sync_error?: string | null;
+  haddock_synced: boolean;
+  /** @nullable */
+  haddock_synced_at?: string | null;
+  id: string;
+  importe_base: string;
+  importe_iva: string;
+  iva_porcentaje: string;
+  /** @nullable */
+  mesa_id?: string | null;
+  metodo_pago: string;
+  /** @nullable */
+  num_mesa?: number | null;
+  /** @nullable */
+  num_salon?: number | null;
+  propina: string;
+  /** @nullable */
+  reserva_id?: string | null;
+  turno: string;
+  updated_at: string;
+  user_id: string;
+}
+
+export interface AnularVentaResponse {
+  anulada: boolean;
+  venta: Venta;
 }
 
 /**
@@ -637,6 +819,10 @@ export interface BdpArticleMap {
   descripcion: string;
   familia: number;
   id: string;
+  /** @nullable */
+  inventariable?: boolean | null;
+  /** @nullable */
+  invitacion_prohibida?: boolean | null;
   iva_pct: string;
   local_dirty: boolean;
   origen: string;
@@ -655,8 +841,8 @@ export interface BdpArticleMap {
  * un único almacén por defecto "General" para preparar la evolución futura.
  */
 export interface BdpArticleStock {
-  articulo_glory_codigo: string;
   ajustado_local: boolean;
+  articulo_glory_codigo: string;
   created_at: string;
   id: string;
   stock: string;
@@ -682,6 +868,7 @@ export interface BdpAuditEntry {
   error_mensaje?: string | null;
   id: string;
   operacion: string;
+  origen_operacion: string;
   resultado: string;
   /** @nullable */
   snapshot_pre_id?: string | null;
@@ -735,6 +922,19 @@ export interface BdpCustomerSyncRequest {
   confirmacion: string;
 }
 
+/**
+ * [L10/D01] Respuesta de `GetApplicationVersion` para la aplicación 84. Misma
+ * forma que `GetVersion`: los cuatro valores de la ficha quedan en un solo sitio.
+ */
+export interface BdpLicenciaResponse {
+  Application?: string;
+  ApplicationDescription?: string;
+  ErrorMessage?: string;
+  Revision?: string;
+  Subversion?: number;
+  Version?: number;
+}
+
 export interface BdpDiagnosticoResponse {
   /** @nullable */
   application?: string | null;
@@ -742,8 +942,8 @@ export interface BdpDiagnosticoResponse {
   application_description?: string | null;
   configurado: boolean;
   health_ok: boolean;
-  /** [L10/D01] Licencia 84 del terminal. */
   licencia?: BdpLicenciaResponse | null;
+  /** [L10/D01] Cuarto valor de la ficha: la licencia 84 del terminal. */
   licencia_ok: boolean;
   login_ok: boolean;
   mensaje: string;
@@ -755,15 +955,6 @@ export interface BdpDiagnosticoResponse {
   sync_habilitado: boolean;
   /** @nullable */
   version?: number | null;
-}
-
-export interface BdpLicenciaResponse {
-  application: string;
-  application_description: string;
-  error_message: string;
-  revision: string;
-  subversion: number;
-  version: number;
 }
 
 /**
@@ -815,6 +1006,80 @@ export interface BdpInvoiceResponse {
   venta_id: string;
 }
 
+/**
+ * Tipo de agrupación local: menú o pack.
+ */
+export type BdpMenuLocalTipo = typeof BdpMenuLocalTipo[keyof typeof BdpMenuLocalTipo];
+
+
+export const BdpMenuLocalTipo = {
+  menu: 'menu',
+  pack: 'pack',
+} as const;
+
+/**
+ * Cabecera de un menú/pack local.
+ */
+export interface BdpMenuLocal {
+  activo: boolean;
+  created_at: string;
+  /** @nullable */
+  descripcion?: string | null;
+  id: string;
+  nombre: string;
+  precio: string;
+  tipo: BdpMenuLocalTipo;
+  updated_at: string;
+  user_id: string;
+}
+
+/**
+ * Línea de un menú/pack local (artículo del catálogo).
+ */
+export interface BdpMenuLocalLinea {
+  /** @nullable */
+  articulo_codigo?: string | null;
+  cantidad: string;
+  created_at: string;
+  descripcion: string;
+  id: string;
+  menu_id: string;
+  /** Posición de la línea dentro del menú/pack (orden de composición). */
+  orden: number;
+  precio_unitario: string;
+}
+
+/**
+ * Menú/pack local con sus líneas cargadas (respuesta de detalle y listado).
+ * Campos explícitos (sin `#[serde(flatten)]`) para compatibilidad con
+ * `utoipa::ToSchema`.
+ */
+export interface BdpMenuLocalConLineas {
+  activo: boolean;
+  created_at: string;
+  /** @nullable */
+  descripcion?: string | null;
+  id: string;
+  lineas: BdpMenuLocalLinea[];
+  nombre: string;
+  precio: string;
+  tipo: BdpMenuLocalTipo;
+  updated_at: string;
+  user_id: string;
+}
+
+/**
+ * Parámetros de consulta para listar menús/packs locales.
+ */
+export interface BdpMenuLocalListParams {
+  /** @nullable */
+  activo?: boolean | null;
+  /** @nullable */
+  busqueda?: string | null;
+  /** @nullable */
+  tipo?: string | null;
+}
+
 export interface BdpOrderStatusResponse {
   /** @nullable */
   bdp_order_id?: number | null;
@@ -823,6 +1088,24 @@ export interface BdpOrderStatusResponse {
   /** @nullable */
   bdp_sync_error?: string | null;
   bdp_synced: boolean;
+  venta_id: string;
+}
+
+export interface BdpPago {
+  amount: string;
+  /** @nullable */
+  bdp_order_id?: number | null;
+  /** @nullable */
+  bdp_payment_id?: string | null;
+  created_at: string;
+  datos_respuesta?: unknown | null;
+  /** @nullable */
+  error_mensaje?: string | null;
+  id: string;
+  idempotency_key: string;
+  resultado: string;
+  tender_id: number;
+  updated_at: string;
   venta_id: string;
 }
 
@@ -876,7 +1159,7 @@ export const BdpPurchaseNoteEstado = {
 } as const;
 
 /**
- * Registro de albarán de compra importado desde BDP.
+ * Registro de albarán de compra (importado de BDP o creado localmente).
  */
 export interface BdpPurchaseNote {
   /** @nullable */
@@ -892,6 +1175,7 @@ export interface BdpPurchaseNote {
   /** @nullable */
   nombre_proveedor?: string | null;
   numero: string;
+  origen: string;
   serie: string;
   /** @nullable */
   total?: string | null;
@@ -1027,18 +1311,41 @@ export interface CambiarBdpSyncModeRequest {
   confirmar_escritura?: boolean;
   duracion_minutos?: number;
   max_operaciones?: number;
-  /** Nuevo modo: `read_only` o `unidirectional`. */
+  /** Nuevo modo: `read_only`, `unidirectional` o `automatic`. */
   modo: string;
   motivo?: string;
-  /** @nullable */
+  /**
+     * Destino exacto. UUID de la entidad cuando el alcance opera sobre `venta`
+     * o `cliente`; en el resto, el código local que identifica la entidad
+     * (código de artículo, de cliente de puntos…), del que se deriva el UUID
+     * de arming y auditoría. [10AA-3-B]
+     * @nullable
+     */
   target_entity_id?: string | null;
-  /** @nullable */
+  /**
+     * Tipo de destino del armado: el dominio literal (`venta`, `cliente`,
+     * `articulo`, `stock`, `cliente_puntos`…), el mismo que usa el worker.
+     * @nullable
+     */
   target_entity_type?: string | null;
+}
+
+export interface CambiarLectura {
+  segundos: number;
 }
 
 export interface CambiarModoOperacionRequest {
   /** 'auto' | 'standalone' | 'bdp' */
   modo: string;
+}
+
+export interface CambiarPasswordRequest {
+  actual: string;
+  nueva: string;
+}
+
+export interface CambiarPermiso {
+  activo: boolean;
 }
 
 export interface Campana {
@@ -1249,30 +1556,53 @@ export interface CombinacionExport {
  * Configuración almacenada del restaurante
  */
 export interface ConfiguracionRestaurante {
-  /* [128A-1/F4] Modalidad de anulación local (credito_completo | estado_solo) */
   anulacion_modalidad: string;
   auto_venta_reserva: boolean;
+  bdp_almacen_default: number;
+  bdp_articulo_rango_inicial: number;
   bdp_auto_backup_before_write: boolean;
   bdp_auto_sync_customers: boolean;
   bdp_backup_retention_days: number;
   bdp_base_url: string;
+  bdp_billing_details: boolean;
   bdp_catalog_price_type: number;
+  bdp_clientes_auto_segundos: number;
+  /** @nullable */
+  bdp_clientes_ultima_lectura?: string | null;
+  bdp_codreg_default: number;
+  bdp_configurado?: boolean;
   bdp_default_article_code: string;
   bdp_default_article_name: string;
   bdp_default_customer_code: string;
+  bdp_departamentos_auto_segundos: number;
+  /** @nullable */
+  bdp_departamentos_ultima_lectura?: string | null;
+  bdp_documentos_auto_segundos: number;
+  /** @nullable */
+  bdp_documentos_perfil?: number | null;
   bdp_employee_id: number;
   /** @nullable */
   bdp_env_bootstrap_applied_at?: string | null;
   bdp_items_profile_id: number;
+  bdp_maestros_auto_segundos: number;
+  /** @nullable */
+  bdp_maestros_ultima_lectura?: string | null;
+  bdp_order_end_type: number;
   bdp_order_type_map: unknown;
+  bdp_overwrite_clientes: boolean;
+  bdp_plano_auto_segundos: number;
+  /** @nullable */
+  bdp_plano_ultima_lectura?: string | null;
   /** Opt-in explícito. `false` impide cualquier polling automático externo. */
   bdp_poll_enabled: boolean;
   bdp_poll_interval_secs: number;
   bdp_pos_id: number;
   /** @nullable */
   bdp_purchase_notes_profile_id?: number | null;
+  bdp_responsable_no_api: string;
   bdp_sync_enabled: boolean;
   bdp_sync_mode: string;
+  bdp_tav_map: unknown;
   bdp_tender_map: unknown;
   created_at: string;
   ff_bdp_auto_arm: boolean;
@@ -1293,11 +1623,13 @@ export interface ConfiguracionRestaurante {
   iva_por_defecto: string;
   modo_operacion: string;
   nombre_restaurante: string;
-  /* [128A-1/F8] Permisos operativos por acción (D8/M17) */
   permisos_albaranes_gestion: string;
   permisos_anulacion_ventas: string;
   permisos_catalogo_edicion: string;
+  permisos_facturacion_local: string;
+  permisos_pagos_locales: string;
   permisos_stock_ajuste: string;
+  push_modalidad: string;
   reserva_apellidos_obligatorio: boolean;
   reserva_email_obligatorio: boolean;
   reserva_nombre_obligatorio: boolean;
@@ -1345,6 +1677,62 @@ export interface CrearBdpArticleMapRequest {
   precio_tarifa1?: string | null;
   /** @nullable */
   subfamilia?: number | null;
+}
+
+/**
+ * Request para crear un menú/pack local (F7).
+ */
+export interface CrearBdpMenuLocalRequest {
+  /** @nullable */
+  activo?: boolean | null;
+  /** @nullable */
+  descripcion?: string | null;
+  /** Artículos que componen el menú/pack. Obligatorio al crear. */
+  lineas: BdpMenuLocalLineaRequest[];
+  nombre: string;
+  /**
+     * Precio de venta. Si se omite y hay líneas, se calcula como suma de
+     * `cantidad * precio_unitario`.
+     * @nullable
+     */
+  precio?: string | null;
+  /** `menu` | `pack`. */
+  tipo: string;
+}
+
+/**
+ * Request para crear un albarán de compra local (F5, M18).
+ */
+export interface CrearBdpPurchaseNoteRequest {
+  /** @nullable */
+  codigo_proveedor?: string | null;
+  /**
+     * Fecha del albarán (YYYY-MM-DD).
+     * @nullable
+     */
+  fecha?: string | null;
+  /**
+     * Líneas del albarán local (guardadas en `datos_bdp.lineas`).
+     * @nullable
+     */
+  lineas?: BdpPurchaseNoteLineaLocal[] | null;
+  /** @nullable */
+  nombre_proveedor?: string | null;
+  /**
+     * Número local. Si se omite, se asigna el siguiente secuencial de la serie.
+     * @nullable
+     */
+  numero?: string | null;
+  /**
+     * Serie local. Si se omite, se usa la serie reservada `L` (M18).
+     * @nullable
+     */
+  serie?: string | null;
+  /**
+     * Total del documento. Si se omite y hay líneas, se calcula (base + IVA).
+     * @nullable
+     */
+  total?: string | null;
 }
 
 export interface CrearCampanaRequest {
@@ -1571,6 +1959,10 @@ export interface CrearVentaRequest {
   iva_porcentaje: string;
   /** @nullable */
   lineas?: CrearVentaLineaRequest[] | null;
+  /**
+     * [F3] Mesa real del plano (BDP Type 1). Sin ella, la venta sale como barra.
+     * @nullable
+     */
   mesa_id?: string | null;
   metodo_pago: MetodoPago;
   turno: Turno;
@@ -1678,6 +2070,14 @@ export interface DisponibilidadResponse {
   franjas: FranjaDisponibilidad[];
 }
 
+export interface EntornoResponse {
+  /**
+     * Texto del aviso de entorno de pruebas; `null` = producción, sin aviso.
+     * @nullable
+     */
+  etiqueta?: string | null;
+}
+
 /**
  * Estructura de respuesta de error expuesta en la API
  */
@@ -1717,11 +2117,31 @@ export interface EtiquetaConCategoria {
   user_id?: string | null;
 }
 
+export interface FacturaLocalRequest {
+  confirmacion: string;
+  /** @nullable */
+  idempotency_key?: string | null;
+}
+
+export interface FacturaLocalResponse {
+  factura_numero: string;
+  facturada: boolean;
+  venta: Venta;
+  venta_id: string;
+}
+
 /**
  * Request para solicitar un enlace de recuperación
  */
 export interface ForgotPasswordRequest {
   email: string;
+}
+
+export interface FormaPagoBdp {
+  id: number;
+  nombre: string;
+  /** @nullable */
+  tipo?: number | null;
 }
 
 /**
@@ -1801,6 +2221,28 @@ export interface IntegracionMarketingPublica {
   twilio_from_number?: string | null;
 }
 
+export interface IntentoAcceso {
+  created_at: string;
+  email: string;
+  exito: boolean;
+  motivo: string;
+}
+
+export interface LecturaProgramada {
+  activos: number;
+  inactivos: number;
+  maestro: string;
+  /** @nullable */
+  resumen?: string | null;
+  segundos: number;
+  /** @nullable */
+  ultima_lectura?: string | null;
+  /** @nullable */
+  ultima_ok?: string | null;
+  /** @nullable */
+  ultimo_error?: string | null;
+}
+
 /**
  * Request body para iniciar sesión
  */
@@ -1812,6 +2254,30 @@ export interface LoginRequest {
 export interface LoginTrabajadorRequest {
   email: string;
   password: string;
+}
+
+/**
+ * Un registro de BDP reducido a lo que la pantalla necesita.
+ */
+export interface MaestroBdp {
+  /**
+     * Dato extra que ayuda a distinguir dos registros con el mismo nombre.
+     * @nullable
+     */
+  detalle?: string | null;
+  id: number;
+  nombre: string;
+}
+
+export interface MaestrosBdp {
+  empleados: MaestroBdp[];
+  /**
+     * Error por categoría. Una lista vacía por un fallo no debe confundirse
+     * con «BDP no tiene ninguno».
+     */
+  errores: string[];
+  perfiles: MaestroBdp[];
+  terminales: MaestroBdp[];
 }
 
 export interface MergeClientesRequest {
@@ -1906,6 +2372,23 @@ export interface Notificacion {
   user_id: string;
 }
 
+export interface PagoLocalRequest {
+  amount: string;
+  confirmacion: string;
+  /** @nullable */
+  idempotency_key?: string | null;
+  tender_id: number;
+}
+
+export interface PagoLocalResponse {
+  duplicado: boolean;
+  pagado: string;
+  pago: BdpPago;
+  pendiente: string;
+  total: string;
+  venta_id: string;
+}
+
 export interface ParedExport {
   alto: number;
   ancho: number;
@@ -1926,6 +2409,14 @@ export interface ParedSala {
   rotacion: number;
   updated_at: string;
   zona_id: string;
+}
+
+/**
+ * Estado de una categoría para la pantalla: siempre aparecen las siete.
+ */
+export interface PermisoCategoria {
+  activo: boolean;
+  categoria: string;
 }
 
 export interface PermisoSeccion {
@@ -2265,6 +2756,11 @@ export interface SolicitarResponse {
   url: string;
 }
 
+export interface SyncStockAlmacenRequest {
+  /** @nullable */
+  almacen?: number | null;
+}
+
 export interface SyncTablesRequest {
   aplicar?: boolean;
   /** @nullable */
@@ -2310,64 +2806,25 @@ export interface TrabajadorResponse {
 }
 
 /**
- * Venta registrada en el restaurante
+ * [D26d] Traspaso de stock entre almacenes BDP (`Warehouse/Transfers`).
+ * `cod_traspaso` es el `CodTransfer` de BDP: el motivo lo fija quien llama.
  */
-export interface Venta {
-  /* [128A-1/F4] Anulación local de ventas */
-  anulada: boolean;
-  /** @nullable */
-  anulada_at?: string | null;
-  /** @nullable */
-  anulacion_motivo?: string | null;
-  /** @nullable */
-  anulacion_usuario?: string | null;
-  bdp_invoiced: boolean;
-  /** @nullable */
-  bdp_order_id?: number | null;
-  /** @nullable */
-  bdp_order_status?: string | null;
-  /** @nullable */
-  bdp_sync_error?: string | null;
-  bdp_synced: boolean;
-  /** @nullable */
-  bdp_synced_at?: string | null;
-  canal: string;
-  /** @nullable */
-  cliente_id?: string | null;
-  /** @nullable */
-  comensales?: number | null;
-  created_at: string;
-  descripcion: string;
-  fecha: string;
-  /** @nullable */
-  haddock_sync_error?: string | null;
-  haddock_synced: boolean;
-  /** @nullable */
-  haddock_synced_at?: string | null;
-  id: string;
-  importe_base: string;
-  importe_iva: string;
-  iva_porcentaje: string;
-  metodo_pago: string;
-  mesa_id?: string | null;
-  num_mesa?: number | null;
-  num_salon?: number | null;
-  /** @nullable */
-  reserva_id?: string | null;
-  turno: string;
-  updated_at: string;
-  user_id: string;
+export interface TraspasoStockRequest {
+  almacen_destino: number;
+  almacen_origen: number;
+  articulo_glory_codigo: string;
+  cod_traspaso: number;
+  unidades: string;
 }
 
 export interface VentaConCliente {
-  /* [128A-1/F4] Anulación local de ventas */
-  anulada: boolean;
-  /** @nullable */
-  anulada_at?: string | null;
   /** @nullable */
   anulacion_motivo?: string | null;
   /** @nullable */
   anulacion_usuario?: string | null;
+  anulada: boolean;
+  /** @nullable */
+  anulada_at?: string | null;
   bdp_invoiced: boolean;
   /** @nullable */
   bdp_order_id?: number | null;
@@ -2385,6 +2842,11 @@ export interface VentaConCliente {
   comensales?: number | null;
   created_at: string;
   descripcion: string;
+  /** @nullable */
+  factura_fecha?: string | null;
+  /** @nullable */
+  factura_numero?: string | null;
+  facturada_local: boolean;
   fecha: string;
   /** @nullable */
   haddock_sync_error?: string | null;
@@ -2395,12 +2857,16 @@ export interface VentaConCliente {
   importe_base: string;
   importe_iva: string;
   iva_porcentaje: string;
-  metodo_pago: string;
+  /** @nullable */
   mesa_id?: string | null;
-  num_mesa?: number | null;
-  num_salon?: number | null;
+  metodo_pago: string;
   /** @nullable */
   nombre_cliente?: string | null;
+  /** @nullable */
+  num_mesa?: number | null;
+  /** @nullable */
+  num_salon?: number | null;
+  propina: string;
   /** @nullable */
   reserva_id?: string | null;
   turno: string;
@@ -2418,6 +2884,7 @@ export interface VentaLinea {
   descripcion: string;
   descuento: string;
   id: string;
+  invitacion: boolean;
   iva_pct: string;
   precio_unitario: string;
   venta_id: string;
@@ -2447,6 +2914,24 @@ export type ListarSnapshotsParams = {
  * @nullable
  */
 limit?: number | null;
+};
+
+export type ListarMenusLocalesParams = {
+/**
+ * Filtro por tipo: menu | pack
+ * @nullable
+ */
+tipo?: string | null;
+/**
+ * Filtro por estado activo
+ * @nullable
+ */
+activo?: boolean | null;
+/**
+ * Búsqueda por nombre o descripción
+ * @nullable
+ */
+busqueda?: string | null;
 };
 
 export type ListarPurchaseNotesParams = {
@@ -2520,6 +3005,14 @@ sort_by?: string | null;
  * @nullable
  */
 sort_order?: string | null;
+};
+
+export type DiagnosticarBdpSyncDryRunParams = {
+/**
+ * Tender del POS para validar pago-en-creación en OnlyCheck (P1, cero creación)
+ * @nullable
+ */
+tender_id?: number | null;
 };
 
 export type DashboardReservasParams = {
@@ -2818,3 +3311,4 @@ sort_by?: string | null;
  */
 sort_order?: string | null;
 };
+

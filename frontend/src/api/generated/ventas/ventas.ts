@@ -26,6 +26,8 @@ import type {
 
 import type {
   ActualizarVentaRequest,
+  AnularVentaRequest,
+  AnularVentaResponse,
   BdpInvoiceRequest,
   BdpInvoiceResponse,
   BdpOrderStatusResponse,
@@ -35,7 +37,11 @@ import type {
   BdpPollResponse,
   CrearVentaRequest,
   ErrorResponse,
+  FacturaLocalRequest,
+  FacturaLocalResponse,
   ListarVentasParams,
+  PagoLocalRequest,
+  PagoLocalResponse,
   ReintentarBdpSyncRequest,
   Venta,
   VentaLinea,
@@ -685,6 +691,105 @@ export const useEliminarVenta = <TError = ErrorResponse,
       > => {
       return useMutation(getEliminarVentaMutationOptions(options), queryClient);
     }
+    export type anularVentaResponse200 = {
+  data: AnularVentaResponse
+  status: 200
+}
+
+export type anularVentaResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type anularVentaResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type anularVentaResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type anularVentaResponse422 = {
+  data: ErrorResponse
+  status: 422
+}
+
+export type anularVentaResponseSuccess = (anularVentaResponse200) & {
+  headers: Headers;
+};
+export type anularVentaResponseError = (anularVentaResponse401 | anularVentaResponse404 | anularVentaResponse409 | anularVentaResponse422) & {
+  headers: Headers;
+};
+
+export type anularVentaResponse = (anularVentaResponseSuccess | anularVentaResponseError)
+
+export const getAnularVentaUrl = (id: string,) => {
+
+
+
+
+  return `/api/ventas/${id}/anular`
+}
+
+export const anularVenta = async (id: string,
+    anularVentaRequest: AnularVentaRequest, options?: RequestInit): Promise<anularVentaResponse> => {
+
+  return customInstance<anularVentaResponse>(getAnularVentaUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(anularVentaRequest)
+  }
+);}
+
+
+
+
+
+export const getAnularVentaMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof anularVenta>>, TError,{id: string;data: AnularVentaRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof anularVenta>>, TError,{id: string;data: AnularVentaRequest}, TContext> => {
+
+const mutationKey = ['anularVenta'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof anularVenta>>, {id: string;data: AnularVentaRequest}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  anularVenta(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AnularVentaMutationResult = NonNullable<Awaited<ReturnType<typeof anularVenta>>>
+    export type AnularVentaMutationBody = AnularVentaRequest
+    export type AnularVentaMutationError = ErrorResponse
+
+    export const useAnularVenta = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof anularVenta>>, TError,{id: string;data: AnularVentaRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof anularVenta>>,
+        TError,
+        {id: string;data: AnularVentaRequest},
+        TContext
+      > => {
+      return useMutation(getAnularVentaMutationOptions(options), queryClient);
+    }
     export type bdpInvoiceResponse200 = {
   data: BdpInvoiceResponse
   status: 200
@@ -1199,6 +1304,100 @@ export const useReintentarSyncBdp = <TError = ErrorResponse,
       > => {
       return useMutation(getReintentarSyncBdpMutationOptions(options), queryClient);
     }
+    export type facturaLocalResponse200 = {
+  data: FacturaLocalResponse
+  status: 200
+}
+
+export type facturaLocalResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type facturaLocalResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type facturaLocalResponse422 = {
+  data: ErrorResponse
+  status: 422
+}
+
+export type facturaLocalResponseSuccess = (facturaLocalResponse200) & {
+  headers: Headers;
+};
+export type facturaLocalResponseError = (facturaLocalResponse404 | facturaLocalResponse409 | facturaLocalResponse422) & {
+  headers: Headers;
+};
+
+export type facturaLocalResponse = (facturaLocalResponseSuccess | facturaLocalResponseError)
+
+export const getFacturaLocalUrl = (id: string,) => {
+
+
+
+
+  return `/api/ventas/${id}/factura-local`
+}
+
+export const facturaLocal = async (id: string,
+    facturaLocalRequest: FacturaLocalRequest, options?: RequestInit): Promise<facturaLocalResponse> => {
+
+  return customInstance<facturaLocalResponse>(getFacturaLocalUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(facturaLocalRequest)
+  }
+);}
+
+
+
+
+
+export const getFacturaLocalMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof facturaLocal>>, TError,{id: string;data: FacturaLocalRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof facturaLocal>>, TError,{id: string;data: FacturaLocalRequest}, TContext> => {
+
+const mutationKey = ['facturaLocal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof facturaLocal>>, {id: string;data: FacturaLocalRequest}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  facturaLocal(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FacturaLocalMutationResult = NonNullable<Awaited<ReturnType<typeof facturaLocal>>>
+    export type FacturaLocalMutationBody = FacturaLocalRequest
+    export type FacturaLocalMutationError = ErrorResponse
+
+    export const useFacturaLocal = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof facturaLocal>>, TError,{id: string;data: FacturaLocalRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof facturaLocal>>,
+        TError,
+        {id: string;data: FacturaLocalRequest},
+        TContext
+      > => {
+      return useMutation(getFacturaLocalMutationOptions(options), queryClient);
+    }
     export type reintentarSyncHaddockResponse200 = {
   data: Venta
   status: 200
@@ -1411,3 +1610,97 @@ export function useObtenerLineasVenta<TData = Awaited<ReturnType<typeof obtenerL
 
 
 
+export type pagoParcialLocalResponse200 = {
+  data: PagoLocalResponse
+  status: 200
+}
+
+export type pagoParcialLocalResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type pagoParcialLocalResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type pagoParcialLocalResponse422 = {
+  data: ErrorResponse
+  status: 422
+}
+
+export type pagoParcialLocalResponseSuccess = (pagoParcialLocalResponse200) & {
+  headers: Headers;
+};
+export type pagoParcialLocalResponseError = (pagoParcialLocalResponse404 | pagoParcialLocalResponse409 | pagoParcialLocalResponse422) & {
+  headers: Headers;
+};
+
+export type pagoParcialLocalResponse = (pagoParcialLocalResponseSuccess | pagoParcialLocalResponseError)
+
+export const getPagoParcialLocalUrl = (id: string,) => {
+
+
+
+
+  return `/api/ventas/${id}/pagos-locales`
+}
+
+export const pagoParcialLocal = async (id: string,
+    pagoLocalRequest: PagoLocalRequest, options?: RequestInit): Promise<pagoParcialLocalResponse> => {
+
+  return customInstance<pagoParcialLocalResponse>(getPagoParcialLocalUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(pagoLocalRequest)
+  }
+);}
+
+
+
+
+
+export const getPagoParcialLocalMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pagoParcialLocal>>, TError,{id: string;data: PagoLocalRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof pagoParcialLocal>>, TError,{id: string;data: PagoLocalRequest}, TContext> => {
+
+const mutationKey = ['pagoParcialLocal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof pagoParcialLocal>>, {id: string;data: PagoLocalRequest}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  pagoParcialLocal(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PagoParcialLocalMutationResult = NonNullable<Awaited<ReturnType<typeof pagoParcialLocal>>>
+    export type PagoParcialLocalMutationBody = PagoLocalRequest
+    export type PagoParcialLocalMutationError = ErrorResponse
+
+    export const usePagoParcialLocal = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pagoParcialLocal>>, TError,{id: string;data: PagoLocalRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof pagoParcialLocal>>,
+        TError,
+        {id: string;data: PagoLocalRequest},
+        TContext
+      > => {
+      return useMutation(getPagoParcialLocalMutationOptions(options), queryClient);
+    }

@@ -32,6 +32,7 @@ import type {
   CambiarBdpSyncModeRequest,
   CambiarModoOperacionRequest,
   ConfiguracionRestaurante,
+  DiagnosticarBdpSyncDryRunParams,
   ErrorResponse,
   IntegracionMarketingPublica,
   ModoOperacionResponse
@@ -410,20 +411,28 @@ export type diagnosticarBdpSyncDryRunResponseError = (diagnosticarBdpSyncDryRunR
 
 export type diagnosticarBdpSyncDryRunResponse = (diagnosticarBdpSyncDryRunResponseSuccess | diagnosticarBdpSyncDryRunResponseError)
 
-export const getDiagnosticarBdpSyncDryRunUrl = () => {
+export const getDiagnosticarBdpSyncDryRunUrl = (params?: DiagnosticarBdpSyncDryRunParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/configuracion/bdp/sync-dry-run`
+  return stringifiedParams.length > 0 ? `/api/configuracion/bdp/sync-dry-run?${stringifiedParams}` : `/api/configuracion/bdp/sync-dry-run`
 }
 
 /**
- * @summary Validar el contrato BDP contra el TPV configurado. `OnlyCheck` permanece
+ * `OnlyCheck`, que el TPV no debe persistir.
+ * @summary Validar el contrato BDP contra el TPV configurado. La comanda se envía con
  */
-export const diagnosticarBdpSyncDryRun = async ( options?: RequestInit): Promise<diagnosticarBdpSyncDryRunResponse> => {
+export const diagnosticarBdpSyncDryRun = async (params?: DiagnosticarBdpSyncDryRunParams, options?: RequestInit): Promise<diagnosticarBdpSyncDryRunResponse> => {
 
-  return customInstance<diagnosticarBdpSyncDryRunResponse>(getDiagnosticarBdpSyncDryRunUrl(),
+  return customInstance<diagnosticarBdpSyncDryRunResponse>(getDiagnosticarBdpSyncDryRunUrl(params),
   {
     ...options,
     method: 'GET'
@@ -436,23 +445,23 @@ export const diagnosticarBdpSyncDryRun = async ( options?: RequestInit): Promise
 
 
 
-export const getDiagnosticarBdpSyncDryRunQueryKey = () => {
+export const getDiagnosticarBdpSyncDryRunQueryKey = (params?: DiagnosticarBdpSyncDryRunParams,) => {
     return [
-    `/api/configuracion/bdp/sync-dry-run`
+    `/api/configuracion/bdp/sync-dry-run`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getDiagnosticarBdpSyncDryRunQueryOptions = <TData = Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getDiagnosticarBdpSyncDryRunQueryOptions = <TData = Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError = ErrorResponse>(params?: DiagnosticarBdpSyncDryRunParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getDiagnosticarBdpSyncDryRunQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getDiagnosticarBdpSyncDryRunQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>> = ({ signal }) => diagnosticarBdpSyncDryRun({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>> = ({ signal }) => diagnosticarBdpSyncDryRun(params, { signal, ...requestOptions });
 
 
 
@@ -466,7 +475,7 @@ export type DiagnosticarBdpSyncDryRunQueryError = ErrorResponse
 
 
 export function useDiagnosticarBdpSyncDryRun<TData = Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError = ErrorResponse>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>> & Pick<
+ params: undefined |  DiagnosticarBdpSyncDryRunParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>,
           TError,
@@ -476,7 +485,7 @@ export function useDiagnosticarBdpSyncDryRun<TData = Awaited<ReturnType<typeof d
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useDiagnosticarBdpSyncDryRun<TData = Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError = ErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>> & Pick<
+ params?: DiagnosticarBdpSyncDryRunParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>,
           TError,
@@ -486,19 +495,19 @@ export function useDiagnosticarBdpSyncDryRun<TData = Awaited<ReturnType<typeof d
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useDiagnosticarBdpSyncDryRun<TData = Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError = ErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: DiagnosticarBdpSyncDryRunParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Validar el contrato BDP contra el TPV configurado. `OnlyCheck` permanece
+ * @summary Validar el contrato BDP contra el TPV configurado. La comanda se envía con
  */
 
 export function useDiagnosticarBdpSyncDryRun<TData = Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError = ErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: DiagnosticarBdpSyncDryRunParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof diagnosticarBdpSyncDryRun>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getDiagnosticarBdpSyncDryRunQueryOptions(options)
+  const queryOptions = getDiagnosticarBdpSyncDryRunQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -545,10 +554,13 @@ export const getCambiarBdpSyncModeUrl = () => {
 /**
  * En modo `read_only` ningún dato se envía a BDP (solo lectura).
  * En modo `unidirectional` Glory → BDP (ventas, clientes).
+ * En modo `automatic` Glory → BDP sin confirmación por operación: cada
+ * escritura sigue auditada y sujeta a preflight, pero no requiere armado
+ * temporal ni vuelve sola a `read_only`.
  * Las importaciones BDP→Glory son lecturas explícitas y no requieren un modo
  * de escritura distinto. `bidirectional` permanece bloqueado hasta definir un
  * contrato real para esa capacidad.
- * @summary Cambiar el modo de sincronización BDP (`read_only` / `unidirectional`)
+ * @summary Cambiar el modo de sincronización BDP (`read_only` / `unidirectional` / `automatic`)
  */
 export const cambiarBdpSyncMode = async (cambiarBdpSyncModeRequest: CambiarBdpSyncModeRequest, options?: RequestInit): Promise<cambiarBdpSyncModeResponse> => {
 
@@ -597,7 +609,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CambiarBdpSyncModeMutationError = ErrorResponse
 
     /**
- * @summary Cambiar el modo de sincronización BDP (`read_only` / `unidirectional`)
+ * @summary Cambiar el modo de sincronización BDP (`read_only` / `unidirectional` / `automatic`)
  */
 export const useCambiarBdpSyncMode = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cambiarBdpSyncMode>>, TError,{data: CambiarBdpSyncModeRequest}, TContext>, request?: SecondParameter<typeof customInstance>}

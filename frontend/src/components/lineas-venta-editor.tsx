@@ -3,7 +3,7 @@
  * Cada línea se mapea a un artículo BDP via articulo_codigo + bdp_article_map.
  * Responsive: mobile ≥320px (stacked), tablet/desktop (table inline). */
 
-import { Plus, Trash2, Check, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Check, AlertTriangle, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,11 +11,16 @@ import type { LineaVentaLocal } from '../hooks/useLineasVenta';
 import { useBdpArticleMaps, type BdpArticleMapItem } from '../api/bdp';
 import ArticleAutocomplete from './article-autocomplete';
 
+/* [18AB-4] Los campos que el editor edita como texto; `invitacion` es un
+ * booleano con su propio botón y no entra por el `Input`. */
+type CampoTexto = Exclude<keyof Omit<LineaVentaLocal, 'id'>, 'invitacion'>;
+
 interface Props {
   lineas: LineaVentaLocal[];
   onAgregar: () => void;
   onEliminar: (id: string) => void;
   onActualizar: (id: string, campo: keyof Omit<LineaVentaLocal, 'id'>, valor: string) => void;
+  onAlternarInvitacion: (id: string) => void;
   totalBase: number;
   totalIva: number;
   totalConDescuento: number;
@@ -33,20 +38,32 @@ function BdpMappingBadge({ codigo, maps }: { codigo: string; maps: BdpArticleMap
   return <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-600" title="Sin mapeo BDP"><AlertTriangle className="h-3 w-3" />genérico</span>;
 }
 
-function LineaRow({ linea, idx, onActualizar, onEliminar, maps, readonly, puedeEliminar }: {
+function LineaRow({ linea, idx, onActualizar, onAlternarInvitacion, onEliminar, maps, readonly, puedeEliminar }: {
   linea: LineaVentaLocal; idx: number;
   onActualizar: (id: string, campo: keyof Omit<LineaVentaLocal, 'id'>, valor: string) => void;
+  onAlternarInvitacion: (id: string) => void;
   onEliminar: (id: string) => void;
   maps: BdpArticleMapItem[] | undefined; readonly?: boolean; puedeEliminar: boolean;
 }) {
   const lbl = (s: string) => <span className="text-[10px] text-muted-foreground lg:hidden">{s}</span>;
-  const inp = (campo: keyof Omit<LineaVentaLocal, 'id'>, tipo = 'text', extra?: object) => (
+  /* [18AB-4] Invitada: el servidor fija el total a 0, así que el precio no se
+   * deja tocar (invita a creer que se cobra). Cantidad y descripción sí: una
+   * invitación de dos copas se corrige igual que la de una.
+   * Solo los campos de texto: `invitacion` es booleano y no va por aquí. */
+  const inp = (campo: CampoTexto, tipo = 'text', extra?: object) => (
     <Input type={tipo} step={tipo === 'number' ? '0.01' : undefined} min={tipo === 'number' ? '0' : undefined}
       value={linea[campo]} onChange={e => onActualizar(linea.id, campo, e.target.value)}
-      className="h-8 text-xs" readOnly={readonly} aria-label={`${campo} línea ${idx + 1}`} {...extra} />
+      className="h-8 text-xs"
+      readOnly={readonly || (linea.invitacion && campo === 'precio_unitario')}
+      aria-label={`${campo} línea ${idx + 1}`} {...extra} />
   );
+  /* [18AB-4] La ficha BDP prohíbe la invitación: el botón se deshabilita con el
+   * motivo a la vista. El servidor vuelve a comprobarlo (422) porque la marca
+   * puede llegar vieja o desde otra pestaña; aquí solo se ahorra el viaje. */
+  const map = maps?.find(x => x.articulo_glory_codigo === linea.articulo_codigo);
+  const prohibida = map?.invitacion_prohibida === true;
   return (
-    <div className="grid grid-cols-1 gap-2 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-[minmax(140px,1fr)_minmax(0,1fr)_70px_90px_60px_60px_80px_32px] lg:items-center">
+    <div className={`grid grid-cols-1 gap-2 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-[minmax(140px,1fr)_minmax(0,1fr)_70px_90px_60px_60px_80px_72px_32px] lg:items-center${linea.invitacion ? ' border-dashed bg-muted/30' : ''}`}>
       <div className="flex flex-col gap-1 min-w-0">{lbl('Código')}<ArticleAutocomplete valor={linea.articulo_codigo} onSelect={v => onActualizar(linea.id, 'articulo_codigo', v)} readonly={readonly} /></div>
       <div className="flex flex-col gap-1 min-w-0">{lbl('Descripción')}{inp('descripcion')}</div>
       <div className="flex flex-col gap-1 min-w-0">{lbl('Cant.')}{inp('cantidad', 'number')}</div>
@@ -54,6 +71,17 @@ function LineaRow({ linea, idx, onActualizar, onEliminar, maps, readonly, puedeE
       <div className="flex flex-col gap-1 min-w-0">{lbl('IVA %')}{inp('iva_pct', 'number')}</div>
       <div className="flex flex-col gap-1 min-w-0">{lbl('Dsct %')}{inp('descuento', 'number')}</div>
       <div className="flex flex-col gap-1">{lbl('BDP')}<BdpMappingBadge codigo={linea.articulo_codigo} maps={maps} /></div>
+      <div className="flex flex-col gap-1">
+        {lbl('Invitación')}
+        <Button type="button" variant={linea.invitacion ? 'default' : 'outline'} size="sm"
+          onClick={() => onAlternarInvitacion(linea.id)}
+          disabled={readonly || prohibida || (!linea.invitacion && !linea.articulo_codigo)}
+          title={prohibida ? 'BDP tiene este artículo como «No permitir como invitación»' : 'Marcar la línea como invitación (precio 0)'}
+          aria-pressed={linea.invitacion}
+          className="h-8 gap-1 px-2 text-[10px]">
+          <Gift className="h-3 w-3" />{linea.invitacion ? 'Invitada' : 'Invitar'}
+        </Button>
+      </div>
       <div className="flex items-center justify-end lg:justify-center">
         <Button type="button" variant="ghost" size="sm" onClick={() => onEliminar(linea.id)} disabled={readonly || !puedeEliminar} className="h-8 w-8 p-0 text-destructive hover:text-destructive" aria-label={`Eliminar línea ${idx + 1}`}>
           <Trash2 className="h-3.5 w-3.5" />
@@ -63,7 +91,7 @@ function LineaRow({ linea, idx, onActualizar, onEliminar, maps, readonly, puedeE
   );
 }
 
-export default function LineasVentaEditor({ lineas, onAgregar, onEliminar, onActualizar, totalBase, totalIva, totalConDescuento, readonly }: Props) {
+export default function LineasVentaEditor({ lineas, onAgregar, onEliminar, onActualizar, onAlternarInvitacion, totalBase, totalIva, totalConDescuento, readonly }: Props) {
   const { data: articleMaps } = useBdpArticleMaps();
   if (lineas.length === 0 && readonly) return null;
   return (
@@ -74,11 +102,11 @@ export default function LineasVentaEditor({ lineas, onAgregar, onEliminar, onAct
           <Plus className="h-3 w-3" /> Añadir línea
         </Button>
       </div>
-      <div className="hidden lg:grid lg:grid-cols-[minmax(140px,1fr)_minmax(0,1fr)_70px_90px_60px_60px_80px_32px] gap-2 text-[11px] font-medium text-muted-foreground">
-        <span>Código</span><span>Descripción</span><span>Cant.</span><span>Precio €</span><span>IVA %</span><span>Dsct %</span><span>BDP</span><span />
+      <div className="hidden lg:grid lg:grid-cols-[minmax(140px,1fr)_minmax(0,1fr)_70px_90px_60px_60px_80px_72px_32px] gap-2 text-[11px] font-medium text-muted-foreground">
+        <span>Código</span><span>Descripción</span><span>Cant.</span><span>Precio €</span><span>IVA %</span><span>Dsct %</span><span>BDP</span><span>Invitación</span><span />
       </div>
       {lineas.map((linea, idx) => (
-        <LineaRow key={linea.id} linea={linea} idx={idx} onActualizar={onActualizar} onEliminar={onEliminar} maps={articleMaps} readonly={readonly} puedeEliminar={lineas.length > 0} />
+        <LineaRow key={linea.id} linea={linea} idx={idx} onActualizar={onActualizar} onAlternarInvitacion={onAlternarInvitacion} onEliminar={onEliminar} maps={articleMaps} readonly={readonly} puedeEliminar={lineas.length > 0} />
       ))}
       {lineas.length > 0 && (
         <div className="flex flex-col items-end gap-1 rounded-md border bg-muted/30 p-3 text-sm">

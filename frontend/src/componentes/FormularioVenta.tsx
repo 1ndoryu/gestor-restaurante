@@ -154,6 +154,7 @@ function FormularioVenta({ onExito, venta }: Props) {
                         onAgregar={lineasHook.agregarLinea}
                         onEliminar={lineasHook.eliminarLinea}
                         onActualizar={lineasHook.actualizarLinea}
+                        onAlternarInvitacion={lineasHook.alternarInvitacion}
                         totalBase={lineasHook.totalBase}
                         totalIva={lineasHook.totalIva}
                         totalConDescuento={lineasHook.totalConDescuento}

@@ -43,6 +43,8 @@ function useFormularioVenta(onExito?: () => void, ventaInicial?: Venta) {
         precio_unitario: linea.precio_unitario,
         iva_pct: linea.iva_pct,
         descuento: linea.descuento,
+        /* [18AB-4] Sin esto, editar una venta perdería la invitación al guardar. */
+        invitacion: linea.invitacion,
       })));
     });
     return () => { activo = false; };

@@ -26,12 +26,16 @@ import type {
 
 import type {
   ActualizarBdpArticleMapRequest,
+  AjustarBdpArticleStockRequest,
   BdpArticleMap,
+  BdpArticleStock,
   BdpCatalogSyncResult,
   CrearBdpArticleMapRequest,
   ErrorResponse,
+  SyncStockAlmacenRequest,
   SyncTablesRequest,
-  SyncTablesResult
+  SyncTablesResult,
+  TraspasoStockRequest
 } from '../gestionRestauranteAPI.schemas.ts';
 
 import { customInstance } from '../../axios-instance.ts';
@@ -541,6 +545,94 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getSyncPricesMutationOptions(options), queryClient);
     }
+    export type syncStockAlmacenResponse200 = {
+  data: BdpCatalogSyncResult
+  status: 200
+}
+
+export type syncStockAlmacenResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type syncStockAlmacenResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type syncStockAlmacenResponseSuccess = (syncStockAlmacenResponse200) & {
+  headers: Headers;
+};
+export type syncStockAlmacenResponseError = (syncStockAlmacenResponse400 | syncStockAlmacenResponse401) & {
+  headers: Headers;
+};
+
+export type syncStockAlmacenResponse = (syncStockAlmacenResponseSuccess | syncStockAlmacenResponseError)
+
+export const getSyncStockAlmacenUrl = () => {
+
+
+
+
+  return `/api/bdp/article-maps/sync-stock-almacen`
+}
+
+export const syncStockAlmacen = async (syncStockAlmacenRequest: SyncStockAlmacenRequest, options?: RequestInit): Promise<syncStockAlmacenResponse> => {
+
+  return customInstance<syncStockAlmacenResponse>(getSyncStockAlmacenUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(syncStockAlmacenRequest)
+  }
+);}
+
+
+
+
+
+export const getSyncStockAlmacenMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncStockAlmacen>>, TError,{data: SyncStockAlmacenRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncStockAlmacen>>, TError,{data: SyncStockAlmacenRequest}, TContext> => {
+
+const mutationKey = ['syncStockAlmacen'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncStockAlmacen>>, {data: SyncStockAlmacenRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  syncStockAlmacen(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncStockAlmacenMutationResult = NonNullable<Awaited<ReturnType<typeof syncStockAlmacen>>>
+    export type SyncStockAlmacenMutationBody = SyncStockAlmacenRequest
+    export type SyncStockAlmacenMutationError = ErrorResponse
+
+    export const useSyncStockAlmacen = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncStockAlmacen>>, TError,{data: SyncStockAlmacenRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof syncStockAlmacen>>,
+        TError,
+        {data: SyncStockAlmacenRequest},
+        TContext
+      > => {
+      return useMutation(getSyncStockAlmacenMutationOptions(options), queryClient);
+    }
     export type eliminarArticleMapResponse200 = {
   data: void
   status: 200
@@ -729,6 +821,192 @@ export const useActualizarArticleMap = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getActualizarArticleMapMutationOptions(options), queryClient);
+    }
+    export type ajustarStockResponse200 = {
+  data: BdpArticleStock
+  status: 200
+}
+
+export type ajustarStockResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type ajustarStockResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type ajustarStockResponse422 = {
+  data: ErrorResponse
+  status: 422
+}
+
+export type ajustarStockResponseSuccess = (ajustarStockResponse200) & {
+  headers: Headers;
+};
+export type ajustarStockResponseError = (ajustarStockResponse401 | ajustarStockResponse409 | ajustarStockResponse422) & {
+  headers: Headers;
+};
+
+export type ajustarStockResponse = (ajustarStockResponseSuccess | ajustarStockResponseError)
+
+export const getAjustarStockUrl = () => {
+
+
+
+
+  return `/api/bdp/article-stock/ajustar`
+}
+
+export const ajustarStock = async (ajustarBdpArticleStockRequest: AjustarBdpArticleStockRequest, options?: RequestInit): Promise<ajustarStockResponse> => {
+
+  return customInstance<ajustarStockResponse>(getAjustarStockUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(ajustarBdpArticleStockRequest)
+  }
+);}
+
+
+
+
+
+export const getAjustarStockMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ajustarStock>>, TError,{data: AjustarBdpArticleStockRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof ajustarStock>>, TError,{data: AjustarBdpArticleStockRequest}, TContext> => {
+
+const mutationKey = ['ajustarStock'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof ajustarStock>>, {data: AjustarBdpArticleStockRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  ajustarStock(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AjustarStockMutationResult = NonNullable<Awaited<ReturnType<typeof ajustarStock>>>
+    export type AjustarStockMutationBody = AjustarBdpArticleStockRequest
+    export type AjustarStockMutationError = ErrorResponse
+
+    export const useAjustarStock = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ajustarStock>>, TError,{data: AjustarBdpArticleStockRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof ajustarStock>>,
+        TError,
+        {data: AjustarBdpArticleStockRequest},
+        TContext
+      > => {
+      return useMutation(getAjustarStockMutationOptions(options), queryClient);
+    }
+    export type traspasarStockResponse200 = {
+  data: void
+  status: 200
+}
+
+export type traspasarStockResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type traspasarStockResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type traspasarStockResponse422 = {
+  data: ErrorResponse
+  status: 422
+}
+
+export type traspasarStockResponseSuccess = (traspasarStockResponse200) & {
+  headers: Headers;
+};
+export type traspasarStockResponseError = (traspasarStockResponse401 | traspasarStockResponse404 | traspasarStockResponse422) & {
+  headers: Headers;
+};
+
+export type traspasarStockResponse = (traspasarStockResponseSuccess | traspasarStockResponseError)
+
+export const getTraspasarStockUrl = () => {
+
+
+
+
+  return `/api/bdp/article-stock/traspasar`
+}
+
+export const traspasarStock = async (traspasoStockRequest: TraspasoStockRequest, options?: RequestInit): Promise<traspasarStockResponse> => {
+
+  return customInstance<traspasarStockResponse>(getTraspasarStockUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(traspasoStockRequest)
+  }
+);}
+
+
+
+
+
+export const getTraspasarStockMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof traspasarStock>>, TError,{data: TraspasoStockRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof traspasarStock>>, TError,{data: TraspasoStockRequest}, TContext> => {
+
+const mutationKey = ['traspasarStock'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof traspasarStock>>, {data: TraspasoStockRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  traspasarStock(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TraspasarStockMutationResult = NonNullable<Awaited<ReturnType<typeof traspasarStock>>>
+    export type TraspasarStockMutationBody = TraspasoStockRequest
+    export type TraspasarStockMutationError = ErrorResponse
+
+    export const useTraspasarStock = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof traspasarStock>>, TError,{data: TraspasoStockRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof traspasarStock>>,
+        TError,
+        {data: TraspasoStockRequest},
+        TContext
+      > => {
+      return useMutation(getTraspasarStockMutationOptions(options), queryClient);
     }
     export type getFastfoodDefinitionResponse200 = {
   data: void
