@@ -1,0 +1,34 @@
+BORRADOR — mensaje completo a Guillermo por WhatsApp (sin PDF, sin enviar)
+
+---
+
+Hola Guillermo: he hecho las seis pruebas sobre comandas abiertas en el BDP de prueba (36.2), con el TPV abierto y la licencia completa. van todas sobre comandas abiertas y sin facturar, y las cancelé al terminar.
+
+*Resultados.*
+
+1. *Añadir y quitar líneas:* pasa. Se mandan solo las líneas del cambio y el total final. Quitar es una línea en negativo: la línea queda a cero, no se borra.
+
+2. *Cambiar cantidades y comentarios:* pasa. Se suben y bajan unidades, y los comentarios se guardan en cualquier momento. Lo que no se puede es reescribir el texto de una línea ya enviada; solo sumar o restar.
+
+3. *Descuentos e invitación:* pasa, salvo que BDP ignora el artículo «no invitables». Marqué como invitación un artículo con ese campo activo y lo aceptó con total 0.
+
+4. *Cambiar la comanda de mesa:* no se puede. BDP no tiene esa operación. Si se reenvía la comanda con la mesa nueva, queda colocada en las dos mesas a la vez; y si la mesa de destino está ocupada y el total coincide, las líneas se funden dentro de la comanda del destino sin avisar.
+
+5. *Pagos parciales y facturación:* pasa, con dos salvedades. Pedir factura en un pago parcial se rechaza con error, aunque el pago sí queda guardado (hay que pagar hasta cuadrar y facturar después). Y repetir el mismo identificador de pago cobra dos veces: BDP no lo deduplica.
+
+6. *Cancelar una comanda abierta:* pasa. Anula también el pago parcial que tuviera y no deja rastro: no hay abono ni documento.
+
+*Ya está cerrado en la web.* Las dos cosas peligrosas del punto 4 y del 5 no pueden pasar por nuestra parte: no se modifica una comanda que BDP tiene en otra mesa (se bloquea y se avisa con las dos mesas), y cada intento de pago lleva su propio identificador, distinto en cada reintento, así que un reintento ya no puede cobrar dos veces. Además, el saldo pendiente ahora suma cada cobro; antes contaba una sola vez y dejaba cobrar de más. Tests y control de calidad en verde.
+
+*Lo único que me falta son seis respuestas de BDP:*
+
+1. *Dividir y unir cuentas.* ¿Hay operación oficial? Si no, ¿qué procedimiento admiten (contrapartidas, varias comandas, mesa juntada)?
+2. *Retirar un pago parcial* de una comanda abierta y *anular o devolver un cobro ya emitido.* ¿Hay operación no documentada o se hace solo en el TPV?
+3. *Cambio de mesa:* cuál es el procedimiento oficial, dado que el reenvío duplica la colocación y funde líneas en mesa ocupada.
+4. *Artículo no invitables:* ¿es un defecto de la versión 36.2 o el campo solo lo aplica el terminal y nunca la API?
+5. *Comanda ya facturada:* consultarla devuelve vacío con estado 3 y escribir un pago sobre ella rompe con un error de índice. ¿Es lo previsto? Me afecta al sondeo de estado.
+6. *Duplicados:* ¿hay alguna garantía de unicidad por identificador de comanda en BDP, o la tiene que sostener el integrador?
+
+Del restaurante solo faltan tres datos: las formas de pago, los tipos de pedido y el perfil de documentos. Va todo en el manual de configuración del 16/11 y se rellena en Configuración → BDP, con los números que la propia web lee del TPV.
+
+El entorno de pruebas sigue abierto para cuando queráis entrar.
