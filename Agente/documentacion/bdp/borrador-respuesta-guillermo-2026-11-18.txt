@@ -1,0 +1,27 @@
+BORRADOR — respuesta a Guillermo, 2026-11-18 (WhatsApp, sin enviar)
+Adjunto: Agente/documentacion/bdp/pruebas-comandas-guillermo-2026-11-18.md
+
+Hice las seis pruebas sobre comandas abiertas en el BDP demo (36.2), con el TPV abierto, y tengo el detalle escrito. Resumen y lo que necesito preguntar a BDP.
+
+*Resultados.*
+
+1. *Añadir y quitar líneas:* pasa. `Items` lleva solo las líneas del cambio y `Order.Total` el total final de la comanda. Quitar es una contrapartida negativa, no un borrado.
+2. *Cambiar cantidades y comentarios:* pasa. Los comentarios se guardan y se pueden añadir en cualquier momento. Lo que no se puede es reescribir el texto de una línea ya enviada; solo sumar o restar.
+3. *Descuentos e invitación:* pasa, con un fallo. El descuento de línea y el general funcionan. Pero `NotAllowedAsInvitation` **BDP no lo comprueba**: marqué como invitación un artículo con ese campo activo y lo aceptó, total 0. El campo existe en la ficha y en `Articles/Get`, pero `Orders/Create` lo ignora.
+4. *Cambiar la comanda de mesa:* **falla.** No hay operación de cambio de mesa en la API. Reenviar la comanda con la mesa nueva la deja colocada en las dos mesas a la vez; y si la mesa de destino está ocupada y el total coincide, **funde las líneas en la comanda del destino sin avisar**. No he encontrado forma de mover una comanda por API.
+5. *Pagos parciales y facturación:* pasa, con tres salvedades:
+   - `Invoice: true` en un pago parcial se rechaza con error, aunque el pago **sí se guarda**. Hay que pagar hasta cuadrar y facturar después.
+   - Repetir un `PaymentId` **cobra dos veces**: no hay idempotencia. Dos pagos de 2,00 con el mismo identificador quedan como dos cobros.
+   - `Orders/Create` tampoco deduplica: dos envíos idénticos con el mismo `MarketplaceOrderId` crean dos comandas, y `GetOrder` por ese identificador devuelve solo una, ocultando la otra.
+6. *Cancelar una comanda abierta:* pasa, pero **anula también el pago parcial** que tuviera y no deja ningún rastro: no hay abono ni documento. Cancelar dos veces devuelve «no existe», que es correcto.
+
+*Lo que necesito que BDP responda.*
+
+1. *Dividir y unir cuentas.* ¿Hay operación oficial en WebLinkRestAPI 1.2? Si no, ¿qué procedimiento admiten: contrapartidas, varias comandas, mesa juntada?
+2. *Retirar un pago parcial* de una comanda abierta y *anular o devolver un cobro ya emitido*. ¿Existe operación no documentada o se hace solo en el TPV?
+3. *Cambio de mesa:* cuál es el procedimiento oficial, dado que el reenvío duplica la colocación y fusiona líneas en mesa ocupada.
+4. *`NotAllowedAsInvitation`:* ¿es un defecto de la 36.2 o el campo solo lo aplica el terminal y nunca la API?
+5. *`GetOrder` de una comanda ya facturada* devuelve `{"Order": null, "Status": 3}`, y escribir un pago sobre ella rompe con un error de índice. ¿Es lo previsto? Me afecta al sondeo de estado.
+6. *Duplicados:* ¿hay alguna garantía de unicidad por `MarketplaceOrderId` del lado de BDP, o la debe sostener el integrador?
+
+Por mi parte ya está cerrado en el código: no se modifica una comanda que BDP tiene en otra mesa, y cada intento de pago lleva su propio identificador, distinto en cada reintento.
