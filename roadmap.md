@@ -4,15 +4,13 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `18AA-7`: las cinco preguntas para BDP que salen de las pruebas del 18/11 (dividir y unir cuentas, retirar pagos, `NotAllowedAsInvitation`, cambio de mesa, `GetOrder` tras facturar); enviarlas a Guillermo con la evidencia.
-- `18AA-8`: cerrar en el código los dos riesgos que destaparon las pruebas: impedir `update_order` con mesa distinta (duplica o fusiona comandas) y `PaymentId` único por intento.
+- `18AA-7`: las seis preguntas para BDP que salen de las pruebas del 18/11 (dividir y unir cuentas, retirar pagos, `NotAllowedAsInvitation`, cambio de mesa, `GetOrder` de una comanda facturada, duplicados por `MarketplaceOrderId`); enviarlas a Guillermo con la evidencia.
 - `28AA-4`: etapa 0 resuelta (Tailscale ya conecta producción con el BDP del restaurante); recoger el cuestionario de Guillermo.
 
 ## Pendientes
 
 
-- [ ] `18AA-7` — **Enviar a Guillermo las pruebas del 18/11 y las cinco preguntas para BDP.** Evidencia en `Agente/documentacion/bdp/pruebas-comandas-guillermo-2026-11-18.md`. Preguntas: dividir y unir cuentas; retirar un pago parcial y anular un cobro ya emitido; `NotAllowedAsInvitation` ignorado por `Orders/Create`; procedimiento oficial de cambio de mesa (el reenvío duplica la colocación y fusiona líneas en mesa ocupada); `GetOrder` roto tras facturar. Hecho = mensaje enviado con las respuestas de BDP, y el roadmap actualizado con lo que contesten.
-- [ ] `18AA-8` — **Cerrar en el código los riesgos de las pruebas del 18/11.** (1) `update_order` no debe aceptar una mesa distinta de la de la comanda: hoy el reenvío deja la comanda en dos mesas y, si el total cuadra, fusiona sus líneas en la comanda de la mesa ocupada. (2) `PaymentId` único por intento: BDP no es idempotente y cobra dos veces el mismo identificador. Hecho = las dos rutas cerradas con test que lo demuestre y el gate en verde.
+- [ ] `18AA-7` — **Enviar a Guillermo las pruebas del 18/11 y las seis preguntas para BDP.** Evidencia en `Agente/documentacion/bdp/pruebas-comandas-guillermo-2026-11-18.md`; borrador del mensaje en `Agente/documentacion/bdp/borrador-respuesta-guillermo-2026-11-18.txt`. Preguntas: dividir y unir cuentas; retirar un pago parcial y anular un cobro ya emitido; `NotAllowedAsInvitation` ignorado por `Orders/Create`; procedimiento oficial de cambio de mesa (el reenvío duplica la colocación y fusiona líneas en mesa ocupada); `GetOrder` de una comanda facturada (`{Order:null, Status:3}` y el error de índice al escribir sobre ella); duplicados por `MarketplaceOrderId` (`Orders/Create` no deduplica y `GetOrder` oculta la segunda). Hecho = mensaje enviado con las respuestas de BDP, y el roadmap actualizado con lo que contesten.
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** `rest-dev.wandori.us` está abierto sin franja: `bdp_sync_mode = automatic` con las siete categorías activas y un snapshot completo del 16/11 como red de seguridad (manual en `Agente/documentacion/bdp/entorno-pruebas-2026-10-31.md`). El TPV arranca solo al iniciar sesión (`bdp-tpv-arranque.vbs` en la carpeta Inicio, espera 90 s); el túnel `-R 8071` lo supervisa el workspace-manager. Falta: comprobar que el TPV entra sin login manual; el aviso de que puede entrar cuando quiera ya salió el 16/11.
 - [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Etapa 0 resuelta el 03/11/2026 (Tailscale ya conecta producción con el BDP del restaurante); el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
