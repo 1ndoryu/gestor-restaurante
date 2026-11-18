@@ -23,7 +23,8 @@ use crate::services::{ModoEfectivo, ServicioModoOperacion};
 use super::bdp_sync::{BdpSyncService, SyncLockGuard, SYNC_LOCKS};
 
 mod reconciliacion;
-use reconciliacion::payment_id_determinista;
+/* [18AA-8] También lo usa el pago que viaja dentro de `CreateOrder`. */
+pub(crate) use reconciliacion::payment_id_intento;
 
 /* [267A-8] Intención de pago validada: lo necesario para armar y ejecutar
  * el AddOrderPayment sin arrastrar 8 parámetros (límite clippy). */
@@ -232,10 +233,12 @@ impl BdpSyncService {
             })?;
         /* PaymentId puede llegar como string o número según la versión de
          * WebLink. Conservamos también su importe para detectar respuestas
-         * internamente inconsistentes y no duplicar una entrada repetida. */
+         * internamente inconsistentes y no duplicar una entrada repetida.
+         * [18AA-8] El tope cuenta **entradas** de `Payments`, no ids: BDP no
+         * deduplica, y un id repetido son dos cobros. */
         let (remote_payment_amounts, remote_paid) = Self::parse_remote_payments(payments)?;
         /* [D17] Tope de pagos: un cuarto cobro se bloquea antes de escribir en BDP. */
-        if tope_pagos_alcanzado(remote_payment_amounts.len()) {
+        if tope_pagos_alcanzado(payments.len()) {
             return Err(format!(
                 "Pago bloqueado: la venta ya tiene {MAX_PAGOS_VENTA} pagos registrados en BDP"
             ));
@@ -280,8 +283,8 @@ impl BdpSyncService {
         Ok(is_partial)
     }
 
-    /* [267A-8] Arma el pago: snapshot remoto + authorize [187A-1] + payment_id
-     * determinístico [247A-9] + request AddOrderPayment. */
+    /* [267A-8] Arma el pago: snapshot remoto + authorize [187A-1] + PaymentId
+     * propio del intento [18AA-8] + request AddOrderPayment. */
     async fn armar_pago(
         pool: &PgPool,
         venta: &Venta,
@@ -289,6 +292,10 @@ impl BdpSyncService {
         intento: &IntentoPago,
         idempotency_key: Option<&str>,
     ) -> Result<PagoArmado, String> {
+        /* [18AA-8] Un PaymentId por intento. Se genera aquí y viaja en la
+         * auditoría: la reconciliación de un ambiguo lo busca así en BDP.
+         * Nunca se reutiliza otro: BDP no deduplica y cobraría dos veces. */
+        let payment_id = payment_id_intento(venta.id);
         /* [187A-1] El snapshot remoto debe completarse antes de consumir el
          * armado; authorize registra la intención y cierra el modo escritura. */
         let datos_pago = serde_json::json!({
@@ -296,7 +303,8 @@ impl BdpSyncService {
             "order_id": intento.order_id,
             "amount": intento.amount,
             "tender_id": intento.tender_id,
-            "is_partial": intento.is_partial
+            "is_partial": intento.is_partial,
+            "payment_id": &payment_id
         });
         let snapshot_pre_id = crate::services::BdpBackupService::preparar_snapshot_escritura(
             pool,
@@ -323,18 +331,6 @@ impl BdpSyncService {
             },
         )
         .await?;
-
-        /* [247A-9] ID de pago determinístico a partir de la idempotencia para
-         * que los reintentos con la misma clave reutilicen el mismo identificador
-         * en BDP y no se creen pagos duplicados. */
-        let payment_id = idempotency_key.map_or_else(
-            || {
-                let venta_prefix = venta.id.simple().to_string();
-                let uuid_short = Uuid::new_v4().simple().to_string();
-                format!("P{}-{}", &venta_prefix[..14], &uuid_short[..8])
-            },
-            |k| payment_id_determinista(venta.id, k),
-        );
 
         let request = BdpAddOrderPaymentRequest {
             order_identifier: BdpOrderIdentifier::by_order_id(intento.order_id),

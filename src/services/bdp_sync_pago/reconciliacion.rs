@@ -79,7 +79,16 @@ impl BdpSyncService {
                 .and_then(Value::as_bool)
                 .unwrap_or(false),
         };
-        let payment_id = payment_id_determinista(venta.id, key);
+        /* [18AA-8] El id del intento, guardado al armarlo; si la auditoría es
+         * anterior a `18AA-8`, se deriva de la clave como entonces se hizo. */
+        let payment_id = datos
+            .get("payment_id")
+            .and_then(Value::as_str)
+            .filter(|id| !id.trim().is_empty())
+            .map_or_else(
+                || payment_id_determinista(venta.id, key),
+                |id| id.trim().to_string(),
+            );
 
         let remota = client
             .get_order(&BdpGetOrderRequest {
@@ -133,10 +142,26 @@ impl BdpSyncService {
     }
 }
 
-/* [D15] ID de pago determinístico por venta e idempotencia: un reintento reutiliza el mismo.
- * BDP y bdp_pagos.bdp_payment_id admiten 50 caracteres. Con una clave UUID (36) el ID
- * pasaba de 50: BDP lo truncaba, el ledger local no podía guardarlo y la reconciliación
- * no lo encontraba. Si no cabe, se usa un resumen de la clave (32 hex). */
+/* [18AA-8] PaymentId de un intento nuevo. Comprobado el 18/11/2026 en el demo
+ * 36.2: `AddOrderPayment` **no deduplica** —dos envíos con el mismo
+ * `PaymentId` dejan dos cobros— y `Orders/Create` devuelve el `PaymentId`
+ * literal en `GetOrder`, así que el id llega intacto y sirve de testigo.
+ * Por eso cada intento lleva un id propio: reutilizarlo confiando en que BDP
+ * deduplique cobra dos veces. El id va en `datos_enviados` de la auditoría,
+ * que es de donde lo lee la reconciliación. */
+pub(crate) fn payment_id_intento(venta_id: Uuid) -> String {
+    let prefijo = venta_id.simple().to_string();
+    let nonce = Uuid::new_v4().simple().to_string();
+    /* 15 (prefijo) + 1 + 16 = 32 caracteres: cabe en los 50 que admiten BDP
+     * y bdp_pagos.bdp_payment_id. */
+    format!("P{}-{}", &prefijo[..14], &nonce[..16])
+}
+
+/* [D15] ID determinístico de la clave de idempotencia. Solo se usa para
+ * reconciliar auditorías ambiguas anteriores a `18AA-8`, que no guardaron su
+ * PaymentId en `datos_enviados`. BDP y bdp_pagos.bdp_payment_id admiten 50
+ * caracteres: con una clave UUID (36) el ID pasaba de 50, BDP lo truncaba y
+ * la reconciliación no lo encontraba; si no cabe, se usa un resumen (32 hex). */
 const LONGITUD_MAX_PAYMENT_ID: usize = 50;
 
 pub(super) fn payment_id_determinista(venta_id: Uuid, key: &str) -> String {
@@ -190,6 +215,17 @@ mod tests_reconciliacion {
             payment_id_determinista(venta, "d15-pago-1"),
             "P6aa916e1ca9e41-d15-pago-1"
         );
+    }
+
+    /* [18AA-8] Cada intento lleva un id propio: repetirlo cobra dos veces. */
+    #[test]
+    fn cada_intento_tiene_su_propio_payment_id() {
+        let venta = Uuid::parse_str("4cf3165a-df61-4570-99e1-6005f3a29549").expect("uuid");
+        let uno = payment_id_intento(venta);
+        let dos = payment_id_intento(venta);
+        assert_ne!(uno, dos);
+        assert!(uno.len() <= LONGITUD_MAX_PAYMENT_ID && uno.len() <= 50);
+        assert!(uno.starts_with("P4cf3165adf614"));
     }
 
     #[test]
