@@ -8,7 +8,6 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Pendientes
 
-- [ ] `18AB-3` — **Bloquear la cancelación de una comanda con pagos.** `venta::anular` y el push `CancelOrder` consultan `bdp_pagos` y el estado remoto antes de cancelar; con uno o más pagos, se rechaza desde el servidor con un mensaje que dice cuánto hay cobrado. Hecho = test de la puerta y prueba contra BDP con una comanda cobrada.
 - [ ] `18AB-4` — **Aplicar `NotAllowedAsInvitation` en la web.** La web debe impedir marcar como invitación un artículo con ese campo activo, aunque BDP lo acepte. Hecho = el modelo y el editor de líneas llevan la marca, y se rechaza antes de llegar al servidor.
 - [ ] `18AB-5` — **Impedir comandas duplicadas por `MarketId` + `MarketplaceOrderId`.** Índice único, bloqueo de envíos simultáneos y consulta a BDP ante respuesta dudosa antes de reenviar. Hecho = prueba con dos solicitudes simultáneas que crea una sola comanda.
 - [ ] `18AB-6` — **Pedidos a domicilio con `Type=2` en Hostelería 01.** Crear, modificar, cobrar, facturar y recuperar tras reiniciar BDP. Hecho = comanda a domicilio completa en el BDP demo, con evidencia.
