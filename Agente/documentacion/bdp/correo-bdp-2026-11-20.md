@@ -17,17 +17,17 @@ Soy Asley Crespo Navarro, autorizada por el distribuidor Guillermo García Sáez
 
 Seis dudas:
 
-1. Dividir y unir cuentas: ¿hay operación en la API, o se hace en el terminal?
+1. Dividir una cuenta en varias y unir varias en una: ¿hay operación en la API, o hay que hacerlo en el terminal? Si no existe, ¿qué procedimiento admiten?
 
-2. Retirar un pago parcial y anular un cobro ya emitido: ¿alguna operación, o solo en el terminal?
+2. Retirar un pago parcial ya metido en una comanda abierta y anular un cobro ya emitido: ¿hay alguna operación, o se hace solo desde el terminal?
 
-3. NotAllowedAsInvitation: `Orders/Create` lo ignora e invita el artículo igual. ¿Es lo previsto, o solo lo aplica el terminal?
+3. `NotAllowedAsInvitation`: el artículo está marcado como no invitable en la ficha y `Articles/Get` lo devuelve, pero `Orders/Create` lo ignora y acepta `Invitation: true` con total 0. ¿Es lo previsto, o el campo solo lo aplica el terminal?
 
-4. Cambio de mesa: no hay operación; reenviar con la mesa nueva no libera la de origen. ¿Cuál es el procedimiento?
+4. Cambio de mesa: no encontramos operación. Reenviar la comanda con el `OrderId` y la mesa nueva la coloca en las dos y no libera la de origen. ¿Cuál es el procedimiento oficial?
 
-5. `GetOrder` de una comanda facturada devuelve `{"Order": null}` y `Payment/Add` sobre ella da «El índice estaba fuera del intervalo». ¿Es lo previsto?
+5. Consultar una comanda ya facturada: `GetOrder` devuelve `{"Order": null, "Status": 3}` y `Orders/Payment/Add` sobre ella responde «El índice estaba fuera del intervalo». ¿Es lo previsto? Lo necesitamos para consultar el estado después de cobrar.
 
-6. Servicio a domicilio (`Type=2`): Hostelería 01 responde `[300009]` siempre. ¿Qué aplicación y suscripción hacen falta para operarlo?
+6. Servicio a domicilio (`Type=2`): en la aplicación 01 Hostelería responde siempre `[300009]-LA APLICACIÓN NO ADMITE COMANDAS DE SERVICIO A DOMICILIO`, con y sin `Customer`. El manual dice que solo se crean en la aplicación Servicio a Domicilio: ¿qué aplicación y suscripción hacen falta para operarlo?
 
 Y un fallo: `Orders/Create` acepta una línea con `Units: 0` y el total no cambia, pero después `Orders/Payment/Add` con `Invoice: true` responde «Intento de dividir por cero.» y no factura. La comanda queda cobrada sin documento y el mensaje no dice qué línea es. Sin esa línea, la misma comanda factura bien.
 
