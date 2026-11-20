@@ -1,3 +1,5 @@
+// sentinel-disable-file sqlx-query-sin-macro sqlx-query-as-sin-macro
+// [por que] sqlx sin feature "macros" ni DB en compile-time: query! rompe el build.
 /* [267A-9/F4.1] Resolución de artículos BDP: GetArticle, perfil, catálogo local
  * (bdp_article_map) y artículo por línea de venta. */
 
@@ -190,6 +192,18 @@ impl BdpSyncService {
                     Ok(Some(map)) => {
                         /* El código BDP puede ser numérico (ID directo) o texto (requeriría lookup).
                          * Por ahora solo soportamos códigos numéricos. */
+                        /* [20AB] Mapeo desactivado = artículo que no se vende (mismo
+                         * criterio que `resolve_article_local`). Sin esto, una línea
+                         * que nombraba un artículo retirado seguía enviándose a BDP
+                         * y el TPV la rechazaba con «ARTÍCULO INEXISTENTE». */
+                        if !map.activo {
+                            info!(
+                                "[F2.8] Mapeo '{}' desactivado para la línea '{}', usando default",
+                                linea.articulo_codigo, linea.descripcion
+                            );
+                            ids.push(default_article_id);
+                            continue;
+                        }
                         match map.articulo_bdp_codigo.trim().parse::<i64>() {
                             Ok(code) if code > 0 => code,
                             _ => {
@@ -273,5 +287,70 @@ impl BdpSyncService {
             price,
             vat_pct,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{CrearBdpArticleMapRequest, VentaLinea};
+    use crate::repositories::BdpArticleMapRepository;
+    use chrono::Utc;
+    use rust_decimal::Decimal;
+
+    /* [20AB] Un mapeo desactivado no puede seguir decidiendo el artículo BDP:
+     * la línea salía con un código que BDP ya no reconoce (el demo respondía
+     * `[300016]-ARTÍCULO INEXISTENTE` y la comanda no llegaba al TPV). Debe
+     * caer al artículo por defecto, igual que un código sin mapeo. */
+    #[sqlx::test(migrations = "./migrations")]
+    async fn mapeo_desactivado_cae_al_articulo_por_defecto(pool: PgPool) {
+        let user_id = uuid::Uuid::new_v4();
+        let email = format!("bdp-sync-{user_id}@example.com");
+        sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+            .bind(user_id)
+            .bind(&email)
+            .bind("argon2_hash_placeholder")
+            .execute(&pool)
+            .await
+            .expect("create_test_user failed");
+
+        for (glory, bdp, activo) in [("VIVO", "1001", true), ("RETIRADO", "4031", false)] {
+            BdpArticleMapRepository::crear(
+                &pool,
+                user_id,
+                &CrearBdpArticleMapRequest {
+                    articulo_glory_codigo: glory.into(),
+                    articulo_bdp_codigo: Some(bdp.into()),
+                    articulo_bdp_nombre: Some(glory.into()),
+                    descripcion: None,
+                    precio_tarifa1: None,
+                    iva_pct: None,
+                    departamento: None,
+                    familia: None,
+                    subfamilia: None,
+                    activo: Some(activo),
+                    barcode: None,
+                },
+            )
+            .await
+            .expect("crear mapeo");
+        }
+
+        let linea = |codigo: &str| VentaLinea {
+            id: uuid::Uuid::new_v4(),
+            venta_id: uuid::Uuid::new_v4(),
+            articulo_codigo: codigo.into(),
+            descripcion: codigo.into(),
+            cantidad: Decimal::ONE,
+            precio_unitario: Decimal::ONE,
+            iva_pct: Decimal::from(10),
+            descuento: Decimal::ZERO,
+            invitacion: false,
+            created_at: Utc::now(),
+        };
+        let lineas = vec![linea("VIVO"), linea("RETIRADO"), linea("")];
+
+        let ids = BdpSyncService::resolve_line_articles(&pool, user_id, &lineas, 9999).await;
+        assert_eq!(ids, vec![1001, 9999, 9999]);
     }
 }
