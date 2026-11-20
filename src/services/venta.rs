@@ -27,6 +27,28 @@ use super::{
 pub struct VentaService;
 
 impl VentaService {
+    /* [18AB-10] BDP acepta `Units: 0` en `Orders/Create` (probado el 20/11 en el
+     * demo), pero después `Orders/Payment/Add` con `Invoice: true` falla con
+     * «Intento de dividir por cero» y la comanda queda cobrada sin facturar. El
+     * error no nombra la línea, así que se corta aquí, antes de escribir nada.
+     * El alta y el reemplazo comparten esta frontera. */
+    fn rechazar_cantidades_no_positivas(
+        lineas: &[crate::models::CrearVentaLineaRequest],
+    ) -> Result<(), AppError> {
+        let invalida = lineas.iter().find(|linea| {
+            linea
+                .cantidad
+                .is_some_and(|cantidad| cantidad <= rust_decimal::Decimal::ZERO)
+        });
+        match invalida {
+            Some(linea) => Err(AppError::Validation(format!(
+                "La cantidad de «{}» debe ser mayor que 0: BDP acepta la comanda pero después no deja facturarla",
+                linea.descripcion
+            ))),
+            None => Ok(()),
+        }
+    }
+
     pub async fn create(
         pool: &PgPool,
         user_id: Uuid,
@@ -68,6 +90,7 @@ impl VentaService {
          * invitación» no se puede invitar. BDP acepta la línea (probado el
          * 18/11), así que el rechazo tiene que ser nuestro y síncrono. */
         if let Some(ref lineas) = req.lineas {
+            Self::rechazar_cantidades_no_positivas(lineas)?;
             InvitacionService::validar_lineas(pool, user_id, lineas).await?;
         }
 
@@ -158,6 +181,7 @@ impl VentaService {
         /* [18AB-4] Misma frontera que en el alta: reemplazar líneas tampoco
          * puede invitar un artículo que BDP prohíbe. */
         if let Some(ref lineas) = req.lineas {
+            Self::rechazar_cantidades_no_positivas(lineas)?;
             InvitacionService::validar_lineas(pool, user_id, lineas).await?;
         }
 
