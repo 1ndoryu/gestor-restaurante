@@ -4,12 +4,12 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- Enviar el correo a BDP (`18AB-9`), que incluye lo de `Type=2` de `18AB-6` y el fallo de facturación de líneas con 0 uds.
+- Enviar a Guillermo el mensaje de cierre de las pruebas (`Agente/documentacion/bdp/borrador-respuesta-guillermo-2026-11-20.txt`) y registrar la respuesta de BDP al correo del 20/11 (`18AB-9`).
 
 ## Pendientes
 
 - [ ] `18AB-6` — **Pedidos a domicilio con `Type=2`: probar donde la aplicación lo admita.** Hostelería 01 rechaza `Type=2` con `300009` (evidencia 20/11 en `Agente/documentacion/bdp/tipo2-domicilio-hosteleria-2026-11-20.md`); el demo no sirve. Hecho = comanda a domicilio completa sobre un TPV de Servicio a Domicilio, o respuesta de BDP sobre qué aplicación usar.
-- [ ] `18AB-9` — **Correo a BDP con copia a Guillermo.** Borrador listo en `Agente/documentacion/bdp/correo-bdp-2026-11-20.md`: seis dudas (dividir/unir, retirar pago parcial y anular cobro, `NotAllowedAsInvitation`, cambio de mesa, `GetOrder` de facturada, `Type=2`), cinco hechos ya comprobados y el fallo de facturación con líneas de 0 uds. Copia a `guillermo.autoia@gmail.com`. Falta la dirección de soporte y enviarlo. Hecho = correo enviado y respuestas registradas.
+- [ ] `18AB-9` — **Registrar las respuestas de BDP al correo del 20/11.** Enviado por la usuaria desde `andoryyu@gmail.com` a `bdp@bdpcenter.com` con copia a `guillermo.autoia@gmail.com`; texto en `Agente/documentacion/bdp/correo-bdp-2026-11-20.md`. Seis dudas (dividir/unir, retirar pago parcial y anular cobro, `NotAllowedAsInvitation`, cambio de mesa, `GetOrder` de facturada, `Type=2`) más el fallo de facturación con líneas de 0 uds. Hecho = respuestas registradas en la doc de BDP y las dudas cerradas o al roadmap con lo que las desbloquea.
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** `rest-dev.wandori.us` está abierto sin franja: `bdp_sync_mode = automatic` con las siete categorías activas y un snapshot completo del 16/11 como red de seguridad (manual en `Agente/documentacion/bdp/entorno-pruebas-2026-10-31.md`). El TPV arranca solo al iniciar sesión (`bdp-tpv-arranque.vbs` en la carpeta Inicio, espera 90 s); el túnel `-R 8071` lo supervisa el workspace-manager. Falta: comprobar que el TPV entra sin login manual; el aviso de que puede entrar cuando quiera ya salió el 16/11.
 - [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Etapa 0 resuelta el 03/11/2026 (Tailscale ya conecta producción con el BDP del restaurante); el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
