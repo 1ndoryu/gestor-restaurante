@@ -32,6 +32,9 @@ export default function ArticleAutocomplete({ valor, onSelect, readonly }: Props
     if (!busqueda.trim() || !maps) return [];
     const q = busqueda.toLowerCase();
     return maps
+      /* [20AB] Un mapeo desactivado no se ofrece: no se vende.
+       * El servidor aplica la misma regla al resolver el artículo BDP. */
+      .filter(m => m.activo)
       .filter(
         m =>
           m.articulo_glory_codigo.toLowerCase().includes(q) ||

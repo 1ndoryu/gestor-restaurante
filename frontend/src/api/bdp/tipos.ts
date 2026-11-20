@@ -53,6 +53,8 @@ export interface BdpArticleMapItem {
   articulo_glory_codigo: string;
   articulo_bdp_codigo: string;
   articulo_bdp_nombre: string;
+  /* [20AB] Mapeo desactivado: el artículo no se vende ni se ofrece. */
+  activo: boolean;
   /* [18AB-4] «No permitir como invitación» de la ficha BDP. `null` = el
    * catálogo aún no lo trae; entonces la web no bloquea (lo mismo hace el
    * servidor). `ExportArticles` no incluye el campo: solo llega por `GetPOSList`. */
