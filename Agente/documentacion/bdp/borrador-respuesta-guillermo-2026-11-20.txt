@@ -1,20 +1,29 @@
 BORRADOR — respuesta a Guillermo, 2026-11-20 (WhatsApp, sin enviar)
 Sustituye a borrador-respuesta-guillermo-2026-11-18.txt, que no se llegó a enviar.
+Contesta a su lista del 18/11 07:32, que sigue sin responder.
 
 ---
 
-Hola Guillermo: seguí con las pruebas y hoy mismo he enviado a BDP un correo con las dudas que salieron de las seis pruebas, con copia a ti. Además de lo que ya te conté, hay tres cosas nuevas y un cierre.
+Hola Guillermo: he terminado lo que me pediste el 18. Siete de los ocho puntos están ya en la web y probados; el octavo depende de BDP.
 
-*Nuevo.*
+*Correcciones en la web.*
 
-1. *Quitar un producto:* en el ticket impreso aparece como una línea en negativo, con su importe en negativo. Se ve claro en el documento y el total cuadra, así que no hace falta explicarlo al cliente.
+1. *Pagos duplicados:* cada pago real lleva un identificador fijo, así que un reintento reutiliza el mismo, nunca uno nuevo. Antes de reenviar se consulta la comanda en BDP y, si el pago ya está con ese identificador, importe y forma de pago, no se manda otra vez. Si BDP no responde, queda pendiente: nada se reenvía a ciegas.
 
-2. *Cambiar el comentario de una línea:* no se puede reescribir. Si reenvías la misma línea con otro texto y 0 unidades, BDP añade una línea nueva y deja la vieja. Lo único que deja el ticket coherente es mandar la contrapartida de −1 con el comentario viejo y después el alta con el nuevo. Ya lo tengo así en la web.
+2. *Pago y facturación separados:* el pago va sin pedir factura, se comprueba con GetOrder que quedó guardado y la factura se emite aparte cuando el saldo es cero.
 
-3. *Un fallo de BDP que conviene que sepan:* una línea con 0 unidades se acepta sin error, pero después la comanda no se puede facturar: al cobrar responde «Intento de dividir por cero» y queda cobrada sin documento, y el mensaje no dice qué línea es. Lo probé con una comanda de control al lado y esa factura bien. Desde nuestra web ya no puede pasar: la rechazo antes de enviarla. Va en el correo a BDP.
+3. *Cancelación con pagos:* bloqueada desde el servidor, y el aviso dice cuánto hay cobrado. Antes de cancelar se consulta siempre el estado y los pagos en BDP.
 
-*Cerrado:* las comandas duplicadas ya no dependen de BDP. La base de datos impide dos comandas con el mismo MarketId + MarketplaceOrderId, y hay pruebas con las dos peticiones a la vez que lo confirman.
+4. *Invitaciones:* si el artículo tiene NotAllowedAsInvitation, la web no deja marcarlo como invitación, aunque BDP lo acepte.
 
-*Pendiente de BDP:* servicio a domicilio (Type=2). En el demo no se puede probar: la aplicación de Hostelería lo rechaza siempre con «la aplicación no admite comandas de servicio a domicilio» y, según el manual, hacen falta la aplicación Servicio a Domicilio y su suscripción. Si el restaurante va a vender a domicilio, que nos digan qué hace falta.
+5. *Comandas duplicadas:* la base de datos impide dos comandas con el mismo MarketId + MarketplaceOrderId. La prueba que pediste está hecha: dos solicitudes simultáneas crean una sola comanda.
 
-Y una cosa que necesito que me aclares: el restaurante te confirmó que usaría stock, cocina, llamada al camarero e inventarios, pero el propietario dijo que no entendía esas funciones. Si no las van a usar, no las preparo para el piloto.
+*Las dos pruebas nuevas.*
+
+6. *Producto eliminado:* el ticket lo imprime como una línea en negativo, con su importe en negativo. El total cuadra y el documento se lee bien, sin explicación al cliente.
+
+7. *Cambio de comentario:* no se puede reescribir. Si reenvías la línea con otro texto y 0 unidades, BDP añade una línea nueva y deja la vieja. La forma segura es la contrapartida de −1 con el comentario viejo y después el alta con el nuevo; así queda coherente en el ticket, y es lo que hace la web.
+
+*Un fallo de BDP que encontré de paso:* una línea con 0 unidades se acepta sin error, pero después la comanda no se puede facturar: al cobrar responde «Intento de dividir por cero» y queda cobrada sin documento, sin decir qué línea es. Lo probé con una comanda de control al lado y esa factura bien. Desde la web ya no puede salir.
+
+*BDP:* les he escrito hoy con las preguntas y te he puesto en copia. Lo único que no puedo probar es el punto 6, Type=2: Hostelería 01 lo rechaza siempre con «la aplicación no admite comandas de servicio a domicilio» y, según el manual, hacen falta la aplicación Servicio a Domicilio y su suscripción. Es una de las cosas que les pregunto.
