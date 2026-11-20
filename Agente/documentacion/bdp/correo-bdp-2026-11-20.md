@@ -2,7 +2,7 @@
 
 **Para:** `bdp@bdpcenter.com` (Gael)
 **CC:** `guillermo.autoia@gmail.com`
-**Firma:** Asley Crespo Navarro, autorizada por el distribuidor Guillermo García Sáez (n.º 4652)
+**Remitente:** Asley Crespo Navarro, autorizada por el distribuidor Guillermo García Sáez (n.º 4652)
 **Estado:** borrador. **No enviado**: lo envía la usuaria.
 
 Cuerpo listo para copiar (20/11):
@@ -13,7 +13,7 @@ Asunto: WebLinkRestAPI 1.2 — dudas de comportamiento de la API tras probar la 
 
 Buenos días:
 
-Somos Nakomi Studio y estamos integrando el TPV de un restaurante con BDP mediante WebLinkRestAPI 1.2 (BDP-Net 36.2, aplicación 01 Hostelería, servicio 84). Todo lo que sigue está probado sobre un BDP de demostración, nunca sobre el TPV del cliente, y las comandas se han cancelado o facturado al terminar.
+Soy Asley Crespo Navarro, autorizada por el distribuidor Guillermo García Sáez (n.º 4652), y estoy integrando el TPV del cliente con BDP mediante WebLinkRestAPI 1.2 (BDP-Net 36.2, aplicación 01 Hostelería, servicio 84). Todo lo que sigue está probado sobre un BDP de demostración, nunca sobre el TPV del cliente, y las comandas se han cancelado o facturado al terminar.
 
 Planteamos seis dudas y cinco hechos que ya hemos comprobado por nuestra cuenta, para que no haga falta reproducirlos.
 
@@ -49,8 +49,7 @@ Quedamos a la espera de vuestra respuesta. Si conviene, podemos preparar un guio
 
 Gracias y un saludo,
 
-Asley Crespo Navarro
-Nakomi Studio
+Asley.
 
 ---
 
