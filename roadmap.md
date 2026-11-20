@@ -4,15 +4,13 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- `18AB-5`: siguiente. `18AB-6`…`18AB-8`: los tres puntos restantes de la respuesta de Guillermo del 18/11, en el orden en que los pide. El correo a BDP (`18AB-9`) espera a las pruebas de los puntos 7 y 8.
+- Corregir `18AB-10` (líneas de cantidad 0 bloquean la facturación) y redactar el correo a BDP (`18AB-9`), que incluye lo de `Type=2` de `18AB-6` y el fallo de facturación.
 
 ## Pendientes
 
-- [ ] `18AB-5` — **Impedir comandas duplicadas por `MarketId` + `MarketplaceOrderId`.** Índice único, bloqueo de envíos simultáneos y consulta a BDP ante respuesta dudosa antes de reenviar. Hecho = prueba con dos solicitudes simultáneas que crea una sola comanda.
-- [ ] `18AB-6` — **Pedidos a domicilio con `Type=2` en Hostelería 01.** Crear, modificar, cobrar, facturar y recuperar tras reiniciar BDP. Hecho = comanda a domicilio completa en el BDP demo, con evidencia.
-- [ ] `18AB-7` — **Prueba del producto eliminado en el ticket.** Dejar un producto a cero y emitir ticket: comprobar si la línea aparece.
-- [ ] `18AB-8` — **Prueba del cambio de comentario de línea.** Crear una línea con comentario, cambiarlo por otro y ver cuál queda en BDP y en el ticket; si quedan los dos, buscar la forma segura de sustituirlo.
-- [ ] `18AB-9` — **Correo a BDP con copia a Guillermo.** Verificar en BDP los seis puntos que pide (dividir y unir, retirar pago parcial, anular cobro, cambio de mesa, unicidad de `MarketId` + `MarketplaceOrderId`, `Type=2` en Hostelería 01) y los tres hechos ya comprobados. Copia a `guillermo.autoia@gmail.com`. Hecho = correo enviado y respuestas registradas.
+- [ ] `18AB-6` — **Pedidos a domicilio con `Type=2`: probar donde la aplicación lo admita.** Hostelería 01 rechaza `Type=2` con `300009` (evidencia 20/11 en `Agente/documentacion/bdp/tipo2-domicilio-hosteleria-2026-11-20.md`); el demo no sirve. Hecho = comanda a domicilio completa sobre un TPV de Servicio a Domicilio, o respuesta de BDP sobre qué aplicación usar.
+- [ ] `18AB-10` — **Rechazar líneas de cantidad 0 antes de enviarlas a BDP.** `Orders/Create` acepta `Units: 0`, pero después `Orders/Payment/Add` con `Invoice: true` falla con «Intento de dividir por cero.» y la comanda queda cobrada sin facturar (evidencia 20/11 en `Agente/documentacion/bdp/ticket-lineas-comentarios-2026-11-20.md`). Hoy `CrearVentaLineaRequest.cantidad` llega sin validar (`src/repositories/venta_linea.rs:33`) y el payload solo avisa (`src/services/bdp_sync_venta/payload.rs:121`). Hecho = test que crea una venta con `cantidad: 0` y recibe 400, y la línea no llega al payload.
+- [ ] `18AB-9` — **Correo a BDP con copia a Guillermo.** Borrador listo en `Agente/documentacion/bdp/correo-bdp-2026-11-20.md`: seis dudas (dividir/unir, retirar pago parcial y anular cobro, `NotAllowedAsInvitation`, cambio de mesa, `GetOrder` de facturada, `Type=2`), cinco hechos ya comprobados y el fallo de facturación con líneas de 0 uds. Copia a `guillermo.autoia@gmail.com`. Falta la dirección de soporte y enviarlo. Hecho = correo enviado y respuestas registradas.
 - [ ] `28AA-3` — **Dejar un entorno de pruebas para Guillermo.** `rest-dev.wandori.us` está abierto sin franja: `bdp_sync_mode = automatic` con las siete categorías activas y un snapshot completo del 16/11 como red de seguridad (manual en `Agente/documentacion/bdp/entorno-pruebas-2026-10-31.md`). El TPV arranca solo al iniciar sesión (`bdp-tpv-arranque.vbs` en la carpeta Inicio, espera 90 s); el túnel `-R 8071` lo supervisa el workspace-manager. Falta: comprobar que el TPV entra sin login manual; el aviso de que puede entrar cuando quiera ya salió el 16/11.
 - [ ] `28AA-4` — **Cerrar los huecos del plan de Guillermo.** Etapa 0 resuelta el 03/11/2026 (Tailscale ya conecta producción con el BDP del restaurante); el cuestionario del restaurante (apartado 3 del plan) lo recoge Guillermo.
 
