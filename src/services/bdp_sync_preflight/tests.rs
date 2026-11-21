@@ -10,7 +10,9 @@ use super::{BdpDryRunArticle, BdpSyncDryRunResponse, BdpSyncPreflightService};
 use crate::models::ConfiguracionRestaurante;
 use crate::services::bdp_weblink::BdpWeblinkClient;
 
-fn config() -> ConfiguracionRestaurante {
+/* [21AB-4] `pub(super)` para que los tests de `configuracion` reutilicen esta
+ * ficha en vez de duplicar cien campos. */
+pub(super) fn config() -> ConfiguracionRestaurante {
     ConfiguracionRestaurante {
         id: Uuid::new_v4(),
         user_id: Uuid::new_v4(),
