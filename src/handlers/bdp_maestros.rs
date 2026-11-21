@@ -21,7 +21,7 @@ use crate::services::bdp_weblink_catalog::BdpGetEmployeesRequest;
 use crate::services::{BdpWeblinkClient, ConfiguracionService};
 use crate::AppState;
 
-use super::bdp_guard::exigir_modo_bdp;
+use super::bdp_guard::{exigir_etapa_lectura, exigir_modo_bdp};
 
 pub fn routes() -> Router<AppState> {
     Router::new().route("/bdp/maestros", get(listar_maestros))
@@ -129,6 +129,8 @@ pub async fn listar_maestros(
     auth: AuthUser,
 ) -> Result<Json<MaestrosBdp>, AppError> {
     exigir_modo_bdp(&state, auth.user_id).await?;
+    /* [21AB-5] Consultar el TPV es una lectura: sin la etapa, no se pregunta. */
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {

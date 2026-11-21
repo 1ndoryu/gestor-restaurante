@@ -38,6 +38,15 @@ impl BdpOrderPollerService {
             if ServicioModoOperacion::modo_efectivo_desde_config(&config) != ModoEfectivo::Bdp {
                 continue;
             }
+            /* [21AB-5] Etapa `lectura` apagada: el sondeo es la lectura
+             * periódica de la web, así que no se pregunta nada al TPV. Se
+             * desbloquea en cuanto se enciende la etapa. */
+            if !crate::services::etapa_activa(pool, config.user_id, "lectura")
+                .await
+                .unwrap_or(false)
+            {
+                continue;
+            }
             let claimed: Option<uuid::Uuid> = sqlx::query_scalar(
                 r"INSERT INTO bdp_poll_schedule (user_id, next_poll_at, updated_at)
                    VALUES ($1, NOW() + ($2 * INTERVAL '1 second'), NOW())

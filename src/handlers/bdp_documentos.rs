@@ -23,7 +23,7 @@ use crate::services::bdp_documentos_venta::{self, ResultadoDocumentos};
 use crate::services::ConfiguracionService;
 use crate::AppState;
 
-use super::bdp_guard::exigir_modo_bdp;
+use super::bdp_guard::{exigir_etapa_lectura, exigir_modo_bdp};
 use super::rate_limit::{limitador_escrituras, limitar};
 
 /// Tope de filas por consulta: la pantalla muestra lo reciente, no el histórico.
@@ -93,6 +93,8 @@ pub async fn sincronizar(
 ) -> Result<Json<RespuestaSincronizacion>, AppError> {
     auth.require_role(&[UserRole::Admin])?;
     exigir_modo_bdp(&state, auth.user_id).await?;
+    /* [21AB-5] Consultar el TPV es una lectura: sin la etapa, no se pregunta. */
+    exigir_etapa_lectura(&state, auth.user_id).await?;
 
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
     /* Sin perfil en el cuerpo se usa el configurado. Si tampoco lo hay, se pide

@@ -13,7 +13,7 @@ use crate::repositories::ClienteRepository;
 use crate::services::{BdpExportCustomersRequest, BdpWeblinkClient, ConfiguracionService};
 use crate::AppState;
 
-use super::super::bdp_guard::exigir_modo_bdp;
+use super::super::bdp_guard::{exigir_etapa_lectura, exigir_modo_bdp};
 use super::crear_customer::{armar_create_customer, ejecutar_create_customer};
 use super::import::RecuentoImportacion;
 use super::{customer_code, BdpCustomerSyncRequest};
@@ -94,6 +94,8 @@ pub async fn sincronizar_cliente_bdp(
     Json(sync_req): Json<BdpCustomerSyncRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     exigir_modo_bdp(&state, auth.user_id).await?;
+    /* [21AB-5] Consultar el TPV es una lectura: sin la etapa, no se pregunta. */
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     let cliente = ClienteRepository::find_by_id(&state.pool, id, auth.user_id)
         .await
         .map_err(|e| AppError::Internal(format!("Error buscando cliente: {e}")))?

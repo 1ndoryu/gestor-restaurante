@@ -16,7 +16,7 @@ use crate::services::ConfiguracionService;
 use crate::services::{BdpAuditEntry, BdpBackupService, BdpSnapshot, RestoreResult};
 use crate::services::{BdpExploracionResultado, BdpExplorerService};
 
-use super::bdp_guard::exigir_modo_bdp; /* [039A-1/H-P1-03] Guard compartido (N1). */
+use super::bdp_guard::{exigir_etapa_lectura, exigir_modo_bdp}; /* [039A-1/H-P1-03] Guard compartido (N1). */
 use super::rate_limit::{limitador_escrituras, limitar};
 
 pub fn routes() -> Router<crate::handlers::AppState> {
@@ -73,6 +73,8 @@ pub async fn explorar_bdp(
     /* [039A-1/H-P1-03] Explorar BDP hace red real: en modo independiente se
      * rechaza sin tocar red (N1), aunque haya credenciales configuradas. */
     exigir_modo_bdp(&state, auth.user_id).await?;
+    /* [21AB-5] Consultar el TPV es una lectura: sin la etapa, no se pregunta. */
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
@@ -104,6 +106,7 @@ pub async fn departamentos_del_perfil(
     auth: AuthUser,
 ) -> Result<Json<serde_json::Value>, AppError> {
     exigir_modo_bdp(&state, auth.user_id).await?;
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
@@ -181,6 +184,7 @@ pub async fn formas_pago_bdp(
     auth: AuthUser,
 ) -> Result<Json<Vec<FormaPagoBdp>>, AppError> {
     exigir_modo_bdp(&state, auth.user_id).await?;
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
@@ -233,6 +237,7 @@ pub async fn snapshot_completo(
     /* [039A-1/H-P1-03] El snapshot "completo" descarga de BDP (red real):
      * en modo independiente se rechaza sin tocar red (N1). */
     exigir_modo_bdp(&state, auth.user_id).await?;
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {

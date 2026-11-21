@@ -15,7 +15,7 @@ use crate::services::{
 };
 use crate::AppState;
 
-use super::super::bdp_guard::exigir_modo_bdp; /* [039A-1] Guard compartido (N1). */
+use super::super::bdp_guard::{exigir_etapa_lectura, exigir_modo_bdp}; /* [039A-1] Guard compartido (N1). */
 use super::crear_customer::split_name;
 use super::sincronizar::sincronizar_existente;
 use super::{customer_code, BdpCustomerImportRequest};
@@ -44,6 +44,8 @@ pub async fn importar_clientes_bdp(
     Json(req): Json<BdpCustomerImportRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     exigir_modo_bdp(&state, auth.user_id).await?;
+    /* [21AB-5] Consultar el TPV es una lectura: sin la etapa, no se pregunta. */
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     if req.aplicar && req.confirmacion.as_deref() != Some("IMPORTAR CLIENTES BDP") {
         return Err(AppError::Validation(
             "Aplicación bloqueada: escriba exactamente IMPORTAR CLIENTES BDP. No se modificó Glory ni BDP."

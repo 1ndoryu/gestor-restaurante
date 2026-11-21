@@ -1,6 +1,7 @@
 /* Sincronización BDP → Glory: catálogo, precios, mesas y definiciones de menús.
  * Parte de bdp_article_map (ver mod.rs). */
 
+use super::super::bdp_guard::exigir_etapa_lectura;
 use super::{
     exigir_modo_bdp, verificar_permiso, AccionPermiso, AppError, AppState, AuthUser,
     BdpCatalogSyncResult, BdpGetFastfoodRequest, BdpGetMenuRequest, BdpGetPackRequest,
@@ -30,6 +31,8 @@ pub async fn sync_catalog(
      * importar_catalogo). */
     verificar_permiso(&state.pool, AccionPermiso::CatalogoEdicion, &auth).await?;
     exigir_modo_bdp(&state, auth.user_id).await?;
+    /* [21AB-5] Consultar el TPV es una lectura: sin la etapa, no se pregunta. */
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
@@ -95,6 +98,7 @@ pub async fn sync_stock_almacen(
      * de catálogo que el resto de syncs. */
     verificar_permiso(&state.pool, AccionPermiso::CatalogoEdicion, &auth).await?;
     exigir_modo_bdp(&state, auth.user_id).await?;
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {
@@ -146,6 +150,7 @@ pub(super) async fn sync_prices(
      * edición de catálogo. */
     verificar_permiso(&state.pool, AccionPermiso::CatalogoEdicion, &auth).await?;
     exigir_modo_bdp(&state, auth.user_id).await?;
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
         .await
         .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
@@ -192,6 +197,7 @@ pub(super) async fn sync_tables(
      * Admin (sin AccionPermiso de plano; mismo patrón que bdp_push). */
     auth.require_role(&[UserRole::Admin])?;
     exigir_modo_bdp(&state, auth.user_id).await?;
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     if req.aplicar && req.confirmacion.as_deref() != Some("IMPORTAR MESAS BDP") {
         return Err(AppError::Validation(
             "Aplicación bloqueada: escriba exactamente IMPORTAR MESAS BDP. No se realizaron cambios."
@@ -254,6 +260,7 @@ pub(super) async fn get_menu_definition(
     Path(id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     exigir_modo_bdp(&state, auth.user_id).await?;
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
         .await
         .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
@@ -297,6 +304,7 @@ pub(super) async fn get_fastfood_definition(
     Path(id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     exigir_modo_bdp(&state, auth.user_id).await?;
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
         .await
         .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;
@@ -340,6 +348,7 @@ pub(super) async fn get_pack_definition(
     Path(id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     exigir_modo_bdp(&state, auth.user_id).await?;
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id)
         .await
         .map_err(|e| AppError::Internal(format!("Error obteniendo configuración: {e}")))?;

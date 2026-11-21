@@ -1,6 +1,7 @@
 /* Mapeos de artículos BDP: listado, CRUD e importación del catálogo.
  * Parte de bdp_article_map (ver mod.rs). */
 
+use super::super::bdp_guard::exigir_etapa_lectura;
 use super::{
     exigir_modo_bdp, payload_crear_articulo, payload_modificar_articulo, respuesta_cacheable,
     verificar_permiso, AccionPermiso, ActualizarBdpArticleMapRequest, AppError, AppState, AuthUser,
@@ -195,6 +196,8 @@ pub async fn importar_catalogo(
      * catálogo (default solo Admin, delegable por el dueño). */
     verificar_permiso(&state.pool, AccionPermiso::CatalogoEdicion, &auth).await?;
     exigir_modo_bdp(&state, auth.user_id).await?;
+    /* [21AB-5] Consultar el TPV es una lectura: sin la etapa, no se pregunta. */
+    exigir_etapa_lectura(&state, auth.user_id).await?;
     let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
 
     if config.bdp_base_url.is_empty() || config.bdp_login.is_empty() {

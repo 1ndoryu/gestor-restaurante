@@ -65,6 +65,13 @@ pub async fn sincronizar_vencidas(pool: &PgPool, modo: &ServicioModoOperacion) -
         ) {
             continue;
         }
+        /* [21AB-5] La importación automática de maestros es una lectura más. */
+        if !crate::services::etapa_activa(pool, user_id, "lectura")
+            .await
+            .unwrap_or(false)
+        {
+            continue;
+        }
         /* El turno se reclama antes de leer: si dos instancias coinciden, solo
          * una llama a BDP y la otra pasa de largo. */
         match reclamar(pool, user_id).await {

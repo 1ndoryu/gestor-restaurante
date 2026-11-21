@@ -341,6 +341,13 @@ pub async fn sincronizar_vencidas(
         ) {
             continue;
         }
+        /* [21AB-5] Importar pagos de empleados lee del TPV: etapa `lectura`. */
+        if !crate::services::etapa_activa(pool, user_id, "lectura")
+            .await
+            .unwrap_or(false)
+        {
+            continue;
+        }
         if !matches!(reclamar(pool, user_id, maestro).await, Ok(true)) {
             continue;
         }

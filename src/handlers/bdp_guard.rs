@@ -23,3 +23,19 @@ pub async fn exigir_modo_bdp(state: &AppState, user_id: Uuid) -> Result<(), AppE
     }
     Ok(())
 }
+
+/* [21AB-5] Etapa `lectura`: la web no pregunta nada al TPV mientras esté
+ * apagada. Va aparte de `exigir_modo_bdp` porque no todos los handlers que
+ * tocan BDP son lecturas (los de configuración y los permisos no lo son), y
+ * porque apagar la etapa no debe dejar la pantalla sin abrir. */
+pub async fn exigir_etapa_lectura(state: &AppState, user_id: Uuid) -> Result<(), AppError> {
+    let activa = crate::services::etapa_activa(&state.pool, user_id, "lectura")
+        .await
+        .map_err(AppError::Internal)?;
+    if !activa {
+        return Err(AppError::Validation(
+            "La etapa de lectura de BDP está apagada: enciéndala en Configuración → BDP para consultar el TPV.".into(),
+        ));
+    }
+    Ok(())
+}

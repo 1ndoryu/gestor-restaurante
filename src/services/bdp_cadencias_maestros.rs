@@ -207,6 +207,13 @@ pub async fn sincronizar_vencidas(
         ) {
             continue;
         }
+        /* [21AB-5] Leer maestros del TPV es una lectura: sin la etapa, no. */
+        if !crate::services::etapa_activa(pool, user_id, "lectura")
+            .await
+            .unwrap_or(false)
+        {
+            continue;
+        }
         match reclamar(pool, user_id, maestro).await {
             Ok(true) => {}
             Ok(false) => continue,
