@@ -1,90 +1,61 @@
 BORRADOR — mensaje a Guillermo, 2026-11-21 (sin enviar)
-Detalle completo: Agente/documentacion/bdp/resultados-seis-puntos-2026-11-21.md
+Detalle completo en el PDF: seis-puntos-2026-11-21.pdf
 
 Hola Guillermo,
 
-Ya están hechos los seis puntos, probados contra el TPV demo (36.2), con el detalle
-escrito por si quieres mirarlo. Te resumo qué queda listo para el piloto y qué sigue
-esperando a BDP.
+Los seis puntos están hechos y probados contra el TPV demo (36.2). Te resumo; el detalle
+completo va en el PDF adjunto.
 
-*1. Pruebas de pagos — listo.*
-Dos solicitudes simultáneas del mismo pago registran *un solo cobro*. La respuesta
-perdida también está cubierta: si BDP acepta el pago y la web no llega a leer la
-respuesta, al recuperarse lo detecta con `GetOrder` y no reenvía nada. Y cada comanda
-admite como máximo *tres pagos*; el cuarto se rechaza sin escribir. Las tres cosas
-tienen prueba automática.
+*1. Pagos — listo.* Dos solicitudes simultáneas del mismo pago registran un solo cobro.
+Si BDP acepta y la web pierde la respuesta, al recuperarse lo detecta con `GetOrder` y no
+reenvía. Tope de tres pagos por comanda; el cuarto se rechaza. Las tres cosas con prueba
+automática.
 
-Un aviso que te interesa: repetir el mismo `PaymentId` *sí cobra dos veces* — lo
-comprobamos el 18 y BDP no lo deduplica. Por nuestra parte cada intento lleva su propio
-identificador y no puede pasar; si algún día otro sistema escribe cobros, el riesgo es
-suyo.
+*2. Unidades cero — listo.* El bloqueo está en el servidor: creación, modificación,
+comentarios y reintentos. Una prueba automática garantiza que nunca sale `Units=0`.
 
-*2. Unidades cero — listo.*
-El bloqueo está en el servidor, no en la pantalla: creación, modificación, comentarios
-y reintentos de la cola. Hay una prueba automática que garantiza que no sale ni un
-payload con `Units=0` por ninguna vía.
+*3. Flujo normal — listo, con tres cosas a decidir.* Crear y cobrar (155), añadir, quitar
+y modificar (156), descuento e invitación (157), cobro en dos formas (2,00 tarjeta + 2,50
+efectivo), ticket `00001TB00000065`, cancelar sin pagos (156) y apagar el TPV (159).
 
-*3. Regresión del flujo normal — listo, con tres cosas a decidir.*
-Creamos y cobramos una comanda (155), añadimos, quitamos y modificamos productos (156),
-aplicamos descuento e invitación (157), cobramos en dos veces con formas distintas
-(2,00 tarjeta + 2,50 efectivo), emitimos el ticket `00001TB00000065`, cancelamos una
-comanda sin pagos (156) y apagamos el TPV para comprobar la recuperación (159).
+En esa última prueba salió un fallo real, ya corregido: si el TPV estaba caído al crear la
+comanda, la venta quedaba como error definitivo y no se recuperaba nunca. Ahora se queda
+pendiente y se reenvía sola al volver el TPV; lo vimos en vivo con la comanda 159.
 
-En esa última prueba encontramos un fallo de verdad y está corregido: si el TPV estaba
-caído al crear la comanda, la venta se marcaba como error definitivo y *no se
-recuperaba nunca*. Ahora se queda pendiente y se reenvía sola cuando el TPV vuelve;
-lo vimos en vivo, con la comanda 159 entrando sin que nadie tocara nada.
+Los tres huecos, ninguno bloquea el piloto:
+   - *Cobro parcial:* la web calculaba el pendiente sobre base + IVA y no sobre el total
+     que aceptó BDP, así que tras cobrar todo seguía mostrando 0,45 €. En un restaurante
+     real eso lleva a cobrar de más. Es el importante.
+   - *Comentarios de línea:* la web no tiene campo de comentario por producto. BDP sí.
+   - *Invitación:* la línea invitada llega al ticket con el artículo por defecto. El
+     importe es 0, pero el nombre no cuadra.
 
-Quedan tres huecos, ninguno bloquea el piloto:
-   - *Cobro parcial:* al terminar de cobrar, la web seguía mostrando 0,45 € pendientes,
-     porque calcula el pendiente sobre base + IVA y no sobre el total que aceptó BDP. En
-     un restaurante real eso lleva a cobrar de más. Es el más importante de los tres.
-   - *Comentarios de línea:* la web no tiene campo de comentario por producto, así que
-     «cambiar comentarios» no se puede hacer desde ella. BDP sí los admite.
-   - *Invitación:* la línea invitada llega al ticket con el artículo por defecto en vez
-     del que se pidió. El importe es 0, que es lo que importa, pero el nombre no cuadra.
+*4. Configuración de producción — preparada.* Los cinco checks dan 18 de 18 en verde
+contra el demo, y ninguno da por bueno un valor por estar escrito: lo busca en una lista
+real del TPV. Sin códigos inventados. Para los valores del restaurante hay que pasar el
+diagnóstico desde `restaurante.wandori.us` y rellenar lo que marque (el cliente por
+defecto, por ejemplo, en el demo pasa con aviso porque no hay ninguno).
 
-Detalle operativo: si se modifican líneas muy seguidas, BDP responde «throttled» y la
-web conserva el estado del TPV y avisa. Es correcto, pero un camarero rápido lo verá.
+*5. Despliegue por etapas — listo.* Se encienden por separado lectura, comandas,
+modificaciones, descuentos, pagos y tickets, más el registro de actividad. Volver a «solo
+lectura» es inmediato y corta las escrituras en el servidor.
 
-*4. Configuración de producción — preparada, falta el TPV real.*
-Los cinco checks (perfil de artículos, IVA, perfil de documentos, cliente por defecto y
-tarifa) están desplegados y dan *18 de 18 en verde* contra el demo. Ninguno da por bueno
-un valor por estar escrito: cada uno lo busca en una lista real del TPV. *No hay ningún
-código inventado.* Para los valores del restaurante hay que pasar el diagnóstico desde
-`restaurante.wandori.us`, que es el único sitio con ruta a su BDP, y rellenar lo que
-marque. Ojo: en el demo el cliente por defecto pasa con aviso porque no hay ninguno; en
-el restaurante sí hay que ponerlo.
+*6. Pendientes de BDP.* Un matiz, porque no son lo mismo: los pedidos `Type=2` sí existen
+en la web, deshabilitados con «pendiente de BDP», y el servidor los rechaza antes de tocar
+la red. Cambio de mesa, dividir y unir, retirar pagos parciales y devoluciones después del
+ticket no existen en la web: no hay botón ni endpoint que pueda escribir por esas vías,
+así que no hay nada que desactivar. Se construirán con lo que responda BDP.
 
-*5. Despliegue por etapas — listo.*
-Se encienden por separado lectura, comandas, modificaciones, descuentos, pagos y
-tickets, más el registro de actividad. Volver a «solo lectura» es inmediato y corta las
-escrituras en el servidor, no solo en la pantalla.
+De momento no hay ninguna escritura automática conectada con el restaurante y no considero
+la integración terminada.
 
-*6. Funciones pendientes de BDP.*
-Aquí te matizo una cosa, porque no es lo mismo en los cinco casos:
-   - *Pedidos `Type=2`:* la opción existe en la web, deshabilitada con «pendiente de
-     BDP», y el servidor rechaza el envío antes de tocar la red aunque alguien lo
-     intente por API.
-   - *Cambio de mesa, dividir y unir comandas, retirar pagos parciales, devoluciones o
-     anulaciones después del ticket:* *no existen en la web*. No hay botón ni endpoint
-     que pueda escribir en BDP por esas vías, así que no hay nada que desactivar;
-     devoluciones y rectificaciones figuran además entre las operaciones que BDP no
-     expone por API y se hacen en su TPV. Cuando BDP responda, se construyen con lo que
-     diga.
+*Sobre los siguientes pasos.* La fase D se nos ha alargado un poco más de lo previsto:
+cada prueba contra el TPV real saca matices que solo se ven funcionando, y eso es bueno,
+pero lleva su tiempo. Por eso te adelanto que las próximas correcciones o mejoras que
+salgan de aquí o de la respuesta de BDP podrían llevar un coste aparte. No es una cifra
+que te pueda dar hoy, porque depende de lo que pida cada una. En cuanto BDP conteste te
+paso el alcance y el importe por escrito, y no empezamos nada sin tu OK.
 
-De momento *no hay ninguna escritura automática conectada con el restaurante* y no
-considero la integración terminada.
-
-*Una cosa de planificación.* La fase D se ha extendido un poco más de lo previsto,
-porque cada prueba contra el TPV real saca matices que sólo se ven en marcha. Por eso,
-y para que no haya sorpresas, las próximas correcciones o mejoras que salgan de estas
-pruebas o de la respuesta de BDP pueden llevar un coste adicional. Lo digo con
-transparencia: ahora mismo es difícil acotar el alcance, porque depende de la
-complejidad de cada una y del tiempo que lleve; en cuanto tengamos la respuesta de BDP
-te paso una estimación por escrito antes de empezar, y nada se hace sin tu visto bueno.
-
-En resumen: los puntos 1, 2, 3 y 5 están listos para el piloto; el 4 está preparado y
-sólo espera los valores reales; y del 6, lo único que podía escribir ya está cortado en
-el servidor. Si te parece, cuando BDP conteste hacemos la vuelta contra su TPV y
-cerramos los tres huecos del punto 3.
+Resumen: puntos 1, 2, 3 y 5 listos para el piloto; el 4 preparado y esperando los valores
+reales; del 6, lo único que podía escribir ya está cortado. Cuando BDP conteste hacemos la
+vuelta contra su TPV y cerramos los tres huecos del punto 3.
