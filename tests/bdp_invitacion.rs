@@ -65,6 +65,7 @@ fn linea(codigo: &str, descripcion: &str, invitada: bool) -> CrearVentaLineaRequ
         iva_pct: Some(Decimal::from_str("10.00").expect("iva")),
         descuento: Some(Decimal::ZERO),
         invitacion: Some(invitada),
+        comentario: None,
     }
 }
 

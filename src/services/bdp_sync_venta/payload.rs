@@ -161,6 +161,15 @@ impl BdpSyncService {
                     .and_then(|ids| ids.get(i))
                     .copied()
                     .unwrap_or(article.id);
+                /* [21AB-3c] El comentario de la línea viaja en `Comments[]`, como
+                 * lo probó BDP el 18/11 ({Id: 0, Name: "SIN HIELO", Units: 1}).
+                 * Vacío = sin comentario; el array va vacío como hasta ahora. */
+                let comentario = linea.comentario.trim();
+                let comments = if comentario.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![json!({"Id": 0, "Name": comentario, "Units": 1})]
+                };
                 json!({
                     "Lin": (i + 1) as i32,
                     "Id": line_article_id,
@@ -173,7 +182,7 @@ impl BdpSyncService {
                     "Total": linea_total,
                     "Invitation": linea.invitacion,
                     "VatPct": Self::decimal_to_f64(&linea.iva_pct),
-                    "Comments": [],
+                    "Comments": comments,
                     "Supplements": [],
                     "OrderItemType": 0,
                     "OrderItemTypeMetaInfo": "",
@@ -315,8 +324,31 @@ mod tests {
             iva_pct: Decimal::from(10),
             descuento,
             invitacion,
+            comentario: String::new(),
             created_at: Utc::now(),
         }
+    }
+
+    /* [21AB-3c] El comentario de la línea viaja como `Comments[]` del ítem, con
+     * la forma que BDP aceptó el 18/11; vacío se queda en array vacío. */
+    #[test]
+    fn el_comentario_de_linea_viaja_como_comments() {
+        let article = ResolvedArticle {
+            id: 1001,
+            name: "COCA-COLA".into(),
+            price: 1.05,
+            vat_pct: 10.0,
+        };
+        let mut con_texto = linea(Decimal::ZERO, false);
+        con_texto.comentario = "  SIN HIELO  ".into();
+        let sin_texto = linea(Decimal::ZERO, false);
+
+        let items = BdpSyncService::items_de_lineas(&[con_texto, sin_texto], None, &article);
+        assert_eq!(
+            items[0]["Comments"],
+            serde_json::json!([{"Id": 0, "Name": "SIN HIELO", "Units": 1}])
+        );
+        assert_eq!(items[1]["Comments"], serde_json::json!([]));
     }
 
     /* [21AB-5] La etapa `descuentos` apagada solo corta lo que de verdad lleva

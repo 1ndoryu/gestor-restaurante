@@ -38,6 +38,7 @@ fn linea(descripcion: &str, cantidad: &str) -> CrearVentaLineaRequest {
         iva_pct: Some(Decimal::from(10)),
         descuento: None,
         invitacion: None,
+        comentario: None,
     }
 }
 

@@ -22,6 +22,9 @@ pub struct VentaLinea {
     pub descuento: rust_decimal::Decimal,
     /* [18AB-4] Línea marcada como invitación (precio 0 ante el cliente). */
     pub invitacion: bool,
+    /* [21AB-3c] Comentario de la línea («sin hielo»); vacío = sin comentario.
+     * Viaja al TPV como `Comments[]` del ítem. */
+    pub comentario: String,
     pub created_at: DateTime<Utc>,
 }
 
@@ -46,4 +49,10 @@ pub struct CrearVentaLineaRequest {
      * en el ítem BDP y la web la rechaza si el artículo no lo permite. */
     #[serde(default)]
     pub invitacion: Option<bool>,
+    /* [21AB-3c] Comentario para el TPV («sin hielo», «poco hecho»). BDP no
+     * sabe reescribir el comentario de una línea ya enviada: la modificación
+     * lo resuelve con contrapartida + alta (doc 20/11). */
+    #[validate(length(max = 200, message = "Comentario demasiado largo (max 200)"))]
+    #[serde(default)]
+    pub comentario: Option<String>,
 }

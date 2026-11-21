@@ -61,6 +61,7 @@ fn linea_req(codigo: &str, desc: &str, qty: &str, price: &str) -> CrearVentaLine
         iva_pct: Some(Decimal::from(10)),
         descuento: Some(Decimal::ZERO),
         invitacion: None,
+        comentario: None,
     }
 }
 
@@ -114,6 +115,7 @@ async fn test_crear_batch_con_descuento(pool: PgPool) {
         iva_pct: Some(Decimal::from(10)),
         descuento: Some(Decimal::from_str("4.00").unwrap()),
         invitacion: None,
+        comentario: None,
     }];
 
     let created = VentaLineaRepository::crear_batch(&pool, venta_id, &lineas)
@@ -126,6 +128,32 @@ async fn test_crear_batch_con_descuento(pool: PgPool) {
         created[0].precio_unitario,
         Decimal::from_str("12.00").unwrap()
     );
+}
+
+/* [21AB-3c] El comentario se guarda con la línea y vuelve al listar; el
+ * espacio sobrante se recorta y `None` queda como texto vacío. */
+#[sqlx::test(migrations = "./migrations")]
+async fn test_crear_batch_guarda_el_comentario(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    let venta_id = create_test_venta(&pool, user_id).await;
+
+    let mut con_texto = linea_req("1001", "Coca-Cola", "1", "1.05");
+    con_texto.comentario = Some("  SIN HIELO  ".into());
+    let mut sin_texto = linea_req("1002", "Schweppes", "1", "1.20");
+    sin_texto.comentario = None;
+
+    let created = VentaLineaRepository::crear_batch(&pool, venta_id, &[con_texto, sin_texto])
+        .await
+        .expect("crear_batch should succeed");
+
+    assert_eq!(created[0].comentario, "SIN HIELO");
+    assert_eq!(created[1].comentario, "");
+
+    let listed = VentaLineaRepository::listar_por_venta(&pool, venta_id)
+        .await
+        .expect("listar_por_venta should succeed");
+    assert_eq!(listed[0].comentario, "SIN HIELO");
+    assert_eq!(listed[1].comentario, "");
 }
 
 /* ── crear_batch vacío ───────────────────────────────────────── */

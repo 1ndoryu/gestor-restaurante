@@ -306,6 +306,7 @@ mod tests {
                 iva_pct: Decimal::from_str("10.0").unwrap(),
                 descuento: Decimal::from_str("0.00").unwrap(),
                 invitacion: false,
+                comentario: String::new(),
                 created_at: Utc::now(),
             },
             VentaLinea {
@@ -318,6 +319,7 @@ mod tests {
                 iva_pct: Decimal::from_str("10.0").unwrap(),
                 descuento: Decimal::from_str("0.50").unwrap(),
                 invitacion: false,
+                comentario: String::new(),
                 created_at: Utc::now(),
             },
         ];
@@ -782,6 +784,7 @@ mod tests {
             iva_pct: Decimal::from_str("10.0").unwrap(),
             descuento: Decimal::ZERO,
             invitacion: false,
+            comentario: String::new(),
             created_at: Utc::now(),
         };
         let lineas = [linea];
@@ -950,6 +953,7 @@ mod tests {
             iva_pct: Decimal::from_str("10.0").unwrap(),
             descuento: Decimal::from_str("0.00").unwrap(),
             invitacion: false,
+            comentario: String::new(),
             created_at: Utc::now(),
         }];
 
@@ -994,6 +998,7 @@ mod tests {
                 iva_pct: Decimal::from_str("10.0").unwrap(),
                 descuento: Decimal::from_str("0.00").unwrap(),
                 invitacion: false,
+                comentario: String::new(),
                 created_at: Utc::now(),
             },
             VentaLinea {
@@ -1006,6 +1011,7 @@ mod tests {
                 iva_pct: Decimal::from_str("10.0").unwrap(),
                 descuento: Decimal::from_str("0.50").unwrap(),
                 invitacion: false,
+                comentario: String::new(),
                 created_at: Utc::now(),
             },
             VentaLinea {
@@ -1018,6 +1024,7 @@ mod tests {
                 iva_pct: Decimal::from_str("10.0").unwrap(),
                 descuento: Decimal::from_str("0.00").unwrap(),
                 invitacion: false,
+                comentario: String::new(),
                 created_at: Utc::now(),
             },
         ];
@@ -1071,6 +1078,7 @@ mod tests {
             iva_pct: Decimal::from_str("10.0").unwrap(),
             descuento: Decimal::from_str("4.00").unwrap(),
             invitacion: false,
+            comentario: String::new(),
             created_at: Utc::now(),
         }];
 
@@ -1112,6 +1120,7 @@ mod tests {
             iva_pct: Decimal::from_str("10.0").unwrap(),
             descuento: Decimal::ZERO,
             invitacion: true,
+            comentario: String::new(),
             created_at: Utc::now(),
         };
         let mut lineas = vec![linea.clone()];
@@ -1165,6 +1174,7 @@ mod tests {
             iva_pct: Decimal::from_str("10.0").unwrap(),
             descuento: Decimal::from_str("0.00").unwrap(),
             invitacion: false,
+            comentario: String::new(),
             created_at: Utc::now(),
         }];
 
@@ -1198,6 +1208,7 @@ mod tests {
             iva_pct: Decimal::from_str("10").unwrap(),
             descuento: Decimal::ZERO,
             invitacion: false,
+            comentario: String::new(),
             created_at: Utc::now(),
         }];
         assert!(BdpSyncService::validate_order_lines(&lineas).is_err());
@@ -1217,6 +1228,7 @@ mod tests {
                 iva_pct: Decimal::from_str("10").unwrap(),
                 descuento: Decimal::from_str(discount).unwrap(),
                 invitacion: false,
+                comentario: String::new(),
                 created_at: Utc::now(),
             }];
             assert!(BdpSyncService::validate_order_lines(&lineas).is_err());
@@ -1341,6 +1353,7 @@ mod tests {
             iva_pct: Decimal::from_str("10").unwrap(),
             descuento: Decimal::from_str("2.01").unwrap(),
             invitacion: false,
+            comentario: String::new(),
             created_at: Utc::now(),
         }];
         assert!(BdpSyncService::validate_order_lines(&lineas).is_err());

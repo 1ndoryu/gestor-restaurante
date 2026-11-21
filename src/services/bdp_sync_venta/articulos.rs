@@ -346,6 +346,7 @@ mod tests {
             iva_pct: Decimal::from(10),
             descuento: Decimal::ZERO,
             invitacion: false,
+            comentario: String::new(),
             created_at: Utc::now(),
         };
         let lineas = vec![linea("VIVO"), linea("RETIRADO"), linea("")];

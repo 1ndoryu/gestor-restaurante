@@ -30,14 +30,20 @@ pub(crate) fn delta_lineas(
             /* [18AB-4] La invitación entra en la clave: una línea invitada y
              * otra cobrada del mismo artículo no pueden fundirse en un ajuste,
              * porque BDP las trata distinto (`Invitation` y total 0). */
+            /* [21AB-3c] El comentario entra también en la clave: BDP no sabe
+             * reescribir el de una línea enviada, así que cambiar solo el texto
+             * tiene que salir como contrapartida (con el texto viejo) más alta
+             * (con el nuevo). Es la forma segura probada el 20/11; fundirlas
+             * en un ajuste neto dejaría el comentario viejo en el ticket. */
             let clave = format!(
-                "{}|{}|{}|{}|{}|{}",
+                "{}|{}|{}|{}|{}|{}|{}",
                 linea.articulo_codigo,
                 linea.descripcion,
                 linea.precio_unitario.normalize(),
                 linea.iva_pct.normalize(),
                 linea.descuento.normalize(),
-                linea.invitacion
+                linea.invitacion,
+                linea.comentario.trim()
             );
             let entrada = mapa
                 .entry(clave)
@@ -300,6 +306,7 @@ mod tests {
             iva_pct: Decimal::from(10),
             descuento: Decimal::from_str(descuento).unwrap(),
             invitacion: false,
+            comentario: String::new(),
             created_at: Utc::now(),
         }
     }
@@ -409,6 +416,35 @@ mod tests {
         let antes = [linea("Coca", "1", "1.05", "0.10")];
         let despues = [linea("Coca", "2", "1.05", "0.10")];
         assert!(delta_lineas(&antes, &despues).is_err());
+    }
+
+    /* [21AB-3c] BDP no reescribe el comentario de una línea enviada: cambiar
+     * solo el texto tiene que salir como contrapartida (texto viejo) más alta
+     * (texto nuevo), no como un ajuste neto de cero. */
+    #[test]
+    fn cambiar_solo_el_comentario_es_contrapartida_mas_alta() {
+        let mut antes = linea("Coca", "1", "1.05", "0");
+        antes.comentario = "SIN HIELO".into();
+        let mut despues = antes.clone();
+        despues.comentario = "CON HIELO".into();
+
+        let ajustes = delta_lineas(&[antes], &[despues.clone()]).unwrap();
+        assert_eq!(ajustes.len(), 2, "una contrapartida y una alta");
+        let vieja = ajustes
+            .iter()
+            .find(|l| l.comentario == "SIN HIELO")
+            .expect("contrapartida con el texto viejo");
+        assert_eq!(vieja.cantidad, Decimal::NEGATIVE_ONE);
+        let nueva = ajustes
+            .iter()
+            .find(|l| l.comentario == "CON HIELO")
+            .expect("alta con el texto nuevo");
+        assert_eq!(nueva.cantidad, Decimal::ONE);
+
+        /* Mismo comentario y misma cantidad: no hay nada que enviar. */
+        let mut igual = despues.clone();
+        igual.comentario = "CON HIELO".into();
+        assert!(delta_lineas(&[despues], &[igual]).unwrap().is_empty());
     }
 
     /* [21AB-2] Una línea de 0 uds en un `CreateOrder` de modificación revienta
