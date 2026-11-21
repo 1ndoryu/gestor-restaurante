@@ -175,9 +175,31 @@ impl BdpSyncService {
             {
                 Ok(())
             }
-            Err(error) => Err(OrderSendFailure::Rejected(format!(
-                "No se pudo comprobar si la mesa {mesa} del salón {salon} está libre: {error}"
-            ))),
+            Err(error) => Err(Self::clasificar_fallo_mesa(salon, mesa, &error)),
+        }
+    }
+
+    /* [21AB-3] Fallo al preguntar por la mesa: ¿rechazo o «no se pudo»?
+     * Solo una respuesta de negocio del TPV es rechazo (el operador tiene que
+     * mirarlo). Si la pregunta ni siquiera llegó —TPV apagado, transporte
+     * roto— la comanda no se creó y hay que poder reintentarla: como ambigua
+     * el poller la recupera cuando el TPV vuelva. Antes todo iba a `error`
+     * (permanente) y la venta desaparecía de la cola para siempre. */
+    fn clasificar_fallo_mesa(
+        salon: i32,
+        mesa: i32,
+        error: &crate::services::bdp_weblink::BdpWeblinkError,
+    ) -> OrderSendFailure {
+        use crate::services::bdp_weblink::BdpWeblinkError as E;
+        let texto =
+            format!("No se pudo comprobar si la mesa {mesa} del salón {salon} está libre: {error}");
+        match error {
+            E::Remote(_) | E::NotConfigured | E::InvalidBaseUrl(_) => {
+                OrderSendFailure::Rejected(texto)
+            }
+            E::Http(_) | E::Api { .. } | E::Throttled(_) | E::RespuestaPerdida(_) => {
+                OrderSendFailure::Ambiguous(texto)
+            }
         }
     }
 
@@ -280,5 +302,62 @@ impl BdpSyncService {
             &order_ctx,
         )
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BdpSyncService, OrderSendFailure};
+    use crate::services::bdp_weblink::BdpWeblinkError;
+
+    /* [21AB-3] La prueba real: con el TPV apagado nadie podía reintentar la
+     * comanda porque el fallo de red se anotaba como rechazo permanente. */
+    #[test]
+    fn tpv_apagado_no_es_rechazo_de_negocio() {
+        let fallo = BdpSyncService::clasificar_fallo_mesa(
+            1,
+            4,
+            &BdpWeblinkError::Http("tcp connect error: Connection refused".into()),
+        );
+        assert!(matches!(fallo, OrderSendFailure::Ambiguous(_)));
+        assert!(matches!(
+            BdpSyncService::clasificar_fallo_mesa(1, 4, &BdpWeblinkError::Throttled("x".into())),
+            OrderSendFailure::Ambiguous(_)
+        ));
+        assert!(matches!(
+            BdpSyncService::clasificar_fallo_mesa(
+                1,
+                4,
+                &BdpWeblinkError::Api {
+                    status: 502,
+                    body: "{}".into()
+                }
+            ),
+            OrderSendFailure::Ambiguous(_)
+        ));
+        assert!(matches!(
+            BdpSyncService::clasificar_fallo_mesa(
+                1,
+                4,
+                &BdpWeblinkError::RespuestaPerdida("sin respuesta".into())
+            ),
+            OrderSendFailure::Ambiguous(_)
+        ));
+    }
+
+    /* El TPV vivo que contesta con un error de negocio sí es un rechazo: con
+     * eso el operador tiene que mirar la mesa. */
+    #[test]
+    fn error_de_negocio_del_tpv_sigue_siendo_rechazo() {
+        let fallo = BdpSyncService::clasificar_fallo_mesa(
+            1,
+            4,
+            &BdpWeblinkError::Remote("[300008] salón inválido".into()),
+        );
+        assert!(matches!(fallo, OrderSendFailure::Rejected(_)));
+        assert!(matches!(
+            BdpSyncService::clasificar_fallo_mesa(1, 4, &BdpWeblinkError::NotConfigured),
+            OrderSendFailure::Rejected(_)
+        ));
     }
 }

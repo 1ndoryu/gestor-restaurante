@@ -459,16 +459,16 @@ impl BdpOrderPollerService {
         status: &str,
         resp: &serde_json::Value,
     ) {
-        let Some(total_bdp) = resp
-            .get("Order")
-            .and_then(|o| o.get("Total"))
-            .and_then(serde_json::Value::as_f64)
-        else {
-            return;
-        };
+        /* [21AB-3] Una comanda cerrada ya no se compara: se limpia el aviso que
+         * hubiera. Antes se salía sin limpiarlo y un conflicto transitorio se
+         * quedaba pegado para siempre en una venta cobrada y facturada. */
         if matches!(status, "cancelled" | "invoiced") {
+            let _ = VentaRepository::marcar_bdp_conflicto(pool, venta.id, None).await;
             return;
         }
+        let Some(total_bdp) = Self::total_remoto(resp) else {
+            return;
+        };
         let lineas = VentaLineaRepository::listar_por_venta(pool, venta.id)
             .await
             .unwrap_or_default();
@@ -520,6 +520,19 @@ impl BdpOrderPollerService {
             .ok_or_else(|| "Respuesta BDP contiene Status inválido".to_string())
     }
 
+    /* [21AB-3] Total con el que comparar el conflicto, o `None` si no hay nada
+     * que comparar. `Total` 0 o ausente no es un cambio hecho en el TPV: BDP
+     * devuelve la comanda a medias mientras la crea (21/11/2026, venta
+     * a13ce0f1: aviso «total en BDP 0.00» a los dos segundos de crearla,
+     * comanda correcta y facturada después). Pura para poder probarla sin TPV
+     * ni base de datos. */
+    pub(crate) fn total_remoto(resp: &serde_json::Value) -> Option<f64> {
+        resp.get("Order")
+            .and_then(|o| o.get("Total"))
+            .and_then(serde_json::Value::as_f64)
+            .filter(|total| *total > 0.0)
+    }
+
     /// Mapea el integer de status BDP → string legible almacenado en `bdp_order_status`.
     pub(crate) fn map_status(code: i64) -> String {
         match code {
@@ -532,5 +545,28 @@ impl BdpOrderPollerService {
                 format!("unknown_{other}")
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BdpOrderPollerService;
+
+    /* [21AB-3] Solo se compara un total real: la comanda que BDP devuelve a
+     * medias (Total 0 o sin Total) no es un cambio del TPV. */
+    #[test]
+    fn sin_total_no_hay_nada_que_comparar() {
+        let sin_total = serde_json::json!({"Status": 1, "Order": {"OrderId": 7}});
+        assert_eq!(BdpOrderPollerService::total_remoto(&sin_total), None);
+
+        let cero = serde_json::json!({"Status": 1, "Order": {"OrderId": 7, "Total": 0.0}});
+        assert_eq!(BdpOrderPollerService::total_remoto(&cero), None);
+
+        /* Sin objeto Order no se puede afirmar nada. */
+        let sin_orden = serde_json::json!({"Status": 3, "Order": null});
+        assert_eq!(BdpOrderPollerService::total_remoto(&sin_orden), None);
+
+        let con_total = serde_json::json!({"Status": 1, "Order": {"OrderId": 7, "Total": 5.7}});
+        assert_eq!(BdpOrderPollerService::total_remoto(&con_total), Some(5.7));
     }
 }
