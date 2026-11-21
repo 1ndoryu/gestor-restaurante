@@ -44,6 +44,9 @@ Google Drive en guillechatbots).
   reales: pulpo, calamares, croquetas, jamón, paella, chuletillas, merluza,
   bacalao, postre— se facturaba como una Coca-Cola. Cambiado a `4031 / VARIOS`
   (existe en el BDP del demo y en el catálogo local, precio 0, IVA 10 %).
+  **[Refutado el 20/11]** `4031` no existe en el TPV demo: la exportación real
+  (`/API/Articles/Export`, todos los departamentos) devuelve solo 1001 COCA-COLA
+  y 1002 SCHWEPPES LIMÓN. El valor por defecto se dejó en `1001` (ver `20AB`).
 - Revisión de comandas (el punto 1 de su lista del 02/11): hecho el 05/11.
 - Reintento automático de la cola (su corrección del 05/11): hecho, `Agente/completados/tareas-2026-11-11.md`.
 - Chatbot: funcionando desde el 05/11.
