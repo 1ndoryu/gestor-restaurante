@@ -62,6 +62,25 @@ pub(crate) fn delta_lineas(
     Ok(ajustes)
 }
 
+/* [21AB-2] Nombre de la primera línea que saldría con `Units: 0`, si hay.
+ * Solo el cero: un ajuste negativo es la contrapartida de retirar producto y
+ * BDP la acepta (doc 20/11, ticket 00001TB00000051). Pura para poder probarla
+ * sin TPV: es la última puerta antes del `CreateOrder` de una modificación. */
+pub(crate) fn items_con_cero_uds(items: &[Value]) -> Option<&str> {
+    items
+        .iter()
+        .find(|item| {
+            item.get("Units")
+                .and_then(Value::as_f64)
+                .is_some_and(|units| units == 0.0)
+        })
+        .map(|item| {
+            item.get("Name")
+                .and_then(Value::as_str)
+                .unwrap_or("sin nombre")
+        })
+}
+
 /* [02AB-2] Texto del conflicto cuando el total de BDP no es el que la web
  * conoce (el TPV cambió la comanda); `None` si coinciden. Lo comparten la
  * modificación, el cobro y el sondeo periódico. */
@@ -169,8 +188,19 @@ impl BdpSyncService {
         let article = Self::resolve_article(&client, pool, venta.user_id, config).await;
         let ids = Self::resolve_line_articles(pool, venta.user_id, &ajustes, article.id).await;
         let items = Self::items_de_lineas(&ajustes, Some(&ids), &article);
+        /* [21AB-2] Última puerta antes del HTTP, igual que en el alta: un ajuste
+         * de 0 uds dejaría una línea que BDP no puede facturar (`Units: 0`
+         * revienta el cobro con «Intento de dividir por cero»). `delta_lineas`
+         * ya descarta los deltas nulos, pero la comprobación no depende de eso. */
+        if let Some(malo) = items_con_cero_uds(&items) {
+            return Err(format!(
+                "No se envía la modificación a BDP: una línea queda con 0 unidades ({malo})"
+            ));
+        }
         let total_final = Self::total_pedido(venta, Some(despues));
-        let order_ctx = Self::resolve_order_context(pool, venta, config).await;
+        /* [21AB-6] Mismo corte que en el alta: un canal de domicilio no se
+         * envía a un TPV que no admite `Type=2`. */
+        let order_ctx = Self::resolve_order_context(pool, venta, config).await?;
         let mut pedido_json =
             Self::json_pedido(config, venta, &order_ctx, &items, total_final, false);
         if let Some(mapa) = pedido_json.as_object_mut() {
@@ -372,5 +402,38 @@ mod tests {
         let antes = [linea("Coca", "1", "1.05", "0.10")];
         let despues = [linea("Coca", "2", "1.05", "0.10")];
         assert!(delta_lineas(&antes, &despues).is_err());
+    }
+
+    /* [21AB-2] Una línea de 0 uds en un `CreateOrder` de modificación revienta
+     * el cobro posterior en el TPV con «Intento de dividir por cero». */
+    #[test]
+    fn una_linea_de_cero_uds_se_detecta() {
+        let items = serde_json::json!([
+            { "Name": "COCA-COLA", "Units": 1.0 },
+            { "Name": "SCHWEPPES LIMÓN", "Units": 0.0 }
+        ]);
+        assert_eq!(
+            items_con_cero_uds(items.as_array().expect("array")),
+            Some("SCHWEPPES LIMÓN")
+        );
+    }
+
+    /* Un ajuste negativo es válido: es cómo se quita producto de una comanda. */
+    #[test]
+    fn ajustes_negativos_pasan_la_puerta() {
+        let items = serde_json::json!([
+            { "Name": "COCA-COLA", "Units": -2.0 },
+            { "Name": "SCHWEPPES LIMÓN", "Units": 0.5 }
+        ]);
+        assert_eq!(items_con_cero_uds(items.as_array().expect("array")), None);
+    }
+
+    /* `delta_lineas` no produce 0 uds, pero la puerta tiene que verlo igual. */
+    #[test]
+    fn delta_no_genera_cero_uds() {
+        let antes = [linea("Coca", "2", "1.05", "0")];
+        let despues = [linea("Coca", "2", "1.05", "0")];
+        /* Sin diferencias: no hay ajustes y por tanto no hay línea que enviar. */
+        assert!(delta_lineas(&antes, &despues).unwrap().is_empty());
     }
 }
