@@ -36,6 +36,7 @@ impl BdpSyncPreflightService {
         let client = BdpWeblinkClient::new(config);
         Self::check_health(&client, &mut response).await;
         Self::check_version(&client, &mut response).await;
+        Self::check_configuracion(config, &client, &mut response).await;
 
         let pos = Self::capture(
             &mut response,
@@ -128,6 +129,12 @@ impl BdpSyncPreflightService {
             .await;
         }
 
+        Self::cerrar(&mut response);
+        response
+    }
+
+    /// Veredicto final del preflight: todo verde o la lista de pendientes.
+    fn cerrar(response: &mut BdpSyncDryRunResponse) {
         response.listo_para_sincronizar = response.checks.iter().all(|check| check.ok);
         response.mensaje = if response.listo_para_sincronizar {
             "El simulador aceptó el contrato local; esto no demuestra el comportamiento de un BDP real"
@@ -135,7 +142,6 @@ impl BdpSyncPreflightService {
         } else {
             "BDP aun tiene checks pendientes antes de activar escrituras reales".to_string()
         };
-        response
     }
 
     async fn check_health(client: &BdpWeblinkClient<'_>, response: &mut BdpSyncDryRunResponse) {
