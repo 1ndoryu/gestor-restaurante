@@ -36,7 +36,74 @@ impl BdpSyncPreflightService {
         Self::check_tav_map(config, client, response).await;
         Self::check_documentos_perfil(config, client, response).await;
         Self::check_default_customer(config, client, response).await;
+        Self::check_default_article(config, client, response).await;
         Self::check_catalog_price_type(config, client, response).await;
+    }
+
+    /// [21AB-3] Articulo por defecto: es el que viaja en las lineas que no
+    /// resuelven mapeo (y en el fallback legacy). Hasta ahora solo se exigia
+    /// que fuera numerico al guardarlo, asi que un codigo inventado pasaba la
+    /// configuracion y solo fallaba al crear la comanda, en el TPV. Se
+    /// pregunta a BDP por el, igual que al cliente por defecto.
+    pub(super) async fn check_default_article(
+        config: &ConfiguracionRestaurante,
+        client: &BdpWeblinkClient<'_>,
+        response: &mut BdpSyncDryRunResponse,
+    ) {
+        const ENDPOINT: &str = "/API/Articles/Get";
+        let codigo = config.bdp_default_article_code.trim();
+        if codigo.is_empty() {
+            response.checks.push(BdpSyncDryRunCheck::error(
+                "Articulo por defecto",
+                "bdp_default_article_code",
+                "Sin articulo por defecto: las lineas sin mapeo no tienen a que resolverse",
+            ));
+            return;
+        }
+        let Ok(esperado) = codigo.parse::<i64>() else {
+            response.checks.push(BdpSyncDryRunCheck::error(
+                "Articulo por defecto",
+                "bdp_default_article_code",
+                format!("'{codigo}' no es un codigo de articulo numerico de BDP"),
+            ));
+            return;
+        };
+
+        let check = match client
+            .get_article(
+                &crate::services::bdp_weblink_catalog::BdpGetArticleRequest { art_code: esperado },
+            )
+            .await
+        {
+            Ok(valor) => {
+                /* BDP responde con `ArticleData` o con los campos en la raiz,
+                 * segun version; el nombre se lee de cualquiera de los dos. */
+                let articulo = valor.get("ArticleData").unwrap_or(&valor);
+                match articulo.get("ArtDescription").and_then(Value::as_str) {
+                    Some(nombre) => BdpSyncDryRunCheck::ok(
+                        "Articulo por defecto",
+                        ENDPOINT,
+                        format!("El articulo por defecto existe en el TPV: {nombre}"),
+                        Some(1),
+                        Some(esperado.to_string()),
+                    ),
+                    /* Sin descripcion no se puede afirmar que exista: puede ser
+                     * una respuesta vacia del TPV, y darlo por bueno es justo lo
+                     * que no queremos. */
+                    None => BdpSyncDryRunCheck::error(
+                        "Articulo por defecto",
+                        ENDPOINT,
+                        format!("El articulo {esperado} no devolvio descripcion del TPV"),
+                    ),
+                }
+            }
+            Err(error) => BdpSyncDryRunCheck::error(
+                "Articulo por defecto",
+                ENDPOINT,
+                format!("El articulo {esperado} no aparece en el TPV: {error}"),
+            ),
+        };
+        response.checks.push(check);
     }
 
     /// [21AB-4] El perfil de articulos es la lista que BDP resuelve en
@@ -630,6 +697,61 @@ mod tests {
         let client = BdpWeblinkClient::new(&otro);
         let mut response = BdpSyncDryRunResponse::new(true);
         BdpSyncPreflightService::check_default_customer(&otro, &client, &mut response).await;
+        assert!(!response.checks.last().unwrap().ok);
+    }
+
+    /* [21AB-3] Articulo por defecto: hasta ahora un codigo inventado pasaba la
+     * configuracion y solo fallaba al crear la comanda, en el TPV. */
+    #[tokio::test]
+    async fn articulo_por_defecto_se_busca_en_el_tpv() {
+        let server = MockServer::start().await;
+        login_en(&server).await;
+        Mock::given(method("POST"))
+            .and(path("/API/Articles/Get"))
+            .respond_with(|req: &wiremock::Request| {
+                let cuerpo: Value = serde_json::from_slice(&req.body).unwrap_or(Value::Null);
+                let codigo = cuerpo.get("ArtCode").and_then(Value::as_i64).unwrap_or(0);
+                if codigo == 1001 {
+                    ResponseTemplate::new(200).set_body_json(json!({
+                        "ErrorMessage": "",
+                        "ArticleData": {"ArtCode": 1001, "ArtDescription": "COCA-COLA",
+                                        "Price1": 1.05, "TAVPer": 10.0}
+                    }))
+                } else {
+                    /* El TPV real contesta con ErrorMessage y sin ArticleData. */
+                    ResponseTemplate::new(200).set_body_json(json!({
+                        "ErrorMessage": "[ARTICULO INEXISTENTE]",
+                        "ArticleData": {}
+                    }))
+                }
+            })
+            .mount(&server)
+            .await;
+        let mut config = config_de_prueba();
+        config.bdp_base_url = server.uri();
+        config.bdp_default_article_code = "1001".to_string();
+        let client = BdpWeblinkClient::new(&config);
+
+        let mut response = BdpSyncDryRunResponse::new(true);
+        BdpSyncPreflightService::check_default_article(&config, &client, &mut response).await;
+        let check = response.checks.last().unwrap();
+        assert!(check.ok, "{:?}", response.checks);
+        assert!(check.mensaje.contains("COCA-COLA"), "{}", check.mensaje);
+
+        /* Codigo que el TPV no devuelve: error, no «no se pudo comprobar». */
+        let mut otro = config.clone();
+        otro.bdp_default_article_code = "9999".to_string();
+        let client = BdpWeblinkClient::new(&otro);
+        let mut response = BdpSyncDryRunResponse::new(true);
+        BdpSyncPreflightService::check_default_article(&otro, &client, &mut response).await;
+        assert!(!response.checks.last().unwrap().ok);
+
+        /* Vacio: las lineas sin mapeo se quedan sin articulo. */
+        let mut vacio = config.clone();
+        vacio.bdp_default_article_code = String::new();
+        let client = BdpWeblinkClient::new(&vacio);
+        let mut response = BdpSyncDryRunResponse::new(true);
+        BdpSyncPreflightService::check_default_article(&vacio, &client, &mut response).await;
         assert!(!response.checks.last().unwrap().ok);
     }
 
