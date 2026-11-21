@@ -42,7 +42,11 @@ pub struct CambiarPermiso {
 /// Un cambio de interruptor, con su fecha. Es lo que se muestra como registro
 /// de actividad junto a los interruptores. El tipo vive en el servicio, que es
 /// quien lee el historial.
-pub use crate::services::CambioActividad as CambioPermiso;
+/* [21AB-3c] Sin alias: utoipa nombra el esquema por el ident escrito en el
+ * `body`, y un alias `as CambioPermiso` producía un `$ref` a
+ * `CambioPermiso` que no existía (los dos `solo-lectura`/`actividad` no
+ * estaban en el spec versionado). */
+use crate::services::CambioActividad;
 
 #[derive(Debug, Deserialize)]
 pub struct LimiteActividad {
@@ -133,14 +137,14 @@ pub async fn volver_a_solo_lectura(
     path = "/api/bdp/permisos-automaticos/actividad",
     tag = "BDP Backup",
     operation_id = "permisos_automaticos_actividad",
-    responses((status = 200, body = Vec<CambioPermiso>)),
+    responses((status = 200, body = Vec<CambioActividad>)),
     security(("bearer_auth" = []))
 )]
 pub async fn actividad(
     State(state): State<AppState>,
     auth: AuthUser,
     Query(parametros): Query<LimiteActividad>,
-) -> Result<Json<Vec<CambioPermiso>>, AppError> {
+) -> Result<Json<Vec<CambioActividad>>, AppError> {
     let cambios = actividad_reciente(&state.pool, auth.user_id, parametros.limite.unwrap_or(20))
         .await
         .map_err(AppError::Internal)?;

@@ -30,6 +30,7 @@ import type {
   BdpSnapshot,
   CambiarLectura,
   CambiarPermiso,
+  CambioActividad,
   FormaPagoBdp,
   LecturaProgramada,
   ListarAuditParams,
@@ -1605,7 +1606,201 @@ export function useListarPermisosAutomaticos<TData = Awaited<ReturnType<typeof l
 
 
 
-export type cambiarPermisoAutomaticoResponse200 = {
+export type permisosAutomaticosActividadResponse200 = {
+  data: CambioActividad[]
+  status: 200
+}
+
+export type permisosAutomaticosActividadResponseSuccess = (permisosAutomaticosActividadResponse200) & {
+  headers: Headers;
+};
+;
+
+export type permisosAutomaticosActividadResponse = (permisosAutomaticosActividadResponseSuccess)
+
+export const getPermisosAutomaticosActividadUrl = () => {
+
+
+
+
+  return `/api/bdp/permisos-automaticos/actividad`
+}
+
+/**
+ * @summary Actividad reciente de los interruptores: qué se encendió o apagó y cuándo.
+ */
+export const permisosAutomaticosActividad = async ( options?: RequestInit): Promise<permisosAutomaticosActividadResponse> => {
+
+  return customInstance<permisosAutomaticosActividadResponse>(getPermisosAutomaticosActividadUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPermisosAutomaticosActividadQueryKey = () => {
+    return [
+    `/api/bdp/permisos-automaticos/actividad`
+    ] as const;
+    }
+
+
+export const getPermisosAutomaticosActividadQueryOptions = <TData = Awaited<ReturnType<typeof permisosAutomaticosActividad>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof permisosAutomaticosActividad>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPermisosAutomaticosActividadQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof permisosAutomaticosActividad>>> = ({ signal }) => permisosAutomaticosActividad({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof permisosAutomaticosActividad>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PermisosAutomaticosActividadQueryResult = NonNullable<Awaited<ReturnType<typeof permisosAutomaticosActividad>>>
+export type PermisosAutomaticosActividadQueryError = unknown
+
+
+export function usePermisosAutomaticosActividad<TData = Awaited<ReturnType<typeof permisosAutomaticosActividad>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof permisosAutomaticosActividad>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof permisosAutomaticosActividad>>,
+          TError,
+          Awaited<ReturnType<typeof permisosAutomaticosActividad>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePermisosAutomaticosActividad<TData = Awaited<ReturnType<typeof permisosAutomaticosActividad>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof permisosAutomaticosActividad>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof permisosAutomaticosActividad>>,
+          TError,
+          Awaited<ReturnType<typeof permisosAutomaticosActividad>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePermisosAutomaticosActividad<TData = Awaited<ReturnType<typeof permisosAutomaticosActividad>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof permisosAutomaticosActividad>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Actividad reciente de los interruptores: qué se encendió o apagó y cuándo.
+ */
+
+export function usePermisosAutomaticosActividad<TData = Awaited<ReturnType<typeof permisosAutomaticosActividad>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof permisosAutomaticosActividad>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPermisosAutomaticosActividadQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export type permisosAutomaticosSoloLecturaResponse200 = {
+  data: PermisoCategoria[]
+  status: 200
+}
+
+export type permisosAutomaticosSoloLecturaResponseSuccess = (permisosAutomaticosSoloLecturaResponse200) & {
+  headers: Headers;
+};
+;
+
+export type permisosAutomaticosSoloLecturaResponse = (permisosAutomaticosSoloLecturaResponseSuccess)
+
+export const getPermisosAutomaticosSoloLecturaUrl = () => {
+
+
+
+
+  return `/api/bdp/permisos-automaticos/solo-lectura`
+}
+
+/**
+ * @summary Vuelta rápida a solo lectura: apaga todas las etapas de una vez.
+ */
+export const permisosAutomaticosSoloLectura = async ( options?: RequestInit): Promise<permisosAutomaticosSoloLecturaResponse> => {
+
+  return customInstance<permisosAutomaticosSoloLecturaResponse>(getPermisosAutomaticosSoloLecturaUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPermisosAutomaticosSoloLecturaMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof permisosAutomaticosSoloLectura>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof permisosAutomaticosSoloLectura>>, TError,void, TContext> => {
+
+const mutationKey = ['permisosAutomaticosSoloLectura'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof permisosAutomaticosSoloLectura>>, void> = () => {
+
+
+          return  permisosAutomaticosSoloLectura(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PermisosAutomaticosSoloLecturaMutationResult = NonNullable<Awaited<ReturnType<typeof permisosAutomaticosSoloLectura>>>
+
+    export type PermisosAutomaticosSoloLecturaMutationError = unknown
+
+    /**
+ * @summary Vuelta rápida a solo lectura: apaga todas las etapas de una vez.
+ */
+export const usePermisosAutomaticosSoloLectura = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof permisosAutomaticosSoloLectura>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof permisosAutomaticosSoloLectura>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getPermisosAutomaticosSoloLecturaMutationOptions(options), queryClient);
+    }
+    export type cambiarPermisoAutomaticoResponse200 = {
   data: PermisoCategoria[]
   status: 200
 }

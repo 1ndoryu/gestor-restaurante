@@ -404,7 +404,7 @@ impl utoipa::Modify for SecurityAddon {
         bdp_lecturas::CambiarLectura,
         crate::services::PermisoCategoria,
         bdp_permisos::CambiarPermiso,
-        bdp_permisos::CambioPermiso,
+        crate::services::CambioActividad,
         crate::services::BdpExploracionResultado,
         crate::services::ExploracionCategoria,
         crate::services::BdpSnapshot,

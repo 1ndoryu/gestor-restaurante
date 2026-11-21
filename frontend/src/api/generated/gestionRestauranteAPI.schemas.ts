@@ -562,6 +562,8 @@ export interface CrearVentaLineaRequest {
      * @nullable
      */
   cantidad?: string | null;
+  /** @nullable */
+  comentario?: string | null;
   /** Descripción del artículo/servicio */
   descripcion: string;
   /**
@@ -1346,6 +1348,15 @@ export interface CambiarPasswordRequest {
 
 export interface CambiarPermiso {
   activo: boolean;
+}
+
+/**
+ * Un cambio de interruptor, con su fecha.
+ */
+export interface CambioActividad {
+  activo: boolean;
+  cambiado_en: string;
+  categoria: string;
 }
 
 export interface Campana {
@@ -2412,7 +2423,7 @@ export interface ParedSala {
 }
 
 /**
- * Estado de una categoría para la pantalla: siempre aparecen las siete.
+ * Estado de una categoría para la pantalla: siempre aparecen todas.
  */
 export interface PermisoCategoria {
   activo: boolean;
@@ -2880,6 +2891,7 @@ export interface VentaConCliente {
 export interface VentaLinea {
   articulo_codigo: string;
   cantidad: string;
+  comentario: string;
   created_at: string;
   descripcion: string;
   descuento: string;
