@@ -98,6 +98,33 @@ impl BdpSyncService {
         }
     }
 
+    /* [21AB-5] ¿Lleva la venta algo que cambie el importe del ticket —
+     * descuento o invitación? Se comprueba antes de resolver artículos, para
+     * que la etapa `descuentos` apagada corte sin tocar la red. */
+    pub(super) fn lleva_descuento_o_invitacion(lineas: &[VentaLinea]) -> bool {
+        lineas
+            .iter()
+            .any(|linea| linea.invitacion || !linea.descuento.is_zero())
+    }
+
+    /* [21AB-5] Puerta única de la etapa `descuentos`, compartida por el alta y
+     * la modificación: si la comanda lleva descuento o invitación y la etapa
+     * está apagada, no se toca el TPV. Una sola definición evita que una de las
+     * dos vías se olvide del corte. */
+    pub(super) async fn exigir_etapa_descuentos(
+        pool: &sqlx::PgPool,
+        user_id: Uuid,
+        lineas: &[VentaLinea],
+    ) -> Result<(), String> {
+        if !Self::lleva_descuento_o_invitacion(lineas) {
+            return Ok(());
+        }
+        if crate::services::etapa_activa(pool, user_id, "descuentos").await? {
+            return Ok(());
+        }
+        Err("La etapa de descuentos está apagada: no se envía a BDP un documento con descuento o invitación.".into())
+    }
+
     /* [F2.7] Un item por línea. [F2.8] El ID BDP sale del mapeo por línea; sin
      * mapeo se usa el artículo por defecto. El cast `Lin` es seguro: nº de líneas
      * de una venta muy por debajo de i32::MAX.
@@ -268,5 +295,59 @@ impl BdpSyncService {
             order["Customer"] = customer;
         }
         order
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_decimal::Decimal;
+    use sqlx::PgPool;
+
+    fn linea(descuento: Decimal, invitacion: bool) -> VentaLinea {
+        VentaLinea {
+            id: Uuid::new_v4(),
+            venta_id: Uuid::nil(),
+            articulo_codigo: "1001".into(),
+            descripcion: "Coca".into(),
+            cantidad: Decimal::ONE,
+            precio_unitario: Decimal::ONE,
+            iva_pct: Decimal::from(10),
+            descuento,
+            invitacion,
+            created_at: Utc::now(),
+        }
+    }
+
+    /* [21AB-5] La etapa `descuentos` apagada solo corta lo que de verdad lleva
+     * descuento o invitación: una comanda normal pasa sin encenderla. */
+    #[sqlx::test(migrations = "./migrations")]
+    async fn sin_descuento_pasa_y_con_descuento_necesita_la_etapa(pool: PgPool) {
+        let user = Uuid::new_v4();
+        sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+            .bind(user)
+            .bind(format!("{user}@test.local"))
+            .bind("x")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let normal = [linea(Decimal::ZERO, false)];
+        BdpSyncService::exigir_etapa_descuentos(&pool, user, &normal)
+            .await
+            .expect("sin descuento no pide etapa");
+
+        let con_descuento = [linea(Decimal::ONE, false), linea(Decimal::ZERO, true)];
+        let error = BdpSyncService::exigir_etapa_descuentos(&pool, user, &con_descuento)
+            .await
+            .expect_err("con descuento o invitación se corta");
+        assert!(error.contains("descuentos"), "{error}");
+
+        crate::services::fijar_permiso(&pool, user, "descuentos", true)
+            .await
+            .unwrap();
+        BdpSyncService::exigir_etapa_descuentos(&pool, user, &con_descuento)
+            .await
+            .expect("con la etapa encendida pasa");
     }
 }

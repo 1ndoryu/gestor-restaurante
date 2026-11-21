@@ -181,6 +181,9 @@ impl BdpSyncService {
         if ajustes.iter().any(|l| l.precio_unitario < Decimal::ZERO) {
             return Err("Hay una línea con precio negativo; no se envía a BDP.".into());
         }
+        /* [21AB-5] Misma puerta de descuentos que en el alta, antes de tocar la
+         * red: un ajuste de una línea invitada cambiaría el importe del ticket. */
+        Self::exigir_etapa_descuentos(pool, venta.user_id, &ajustes).await?;
 
         let client = BdpWeblinkClient::new(config);
         Self::comprobar_sin_cambios_en_tpv(&client, venta, antes, order_id).await?;
@@ -218,7 +221,11 @@ impl BdpSyncService {
             order: pedido_json,
         };
 
-        /* Misma auditoría y armado que la creación (alcance `create_order`). */
+        /* [21AB-5] Auditoría y armado propios (`modify_order`): modificar una
+         * comanda viva se enciende aparte de crearla. Con `create_order` la
+         * etapa de comandas gobernaba también las modificaciones, y el índice
+         * `uq_bdp_audit_create_vivo` habría bloqueado la modificación como si
+         * fuera una segunda creación de la misma venta. */
         let datos = serde_json::json!({
             "venta_id": venta.id, "operacion": "update_order",
             "order_id": order_id, "lineas_ajuste": ajustes.len(), "total_final": total_final
@@ -237,7 +244,7 @@ impl BdpSyncService {
             venta.user_id,
             config,
             EscrituraAutorizar {
-                scope: "create_order",
+                scope: "modify_order",
                 target_entity_type: "venta",
                 target_entity_id: venta.id,
                 entity_json_field: "venta_id",

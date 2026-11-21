@@ -253,6 +253,16 @@ impl BdpSyncService {
             Self::validate_order_lines(lineas)?;
         }
 
+        /* [21AB-5] La etapa `descuentos` apagada no deja salir una comanda
+         * con descuento o invitación: el importe del ticket no sería el que la
+         * web tiene. Se comprueba aquí, antes de resolver artículos, para no
+         * gastar ni una llamada del TPV. */
+        if let Some(ref lineas) = lineas {
+            Self::exigir_etapa_descuentos(pool, venta.user_id, lineas)
+                .await
+                .map_err(OrderSendFailure::Rejected)?;
+        }
+
         /* [F2.8] Resolver artículo BDP por línea usando bdp_article_map. */
         let line_article_ids: Option<Vec<i64>> = if let Some(ref lineas) = lineas {
             Some(Self::resolve_line_articles(pool, venta.user_id, lineas, article.id).await)
