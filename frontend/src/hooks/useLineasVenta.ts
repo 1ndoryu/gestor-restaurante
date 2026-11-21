@@ -16,6 +16,8 @@ export interface LineaVentaLocal {
   /* [18AB-4] Invitación: la línea no cobra y el servidor la rechaza si la
    * ficha del artículo en BDP tiene «No permitir como invitación». */
   invitacion: boolean;
+  /* [21AB-3c] Comentario para el TPV («sin hielo»). Vacío = sin comentario. */
+  comentario: string;
 }
 
 const nuevaLineaId = () => Math.random().toString(36).slice(2, 10);
@@ -29,6 +31,7 @@ const lineaVacia = (): LineaVentaLocal => ({
   iva_pct: '10',
   descuento: '0',
   invitacion: false,
+  comentario: '',
 });
 
 export interface UseLineasVentaReturn {
@@ -95,6 +98,7 @@ export default function useLineasVenta(ivaDefault = '10'): UseLineasVentaReturn 
         iva_pct: l.iva_pct || null,
         descuento: l.descuento && l.descuento !== '0' ? l.descuento : null,
         invitacion: l.invitacion,
+        comentario: l.comentario.trim() || null,
       })),
     [lineas],
   );
@@ -110,6 +114,8 @@ export default function useLineasVenta(ivaDefault = '10'): UseLineasVentaReturn 
         iva_pct: r.iva_pct || '10',
         descuento: r.descuento || '0',
         invitacion: r.invitacion ?? false,
+        /* [21AB-3c] Sin esto, editar una venta perdería el comentario al guardar. */
+        comentario: r.comentario ?? '',
       })),
     );
   }, []);

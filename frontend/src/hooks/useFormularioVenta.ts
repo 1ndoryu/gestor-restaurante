@@ -45,6 +45,8 @@ function useFormularioVenta(onExito?: () => void, ventaInicial?: Venta) {
         descuento: linea.descuento,
         /* [18AB-4] Sin esto, editar una venta perdería la invitación al guardar. */
         invitacion: linea.invitacion,
+        /* [21AB-3c] Lo mismo con el comentario de línea. */
+        comentario: linea.comentario,
       })));
     });
     return () => { activo = false; };

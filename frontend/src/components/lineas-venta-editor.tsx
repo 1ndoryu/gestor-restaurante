@@ -90,6 +90,12 @@ function LineaRow({ linea, idx, onActualizar, onAlternarInvitacion, onEliminar, 
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
+      {/* [21AB-3c] Comentario de línea para el TPV: va en su propia fila porque
+        * el texto puede ser largo y en la rejilla no cabría. */}
+      <div className="flex flex-col gap-1 min-w-0 col-span-full sm:col-span-2 lg:col-span-9">
+        {lbl('Comentario')}
+        {inp('comentario', 'text', { placeholder: 'Comentario para cocina (opcional)', maxLength: 200 })}
+      </div>
     </div>
   );
 }
