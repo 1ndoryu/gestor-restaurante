@@ -25,6 +25,9 @@ pub(super) const VALID_BDP_WRITE_SCOPES: &[&str] = &[
     "cancel_order",
     "add_tip",
     "add_points",
+    /* [21AB-5] Modificar una comanda viva es escritura propia: se puede
+     * encender aparte de crearla. */
+    "modify_order",
 ];
 
 impl BdpWriteGuard {

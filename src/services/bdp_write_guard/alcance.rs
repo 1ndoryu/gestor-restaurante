@@ -10,7 +10,9 @@ use uuid::Uuid;
 #[must_use]
 pub fn tipo_destino_de_alcance(alcance: &str) -> Option<&'static str> {
     match alcance {
-        "create_order" | "add_payment" | "invoice" | "cancel_order" => Some("venta"),
+        "create_order" | "modify_order" | "add_payment" | "invoice" | "cancel_order" => {
+            Some("venta")
+        }
         "create_customer" => Some("cliente"),
         "create_article" | "modify_article" | "modify_prices" => Some("articulo"),
         "create_department" => Some("departamento"),
@@ -30,7 +32,12 @@ pub fn tipo_destino_de_alcance(alcance: &str) -> Option<&'static str> {
 pub fn alcance_usa_uuid_propio(alcance: &str) -> bool {
     matches!(
         alcance,
-        "create_order" | "add_payment" | "invoice" | "cancel_order" | "create_customer"
+        "create_order"
+            | "modify_order"
+            | "add_payment"
+            | "invoice"
+            | "cancel_order"
+            | "create_customer"
     )
 }
 

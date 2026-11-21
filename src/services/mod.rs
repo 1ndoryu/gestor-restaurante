@@ -94,8 +94,9 @@ pub use bdp_weblink_catalog::{
     BdpGetRoomTablesResponse, BdpGetRoomsTablesResponse, BdpRoomData,
 };
 pub use bdp_write_guard::permisos_automaticos::{
-    categoria_automatica_valida, categoria_de_scope, fijar_permiso, listar_permisos,
-    motivo_bloqueo, PermisoCategoria,
+    actividad_reciente, apagar_todas_las_etapas, categoria_automatica_valida, categoria_de_scope,
+    etapa_activa, fijar_permiso, listar_permisos, motivo_bloqueo, CambioActividad,
+    PermisoCategoria, ETAPAS,
 };
 pub use bdp_write_guard::{
     alcance_usa_uuid_propio, entidad_uuid, tipo_destino_de_alcance, BdpWriteGuard,
