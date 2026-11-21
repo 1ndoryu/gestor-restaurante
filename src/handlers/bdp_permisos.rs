@@ -1,20 +1,23 @@
 /* [26AA-3] Permisos del modo automático por categoría.
  *
- *   GET /api/bdp/permisos-automaticos             — las siete categorías y su interruptor
- *   PUT /api/bdp/permisos-automaticos/:categoria  — enciende o apaga una categoría
+ *   GET  /api/bdp/permisos-automaticos             — las categorías y su interruptor
+ *   PUT  /api/bdp/permisos-automaticos/:categoria  — enciende o apaga una categoría
+ *   POST /api/bdp/permisos-automaticos/solo-lectura — apaga todas de golpe
+ *   GET  /api/bdp/permisos-automaticos/actividad    — los últimos cambios
  *
  * Solo configura qué puede escribir el modo automático; no escribe nada en BDP.
  * Cada cambio queda en el historial del servicio. */
 
-use axum::extract::{Path, State};
-use axum::routing::{get, put};
+use axum::extract::{Path, Query, State};
+use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use serde::Deserialize;
 
 use crate::errors::AppError;
 use crate::middleware::AuthUser;
 use crate::services::{
-    categoria_automatica_valida, fijar_permiso, listar_permisos, PermisoCategoria,
+    actividad_reciente, apagar_todas_las_etapas, categoria_automatica_valida, fijar_permiso,
+    listar_permisos, PermisoCategoria,
 };
 use crate::AppState;
 
@@ -23,12 +26,27 @@ use super::bdp_guard::exigir_modo_bdp;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/bdp/permisos-automaticos", get(listar))
+        .route(
+            "/bdp/permisos-automaticos/solo-lectura",
+            post(volver_a_solo_lectura),
+        )
+        .route("/bdp/permisos-automaticos/actividad", get(actividad))
         .route("/bdp/permisos-automaticos/:categoria", put(cambiar))
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CambiarPermiso {
     pub activo: bool,
+}
+
+/// Un cambio de interruptor, con su fecha. Es lo que se muestra como registro
+/// de actividad junto a los interruptores. El tipo vive en el servicio, que es
+/// quien lee el historial.
+pub use crate::services::CambioActividad as CambioPermiso;
+
+#[derive(Debug, Deserialize)]
+pub struct LimiteActividad {
+    limite: Option<i64>,
 }
 
 /// Interruptores de las categorías del modo automático (apagados si no hay fila).
@@ -83,4 +101,48 @@ pub async fn cambiar(
             .await
             .map_err(AppError::Internal)?,
     ))
+}
+
+/// Vuelta rápida a solo lectura: apaga todas las etapas de una vez.
+#[utoipa::path(
+    post,
+    path = "/api/bdp/permisos-automaticos/solo-lectura",
+    tag = "BDP Backup",
+    operation_id = "permisos_automaticos_solo_lectura",
+    responses((status = 200, body = Vec<PermisoCategoria>)),
+    security(("bearer_auth" = []))
+)]
+pub async fn volver_a_solo_lectura(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<Json<Vec<PermisoCategoria>>, AppError> {
+    exigir_modo_bdp(&state, auth.user_id).await?;
+    apagar_todas_las_etapas(&state.pool, auth.user_id)
+        .await
+        .map_err(AppError::Internal)?;
+    Ok(Json(
+        listar_permisos(&state.pool, auth.user_id)
+            .await
+            .map_err(AppError::Internal)?,
+    ))
+}
+
+/// Actividad reciente de los interruptores: qué se encendió o apagó y cuándo.
+#[utoipa::path(
+    get,
+    path = "/api/bdp/permisos-automaticos/actividad",
+    tag = "BDP Backup",
+    operation_id = "permisos_automaticos_actividad",
+    responses((status = 200, body = Vec<CambioPermiso>)),
+    security(("bearer_auth" = []))
+)]
+pub async fn actividad(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Query(parametros): Query<LimiteActividad>,
+) -> Result<Json<Vec<CambioPermiso>>, AppError> {
+    let cambios = actividad_reciente(&state.pool, auth.user_id, parametros.limite.unwrap_or(20))
+        .await
+        .map_err(AppError::Internal)?;
+    Ok(Json(cambios))
 }

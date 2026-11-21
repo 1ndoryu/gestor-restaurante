@@ -362,6 +362,8 @@ const VALID_BDP_WRITE_SCOPES: &[&str] = &[
     "cancel_order",
     "add_tip",
     "add_points",
+    /* [21AB-5] Modificar una comanda viva, aparte de crearla. */
+    "modify_order",
 ];
 
 /// [10AA-3-B] Regla del armado de pruebas: el objetivo debe ser del mismo tipo
