@@ -68,6 +68,21 @@ pub(super) fn number_f64(value: &Value, keys: &[&str]) -> Option<f64> {
     })
 }
 
+/* [21AB-4] Código de cliente de una fila de `Customers/Export`. BDP lo
+ * devuelve en `Customer` o en `Code`, como número o como texto; el cero no
+ * cuenta como cliente (mismo criterio que el import de clientes). */
+pub(super) fn customer_code(value: &Value) -> Option<i32> {
+    value
+        .get("Customer")
+        .or_else(|| value.get("Code"))
+        .and_then(|code| {
+            code.as_i64()
+                .or_else(|| code.as_str()?.trim().parse::<i64>().ok())
+        })
+        .and_then(|code| i32::try_from(code).ok())
+        .filter(|code| *code > 0)
+}
+
 pub(super) fn text_field(value: &Value, keys: &[&str]) -> Option<String> {
     keys.iter().find_map(|key| {
         value

@@ -4,6 +4,9 @@
 
 mod campos;
 mod checks;
+/* [21AB-4] Checks de configuracion de produccion (IVA, perfiles, cliente,
+ * tarifa): cada uno compara contra una lista real del TPV. */
+mod configuracion;
 mod ejecucion;
 mod payload;
 #[cfg(test)]
