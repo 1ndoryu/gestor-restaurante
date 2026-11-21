@@ -83,6 +83,16 @@ pub(super) fn customer_code(value: &Value) -> Option<i32> {
         .filter(|code| *code > 0)
 }
 
+/* [21AB-4b] Entero de un valor suelto (no de un campo): numero o texto
+ * numerico. La configuracion BDP guarda los mapas de las dos formas segun se
+ * rellenen por la UI (numero) o por el bootstrap (texto), y los consumidores
+ * reales aceptan ambas; los checks tienen que medir lo mismo que se ejecuta. */
+pub(super) fn codigo_entero(value: &Value) -> Option<i64> {
+    value
+        .as_i64()
+        .or_else(|| value.as_str()?.trim().parse::<i64>().ok())
+}
+
 pub(super) fn text_field(value: &Value, keys: &[&str]) -> Option<String> {
     keys.iter().find_map(|key| {
         value

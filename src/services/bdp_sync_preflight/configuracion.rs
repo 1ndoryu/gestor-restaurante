@@ -665,6 +665,49 @@ mod tests {
         assert!(check.mensaje.contains("1 a 5"), "{}", check.mensaje);
     }
 
+    /* [21AB-4b] La UI guarda los mapas como numeros y el bootstrap como texto.
+     * Los dos checks tienen que dar verde con las dos formas, en las claves del
+     * mapa y en el valor: es lo que hace el consumidor real. */
+    #[test]
+    fn los_mapas_valen_con_numero_y_con_texto() {
+        let tenders = json!({"TenderList": [{"Id": 1}, {"Id": 2}]});
+        let mut config = config_de_prueba();
+
+        config.bdp_tender_map = json!({"Efectivo": 1, "Tarjeta": 2});
+        let mut response = BdpSyncDryRunResponse::new(true);
+        BdpSyncPreflightService::check_tender_mapping(&config, Some(&tenders), &mut response);
+        assert!(response.checks.last().unwrap().ok, "{:?}", response.checks);
+
+        config.bdp_tender_map = json!({"efectivo": "1", "tarjeta": "2"});
+        let mut response = BdpSyncDryRunResponse::new(true);
+        BdpSyncPreflightService::check_tender_mapping(&config, Some(&tenders), &mut response);
+        assert!(response.checks.last().unwrap().ok, "{:?}", response.checks);
+
+        /* Un tender que no existe en el POS sigue siendo un error. */
+        config.bdp_tender_map = json!({"Efectivo": 9});
+        let mut response = BdpSyncDryRunResponse::new(true);
+        BdpSyncPreflightService::check_tender_mapping(&config, Some(&tenders), &mut response);
+        assert!(!response.checks.last().unwrap().ok);
+
+        config.bdp_order_type_map = json!({"barra": 0, "comedor": 1});
+        let mut response = BdpSyncDryRunResponse::new(true);
+        BdpSyncPreflightService::check_order_type_mapping(&config, &mut response);
+        assert!(response.checks.last().unwrap().ok, "{:?}", response.checks);
+
+        config.bdp_order_type_map = json!({"barra": "0", "comedor": "1"});
+        let mut response = BdpSyncDryRunResponse::new(true);
+        BdpSyncPreflightService::check_order_type_mapping(&config, &mut response);
+        assert!(response.checks.last().unwrap().ok, "{:?}", response.checks);
+
+        /* Negativo y texto no numerico siguen en rojo. */
+        config.bdp_order_type_map = json!({"barra": -1, "comedor": "mesa"});
+        let mut response = BdpSyncDryRunResponse::new(true);
+        BdpSyncPreflightService::check_order_type_mapping(&config, &mut response);
+        let check = response.checks.last().unwrap();
+        assert!(!check.ok);
+        assert!(check.mensaje.contains("barra") && check.mensaje.contains("comedor"));
+    }
+
     #[tokio::test]
     async fn catalogo_sin_precios_rechaza_la_tarifa() {
         let server = MockServer::start().await;

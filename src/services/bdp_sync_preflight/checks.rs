@@ -1,7 +1,9 @@
 use serde_json::Value;
 use sqlx::PgPool;
 
-use super::campos::{number_i64, summarize_value, tender_ids_presentes, value_array};
+use super::campos::{
+    codigo_entero, number_i64, summarize_value, tender_ids_presentes, value_array,
+};
 use super::payload::{build_only_check_order, build_only_check_order_con_pago, first_article};
 use super::{
     BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncPreflightService, ONLY_CHECK,
@@ -140,12 +142,12 @@ impl BdpSyncPreflightService {
         let mut issues = Vec::new();
         let mut mapped = 0;
         for (key, value) in map {
-            let Some(tender_str) = value.as_str() else {
-                issues.push(format!("{key}: valor no es string"));
-                continue;
-            };
-            let Ok(tender_id) = tender_str.parse::<i64>() else {
-                issues.push(format!("{key}: '{tender_str}' no es numérico"));
+            /* [21AB-4b] La UI guarda el codigo como numero y el bootstrap como
+             * texto; el consumidor real (`resolve_tender_id`) acepta los dos.
+             * Este check exigia texto y marcaba en rojo una configuracion que
+             * funciona: se lee igual que el consumidor. */
+            let Some(tender_id) = codigo_entero(value) else {
+                issues.push(format!("{key}: valor '{value}' no es numerico"));
                 continue;
             };
             if valid_ids.is_empty() || valid_ids.contains(&tender_id) {
@@ -198,7 +200,9 @@ impl BdpSyncPreflightService {
 
         let mut issues = Vec::new();
         for (key, value) in map {
-            match value.as_str().and_then(|s| s.parse::<i32>().ok()) {
+            /* [21AB-4b] Mismo criterio que los tenders y que
+             * `resolve_order_type`: numero o texto, nunca solo texto. */
+            match codigo_entero(value).and_then(|code| i32::try_from(code).ok()) {
                 Some(t) if t >= 0 => {}
                 Some(t) => issues.push(format!("{key}: Type={t} es negativo")),
                 None => issues.push(format!("{key}: valor '{value}' no es numérico válido")),
