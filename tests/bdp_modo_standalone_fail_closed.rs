@@ -23,7 +23,9 @@ use glory_backend::middleware::AuthUser;
 use glory_backend::models::{ActualizarConfiguracionRequest, UserRole};
 use glory_backend::repositories::ConfiguracionRepository;
 use glory_backend::services::NotifHub;
-use glory_backend::services::{BdpBackupService, ConfiguracionService, ServicioModoOperacion};
+use glory_backend::services::{
+    fijar_permiso, BdpBackupService, ConfiguracionService, ServicioModoOperacion,
+};
 use glory_backend::AppState;
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -221,6 +223,11 @@ async fn sync_catalog_no_bloqueado_en_modo_bdp(pool: PgPool) {
     ConfiguracionService::actualizar(&pool, user_id, &update)
         .await
         .expect("actualizar config");
+    /* [21AB-5] La etapa `lectura` nace apagada y es un guard aparte: se enciende
+     * para que este test siga midiendo solo el guard de modo. */
+    fijar_permiso(&pool, user_id, "lectura", true)
+        .await
+        .expect("encender la etapa de lectura");
 
     let state = make_app_state(pool);
     let auth = make_auth(user_id);
@@ -237,6 +244,36 @@ async fn sync_catalog_no_bloqueado_en_modo_bdp(pool: PgPool) {
             "en modo Bdp el guard no debe bloquear; se esperaba Internal de login, se obtuvo {other:?}"
         ),
         Ok(_) => panic!("URL inalcanzable: sync_catalog no podía devolver Ok"),
+    }
+}
+
+/* [21AB-5] Con la etapa `lectura` apagada, una consulta al TPV se corta antes
+ * de tocar la red: la respuesta es de validación, no de transporte. */
+#[sqlx::test(migrations = "./migrations")]
+async fn sync_catalog_bloqueado_sin_etapa_de_lectura(pool: PgPool) {
+    let user_id = create_test_user(&pool).await;
+    ConfiguracionRepository::obtener_o_crear(&pool, user_id)
+        .await
+        .expect("config por defecto");
+    let update = ActualizarConfiguracionRequest {
+        modo_operacion: Some("bdp".to_string()),
+        bdp_base_url: Some("http://127.0.0.1:1".to_string()),
+        bdp_login: Some("test".to_string()),
+        bdp_password: Some("test".to_string()),
+        bdp_integrator_code: Some("1".to_string()),
+        ..Default::default()
+    };
+    ConfiguracionService::actualizar(&pool, user_id, &update)
+        .await
+        .expect("actualizar config");
+
+    let result = sync_catalog(State(make_app_state(pool)), make_auth(user_id)).await;
+    match result {
+        Err(AppError::Validation(msg)) => assert!(
+            msg.contains("etapa de lectura"),
+            "se esperaba el corte de la etapa, se obtuvo: {msg}"
+        ),
+        other => panic!("sin etapa de lectura debía cortar con Validation: {other:?}"),
     }
 }
 
