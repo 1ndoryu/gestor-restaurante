@@ -7,6 +7,34 @@ use crate::models::{ConfiguracionRestaurante, Venta};
 use crate::repositories::ClienteRepository;
 use crate::services::bdp_sync::{BdpSyncService, OrderContext};
 
+/* [21AB-6] Tipo de pedido de domicilio. BDP solo lo admite en la aplicación
+ * «Servicio a Domicilio»; Hostelería responde `300009`. Guillermo pidió el
+ * 20/11 dejar la función bloqueada hasta que BDP conteste, así que se corta
+ * aquí, antes del HTTP, con un mensaje que dice por qué. */
+const ORDER_TYPE_DOMICILIO: i32 = 2;
+
+/// Canales que en la web significan reparto a domicilio. Se cortan por nombre
+/// y no solo por el `Type` resultante: sin mapeo caerían en `Type=0` (barra) y
+/// se enviaría un pedido de reparto como consumición de barra.
+fn canal_es_domicilio(canal: &str) -> bool {
+    matches!(
+        canal.trim().to_lowercase().as_str(),
+        "delivery" | "just_eat"
+    )
+}
+
+/// Motivo por el que un pedido a domicilio no se envía a Hostelería, o `None`
+/// si el pedido puede salir. Pura para poder probarla sin TPV ni base de datos.
+fn rechazo_por_domicilio(canal: &str, order_type: i32) -> Option<String> {
+    if order_type != ORDER_TYPE_DOMICILIO && !canal_es_domicilio(canal) {
+        return None;
+    }
+    Some(format!(
+        "El canal '{canal}' es un pedido a domicilio, que este TPV no admite: BDP solo lo \
+         crea en su aplicación Servicio a Domicilio. Pendiente de disponibilidad en BDP."
+    ))
+}
+
 impl BdpSyncService {
     /// [F3.1-3.3] Resuelve el contexto del pedido: tender, order type y datos del cliente.
     /// Se ejecuta una sola vez por `sync_venta` y el resultado se reutiliza en `build_order`.
@@ -14,24 +42,27 @@ impl BdpSyncService {
         pool: &PgPool,
         venta: &Venta,
         config: &ConfiguracionRestaurante,
-    ) -> OrderContext {
+    ) -> Result<OrderContext, String> {
         /* [F3.2] TenderId: mapear metodo_pago → ID BDP desde config.bdp_tender_map */
         let tender_id = Self::resolve_tender_id(venta, config);
 
         /* [F3.3] Order type: mapear canal → tipo BDP desde config.bdp_order_type_map */
         let order_type = Self::resolve_order_type(venta, config);
+        if let Some(motivo) = rechazo_por_domicilio(&venta.canal, order_type) {
+            return Err(motivo);
+        }
 
         /* [F3.1] Customer: lookup cliente si existe */
         let (customer_code, customer_name, customer_phone) =
             Self::resolve_customer(pool, venta, config).await;
 
-        OrderContext {
+        Ok(OrderContext {
             tender_id,
             order_type,
             customer_code,
             customer_name,
             customer_phone,
-        }
+        })
     }
 
     /// [F3.2] Resuelve `TenderId` buscando `venta.metodo_pago` en `bdp_tender_map`.
@@ -145,5 +176,51 @@ impl BdpSyncService {
                 (None, None, None)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /* [21AB-6] Guillermo pidió el 20/11 dejar bloqueados los pedidos `Type=2`.
+     * El corte tiene que estar en el servidor: la UI sola no es frontera. */
+    #[test]
+    fn domicilio_se_rechaza_por_canal() {
+        for canal in ["delivery", "just_eat", " Delivery ", "JUST_EAT"] {
+            let motivo = rechazo_por_domicilio(canal, 0).expect("debe rechazar");
+            assert!(motivo.contains("Servicio a Domicilio"), "{motivo}");
+            assert!(
+                motivo.contains("Pendiente de disponibilidad en BDP"),
+                "{motivo}"
+            );
+        }
+    }
+
+    /* Aunque el canal no se llame «delivery», un mapa que lo traduzca a `Type=2`
+     * también se rechaza: BDP lo devolvería con `300009`. */
+    #[test]
+    fn domicilio_se_rechaza_por_order_type() {
+        let motivo = rechazo_por_domicilio("eventos", 2).expect("debe rechazar");
+        assert!(motivo.contains("'eventos'"), "{motivo}");
+    }
+
+    /* Los canales normales del restaurante siguen saliendo. */
+    #[test]
+    fn canales_normales_pasan() {
+        for (canal, tipo) in [("comedor", 1), ("barra", 0), ("terraza", 1), ("eventos", 1)] {
+            assert!(
+                rechazo_por_domicilio(canal, tipo).is_none(),
+                "{canal} con Type={tipo} no debe rechazarse"
+            );
+        }
+    }
+
+    /* Los únicos `Type` que admite Hostelería son 0, 1 (y los de mesa); un 2
+     * colado por el mapa no puede pasar por buen canal. */
+    #[test]
+    fn type_dos_gana_a_cualquier_canal() {
+        assert!(rechazo_por_domicilio("comedor", 2).is_some());
+        assert!(rechazo_por_domicilio("barra", 2).is_some());
     }
 }

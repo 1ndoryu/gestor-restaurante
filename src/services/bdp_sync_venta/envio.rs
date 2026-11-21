@@ -223,8 +223,11 @@ impl BdpSyncService {
          * antes de enviar, con un mensaje que el operador entienda. */
         Self::comprobar_mesa_libre(&client, venta).await?;
 
-        /* [F3.1] Resolver contexto del pedido: tender, order type, customer. */
-        let order_ctx = Self::resolve_order_context(pool, venta, config).await;
+        /* [F3.1] Resolver contexto del pedido: tender, order type, customer.
+         * [21AB-6] Puede rechazar un pedido a domicilio antes de tocar la red. */
+        let order_ctx = Self::resolve_order_context(pool, venta, config)
+            .await
+            .map_err(OrderSendFailure::Rejected)?;
 
         /* [F2.6] Obtener líneas de venta para multi-item.
          * Si la venta tiene líneas en BD, se usan para construir un pedido multi-item.

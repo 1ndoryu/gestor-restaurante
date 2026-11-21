@@ -81,8 +81,16 @@ function FormularioVenta({ onExito, venta }: Props) {
                             <SelectItem value={CanalVenta.comedor}>Comedor</SelectItem>
                             <SelectItem value={CanalVenta.barra}>Barra</SelectItem>
                             <SelectItem value={CanalVenta.terraza}>Terraza</SelectItem>
-                            <SelectItem value={CanalVenta.delivery}>Delivery</SelectItem>
-                            <SelectItem value={CanalVenta.just_eat}>Just Eat</SelectItem>
+                            {/* [21AB-6] Los canales de reparto se deshabilitan, no se ocultan:
+                             * así se ve que existen y por qué no se pueden usar. BDP solo crea
+                             * pedidos a domicilio (Type=2) en su aplicación Servicio a Domicilio;
+                             * Hostelería los rechaza con 300009. */}
+                            <SelectItem value={CanalVenta.delivery} disabled>
+                                Delivery — pendiente de BDP
+                            </SelectItem>
+                            <SelectItem value={CanalVenta.just_eat} disabled>
+                                Just Eat — pendiente de BDP
+                            </SelectItem>
                             <SelectItem value={CanalVenta.eventos}>Eventos</SelectItem>
                         </SelectContent>
                     </Select>
