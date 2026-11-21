@@ -10,7 +10,7 @@ restaurante, y **no hay ninguna escritura automática conectada** a él.
 |---|---|
 | 1. Pruebas de pagos | Listo para el piloto |
 | 2. Protección contra unidades cero | Listo para el piloto |
-| 3. Regresión del flujo normal | Listo para el piloto, con tres huecos (abajo) |
+| 3. Regresión del flujo normal | Listo para el piloto, con dos huecos (abajo) |
 | 4. Configuración de producción | Preparada y validada contra el demo; falta correrla contra el TPV del restaurante |
 | 5. Despliegue por etapas | Listo para el piloto |
 | 6. Funciones que esperan a BDP | Bloqueadas en el servidor y marcadas en la interfaz |
@@ -34,7 +34,7 @@ reintentos de la cola. Un test comprueba que el simulador **no recibe ni un solo
 0 uds y después la factura falla con «intento de dividir por cero», dejando la comanda cobrada
 y sin documento.
 
-## 3. Regresión del flujo normal — listo, con tres huecos
+## 3. Regresión del flujo normal — listo, con dos huecos
 
 Ejecutado entero sobre el demo. Comandas y tickets:
 
@@ -42,6 +42,7 @@ Ejecutado entero sobre el demo. Comandas y tickets:
 |---|---|---|
 | Crear y cobrar | 155 | Creada, cobrada y facturada sola |
 | Añadir, quitar y modificar productos | 156 | Deltas de línea en el TPV; total idéntico en web y TPV |
+| Cambiar comentarios de línea | 156 | Cada producto lleva su comentario a `Comments[]`; cambiarlo después envía contrapartida con el texto viejo y alta con el nuevo |
 | Descuento e invitación | 157 | Descuento 0,50 y línea de invitación; total 4,50 |
 | Cobro parcial con dos formas de pago | 157 | 2,00 tarjeta + 2,50 efectivo, los dos en el TPV |
 | Ticket | 157 | `00001TB00000065` |
@@ -53,15 +54,18 @@ quedaba marcada como error definitivo y el sistema no volvía a intentarla nunca
 reintentarla a mano. Ahora se queda como «pendiente» y se reenvía sola cuando el TPV responde
 (comprobado en vivo: comanda 159 sin intervención).
 
-**Tres huecos que quedan** (no bloquean el piloto, pero hay que decidirlos):
+**Dos huecos que quedan** (no bloquean el piloto, pero hay que decidirlos):
 
 1. **Cobro parcial**: tras cobrar el total, la web seguía mostrando 0,45 € pendientes, porque
    calcula el pendiente sobre la base más el IVA y no sobre el total que aceptó el TPV. En un
-   restaurante real eso lleva a cobrar de más. **Es el más importante de los tres.**
-2. **Comentarios de línea**: la web no tiene campo de comentario por producto, así que
-   «cambiar comentarios» no se puede hacer desde la aplicación. BDP sí los admite.
-3. **Invitación**: la línea invitada llega al ticket con el artículo por defecto en vez del que
+   restaurante real eso lleva a cobrar de más. **Es el más importante de los dos.**
+2. **Invitación**: la línea invitada llega al ticket con el artículo por defecto en vez del que
    se pidió. El importe es 0, que es lo que importa, pero el nombre no es el correcto.
+
+**Comentarios de línea, cerrado**: cada producto tiene su campo en la web; el texto viaja en
+`Comments[]` y se recorta a 200 caracteres. Cambiarlo en una comanda ya enviada se hace con
+contrapartida del texto viejo más alta con el nuevo, porque BDP no reescribe el comentario de
+una línea existente y fundirlos dejaría el texto antiguo en el ticket.
 
 Otro detalle operativo: si se modifican líneas muy seguidas (menos de un segundo entre
 peticiones), BDP responde «throttled» y la web conserva el estado del TPV y avisa. Es correcto,
@@ -69,10 +73,11 @@ pero un camarero rápido lo verá.
 
 ## 4. Configuración de producción — preparada, falta el TPV real
 
-Los cinco checks de configuración (perfil de artículos, mapa de IVA, perfil de documentos,
-cliente por defecto y tarifa del catálogo) están desplegados y se han corrido contra el demo:
-**18 comprobaciones, 18 en verde**. Ninguna da por bueno un valor por estar escrito: cada una
-lo busca en una lista real del TPV.
+Los seis checks de configuración (perfil de artículos, mapa de IVA, perfil de documentos,
+cliente por defecto, artículo por defecto y tarifa del catálogo) están desplegados y se han
+corrido contra el demo: **19 comprobaciones, 19 en verde**. Ninguna da por bueno un valor por
+estar escrito: cada una lo busca en una lista real del TPV. El artículo por defecto es nuevo:
+antes un código inventado pasaba la configuración y solo fallaba al crear la comanda.
 
 Una salvedad para no darle una impresión falsa: el demo no tiene cliente por defecto
 configurado, así que ese check pasa con un aviso y no con un valor. En el restaurante sí hay
@@ -112,4 +117,4 @@ está en el servidor.
 2. Pasarnos los valores reales de configuración del restaurante (formas de pago, canales,
    perfil de documentos, IVA, terminal, empleado, artículo y cliente por defecto) para correr
    el diagnóstico contra su BDP.
-3. Decidir los tres huecos del punto 3, en especial de dónde sale el total en un cobro parcial.
+3. Decidir los dos huecos del punto 3, en especial de dónde sale el total en un cobro parcial.

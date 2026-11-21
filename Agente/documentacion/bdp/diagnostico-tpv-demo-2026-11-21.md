@@ -2,6 +2,8 @@
 
 `GET /api/configuracion/bdp/sync-dry-run` en `rest-dev` (app en la 89, puerto 3105, modo build;
 BDP demo del portátil por el túnel inverso `89:8071`). Usuario `demo@restaurante.com`.
+**19 comprobaciones, 19 en verde** (la 19 es el artículo por defecto, añadida el 21/11; la
+pasada original daba 18).
 
 - `listo_para_sincronizar`: **true**
 - `escritura_real`: **false** (el dry-run no escribe ni comanda ni pago)
@@ -27,13 +29,19 @@ BDP demo del portátil por el túnel inverso `89:8071`). Usuario `demo@restauran
 | 16 | Departamentos del perfil | `/API/Departments/ExportFromProfile` | OK |
 | 17 | Articulos del perfil | `/API/Articles/GetPOSList` | OK |
 | 18 | CreateOrder OnlyCheck | `/API/Orders/Create` | OK: el destino aceptó OnlyCheck |
+| 19 | Articulo por defecto | `/API/Articles/Get` | OK: el articulo por defecto existe en el TPV (`21AB-4`, 21/11) |
 
 ## Qué demuestra
 
-Los cinco checks nuevos de configuración (perfil de artículos, mapa de IVA, perfil de
-documentos, cliente por defecto, tarifa del catálogo) se ejecutan de verdad y dan verde contra un
-TPV real, y el arreglo `codigo_entero` quita los seis falsos positivos que daban los checks de
-mapeo cuando el mapa está guardado como número (que es como lo guarda la UI).
+Los seis checks nuevos de configuración (perfil de artículos, mapa de IVA, perfil de
+documentos, cliente por defecto, artículo por defecto y tarifa del catálogo) se ejecutan de
+verdad y dan verde contra un TPV real, y el arreglo `codigo_entero` quita los seis falsos
+positivos que daban los checks de mapeo cuando el mapa está guardado como número (que es como
+lo guarda la UI).
+
+El del artículo por defecto se añadió el 21/11 (`21AB-4`): hasta entonces solo se exigía que
+fuera numérico al guardarlo, así que un código inventado pasaba la configuración y solo fallaba
+al crear la comanda, en el TPV.
 
 Antes del arreglo, el mismo diagnóstico devolvía en rojo «Mapeo de tenders: valor no es string»
 (×2) y «Mapeo de order types: valor '0' no es numérico válido» (×4) sobre una configuración que

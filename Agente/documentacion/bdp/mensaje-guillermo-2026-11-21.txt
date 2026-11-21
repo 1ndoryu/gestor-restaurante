@@ -1,6 +1,3 @@
-BORRADOR — mensaje a Guillermo, 2026-11-21 (sin enviar)
-Detalle completo en el PDF: seis-puntos-2026-11-21.pdf
-
 Hola Guillermo,
 
 Los seis puntos están hechos y probados contra el TPV demo (36.2). Te resumo; el detalle
@@ -14,27 +11,34 @@ automática.
 *2. Unidades cero — listo.* El bloqueo está en el servidor: creación, modificación,
 comentarios y reintentos. Una prueba automática garantiza que nunca sale `Units=0`.
 
-*3. Flujo normal — listo, con tres cosas a decidir.* Crear y cobrar (155), añadir, quitar
-y modificar (156), descuento e invitación (157), cobro en dos formas (2,00 tarjeta + 2,50
-efectivo), ticket `00001TB00000065`, cancelar sin pagos (156) y apagar el TPV (159).
+*3. Flujo normal — listo, con dos cosas a decidir.* Crear y cobrar (155), añadir, quitar
+y modificar (156), cambio de comentarios por línea, descuento e invitación (157), cobro en
+dos formas (2,00 tarjeta + 2,50 efectivo), ticket `00001TB00000065`, cancelar sin pagos
+(156) y apagar el TPV (159).
 
 En esa última prueba salió un fallo real, ya corregido: si el TPV estaba caído al crear la
 comanda, la venta quedaba como error definitivo y no se recuperaba nunca. Ahora se queda
 pendiente y se reenvía sola al volver el TPV; lo vimos en vivo con la comanda 159.
 
-Los tres huecos, ninguno bloquea el piloto:
+Los dos huecos, ninguno bloquea el piloto:
    - *Cobro parcial:* la web calculaba el pendiente sobre base + IVA y no sobre el total
      que aceptó BDP, así que tras cobrar todo seguía mostrando 0,45 €. En un restaurante
      real eso lleva a cobrar de más. Es el importante.
-   - *Comentarios de línea:* la web no tiene campo de comentario por producto. BDP sí.
    - *Invitación:* la línea invitada llega al ticket con el artículo por defecto. El
      importe es 0, pero el nombre no cuadra.
 
-*4. Configuración de producción — preparada.* Los cinco checks dan 18 de 18 en verde
-contra el demo, y ninguno da por bueno un valor por estar escrito: lo busca en una lista
-real del TPV. Sin códigos inventados. Para los valores del restaurante hay que pasar el
-diagnóstico desde `restaurante.wandori.us` y rellenar lo que marque (el cliente por
-defecto, por ejemplo, en el demo pasa con aviso porque no hay ninguno).
+Los comentarios de línea ya están resueltos: cada producto tiene su campo de comentario,
+viaja al TPV en `Comments[]` y, si se cambia después de enviada la comanda, se manda la
+contrapartida con el texto viejo y el alta con el nuevo —la única forma que BDP admite sin
+dejar el comentario antiguo en el ticket—.
+
+*4. Configuración de producción — preparada.* Los checks dan 19 de 19 en verde contra el
+demo, y ninguno da por bueno un valor por estar escrito: lo busca en una lista real del
+TPV, incluido el artículo por defecto, que hasta ahora pasaba aunque su código no existiera
+y solo fallaba al crear la comanda. Sin códigos inventados. Para los valores del
+restaurante hay que pasar el diagnóstico desde `restaurante.wandori.us` y rellenar lo que
+marque (el cliente por defecto, por ejemplo, en el demo pasa con aviso porque no hay
+ninguno).
 
 *5. Despliegue por etapas — listo.* Se encienden por separado lectura, comandas,
 modificaciones, descuentos, pagos y tickets, más el registro de actividad. Volver a «solo
@@ -53,9 +57,8 @@ la integración terminada.
 cada prueba contra el TPV real saca matices que solo se ven funcionando, y eso es bueno,
 pero lleva su tiempo. Por eso te adelanto que las próximas correcciones o mejoras que
 salgan de aquí o de la respuesta de BDP podrían llevar un coste aparte. No es una cifra
-que te pueda dar hoy, porque depende de lo que pida cada una. En cuanto BDP conteste te
-paso el alcance y el importe por escrito, y no empezamos nada sin tu OK.
+que te pueda dar hoy, porque depende de lo que pida cada una.
 
 Resumen: puntos 1, 2, 3 y 5 listos para el piloto; el 4 preparado y esperando los valores
 reales; del 6, lo único que podía escribir ya está cortado. Cuando BDP conteste hacemos la
-vuelta contra su TPV y cerramos los tres huecos del punto 3.
+vuelta contra su TPV y cerramos los dos huecos del punto 3.
