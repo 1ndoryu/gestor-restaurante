@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::models::{ConfiguracionRestaurante, Venta};
 use crate::repositories::BdpPagoRepository;
-use crate::services::bdp_weblink::BdpWeblinkClient;
+use crate::services::bdp_weblink::{BdpWeblinkClient, BdpWeblinkError};
 use crate::services::bdp_weblink_catalog::{
     BdpAddOrderPaymentRequest, BdpGetOrderRequest, BdpOrderIdentifier, BdpOrderPayment,
 };
@@ -23,11 +23,15 @@ use crate::services::{ModoEfectivo, ServicioModoOperacion};
 use super::bdp_sync::{BdpSyncService, SyncLockGuard, SYNC_LOCKS};
 
 mod reconciliacion;
+/* [21AB-1] Reglas puras del pago (ambigüedad, tope y número de factura), en su
+ * propio archivo para que éste no pase el umbral de god-object. */
+mod reglas;
 /* [18AB-1] `payment_id_de_pago` también lo usa el pago que viaja dentro de
  * `CreateOrder`; el resto es de este submódulo. */
 pub(crate) use reconciliacion::payment_id_de_pago;
 
 use reconciliacion::{estado_pago_remoto, payment_id_intento, PagoRemoto};
+use reglas::{numero_factura, pago_queda_ambiguo, tope_pagos_alcanzado, MAX_PAGOS_VENTA};
 
 /* [267A-8] Intención de pago validada: lo necesario para armar y ejecutar
  * el AddOrderPayment sin arrastrar 8 parámetros (límite clippy). */
@@ -404,17 +408,12 @@ impl BdpSyncService {
 
     /* [F4.4] Clasifica el error de AddOrderPayment, cierra la auditoría
      * como ambigua/error y devuelve el mensaje para el llamante. */
-    async fn gestionar_error_pago(
-        pool: &PgPool,
-        audit_id: Uuid,
-        e: crate::services::bdp_weblink::BdpWeblinkError,
-    ) -> String {
+    async fn gestionar_error_pago(pool: &PgPool, audit_id: Uuid, e: BdpWeblinkError) -> String {
         let msg = format!("Error AddOrderPayment: {e}");
-        let resultado = match e {
-            crate::services::bdp_weblink::BdpWeblinkError::Http(_)
-            | crate::services::bdp_weblink::BdpWeblinkError::Api { .. }
-            | crate::services::bdp_weblink::BdpWeblinkError::Throttled(_) => "ambiguo",
-            _ => "error",
+        let resultado = if pago_queda_ambiguo(&e) {
+            "ambiguo"
+        } else {
+            "error"
         };
         /* [189A-6] Un cierre de auditoría fallido no se pierde en silencio: la
          * fila queda abierta y al menos el log lo dice. */
@@ -570,55 +569,5 @@ impl BdpSyncService {
         }
 
         Ok(invoice_number)
-    }
-}
-
-/* BDP devuelve "" en InvoiceNumber cuando el pago no factura: eso no es un número
- * de factura y no debe marcar la venta como facturada. */
-fn numero_factura(response: &Value) -> Option<String> {
-    response
-        .get("InvoiceNumber")
-        .and_then(Value::as_str)
-        .filter(|numero| !numero.trim().is_empty())
-        .map(String::from)
-}
-
-/* [D17] Máximo de pagos BDP por venta (anexo B8, D17). */
-const MAX_PAGOS_VENTA: usize = 3;
-
-fn tope_pagos_alcanzado(pagos_remotos: usize) -> bool {
-    pagos_remotos >= MAX_PAGOS_VENTA
-}
-
-#[cfg(test)]
-mod tests_tope_pagos {
-    use super::tope_pagos_alcanzado;
-
-    #[test]
-    fn tres_pagos_bloquean_el_cuarto() {
-        assert!(!tope_pagos_alcanzado(2));
-        assert!(tope_pagos_alcanzado(3));
-        assert!(tope_pagos_alcanzado(4));
-    }
-}
-
-#[cfg(test)]
-mod tests_numero_factura {
-    use super::numero_factura;
-    use serde_json::json;
-
-    #[test]
-    fn respuesta_vacia_o_ausente_no_es_factura() {
-        assert_eq!(numero_factura(&json!({"InvoiceNumber": ""})), None);
-        assert_eq!(numero_factura(&json!({"InvoiceNumber": "  "})), None);
-        assert_eq!(numero_factura(&json!({"ErrorMessage": ""})), None);
-    }
-
-    #[test]
-    fn numero_real_se_conserva() {
-        assert_eq!(
-            numero_factura(&json!({"InvoiceNumber": "F-2026-0001"})),
-            Some("F-2026-0001".to_string())
-        );
     }
 }
