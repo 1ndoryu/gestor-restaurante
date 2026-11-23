@@ -51,6 +51,8 @@ mod twilio;
 mod venta;
 /* [18AB-3] Puertas de la anulación contra BDP (estado y pagos remotos). */
 mod venta_anulacion_bdp;
+/* [21AB-5a] Pago parcial local y su tope de saldo. */
+mod venta_pago_local;
 
 pub use api_key::ApiKeyService;
 pub use auth::AuthService;
@@ -83,7 +85,9 @@ pub use bdp_push::{
 };
 pub use bdp_push::{listar_revisiones_stock, resolver_revision_stock};
 pub use bdp_sync::BdpSyncService;
+/* [21AB-5a] Saldo de la comanda tal como lo ve el TPV. */
 pub use bdp_sync_catalogo::SyncTablesResult;
+pub use bdp_sync_pago::{OrigenSaldo, SaldoVenta};
 pub use bdp_sync_preflight::{BdpSyncDryRunCheck, BdpSyncDryRunResponse, BdpSyncPreflightService};
 pub(crate) use bdp_sync_venta::mensaje_conflicto;
 pub use bdp_throttle::{BdpThrottleManager, BDP_THROTTLE};
@@ -114,7 +118,7 @@ pub use etiqueta::EtiquetaService;
 pub use gasto::GastoService;
 pub use haddock::HaddockService;
 pub use integracion_marketing::IntegracionMarketingService;
-pub use invitacion::InvitacionService;
+pub use invitacion::{InvitacionService, INVITACIONES_HABILITADAS};
 pub use meta_whatsapp::MetaWhatsappService;
 pub use modo_operacion::{
     ModoEfectivo, ServicioModoOperacion, MODO_AUTO, MODO_BDP, MODO_STANDALONE,
