@@ -210,6 +210,10 @@ impl BdpPagoRepository {
         amount: Decimal,
         tender_id: i32,
         idempotency_key: &str,
+        /* [21AB-5a] Pendiente que manda el TPV (`Order.Total` menos sus pagos)
+         * cuando la comanda está en BDP; sin él se calcula sobre la copia
+         * local (`importe_base + importe_iva` menos el ledger). */
+        pendiente_remoto: Option<Decimal>,
     ) -> Result<(BdpPago, Option<Uuid>), AppError> {
         let mut tx = pool.begin().await.map_err(AppError::from)?;
 
@@ -248,7 +252,9 @@ impl BdpPagoRepository {
             ));
         }
 
-        /* Saldo pendiente = total - pagos exitosos del ledger. */
+        /* Saldo pendiente = total - pagos exitosos del ledger. [21AB-5a] Si la
+         * comanda vive en BDP, el total es el suyo: recalcular base + IVA deja
+         * pendiente lo que el TPV ya cobró con otro importe. */
         let pagado: Decimal = sqlx::query_scalar(
             "SELECT COALESCE(SUM(amount), 0) FROM bdp_pagos \
              WHERE venta_id = $1 AND resultado = 'exito'",
@@ -257,8 +263,8 @@ impl BdpPagoRepository {
         .fetch_one(&mut *tx)
         .await
         .map_err(AppError::from)?;
-        let total = venta.importe_base + venta.importe_iva;
-        let pendiente = total - pagado;
+        let pendiente =
+            pendiente_remoto.unwrap_or_else(|| venta.importe_base + venta.importe_iva - pagado);
         if amount > pendiente + Decimal::new(1, 3) {
             return Err(AppError::Validation(format!(
                 "El importe {amount:.2} excede el saldo pendiente {pendiente:.2}"

@@ -216,6 +216,10 @@ pub struct BdpPaymentsResponse {
     pub total: rust_decimal::Decimal,
     pub pagado: rust_decimal::Decimal,
     pub pendiente: rust_decimal::Decimal,
+    /* [21AB-5a] «bdp» = el saldo sale de `GetOrder`; «local» = BDP no respondió
+     * y el número es la copia de la web. La pantalla no debe cobrar a ciegas
+     * sobre un saldo local. */
+    pub origen: String,
     pub pagos: Vec<BdpPaymentHistoryItem>,
 }
 
@@ -494,19 +498,24 @@ pub async fn listar_bdp_payments(
         .await?
         .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
 
-    /* Lecturas independientes: en paralelo, sin esperar una a la otra */
-    let (pagos, pagado) = tokio::try_join!(
-        crate::repositories::BdpPagoRepository::listar_por_venta(&state.pool, id),
-        crate::repositories::BdpPagoRepository::total_pagado(&state.pool, id),
-    )?;
-    let total = venta.importe_base + venta.importe_iva;
-    let pendiente = (total - pagado).max(rust_decimal::Decimal::ZERO);
+    /* [21AB-5a] El saldo manda el TPV: `Order.Total` menos sus `Payments`. Se
+     * refresca en cada consulta, que es lo que pide Guillermo antes de cobrar.
+     * El historial local se lee igual, para la tabla de la pantalla. */
+    let config = crate::services::ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    let saldo = BdpSyncService::saldo_de_venta(&state.pool, &venta, &config)
+        .await
+        .map_err(AppError::Internal)?;
+    let pagos = crate::repositories::BdpPagoRepository::listar_por_venta(&state.pool, id).await?;
 
     Ok(Json(BdpPaymentsResponse {
         venta_id: id,
-        total,
-        pagado,
-        pendiente,
+        total: saldo.total,
+        pagado: saldo.pagado,
+        pendiente: saldo.pendiente,
+        origen: match saldo.origen {
+            crate::services::OrigenSaldo::Bdp => "bdp".to_string(),
+            crate::services::OrigenSaldo::Local => "local".to_string(),
+        },
         pagos: pagos
             .into_iter()
             .map(|p| BdpPaymentHistoryItem {

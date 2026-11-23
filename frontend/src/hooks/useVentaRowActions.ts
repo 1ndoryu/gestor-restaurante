@@ -23,6 +23,9 @@ export interface BdpPaymentsResponse {
   total: string;
   pagado: string;
   pendiente: string;
+  /* [21AB-5a] «bdp» = el saldo sale de `GetOrder`; «local» = BDP no respondió
+   * y el número es la copia de la web. */
+  origen: 'bdp' | 'local';
   pagos: BdpPaymentHistoryItem[];
 }
 

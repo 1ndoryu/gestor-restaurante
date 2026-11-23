@@ -38,6 +38,9 @@ pub struct PagoLocalResponse {
     pub total: rust_decimal::Decimal,
     pub pagado: rust_decimal::Decimal,
     pub pendiente: rust_decimal::Decimal,
+    /* [21AB-5a] «bdp» = el saldo sale de `GetOrder`; «local» = BDP no
+     * respondió y el número es la copia de la web. */
+    pub origen: String,
 }
 
 #[utoipa::path(
@@ -96,20 +99,27 @@ pub async fn pago_parcial_local(
     )
     .await?;
 
-    /* Balance actualizado para la respuesta. */
+    /* Balance actualizado para la respuesta. [21AB-5a] El saldo sale de BDP
+     * (`GetOrder`) cuando la venta está sincronizada: recalculaba base + IVA
+     * y dejaba pendiente lo que el TPV ya había cobrado. */
     let venta = crate::repositories::VentaRepository::find_by_id(&state.pool, id, auth.user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
-    let total = venta.importe_base + venta.importe_iva;
-    let pagado = crate::repositories::BdpPagoRepository::total_pagado(&state.pool, id).await?;
-    let pendiente = (total - pagado).max(rust_decimal::Decimal::ZERO);
+    let config = crate::services::ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    let saldo = crate::services::BdpSyncService::saldo_de_venta(&state.pool, &venta, &config)
+        .await
+        .map_err(AppError::Internal)?;
 
     Ok(Json(PagoLocalResponse {
         venta_id: id,
         duplicado: audit_id.is_none(),
-        total,
-        pagado,
-        pendiente,
+        total: saldo.total,
+        pagado: saldo.pagado,
+        pendiente: saldo.pendiente,
+        origen: match saldo.origen {
+            crate::services::OrigenSaldo::Bdp => "bdp".to_string(),
+            crate::services::OrigenSaldo::Local => "local".to_string(),
+        },
         pago,
     }))
 }

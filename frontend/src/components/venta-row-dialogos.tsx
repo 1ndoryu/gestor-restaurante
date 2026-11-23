@@ -30,8 +30,9 @@ function formatCurrency(value?: string | number | null): string {
   return `${n.toFixed(2)} €`;
 }
 
-/* Tres tarjetas de importe (total, pagado, pendiente) y el aviso de pago ambiguo. */
-function ResumenPagos({ total, pagado, pendiente, hayAmbiguo }: { total: Importe; pagado: Importe; pendiente: Importe; hayAmbiguo: boolean }) {
+/* Tres tarjetas de importe (total, pagado, pendiente) y los avisos de pago
+ * ambiguo y de saldo no confirmado por el TPV. */
+function ResumenPagos({ total, pagado, pendiente, hayAmbiguo, origen }: { total: Importe; pagado: Importe; pendiente: Importe; hayAmbiguo: boolean; origen?: 'bdp' | 'local' }) {
   return (
     <>
       <div className="grid grid-cols-3 gap-2 text-sm">
@@ -48,6 +49,13 @@ function ResumenPagos({ total, pagado, pendiente, hayAmbiguo }: { total: Importe
           <div className="font-semibold text-amber-700">{formatCurrency(pendiente)}</div>
         </div>
       </div>
+      {/* [21AB-5a] Saldo sin BDP: no se cobra a ciegas sobre la copia local. */}
+      {origen === 'local' && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <span>El TPV no respondió: estos importes son la copia de la web, no el saldo del TPV. Refresca la comanda antes de cobrar.</span>
+        </div>
+      )}
       {hayAmbiguo && (
         <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
@@ -113,7 +121,7 @@ export function VentaRowDialogos({ v, acciones, anularPending }: VentaRowDialogo
           <p className="text-sm text-muted-foreground">Cargando historial de pagos…</p>
         ) : (
           <>
-            <ResumenPagos total={pagos?.total ?? totalVenta} pagado={pagado} pendiente={pendiente} hayAmbiguo={hayAmbiguo} />
+            <ResumenPagos total={pagos?.total ?? totalVenta} pagado={pagado} pendiente={pendiente} hayAmbiguo={hayAmbiguo} origen={pagos?.origen} />
             {pagos && pagos.pagos.length > 0 && <TablaPagos lista={pagos.pagos} />}
             <div className="flex flex-col gap-3">
               <div><Label htmlFor={`importe-${v.id}`}>Importe a pagar</Label><Input id={`importe-${v.id}`} type="number" min="0.01" step="0.01" max={pendiente.toFixed(2)} value={importe} onChange={(e) => setImporte(e.target.value)} /></div>
@@ -160,7 +168,7 @@ export function VentaRowDialogos({ v, acciones, anularPending }: VentaRowDialogo
           <p className="text-sm text-muted-foreground">Cargando historial de pagos…</p>
         ) : (
           <>
-            <ResumenPagos total={pagos?.total ?? totalVenta} pagado={pagado} pendiente={pendiente} hayAmbiguo={hayAmbiguo} />
+            <ResumenPagos total={pagos?.total ?? totalVenta} pagado={pagado} pendiente={pendiente} hayAmbiguo={hayAmbiguo} origen={pagos?.origen} />
             {pagos && pagos.pagos.length > 0 && <TablaPagos lista={pagos.pagos} />}
             <div className="flex flex-col gap-3">
               <div><Label htmlFor={`importe-local-${v.id}`}>Importe a cobrar</Label><Input id={`importe-local-${v.id}`} type="number" min="0.01" step="0.01" max={pendiente.toFixed(2)} value={importe} onChange={(e) => setImporte(e.target.value)} /></div>

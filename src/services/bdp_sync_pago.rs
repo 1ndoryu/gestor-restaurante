@@ -23,6 +23,9 @@ use crate::services::{ModoEfectivo, ServicioModoOperacion};
 use super::bdp_sync::{BdpSyncService, SyncLockGuard, SYNC_LOCKS};
 
 mod reconciliacion;
+/* [21AB-5a] Saldo desde `GetOrder`: total del TPV menos sus pagos. */
+mod saldo;
+pub use saldo::{OrigenSaldo, SaldoVenta};
 /* [21AB-1] Reglas puras del pago (ambigüedad, tope y número de factura), en su
  * propio archivo para que éste no pase el umbral de god-object. */
 mod reglas;
