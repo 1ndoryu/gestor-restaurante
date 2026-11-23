@@ -1,0 +1,52 @@
+BORRADOR — respuesta a Guillermo, 2026-11-23 (WhatsApp, sin enviar)
+Contesta a su segunda lista del 22/11. Evidencia completa en
+Agente/documentacion/bdp/pruebas-segunda-lista-2026-11-23.md.
+
+---
+
+Hola Guillermo: los siete puntos están probados contra el TPV demo. Te resumo
+qué se ha visto en BDP y qué queda.
+
+1. *Saldo de los pagos parciales.* Antes de cada cobro se consulta la comanda
+   y el pendiente sale del total de BDP menos sus pagos. Probado con uno, dos y
+   tres pagos: 10,50 → 7,00 → 3,50 → 0,00, y al final ya no queda nada
+   pendiente. El cuarto pago se rechaza con un aviso y no se escribe nada.
+
+2. *Invitaciones.* Siguen *desactivadas*, como pediste. El fallo era que, si el
+   artículo pedido no tenía equivalencia en BDP, se mandaba el artículo por
+   defecto sin decir nada y el ticket nombraba otro producto. Ahora esa línea
+   corta el envío y dice qué artículo falta. Se reactivarán cuando el ticket
+   lleve siempre el producto real.
+
+3. *Identificador de pago.* Cada pago lleva un identificador que sale de su
+   clave: todos los reintentos de ese mismo pago usan el mismo, y un pago
+   distinto lleva uno distinto. Probado en BDP: reintento con la misma clave,
+   un solo cobro; con otra clave, dos cobros distintos. Aviso importante: BDP
+   36.2 *no* deduplica por ese identificador; quien protege del doble cobro es
+   la consulta previa, que ya está hecha.
+
+4. *Tres pagos.* Comanda 189: tres pagos de 3,50 con formas distintas,
+   verificados uno a uno en el TPV, total completo, un solo ticket
+   (00001TB00000068) y el cuarto rechazado sin escribir nada.
+
+5. *Reinicio real.* Paré el TPV con una venta a medias, la web no pudo
+   contactar, arranqué el TPV y la web se autenticó sola y creó la comanda una
+   sola vez (comanda 182). En el registro queda un intento fallido y un único
+   envío bueno.
+
+6. *Modificaciones rápidas.* Dos ediciones a la vez y luego tres seguidas: la
+   web y el TPV acaban en el mismo estado (6 unidades, 6,30). Ya no hay que
+   repetir nada a mano.
+
+7. *Licencia del demo.* El aviso «sin conexión con el servidor de subscripción»
+   sigue saliendo y el TPV funciona igual: todas estas pruebas se han hecho con
+   él. Te paso la pregunta para BDP; hace falta que nos confirmen la vigencia
+   del entorno de pruebas.
+
+*Dos límites del demo, no de la web:* las comandas de barra no admiten
+modificaciones (el TPV las rechaza con «el importe no coincide»); las de mesa
+sí. Y tras facturar, el TPV ya no deja releer la comanda, así que el número de
+ticket se guarda en la web al facturar.
+
+*Nada de esto está conectado al restaurante:* todas las pruebas son contra el
+TPV demo del portátil. Cuando digas, preparamos las pruebas con vuestro TPV.
