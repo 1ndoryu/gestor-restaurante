@@ -161,10 +161,16 @@ impl BdpOrderPollerService {
                 Vec::new()
             });
 
+        /* [21AB-5d] Una modificación ambigua no la trae ninguna de las listas de
+         * ventas (la comanda existe y la venta puede estar ya facturada), así que
+         * el corte temprano la dejaría bloqueada sin que nadie la mirase. */
+        let hay_auditorias_abiertas = Self::hay_auditorias_abiertas(pool, user_id).await;
+
         if ventas.is_empty()
             && orphaned.is_empty()
             && orphaned_customers.is_empty()
             && en_vuelo.is_empty()
+            && !hay_auditorias_abiertas
         {
             return Ok(0);
         }

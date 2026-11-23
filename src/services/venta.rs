@@ -8,14 +8,13 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::models::{
-    ActualizarVentaRequest, AnularVentaRequest, BdpPago, CrearVentaRequest, Venta, VentasPaginadas,
+    ActualizarVentaRequest, AnularVentaRequest, CrearVentaRequest, Venta, VentasPaginadas,
 };
 use crate::repositories::venta::{
     ActualizarVentaData, FiltrosListadoVentas, MesaVenta, NuevaVenta,
 };
 use crate::repositories::{
-    BdpPagoRepository, ConfiguracionRepository, PlanoSalaRepository, VentaLineaRepository,
-    VentaRepository,
+    ConfiguracionRepository, PlanoSalaRepository, VentaLineaRepository, VentaRepository,
 };
 
 use super::bdp_push::{DOMINIO_VENTA, OPERACION_CANCELAR};
@@ -161,6 +160,14 @@ impl VentaService {
         user_id: Uuid,
         req: ActualizarVentaRequest,
     ) -> Result<Venta, AppError> {
+        /* [21AB-5c] Guillermo (22/11): dos ediciones rápidas de la misma comanda
+         * no pueden perderse ni duplicar líneas. Antes las dos leían las mismas
+         * líneas de partida y mandaban el mismo delta dos veces. El candado va
+         * aquí, **antes de leer el estado**: la segunda espera y calcula su
+         * diferencia contra el resultado de la primera. */
+        let _serial = BdpSyncService::serializar_venta(id)
+            .await
+            .map_err(AppError::Conflict)?;
         let actual = VentaRepository::find_by_id(pool, id, user_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
@@ -216,12 +223,20 @@ impl VentaService {
         };
 
         let mut tx = pool.begin().await?;
-        let venta = VentaRepository::update_with(&mut *tx, &data)
+        let mut venta = VentaRepository::update_with(&mut *tx, &data)
             .await?
             .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
 
         if let Some(ref lineas) = req.lineas {
             let nuevas = VentaLineaRepository::reemplazar_conn(&mut tx, venta.id, lineas).await?;
+            /* [21AB-5d] Si el cliente manda líneas y ningún importe, la cabecera
+             * se quedaba con el total viejo: la web mostraba una venta de 1,05
+             * con seis unidades. Sin importe explícito, se deriva de las líneas. */
+            if req.importe_base.is_none() && req.importe_iva.is_none() {
+                venta = VentaRepository::recalcular_importes(&mut *tx, venta.id, user_id)
+                    .await?
+                    .ok_or_else(|| AppError::NotFound("Venta no encontrada".into()))?;
+            }
             if actual.bdp_synced {
                 /* Antes del commit: si BDP no acepta el cambio, `tx` se descarta y
                  * la web conserva el estado que sigue coincidiendo con el TPV. */
@@ -433,42 +448,6 @@ impl VentaService {
         }
 
         Ok(venta)
-    }
-
-    /* [128A-1/F6] Pago parcial local (A8/M13).
-     * Escribe sobre el ledger existente `bdp_pagos` (fila local sin
-     * `bdp_order_id`). El repo aplica guards (anulada/facturada), saldo
-     * pendiente e idempotencia dentro de una transacción con lock de venta.
-     * Un reintento con la misma clave es éxito idempotente solo si la fila
-     * previa pertenece a la misma venta con el mismo importe. */
-    pub async fn pago_parcial_local(
-        pool: &PgPool,
-        user_id: Uuid,
-        venta_id: Uuid,
-        amount: rust_decimal::Decimal,
-        tender_id: i32,
-        idempotency_key: Option<&str>,
-    ) -> Result<(BdpPago, Option<Uuid>), AppError> {
-        let key = idempotency_key.unwrap_or_default();
-        let (pago, audit_id) =
-            BdpPagoRepository::insertar_local(pool, user_id, venta_id, amount, tender_id, key)
-                .await?;
-
-        if audit_id.is_none() {
-            /* Reintento idempotente: la clave ya se usó. */
-            if pago.venta_id != venta_id {
-                return Err(AppError::Conflict(
-                    "idempotency_key ya usada para otra venta".into(),
-                ));
-            }
-            if pago.amount != amount {
-                return Err(AppError::Conflict(
-                    "idempotency_key ya usada con otro importe".into(),
-                ));
-            }
-        }
-
-        Ok((pago, audit_id))
     }
 
     /* [128A-1/F6] Factura local mínima (A7/D9): numeración local secuencial +

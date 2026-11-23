@@ -21,6 +21,11 @@ use crate::services::bdp_weblink_catalog::{
 const TIMEOUT_LECTURA: Duration = Duration::from_secs(20);
 const TIMEOUT_ESCRITURA: Duration = Duration::from_secs(60);
 
+/* [21AB-5c] Espera máxima por un hueco del throttle BDP antes de rechazar.
+ * Es la mitad del timeout de lectura: dos peticiones del mismo flujo caben sin
+ * agotar la paciencia del operador ni la del TPV. */
+const ESPERA_THROTTLE: Duration = Duration::from_secs(10);
+
 static HTTP_CLIENT: LazyLock<Result<Client, String>> =
     LazyLock::new(|| construir_cliente(TIMEOUT_LECTURA));
 
@@ -119,7 +124,8 @@ impl BdpWeblinkClient<'_> {
         self.ensure_configured()?;
         let base_url = self.config.bdp_base_url.as_str();
         let _throttle_guard = crate::services::bdp_throttle::BDP_THROTTLE
-            .acquire(base_url)
+            .acquire_esperando(base_url, ESPERA_THROTTLE)
+            .await
             .map_err(|reason| BdpWeblinkError::Throttled(format!("{reason} ({path})")))?;
         let url = self.build_url(path)?;
         let response = http_client(path)?
@@ -144,7 +150,8 @@ impl BdpWeblinkClient<'_> {
         self.ensure_base_url()?;
         let base_url = self.config.bdp_base_url.as_str();
         let _throttle_guard = crate::services::bdp_throttle::BDP_THROTTLE
-            .acquire(base_url)
+            .acquire_esperando(base_url, ESPERA_THROTTLE)
+            .await
             .map_err(|reason| BdpWeblinkError::Throttled(format!("{reason} ({path})")))?;
         let url = self.build_url(path)?;
         let response = http_client(path)?

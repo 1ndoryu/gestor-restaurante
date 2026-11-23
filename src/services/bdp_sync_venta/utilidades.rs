@@ -45,6 +45,27 @@ impl BdpSyncService {
         }
     }
 
+    /* [21AB-5c] Serializa las escrituras de una misma venta. El guard vive
+     * mientras dure la operación y limpia la entrada al caer. */
+    pub(crate) async fn serializar_venta(
+        venta_id: uuid::Uuid,
+    ) -> Result<tokio::sync::OwnedMutexGuard<()>, String> {
+        let lock = {
+            let mut map = SYNC_LOCKS
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            map.entry(venta_id)
+                .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+                .clone()
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(30), lock.lock_owned())
+            .await
+            .map_err(|_| {
+                "La comanda tiene otra modificación en curso; inténtalo de nuevo en unos segundos"
+                    .to_string()
+            })
+    }
+
     pub(crate) fn cleanup_lock(venta_id: uuid::Uuid) {
         let mut map = SYNC_LOCKS
             .lock()

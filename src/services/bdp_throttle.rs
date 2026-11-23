@@ -64,14 +64,26 @@ impl BdpThrottleManager {
         semaphore
     }
 
-    /// Intenta adquirir un permit para una petición BDP a `base_url`.
-    /// Si no hay permits disponibles, devuelve error sin bloquear.
-    pub fn acquire(&self, base_url: &str) -> Result<BdpThrottleGuard, String> {
+    /* [21AB-5c] Guillermo (22/11): «las modificaciones rápidas no pueden perderse
+     * ni obligar al usuario a repetirlas». Rechazar al instante convertía el
+     * propio `GetOrder` de una modificación en un `Throttled` cuando sus
+     * peticiones hermanas ocupaban los dos permits, y el operador veía un error
+     * por haber pulsado dos veces. La espera es acotada: si en `espera` no hay
+     * hueco, sigue siendo `Throttled` (backpressure real, no cola infinita). */
+    pub async fn acquire_esperando(
+        &self,
+        base_url: &str,
+        espera: std::time::Duration,
+    ) -> Result<BdpThrottleGuard, String> {
         let semaphore = self.semaphore_for(base_url);
-        let permit = semaphore
-            .try_acquire_owned()
-            .map_err(|_| "BDP concurrent request limit reached".to_string())?;
-        Ok(BdpThrottleGuard { _permit: permit })
+        match tokio::time::timeout(espera, semaphore.acquire_owned()).await {
+            Ok(Ok(permit)) => Ok(BdpThrottleGuard { _permit: permit }),
+            Ok(Err(_)) => Err("semáforo BDP cerrado".to_string()),
+            Err(_) => Err(format!(
+                "BDP concurrent request limit reached (espera agotada tras {} ms)",
+                espera.as_millis()
+            )),
+        }
     }
 
     /// Peticiones activas para un destino dado.

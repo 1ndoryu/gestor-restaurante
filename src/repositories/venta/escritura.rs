@@ -149,4 +149,36 @@ impl VentaRepository {
         .fetch_optional(executor)
         .await
     }
+
+    /* [21AB-5d] Cabecera derivada de las líneas ya guardadas.
+     * El frontend manda `importe_base`/`importe_iva`, pero la API es pública:
+     * un cliente que solo manda líneas dejaba la cabecera con el total viejo y
+     * la web mostraba 1,05 para seis unidades. La fórmula es la misma que
+     * `calcularTotales` del frontend: invitada fuera, descuento en porcentaje,
+     * se redondea el total (no cada línea) a céntimos. */
+    pub async fn recalcular_importes<'e, E>(
+        executor: E,
+        id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<Venta>, sqlx::Error>
+    where
+        E: Executor<'e, Database = Postgres>,
+    {
+        sqlx::query_as::<_, Venta>(
+            "UPDATE ventas SET \
+             importe_base = (SELECT COALESCE(ROUND(SUM(cantidad * precio_unitario \
+                 * (1 - descuento / 100)), 2), 0) \
+                 FROM venta_lineas WHERE venta_id = $1 AND NOT invitacion), \
+             importe_iva = (SELECT COALESCE(ROUND(SUM(cantidad * precio_unitario \
+                 * (1 - descuento / 100) * iva_pct / 100), 2), 0) \
+                 FROM venta_lineas WHERE venta_id = $1 AND NOT invitacion), \
+             updated_at = NOW() \
+             WHERE id = $1 AND user_id = $2 \
+             RETURNING *",
+        )
+        .bind(id)
+        .bind(user_id)
+        .fetch_optional(executor)
+        .await
+    }
 }

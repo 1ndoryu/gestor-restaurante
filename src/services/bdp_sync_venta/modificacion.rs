@@ -194,38 +194,17 @@ impl BdpSyncService {
         let client = BdpWeblinkClient::new(config);
         Self::comprobar_sin_cambios_en_tpv(&client, venta, antes, order_id).await?;
 
-        let article = Self::resolve_article(&client, pool, venta.user_id, config).await;
-        let ids = Self::resolve_line_articles(pool, venta.user_id, &ajustes, article.id).await;
-        let items = Self::items_de_lineas(&ajustes, Some(&ids), &article);
-        /* [21AB-2] Última puerta antes del HTTP, igual que en el alta: un ajuste
-         * de 0 uds dejaría una línea que BDP no puede facturar (`Units: 0`
-         * revienta el cobro con «Intento de dividir por cero»). `delta_lineas`
-         * ya descarta los deltas nulos, pero la comprobación no depende de eso. */
-        if let Some(malo) = items_con_cero_uds(&items) {
-            return Err(format!(
-                "No se envía la modificación a BDP: una línea queda con 0 unidades ({malo})"
-            ));
-        }
         let total_final = Self::total_pedido(venta, Some(despues));
-        /* [21AB-6] Mismo corte que en el alta: un canal de domicilio no se
-         * envía a un TPV que no admite `Type=2`. */
-        let order_ctx = Self::resolve_order_context(pool, venta, config).await?;
-        let mut pedido_json =
-            Self::json_pedido(config, venta, &order_ctx, &items, total_final, false);
-        if let Some(mapa) = pedido_json.as_object_mut() {
-            mapa.insert("OrderId".into(), order_id.into());
-            /* Comanda abierta: sin forma de pago ni propina en la modificación. */
-            mapa.remove("TenderId");
-            mapa.remove("Tip");
-        }
-        let peticion = BdpCreateOrderRequest {
-            employee_id: config.bdp_employee_id,
-            items_profile_id: config.bdp_items_profile_id,
-            order_end_type: config.bdp_order_end_type,
-            order_operation_type: 0,
-            invoice: Some(false),
-            order: pedido_json,
-        };
+        let peticion = Self::peticion_de_modificacion(
+            &client,
+            pool,
+            venta,
+            config,
+            &ajustes,
+            order_id,
+            total_final,
+        )
+        .await?;
 
         /* [21AB-5] Auditoría y armado propios (`modify_order`): modificar una
          * comanda viva se enciende aparte de crearla. Con `create_order` la
@@ -266,10 +245,28 @@ impl BdpSyncService {
         let (estado, mensaje) = match &resultado {
             Ok(r) => match r.get("ErrorMessage").and_then(Value::as_str).map(str::trim) {
                 Some(m) if !m.is_empty() => ("error", Some(m.to_string())),
-                _ => ("exito", None),
+                /* [21AB-5d] Un 200 sin `ErrorMessage` no basta: el TPV demo
+                 * contestó OK a modificaciones de barra y no cambió una línea.
+                 * El total de la comanda es la firma del cambio, así que se
+                 * relee antes de dar la edición por hecha. */
+                _ => match Self::confirmar_total_en_bdp(&client, order_id, total_final).await {
+                    Ok(()) => ("exito", None),
+                    Err(mensaje) => ("error", Some(mensaje)),
+                },
             },
-            /* Un corte tras enviar puede haberse aplicado: queda ambiguo. */
-            Err(e) => ("ambiguo", Some(e.to_string())),
+            /* [21AB-5d] Un rechazo de negocio (`Remote`: el TPV contestó HTTP
+             * 200 con `ErrorMessage`) no escribió nada: va a `error` y no deja
+             * auditoría abierta. Antes se mandaba a reconciliar como cualquier
+             * fallo, quedaba `ambiguo` y la venta se bloqueaba para siempre con
+             * un 300033 que no había cambiado una línea.
+             *
+             * Un corte tras enviar (transporte, 5xx, throttling) sí puede
+             * haberse aplicado: [21AB-5c] se reconcilia con `GetOrder` y el
+             * ambiguo se cierra con lo que diga el TPV. */
+            Err(e) if matches!(e, crate::services::bdp_weblink::BdpWeblinkError::Remote(_)) => {
+                ("error", Some(e.to_string()))
+            }
+            Err(e) => Self::reconciliar_modificacion(&client, order_id, total_final, e).await,
         };
         let _ = crate::services::BdpBackupService::actualizar_resultado(
             pool,
@@ -285,6 +282,119 @@ impl BdpSyncService {
                 "BDP no aceptó la modificación: {}",
                 Self::sanitize_error(&m.unwrap_or_default())
             )),
+        }
+    }
+
+    /* [21AB-5d] Cuerpo de la petición de ajuste, separado para que
+     * `modificar_comanda` quepa en una pantalla: resuelve artículos, arma las
+     * líneas y monta el JSON con el `OrderId` de la comanda viva. */
+    async fn peticion_de_modificacion(
+        client: &BdpWeblinkClient<'_>,
+        pool: &sqlx::PgPool,
+        venta: &Venta,
+        config: &ConfiguracionRestaurante,
+        ajustes: &[VentaLinea],
+        order_id: i64,
+        total_final: f64,
+    ) -> Result<BdpCreateOrderRequest, String> {
+        let article = Self::resolve_article(client, pool, venta.user_id, config).await;
+        /* [21AB-5b] Misma frontera que en el alta: una invitada sin equivalencia
+         * bloquea la modificación antes de tocar el TPV. */
+        let ids = Self::resolve_line_articles(pool, venta.user_id, ajustes, article.id).await?;
+        let items = Self::items_de_lineas(ajustes, Some(&ids), &article);
+        /* [21AB-2] Última puerta antes del HTTP, igual que en el alta: un ajuste
+         * de 0 uds dejaría una línea que BDP no puede facturar (`Units: 0`
+         * revienta el cobro con «Intento de dividir por cero»). `delta_lineas`
+         * ya descarta los deltas nulos, pero la comprobación no depende de eso. */
+        if let Some(malo) = items_con_cero_uds(&items) {
+            return Err(format!(
+                "No se envía la modificación a BDP: una línea queda con 0 unidades ({malo})"
+            ));
+        }
+        /* [21AB-6] Mismo corte que en el alta: un canal de domicilio no se
+         * envía a un TPV que no admite `Type=2`. */
+        let order_ctx = Self::resolve_order_context(pool, venta, config).await?;
+        let mut pedido_json =
+            Self::json_pedido(config, venta, &order_ctx, &items, total_final, false);
+        if let Some(mapa) = pedido_json.as_object_mut() {
+            mapa.insert("OrderId".into(), order_id.into());
+            /* Comanda abierta: sin forma de pago ni propina en la modificación. */
+            mapa.remove("TenderId");
+            mapa.remove("Tip");
+        }
+        Ok(BdpCreateOrderRequest {
+            employee_id: config.bdp_employee_id,
+            items_profile_id: config.bdp_items_profile_id,
+            order_end_type: config.bdp_order_end_type,
+            order_operation_type: 0,
+            invoice: Some(false),
+            order: pedido_json,
+        })
+    }
+
+    /* [21AB-5d] BDP dijo OK: ¿lo aplicó? Solo se da por hecho si `GetOrder`
+     * devuelve el total final. Una lectura que no llega no confirma nada: el
+     * cambio se revierte y se pide reintentar, que es lo único honesto cuando
+     * no se puede demostrar el resultado. */
+    async fn confirmar_total_en_bdp(
+        client: &BdpWeblinkClient<'_>,
+        order_id: i64,
+        total_final: f64,
+    ) -> Result<(), String> {
+        let respuesta = client
+            .get_order(&BdpGetOrderRequest {
+                order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+            })
+            .await
+            .map_err(|e| {
+                format!("BDP aceptó la modificación pero no se pudo releer la comanda {order_id}: {e}. Revise la comanda en el TPV y reintente.")
+            })?;
+        let orden = respuesta.get("Order").unwrap_or(&respuesta);
+        match mensaje_conflicto(
+            order_id,
+            orden.get("Total").and_then(Value::as_f64),
+            total_final,
+        ) {
+            None => Ok(()),
+            Some(conflicto) => Err(format!(
+                "BDP respondió OK pero no aplicó el cambio: {conflicto}"
+            )),
+        }
+    }
+
+    /* [21AB-5c] Tras un fallo de transporte, ¿la modificación se aplicó? El
+     * total final es la firma del cambio: si BDP lo tiene, el cambio está hecho
+     * y no hay nada que repetir; si no, el fallo es real y la web conserva su
+     * estado. Una lectura que tampoco llega se queda ambigua, como antes. */
+    async fn reconciliar_modificacion(
+        client: &BdpWeblinkClient<'_>,
+        order_id: i64,
+        total_final: f64,
+        error: &crate::services::bdp_weblink::BdpWeblinkError,
+    ) -> (&'static str, Option<String>) {
+        let motivo = format!("{error}; sin reconciliar");
+        let Ok(respuesta) = client
+            .get_order(&BdpGetOrderRequest {
+                order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+            })
+            .await
+        else {
+            return ("ambiguo", Some(motivo));
+        };
+        let orden = respuesta.get("Order").unwrap_or(&respuesta);
+        match mensaje_conflicto(
+            order_id,
+            orden.get("Total").and_then(Value::as_f64),
+            total_final,
+        ) {
+            /* El TPV ya tiene el total que se quería: la escritura se aplicó. */
+            None => (
+                "exito",
+                Some(format!(
+                    "{error}; reconciliado: BDP ya tenía el total {total_final:.2}"
+                )),
+            ),
+            Some(conflicto) => ("ambiguo", Some(format!("{error}; {conflicto}"))),
         }
     }
 }

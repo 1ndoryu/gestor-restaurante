@@ -11,6 +11,29 @@ use crate::services::bdp_weblink_catalog::{BdpGetOrderRequest, BdpOrderIdentifie
 /* Reconciliación de auditorías y pagos ambiguos: consulta GetOrder para saber si
  * la operación llegó a BDP aunque Glory no recibiera la confirmación. */
 impl BdpOrderPollerService {
+    /* [21AB-5d] ¿Queda alguna auditoría de las que reconcilia el poller? Es lo
+     * que decide si el turno sigue: una modificación ambigua de una venta ya
+     * facturada no aparece en ninguna lista de ventas. */
+    pub(super) async fn hay_auditorias_abiertas(pool: &PgPool, user_id: uuid::Uuid) -> bool {
+        sqlx::query_scalar::<_, bool>(
+            r"SELECT EXISTS (
+                 SELECT 1 FROM bdp_audit_log
+                 WHERE user_id = $1
+                   AND resultado IN ('ambiguo', 'pendiente')
+                   AND operacion IN ('add_payment', 'invoice', 'modify_order')
+               )",
+        )
+        .bind(user_id)
+        .fetch_one(pool)
+        .await
+        .unwrap_or_else(|e| {
+            /* Ante la duda se sigue: mirar de más es inocuo; saltarse una
+             * auditoría abierta la deja bloqueada hasta el siguiente fallo. */
+            warn!("[21AB-5d] Error comprobando auditorías abiertas: {e}");
+            true
+        })
+    }
+
     /* [R1] Reconciliar auditorías BDP marcadas como ambiguas.
      * [247A-10/P3] También reconcilia pagos ambiguos del ledger local.
      * Devuelve el número de auditorías/pagos cerrados como exito. */
@@ -42,7 +65,7 @@ impl BdpOrderPollerService {
                FROM bdp_audit_log
                WHERE user_id = $1
                  AND resultado IN ('ambiguo', 'pendiente')
-                 AND operacion IN ('add_payment', 'invoice')
+                 AND operacion IN ('add_payment', 'invoice', 'modify_order')
                ORDER BY created_at DESC
                LIMIT 100",
         )
@@ -66,6 +89,20 @@ impl BdpOrderPollerService {
                 }
                 "invoice" => {
                     Self::reconcile_invoice(pool, client, audit_id, target_entity_id).await
+                }
+                /* [21AB-5d] Una modificación que acabó ambigua no la miraba
+                 * nadie: `ensure_no_unresolved` bloqueaba su venta para siempre.
+                 * El total final es la firma del cambio; si el TPV lo tiene, se
+                 * aplicó; si no, el fallo fue real y la web conserva su estado. */
+                "modify_order" => {
+                    Self::reconcile_modify_order(
+                        pool,
+                        client,
+                        audit_id,
+                        target_entity_id,
+                        &datos_enviados,
+                    )
+                    .await
                 }
                 _ => Ok(false),
             };
@@ -268,6 +305,55 @@ impl BdpOrderPollerService {
                 Ok(false)
             }
         }
+    }
+
+    /* [21AB-5d] ¿La modificación ambigua se aplicó? Solo el total final lo
+     * demuestra. Con el total en el TPV se cierra `exito`; con otro, la escritura
+     * no llegó y se cierra `error` (la web nunca cambió, así que no hay nada que
+     * deshacer y la venta vuelve a ser editable). Sin respuesta, se queda
+     * `ambiguo` y se reintenta en el siguiente turno del poller. */
+    async fn reconcile_modify_order(
+        pool: &PgPool,
+        client: &BdpWeblinkClient<'_>,
+        audit_id: uuid::Uuid,
+        venta_id: uuid::Uuid,
+        datos_enviados: &serde_json::Value,
+    ) -> Result<bool, String> {
+        let Some(order_id) = Self::find_bdp_order_id_for_venta(pool, venta_id).await? else {
+            return Ok(false);
+        };
+        let Some(total_final) = datos_enviados.get("total_final").and_then(json_f64) else {
+            warn!("[21AB-5d] Modificación {venta_id} sin total_final; se mantiene ambigua");
+            return Ok(false);
+        };
+        let request = BdpGetOrderRequest {
+            order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+        };
+        let Ok(response) = client.get_order(&request).await else {
+            warn!("[21AB-5d] GetOrder falló para reconciliar la modificación de {venta_id}");
+            return Ok(false);
+        };
+        let order = response.get("Order").cloned().unwrap_or(response);
+        let total_bdp = order.get("Total").and_then(json_f64);
+        let conflicto =
+            crate::services::bdp_sync_venta::mensaje_conflicto(order_id, total_bdp, total_final);
+        let (resultado, mensaje) = match conflicto {
+            None => (
+                "exito",
+                format!("reconciliado: BDP ya tenía el total {total_final:.2}"),
+            ),
+            Some(conflicto) => ("error", conflicto),
+        };
+        crate::services::BdpBackupService::actualizar_resultado(
+            pool,
+            audit_id,
+            resultado,
+            None,
+            Some(&mensaje),
+        )
+        .await?;
+        info!("[21AB-5d] Modificación de {venta_id} reconciliada como {resultado}");
+        Ok(true)
     }
 
     async fn reconcile_invoice(
