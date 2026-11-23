@@ -198,6 +198,14 @@ class SimulatorHandler(BaseHTTPRequestHandler):
             self.close_connection = True
             return
 
+        # OK sin aplicar: el TPV demo contestó 200 a modificaciones de comanda
+        # de barra y no cambió una línea (21AB-5d). Sirve para probar que la
+        # aplicación relee el total y no da por hecho el cambio.
+        if fault and fault.get("ok_without_apply"):
+            order_id = int((payload.get("Order") or {}).get("OrderId") or 0)
+            self._json(200, {"OrderId": order_id, "InvoiceNumber": None, "ErrorMessage": "", "BarCode": ""})
+            return
+
         response = self._dispatch(path, payload)
         if fault and fault.get("apply_then_disconnect"):
             self.close_connection = True
@@ -241,7 +249,7 @@ class SimulatorHandler(BaseHTTPRequestHandler):
                 return
             allowed = {
                 "http_status", "remote_error", "invalid_json", "delay_ms",
-                "apply_then_disconnect", "disconnect_before_apply",
+                "apply_then_disconnect", "disconnect_before_apply", "ok_without_apply",
             }
             fault = {key: value for key, value in payload.items() if key in allowed}
             with state.lock:
@@ -374,8 +382,28 @@ class SimulatorHandler(BaseHTTPRequestHandler):
         items = order.get("Items")
         if market_id is None or not marketplace_id or not isinstance(items, list) or not items:
             return {"ErrorMessage": "MarketId, MarketplaceOrderId e Items son obligatorios"}
-        if any(float(item.get("Units", 0)) <= 0 or float(item.get("Price", -1)) < 0 for item in items):
+        if any(float(item.get("Units", 0)) == 0 or float(item.get("Price", -1)) < 0 for item in items):
             return {"ErrorMessage": "linea de comanda invalida"}
+        # [21AB-5c] Contrato del BDP real (sonda del 02/11, `sondas-modificar-comanda`):
+        # `Orders/Create` con un `OrderId` existente **añade** las líneas enviadas y
+        # el `Total` del payload es el total FINAL; cambiar o quitar se hace con
+        # unidades negativas de ajuste. Va antes de la deduplicación por
+        # `MarketplaceOrderId`: una modificación lleva el mismo id de mercado que
+        # la creación y, sin esta rama, el simulador la rechazaba como repetida.
+        modificado = order.get("OrderId")
+        if isinstance(modificado, int) and modificado > 0:
+            existente = state.orders.get(modificado)
+            if existente is None:
+                return {"ErrorMessage": "comanda inexistente"}
+            if existente["Status"] in {2, 3}:
+                return {"ErrorMessage": "comanda no modificable"}
+            existente["Items"] = existente.get("Items", []) + copy.deepcopy(items)
+            if "Total" in order:
+                existente["Total"] = order["Total"]
+            for campo in ("RoomNumber", "TableNumber", "Type"):
+                if campo in order:
+                    existente[campo] = order[campo]
+            return {"OrderId": modificado, "Order": self._public_order(existente), "ErrorMessage": ""}
         key = (int(market_id), marketplace_id)
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         existing_id = state.market_index.get(key)

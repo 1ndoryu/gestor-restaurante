@@ -69,30 +69,38 @@ fn linea(codigo: &str, descripcion: &str, invitada: bool) -> CrearVentaLineaRequ
     }
 }
 
+/* [21AB-5b] Con el interruptor apagado, ninguna invitación pasa: es lo que
+ * Guillermo pidió («deja las invitaciones desactivadas» hasta que el ticket
+ * muestre el artículo pedido). Este test fija ese estado. */
 #[sqlx::test(migrations = "./migrations")]
-async fn rechaza_invitar_articulo_prohibido(pool: PgPool) {
+async fn con_el_interruptor_apagado_ninguna_invitacion_pasa(pool: PgPool) {
+    /* `if` en vez de `assert!`: con el valor constante clippy lo marca como
+     * aserción trivial, y aquí lo que se quiere es avisar de que este test
+     * caduca el día que la usuaria encienda el interruptor. */
+    if glory_backend::services::INVITACIONES_HABILITADAS {
+        panic!("si se enciende, este test debe reescribirse con la prueba del ticket");
+    }
     let user_id = create_test_user(&pool).await;
-    sembrar_articulo(&pool, user_id, "1002", Some(true)).await;
+    sembrar_articulo(&pool, user_id, "1004", Some(false)).await;
 
     let error =
-        InvitacionService::validar_lineas(&pool, user_id, &[linea("1002", "Copa reservada", true)])
+        InvitacionService::validar_lineas(&pool, user_id, &[linea("1004", "Permitida", true)])
             .await
-            .expect_err("el artículo prohíbe la invitación");
-
-    /* `AppError::Validation` es lo que el handler convierte en 422; sin
-     * `PartialEq` en el enum, se comprueba la rama y el texto. */
+            .expect_err("el interruptor apagado bloquea cualquier invitación");
     match error {
-        AppError::Validation(mensaje) => {
-            assert!(mensaje.contains("Copa reservada"), "mensaje: {mensaje}");
-            assert!(
-                mensaje.contains("No permitir como invitación"),
-                "mensaje: {mensaje}"
-            );
-        }
+        AppError::Validation(mensaje) => assert!(
+            mensaje.contains("invitaciones están desactivadas"),
+            "mensaje: {mensaje}"
+        ),
         otro => panic!("se esperaba Validation (422), llegó {otro:?}"),
     }
 }
 
+/* Con el interruptor apagado, la marca de la ficha no llega a mirarse: el
+ * servicio rechaza cualquier invitación antes de consultar el catálogo. Las
+ * reglas por artículo se prueban en `src/services/invitacion.rs`, contra las
+ * funciones internas, para que sigan cubiertas mientras el interruptor esté
+ * apagado. */
 #[sqlx::test(migrations = "./migrations")]
 async fn deja_pasar_la_misma_linea_sin_invitar(pool: PgPool) {
     let user_id = create_test_user(&pool).await;
@@ -101,35 +109,6 @@ async fn deja_pasar_la_misma_linea_sin_invitar(pool: PgPool) {
     InvitacionService::validar_lineas(&pool, user_id, &[linea("1002", "Copa", false)])
         .await
         .expect("cobrada sí se puede");
-}
-
-/* `NULL` es «BDP aún no lo dice»: no se bloquea, igual que el editor. */
-#[sqlx::test(migrations = "./migrations")]
-async fn sin_dato_del_catalogo_no_bloquea(pool: PgPool) {
-    let user_id = create_test_user(&pool).await;
-    sembrar_articulo(&pool, user_id, "1003", None).await;
-
-    InvitacionService::validar_lineas(&pool, user_id, &[linea("1003", "Copa", true)])
-        .await
-        .expect("sin dato no hay prohibición que aplicar");
-}
-
-/* Artículo sin mapeo (local puro) y artículo explícitamente permitido. */
-#[sqlx::test(migrations = "./migrations")]
-async fn sin_mapeo_o_permitido_no_bloquea(pool: PgPool) {
-    let user_id = create_test_user(&pool).await;
-    sembrar_articulo(&pool, user_id, "1004", Some(false)).await;
-
-    InvitacionService::validar_lineas(
-        &pool,
-        user_id,
-        &[
-            linea("1004", "Permitida", true),
-            linea("LOCAL-1", "Local", true),
-        ],
-    )
-    .await
-    .expect("ni el permitido ni el local puro se bloquean");
 }
 
 /* La marca sobrevive al siguiente sync del catálogo. */

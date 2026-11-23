@@ -285,9 +285,15 @@ impl BdpSyncService {
                 .map_err(OrderSendFailure::Rejected)?;
         }
 
-        /* [F2.8] Resolver artículo BDP por línea usando bdp_article_map. */
+        /* [F2.8] Resolver artículo BDP por línea usando bdp_article_map.
+         * [21AB-5b] Una invitada sin equivalencia rechaza el envío aquí, antes
+         * del HTTP: el ticket no puede mostrar otro artículo que el pedido. */
         let line_article_ids: Option<Vec<i64>> = if let Some(ref lineas) = lineas {
-            Some(Self::resolve_line_articles(pool, venta.user_id, lineas, article.id).await)
+            Some(
+                Self::resolve_line_articles(pool, venta.user_id, lineas, article.id)
+                    .await
+                    .map_err(OrderSendFailure::Rejected)?,
+            )
         } else {
             None
         };

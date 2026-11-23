@@ -171,66 +171,80 @@ impl BdpSyncService {
     /// [F2.8] Resuelve el artículo BDP para cada línea de venta consultando `bdp_article_map`.
     /// Devuelve un Vec<i64> paralelo a `lineas` con el ID del artículo BDP.
     /// Si una línea no tiene mapeo, usa `default_article_id`.
+    ///
+    /// [21AB-5b] Una línea **invitada** nunca se sustituye en silencio: si no
+    /// hay equivalencia BDP, el envío se rechaza con el nombre del artículo.
+    /// Antes caía al artículo por defecto y el ticket del TPV mostraba otro
+    /// producto al que el cliente pidió (caso real: `1003`, mapeo desactivado).
     pub(super) async fn resolve_line_articles(
         pool: &PgPool,
         user_id: uuid::Uuid,
         lineas: &[VentaLinea],
         default_article_id: i64,
-    ) -> Vec<i64> {
+    ) -> Result<Vec<i64>, String> {
         let mut ids = Vec::with_capacity(lineas.len());
         for linea in lineas {
-            let resolved = if linea.articulo_codigo.is_empty() {
-                default_article_id
-            } else {
-                match crate::repositories::BdpArticleMapRepository::buscar_por_codigo(
-                    pool,
-                    user_id,
-                    &linea.articulo_codigo,
-                )
-                .await
-                {
-                    Ok(Some(map)) => {
-                        /* El código BDP puede ser numérico (ID directo) o texto (requeriría lookup).
-                         * Por ahora solo soportamos códigos numéricos. */
-                        /* [20AB] Mapeo desactivado = artículo que no se vende (mismo
-                         * criterio que `resolve_article_local`). Sin esto, una línea
-                         * que nombraba un artículo retirado seguía enviándose a BDP
-                         * y el TPV la rechazaba con «ARTÍCULO INEXISTENTE». */
-                        if !map.activo {
-                            info!(
-                                "[F2.8] Mapeo '{}' desactivado para la línea '{}', usando default",
-                                linea.articulo_codigo, linea.descripcion
-                            );
-                            ids.push(default_article_id);
-                            continue;
-                        }
-                        match map.articulo_bdp_codigo.trim().parse::<i64>() {
-                            Ok(code) if code > 0 => code,
-                            _ => {
-                                info!(
-                                    "[F2.8] Código BDP '{}' no numérico para línea '{}', usando default",
-                                    map.articulo_bdp_codigo, linea.descripcion
-                                );
-                                default_article_id
-                            }
-                        }
-                    }
-                    Ok(None) => {
-                        /* Sin mapeo — usar artículo default */
-                        default_article_id
-                    }
-                    Err(e) => {
-                        warn!(
-                            "[F2.8] Error buscando mapeo BDP para código '{}': {e}",
-                            linea.articulo_codigo
-                        );
-                        default_article_id
-                    }
+            let resuelto =
+                Self::resolve_line_article(pool, user_id, &linea.articulo_codigo).await?;
+            match resuelto {
+                Some(id) => ids.push(id),
+                None if linea.invitacion => {
+                    return Err(format!(
+                        "Invitación bloqueada: «{}» no tiene equivalencia activa en BDP. \
+                         El ticket mostraría otro artículo. Marca el artículo en el catálogo \
+                         BDP o retira la invitación.",
+                        linea.descripcion
+                    ));
                 }
-            };
-            ids.push(resolved);
+                None => ids.push(default_article_id),
+            }
         }
-        ids
+        Ok(ids)
+    }
+
+    /* [21AB-5b] Código BDP de una línea, o `None` si no hay equivalencia
+     * utilizable (sin mapeo, desactivado, no numérico o error de lectura). El
+     * fallback al artículo por defecto lo decide quien llama: las líneas
+     * normales lo admiten, las invitadas no. */
+    async fn resolve_line_article(
+        pool: &PgPool,
+        user_id: uuid::Uuid,
+        articulo_codigo: &str,
+    ) -> Result<Option<i64>, String> {
+        if articulo_codigo.is_empty() {
+            return Ok(None);
+        }
+        match crate::repositories::BdpArticleMapRepository::buscar_por_codigo(
+            pool,
+            user_id,
+            articulo_codigo,
+        )
+        .await
+        {
+            /* [20AB] Mapeo desactivado = artículo que no se vende (mismo
+             * criterio que `resolve_article_local`). */
+            Ok(Some(map)) if !map.activo => {
+                info!("[F2.8] Mapeo '{articulo_codigo}' desactivado: sin equivalencia BDP");
+                Ok(None)
+            }
+            Ok(Some(map)) => match map.articulo_bdp_codigo.trim().parse::<i64>() {
+                Ok(code) if code > 0 => Ok(Some(code)),
+                _ => {
+                    info!(
+                        "[F2.8] Código BDP '{}' no numérico para '{articulo_codigo}'",
+                        map.articulo_bdp_codigo
+                    );
+                    Ok(None)
+                }
+            },
+            Ok(None) => Ok(None),
+            Err(e) => {
+                /* Un fallo de lectura no se convierte en «no hay mapeo»: la
+                 * línea invitada se bloquea y la normal cae al defecto. */
+                warn!("[F2.8] Error buscando mapeo BDP para '{articulo_codigo}': {e}");
+                Ok(None)
+            }
+        }
     }
 
     /* [R12] Parámetro default_iva_pct: IVA fallback del config, no 10.0 hardcodeado. */
@@ -351,7 +365,67 @@ mod tests {
         };
         let lineas = vec![linea("VIVO"), linea("RETIRADO"), linea("")];
 
-        let ids = BdpSyncService::resolve_line_articles(&pool, user_id, &lineas, 9999).await;
+        let ids = BdpSyncService::resolve_line_articles(&pool, user_id, &lineas, 9999)
+            .await
+            .expect("las líneas normales admiten el artículo por defecto");
         assert_eq!(ids, vec![1001, 9999, 9999]);
+    }
+
+    /* [21AB-5b] Guillermo (22/11): el ticket debe mostrar el artículo pedido.
+     * Una invitada sin equivalencia BDP se bloquea; antes salía el artículo
+     * por defecto y el TPV imprimía otro producto (caso real `1003`). */
+    #[sqlx::test(migrations = "./migrations")]
+    async fn invitada_sin_equivalencia_se_bloquea_y_no_cae_al_defecto(pool: PgPool) {
+        let user_id = uuid::Uuid::new_v4();
+        let email = format!("bdp-invitada-{user_id}@example.com");
+        sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+            .bind(user_id)
+            .bind(&email)
+            .bind("argon2_hash_placeholder")
+            .execute(&pool)
+            .await
+            .expect("create_test_user failed");
+
+        BdpArticleMapRepository::crear(
+            &pool,
+            user_id,
+            &CrearBdpArticleMapRequest {
+                articulo_glory_codigo: "1003".into(),
+                articulo_bdp_codigo: Some("1003".into()),
+                articulo_bdp_nombre: Some("CAFE CORTADO".into()),
+                descripcion: None,
+                precio_tarifa1: None,
+                iva_pct: None,
+                departamento: None,
+                familia: None,
+                subfamilia: None,
+                activo: Some(false),
+                barcode: None,
+            },
+        )
+        .await
+        .expect("crear mapeo desactivado");
+
+        let linea = VentaLinea {
+            id: uuid::Uuid::new_v4(),
+            venta_id: uuid::Uuid::new_v4(),
+            articulo_codigo: "1003".into(),
+            descripcion: "CAFE CORTADO".into(),
+            cantidad: Decimal::ONE,
+            precio_unitario: Decimal::ONE,
+            iva_pct: Decimal::from(10),
+            descuento: Decimal::ZERO,
+            invitacion: true,
+            comentario: String::new(),
+            created_at: Utc::now(),
+        };
+
+        let error = BdpSyncService::resolve_line_articles(&pool, user_id, &[linea], 9999)
+            .await
+            .expect_err("una invitada sin equivalencia no puede salir con el defecto");
+        assert!(
+            error.contains("CAFE CORTADO") && error.contains("Invitación bloqueada"),
+            "el aviso debe nombrar el artículo: {error}"
+        );
     }
 }
