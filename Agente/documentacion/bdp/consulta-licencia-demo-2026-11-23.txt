@@ -1,0 +1,17 @@
+Asunto: Vigencia de la licencia del entorno de pruebas (TPV demo 36.2)
+
+Hola:
+
+Estamos terminando la integración de nuestra aplicación con vuestro TPV a través de
+WebLinkRestAPI, contra la instalación demo (versión 36.2) que nos facilitasteis.
+
+Al arrancar el TPV aparece el aviso «sin conexión con el servidor de subscripción».
+Querríamos saber:
+
+1. Si esa licencia demo sigue vigente y hasta qué fecha.
+2. Si el aviso puede cortar el funcionamiento del TPV durante las pruebas que nos
+   quedan (pagos, modificaciones de comanda y reinicios del servicio).
+3. Qué debemos hacer para mantener el entorno de pruebas operativo mientras dure la
+   integración, y si hay un procedimiento de renovación que podamos hacer nosotros.
+
+Gracias.

@@ -23,8 +23,21 @@ restaurante, y **no hay ninguna escritura automática conectada** a él.
 - **Tope de tres pagos por comanda**: el cuarto se rechaza sin escribir.
 - **Dato para usted**: BDP 36.2 **no deduplica** `AddOrderPayment` por `PaymentId` (dos
   pagos de 2,00 con el mismo identificador quedaron como dos cobros, prueba del 18/11). La
-  protección es nuestra y cada intento lleva un `PaymentId` distinto; si algún día otro
-  sistema escribe cobros con el mismo `PaymentId`, BDP los sumará.
+  protección es nuestra; si algún día otro sistema escribe cobros con el mismo `PaymentId`,
+  BDP los sumará.
+
+  **Corrección del 23/11** (la versión anterior de este informe decía «cada intento lleva un
+  `PaymentId` distinto», y eso no es lo que hace el código): el `PaymentId` **identifica el
+  pago, no el intento**. Sale de la clave de idempotencia (`P<venta>-<clave>`, con resumen
+  SHA-256 si la clave es larga) y **todos los reintentos de ese mismo pago reutilizan
+  exactamente el mismo identificador**. Solo un pago sin clave de idempotencia lleva un id
+  propio por armado, porque sin clave no hay forma de reconocer que es el mismo cobro.
+
+  Que el id se repita no protege por sí solo, y no se pretende: la protección es la lectura
+  previa a BDP (`GetOrder`) antes de reenviar. Si el pago aparece con ese id, ese importe y
+  esa forma de pago, no se reenvía; si aparece con otro importe o con otra forma de pago,
+  bloquea. Lo que sí queda garantizado es que un reintento **no puede generar un id nuevo**,
+  que es justo lo que convertiría un reintento en un segundo cobro.
 
 ## 2. Unidades cero — listo
 
