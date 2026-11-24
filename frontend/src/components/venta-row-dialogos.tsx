@@ -115,7 +115,7 @@ export function VentaRowDialogos({ v, acciones, anularPending }: VentaRowDialogo
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Registrar pago en BDP</DialogTitle>
-          <DialogDescription>Permite pagar el saldo total o parcial de la comanda. Cada intento lleva una clave de idempotencia única.</DialogDescription>
+          <DialogDescription>Permite pagar el saldo total o parcial de la comanda. Reintentar el mismo importe reutiliza su clave de idempotencia: no se cobra dos veces.</DialogDescription>
         </DialogHeader>
         {cargandoPagos ? (
           <p className="text-sm text-muted-foreground">Cargando historial de pagos…</p>
@@ -162,7 +162,7 @@ export function VentaRowDialogos({ v, acciones, anularPending }: VentaRowDialogo
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Registrar pago local</DialogTitle>
-          <DialogDescription>Permite cobrar el saldo total o parcial de la venta sin depender del BDP. Cada intento lleva una clave de idempotencia única.</DialogDescription>
+          <DialogDescription>Permite cobrar el saldo total o parcial de la venta sin depender del BDP. Reintentar el mismo importe reutiliza su clave de idempotencia: no se cobra dos veces.</DialogDescription>
         </DialogHeader>
         {cargandoPagos ? (
           <p className="text-sm text-muted-foreground">Cargando historial de pagos…</p>

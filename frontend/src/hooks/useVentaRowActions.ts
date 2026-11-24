@@ -2,7 +2,7 @@
  * local, propina, anulación, consulta de estado), extraído de venta-row-actions a un
  * hook custom (protocolo usestate-excesivo). El componente solo declara el estado y
  * renderiza los diálogos; la API pública del componente no cambia. */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import instance from '@/api/axios-instance';
 import { toast } from 'sonner';
@@ -76,7 +76,21 @@ export function useVentaRowActions({ venta: v, bdpSyncEnabled = false, onAnular,
     }
   }, [accion, pendiente]);
 
+  /* [21AB-5d/p3] Una clave por PAGO, no por pulsación. El `PaymentId` que ve
+   * BDP se deriva de esta clave: si el reintento del mismo pago lleva otra,
+   * BDP lo cuenta como un cobro distinto. Se conserva mientras el pago siga
+   * pendiente (importe y forma de pago iguales) y se descarta al registrarse. */
+  const clavePago = useRef<{ huella: string; clave: string } | null>(null);
+  const claveDePago = (huella: string) => {
+    if (clavePago.current?.huella !== huella) {
+      clavePago.current = { huella, clave: crypto.randomUUID() };
+    }
+    return clavePago.current.clave;
+  };
+
   const cerrar = () => {
+    /* Cerrar el diálogo abandona el intento: el siguiente pago es otro. */
+    clavePago.current = null;
     setAccion(null);
     setConfirmacion('');
     setTenderId('');
@@ -92,7 +106,7 @@ export function useVentaRowActions({ venta: v, bdpSyncEnabled = false, onAnular,
     setEnviando(true);
     try {
       if (accion === 'pago') {
-        const idempotencyKey = crypto.randomUUID();
+        const idempotencyKey = claveDePago(`bdp-pago:${importeCanonico}:${tenderId}`);
         await instance.post(`/api/ventas/${v.id}/bdp-payment`, {
           amount: Number(importeCanonico),
           tender_id: Number(tenderId),
@@ -100,6 +114,7 @@ export function useVentaRowActions({ venta: v, bdpSyncEnabled = false, onAnular,
           idempotency_key: idempotencyKey,
           auto_arm: true,
         });
+        clavePago.current = null;
         toast.success('Pago registrado en BDP');
       } else {
         await instance.post(`/api/ventas/${v.id}/bdp-invoice`, {
@@ -151,14 +166,16 @@ export function useVentaRowActions({ venta: v, bdpSyncEnabled = false, onAnular,
           amount: Number(importeCanonico),
           tender_id: Number(tenderId),
           confirmacion,
-          idempotency_key: crypto.randomUUID(),
+          idempotency_key: claveDePago(`local-pago:${importeCanonico}:${tenderId}`),
         });
+        clavePago.current = null;
         toast.success(`Pago local registrado (${importeCanonico} €)`);
       } else {
         await instance.post(`/api/ventas/${v.id}/factura-local`, {
           confirmacion,
-          idempotency_key: crypto.randomUUID(),
+          idempotency_key: claveDePago('local-factura'),
         });
+        clavePago.current = null;
         toast.success('Venta facturada localmente');
       }
       cerrar();

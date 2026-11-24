@@ -149,13 +149,18 @@ export function useReconcileBdpPurchaseNote(queryClient?: QueryClient) {
 }
 
 /** Mutation hook: reintentar sincronización BDP individual de una venta.
- *  Usa el hook generado por Orval (useReintentarSyncBdp) y añade invalidación de queries. */
+ *  Usa el hook generado por Orval (useReintentarSyncBdp) y añade invalidación de queries.
+ *  [21AB-5d/p3] La clave es estable por venta: un reintento de la MISMA creación
+ *  reutiliza la clave (y su auditoría) en vez de abrir un intento nuevo. */
 export function useRetryBdpSync(queryClient?: QueryClient) {
   const generated = useReintentarSyncBdp();
   return {
     ...generated,
     mutateAsync: async (ventaId: string) => {
-      const result = await generated.mutateAsync({ id: ventaId, data: {} });
+      const result = await generated.mutateAsync({
+        id: ventaId,
+        data: { idempotency_key: `retry-sync:${ventaId}` },
+      });
       queryClient?.invalidateQueries({ queryKey: ['listarVentas'] });
       return result;
     },
