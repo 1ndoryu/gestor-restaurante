@@ -29,6 +29,15 @@ validación nombra las líneas culpables. El fallo de origen está localizado: e
 mapeo del demo solo tiene activos `1001`, `1002` y `D26G-1`, así que un artículo
 como `1003` caía al artículo por defecto **en silencio**. Pendiente `21AB-5b`.
 
+**Comprobado el 24/11 con el interruptor encendido** (y devuelto a `false`
+después, con el binario recompilado): la invitación llega al TPV como el
+artículo realmente pedido —`GetOrder` devuelve `1002 SCHWEPPES LIMÓN` con
+`Invitation: true`— y el ticket `00001TB00000069` imprime la línea `1002` a 0,00
+con `Invitacion = 1` junto a la línea normal `1001`. El artículo sin
+equivalencia activa (`1003`) se rechaza **antes de escribir** nombrando la línea.
+El artículo por defecto ya solo queda para cuando no hay equivalencia, y entonces
+avisa. Detalle en § 10.
+
 ## 3. Identificador de pago (punto 3)
 
 El `PaymentId` identifica el **pago**, no el intento: sale de la clave de
@@ -51,6 +60,13 @@ Ver la tabla del punto 1: comanda 189, tres pagos de 3,50 verificados uno a uno
 en BDP (`GetOrder`), total completo, un solo ticket, y el cuarto rechazado con
 422 **sin escribir nada** (BDP idéntico antes y después del intento).
 
+**Repetido el 24/11 sobre el binario actual** (venta `db915a7a`, comanda 214,
+10,50 en tres partes de 3,50, formas 1, 2 y 1): los tres pagos aparecen en BDP
+(`P…e7a26f`, `P…ee4b68`, `P…5424c7`), `pendiente` 10,50 → 7,00 → 3,50 → **0,00**,
+factura **`00001TB00000070`** con una sola línea `1001 COCA-COLA` × 10 a 10,50, y
+**un solo** documento para esa comanda. El cuarto (0,10) devuelve 422 «la venta
+ya tiene 3 pagos registrados en BDP» y BDP queda idéntico.
+
 ## 5. Reinicio real de BDP (punto 5)
 
 1. `Stop-Process` sobre `TpvNet.exe` (PID 2672); puerto 8070 sin listener.
@@ -61,6 +77,10 @@ en BDP (`GetOrder`), total completo, un solo ticket, y el cuarto rechazado con
 
 Auditoría: un `create_order` en `error` (transporte) y **un solo** `create_order`
 en `exito` con `{"order_id": 182}`. Una sola comanda para esa venta.
+
+El 24/11 se repitió parando **los dos** procesos de BDP (`TpvNet.exe` —el que
+sirve la WebLink REST en 8070— y `SvrWCF.exe`) con una venta a medias y un cobro
+lanzado; el detalle de los tres escenarios y sus PIDs está en § 10.
 
 ## 6. Modificaciones rápidas / throttled (punto 6)
 
@@ -75,6 +95,14 @@ Venta `796ce0d4`, comanda de mesa 188 (salón 1, mesa 2).
 Las modificaciones de una misma venta se serializan con un lock por venta
 (espera acotada a 30 s), el throttled se espera en vez de rechazarse y la
 modificación se reconcilia con `GetOrder`.
+
+## 6-bis. Modificaciones rápidas, repetido el 24/11 (punto 6)
+
+Venta `201b8b4f` (comanda 213, mesa 5): dos ediciones en paralelo y después la
+serie 4 → 5 → 6 unidades; todas 200, BDP 4,20 → 5,25 → 6,30 y la web en 6
+unidades / 6,30 (`/lineas` y los totales de la venta). Mismo `PaymentId` al
+reintentar con la misma clave (`P201b8b4f24b745-e76eef84…`) y otro distinto con
+clave nueva (`P201b8b4f24b745-e82e25ff…`), que era el punto 3.
 
 ## 7. Licencia del demo (punto 7)
 
@@ -133,3 +161,47 @@ escrituras de sus ventas, entre ellas un `inventory` que bloquea el volcado de
 stock. `reconcile_invoice` e `reconcile_add_payment` solo cierran cuando la
 comanda existe; si no existe, la dejan abierta para siempre. Detalle y forma de
 arreglo: `21AB-5g` en el roadmap.
+
+## 10. Parada real de BDP.NET y WebLinkRestAPI (24/11/2026)
+
+### 10.1 Procesos que forman el TPV demo
+
+Comprobado con `netsh http show servicestate view=session` y `Get-NetTCPConnection`:
+
+| Proceso | Puerto | Papel |
+|---|---|---|
+| `TpvNet.exe` | 8070 (HTTP.sys, `HTTP://+:8070/`) | **WebLinkRestAPI**: aquí van `Auth/Login`, `AddOrder`, `AddOrderPayment`, `GetOrder`, facturación |
+| `SvrWCF.exe` | 9011, 9021 | bloqueos y broadcast (`ConfigPuertosBloqueos.bdp`); **no está en el camino de escritura** |
+
+Ninguno es servicio de Windows (`Get-Service` solo lista `MSSQL$BDPSOFTWARE`,
+`MSSQL$BDPSOFTWARECF` y los `SQLTELEMETRY$*`). El autostart del TPV es
+`%APPDATA%\...\Startup\bdp-tpv-arranque.vbs` (espera 90 s y lanza `TpvNet.exe`);
+`SvrWCF.exe` no tiene lanzador propio.
+
+Prueba de que `SvrWCF` no escribe: con `SvrWCF.exe` muerto y `TpvNet.exe` vivo,
+el cobro entra sin problema. El corte que sí corta el cobro es matar `TpvNet.exe`.
+
+### 10.2 Escenario completo: los dos procesos parados, operación pendiente y rearranque
+
+Escenario del 24/11, venta `a0fe6d96-a6e7-405c-81d0-d99aa585e161` (4,40).
+
+1. `Stop-Process -Id 31176` (`SvrWCF`) y `-Id 30724` (`TpvNet`): sin procesos y
+   sin listener en 8070, 9011 ni 9021.
+2. Alta de la venta con BDP parado → 201; el alta responde igual y el envío
+   queda pendiente: `bdp_sync_error` «error de transporte BDP:
+   `http://127.0.0.1:8071/Auth/Login` … Connection reset by peer», saldo
+   `origen: "local"`.
+3. Cobro intentado con BDP parado → **422 «no tiene bdp_order_id»**: sin comanda
+   en BDP no se escribe ningún pago.
+4. Arranque de los dos procesos con los PID nuevos `SvrWCF` 28548 y `TpvNet`
+   26052.
+5. El poller **se reautentica solo** y crea la comanda **215**: auditoría
+   `create_order` en `error` (consulta previa sin BDP) y una sola en `exito`
+   (`16:42:55`).
+6. Cobro de 1,00 con clave `p5-real-reintento`, **enviado dos veces seguidas**:
+   dos 200 al cliente, **una sola** auditoría `add_payment` en `exito`, y BDP
+   con un único pago `Pa0fe6d96a6e740-p5-real-reintento`.
+7. Resto del saldo (3,40, clave `p5-real-resto`) → BDP con dos pagos, y el saldo
+   queda `pagado 4,40 / pendiente 0,0 / origen: "bdp"`.
+
+Ninguna operación se duplicó y nada quedó pendiente tras el rearranque.
