@@ -37,6 +37,24 @@ static SERIE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static SIMULADOR: Mutex<Option<Child>> = Mutex::new(None);
 static LISTO: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
+/* En la VPS 89 solo existe `python3`: buscar `python` a secas hacía que el
+ * simulador no arrancara y todos estos tests se saltaran en verde. */
+fn interprete_python() -> &'static str {
+    ["python3", "python"]
+        .into_iter()
+        .find(|bin| {
+            Command::new(bin)
+                .arg("--version")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success())
+        })
+        .unwrap_or_else(|| {
+            panic!("sin Python (ni python3 ni python) no se puede probar el simulador BDP")
+        })
+}
+
 async fn asegurar_simulador() -> bool {
     if let Some(&listo) = LISTO.get() {
         return listo;
@@ -60,7 +78,7 @@ async fn asegurar_simulador() -> bool {
         let _ = LISTO.set(false);
         return false;
     }
-    let Ok(hijo) = Command::new("python")
+    let Ok(hijo) = Command::new(interprete_python())
         .arg(&servidor)
         .arg("--port")
         .arg(PUERTO.to_string())
@@ -96,13 +114,33 @@ async fn asegurar_simulador() -> bool {
 /// Simulador listo, estado limpio y turno en exclusiva mientras dure el test.
 macro_rules! simulador_en_serie {
     () => {
-        if !asegurar_simulador().await {
-            eprintln!("SKIP: Python o simulador no disponible");
-            return;
-        }
+        assert!(
+            asegurar_simulador().await,
+            "el simulador BDP no arrancó: el test no puede saltarse en verde"
+        );
         let _serie = SERIE.lock().await;
-        admin_post("/__simulator/reset", json!({})).await;
+        admin_reset().await;
     };
+}
+
+/// Reset del simulador con la clave de admin de este archivo.
+///
+/// Falla si el admin lo rechaza: un 403 silencioso dejaba los tests corriendo
+/// sobre el estado de otro proceso (puerto compartido, 24/11/2026).
+async fn admin_reset() {
+    let resp = reqwest::Client::new()
+        .post(format!("{URL}/__simulator/reset"))
+        .header("X-Simulator-Key", CLAVE)
+        .json(&json!({}))
+        .send()
+        .await
+        .expect("admin del simulador");
+    assert!(
+        resp.status().is_success(),
+        "el simulador rechazó el reset ({}): ¿otro proceso con otra clave ocupa el puerto {}?",
+        resp.status(),
+        PUERTO
+    );
 }
 
 async fn admin_post(ruta: &str, cuerpo: Value) -> Value {
@@ -204,6 +242,11 @@ async fn cuenta(pool: &PgPool) -> (Uuid, ConfiguracionRestaurante) {
     .unwrap();
     fijar_permiso(pool, user, "comandas", true).await.unwrap();
     fijar_permiso(pool, user, "stock", true).await.unwrap();
+    /* [21AB-5] `modify_order` se enciende con su propia categoría: sin ella el
+     * guard bloquea la modificación antes de llegar al simulador. */
+    fijar_permiso(pool, user, "modificaciones", true)
+        .await
+        .unwrap();
     let config = ConfiguracionService::obtener(pool, user).await.unwrap();
     (user, config)
 }

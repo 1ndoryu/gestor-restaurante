@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 import secrets
 import threading
 import time
@@ -241,6 +242,11 @@ class SimulatorHandler(BaseHTTPRequestHandler):
         if path == "/__simulator/reset":
             state.reset()
             self._json(200, {"ErrorMessage": ""})
+            return
+        if path == "/__simulator/shutdown":
+            # Para el servidor: sin esto queda un Python vivo en la 89.
+            self._json(200, {"ErrorMessage": ""})
+            threading.Thread(target=self.server.shutdown, daemon=True).start()
             return
         if path == "/__simulator/fault":
             target = str(payload.get("Path", ""))
@@ -742,6 +748,23 @@ def build_server(host: str, port: int, fixture_path: Path, admin_key: str) -> Si
     return SimulatorServer((host, port), SimulatorState(fixture_path, admin_key))
 
 
+def cerrar_descriptores_heredados() -> None:
+    """Cierra los descriptores que no son la salida estándar.
+
+    Los tests lo arrancan desde dentro de `cargo test`, que a su vez corre bajo
+    `cm-heavy` (un `flock` sobre el descriptor 9). El hijo heredaba ese
+    descriptor y, como el simulador se queda vivo a propósito entre tests, el
+    candado de builds quedaba ocupado para siempre: el siguiente `cm-heavy`
+    esperaba 600 s y salía 75 (24/11/2026).
+    """
+    try:
+        maximo = os.sysconf("SC_OPEN_MAX")
+    except (AttributeError, ValueError):
+        maximo = 1024
+    maximo = min(int(maximo), 65536)
+    os.closerange(3, maximo)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Simulador local del contrato BDP WebLink")
     parser.add_argument("--host", default="127.0.0.1", choices=sorted(LOOPBACK_HOSTS))
@@ -749,6 +772,7 @@ def main() -> None:
     parser.add_argument("--fixtures", type=Path, default=Path(__file__).with_name("fixtures.json"))
     parser.add_argument("--admin-key", required=True, help="Clave local de 16+ caracteres")
     args = parser.parse_args()
+    cerrar_descriptores_heredados()
     server = build_server(args.host, args.port, args.fixtures, args.admin_key)
     print(f"SIMULADOR (NO BDP) escuchando en http://{args.host}:{server.server_port}")
     server.serve_forever()

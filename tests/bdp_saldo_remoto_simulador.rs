@@ -13,7 +13,9 @@
  *  3. Sin BDP el saldo se declara local (no se disfraza de saldo del TPV).
  *  4. El pago local no admite más que el pendiente del TPV.
  *
- * Puerto propio (18768): el 18767 lo usa `bdp_pagos_idempotencia_simulador`.
+ * Puerto propio (18770): el 18768 lo usa `bdp_lineas_cero_simulador` con otra
+ * clave de admin, y compartir puerto hacía que el reset de este archivo diera
+ * 403 en silencio y los tests corrieran sobre el estado del otro.
  * Los tests comparten simulador, así que van en serie con `SERIE`.
  */
 
@@ -24,20 +26,40 @@ use std::time::Duration;
 use chrono::Utc;
 use glory_backend::models::{ConfiguracionRestaurante, Venta};
 use glory_backend::repositories::{BdpPagoRepository, VentaRepository};
-use glory_backend::services::{BdpSyncService, ConfiguracionService, OrigenSaldo, VentaService};
+use glory_backend::services::{
+    fijar_permiso, BdpSyncService, ConfiguracionService, OrigenSaldo, VentaService,
+};
 use rust_decimal::Decimal;
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-const PUERTO: u16 = 18768;
-const URL: &str = "http://127.0.0.1:18768";
-const CLAVE: &str = "clave-saldo-remoto-18768";
+const PUERTO: u16 = 18770;
+const URL: &str = "http://127.0.0.1:18770";
+const CLAVE: &str = "clave-saldo-remoto-18770";
 const RUTA_PAGO: &str = "/API/Orders/Payment/Add";
 
 static SERIE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static SIMULADOR: Mutex<Option<Child>> = Mutex::new(None);
 static LISTO: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+/* En la VPS 89 solo existe `python3`: buscar `python` a secas hacía que el
+ * simulador no arrancara y todos estos tests se saltaran en verde. */
+fn interprete_python() -> &'static str {
+    ["python3", "python"]
+        .into_iter()
+        .find(|bin| {
+            Command::new(bin)
+                .arg("--version")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success())
+        })
+        .unwrap_or_else(|| {
+            panic!("sin Python (ni python3 ni python) no se puede probar el simulador BDP")
+        })
+}
 
 async fn asegurar_simulador() -> bool {
     if let Some(&listo) = LISTO.get() {
@@ -62,7 +84,7 @@ async fn asegurar_simulador() -> bool {
         let _ = LISTO.set(false);
         return false;
     }
-    let Ok(hijo) = Command::new("python")
+    let Ok(hijo) = Command::new(interprete_python())
         .arg(&servidor)
         .arg("--port")
         .arg(PUERTO.to_string())
@@ -98,13 +120,33 @@ async fn asegurar_simulador() -> bool {
 /// Simulador listo, estado limpio y turno en exclusiva mientras dure el test.
 macro_rules! simulador_en_serie {
     () => {
-        if !asegurar_simulador().await {
-            eprintln!("SKIP: Python o simulador no disponible");
-            return;
-        }
+        assert!(
+            asegurar_simulador().await,
+            "el simulador BDP no arrancó: el test no puede saltarse en verde"
+        );
         let _serie = SERIE.lock().await;
-        admin_post("/__simulator/reset", json!({})).await;
+        admin_reset().await;
     };
+}
+
+/// Reset del simulador con la clave de admin de este archivo.
+///
+/// Falla si el admin lo rechaza: un 403 silencioso dejaba los tests corriendo
+/// sobre el estado de otro proceso (puerto compartido, 24/11/2026).
+async fn admin_reset() {
+    let resp = reqwest::Client::new()
+        .post(format!("{URL}/__simulator/reset"))
+        .header("X-Simulator-Key", CLAVE)
+        .json(&json!({}))
+        .send()
+        .await
+        .expect("admin del simulador");
+    assert!(
+        resp.status().is_success(),
+        "el simulador rechazó el reset ({}): ¿otro proceso con otra clave ocupa el puerto {}?",
+        resp.status(),
+        PUERTO
+    );
 }
 
 async fn admin_post(ruta: &str, cuerpo: Value) -> Value {
@@ -196,6 +238,9 @@ async fn cuenta(pool: &PgPool) -> (Uuid, ConfiguracionRestaurante) {
     .execute(pool)
     .await
     .unwrap();
+    /* `add_payment` se enciende con su propia categoría: sin ella el guard
+     * bloquea el cobro antes de llegar al simulador. */
+    fijar_permiso(pool, user, "pagos", true).await.unwrap();
     let config = ConfiguracionService::obtener(pool, user).await.unwrap();
     (user, config)
 }

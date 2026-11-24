@@ -7,7 +7,9 @@
  * comandas) es comparable, así que sirve de testigo: si algo se escribe, aquí
  * se ve; si no, no hay ni login.
  *
- * Puerto propio (18766) para no pelearse con `bdp_simulator_integration`.
+ * Puerto propio (18771): el 18766 lo usa `bdp_service_integration` con otra
+ * clave de admin; compartirlo hacía que el reset de este archivo diera 403 en
+ * silencio y los tests corrieran sobre el estado del otro.
  * Si no hay Python, los tres se saltan. */
 
 use std::process::{Child, Command, Stdio};
@@ -16,17 +18,38 @@ use std::time::Duration;
 
 use glory_backend::models::ActualizarConfiguracionRequest;
 use glory_backend::services::bdp_push::{BdpPushService, DOMINIO_ARTICULO, OPERACION_CREAR};
-use glory_backend::services::{BdpBackupService, BdpPushFlushService, ConfiguracionService};
+use glory_backend::services::{
+    fijar_permiso, BdpBackupService, BdpPushFlushService, ConfiguracionService,
+};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-const PUERTO: u16 = 18766;
-const URL: &str = "http://127.0.0.1:18766";
-const CLAVE: &str = "clave-matriz-seguridad-18766";
+const PUERTO: u16 = 18771;
+const URL: &str = "http://127.0.0.1:18771";
+const CLAVE: &str = "clave-matriz-seguridad-18771";
 
+static SERIE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static SIMULADOR: Mutex<Option<Child>> = Mutex::new(None);
 static LISTO: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+/* En la VPS 89 solo existe `python3`: buscar `python` a secas hacía que el
+ * simulador no arrancara y todos estos tests se saltaran en verde. */
+fn interprete_python() -> &'static str {
+    ["python3", "python"]
+        .into_iter()
+        .find(|bin| {
+            Command::new(bin)
+                .arg("--version")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success())
+        })
+        .unwrap_or_else(|| {
+            panic!("sin Python (ni python3 ni python) no se puede probar el simulador BDP")
+        })
+}
 
 async fn asegurar_simulador() -> bool {
     if let Some(&listo) = LISTO.get() {
@@ -51,7 +74,7 @@ async fn asegurar_simulador() -> bool {
         let _ = LISTO.set(false);
         return false;
     }
-    let hijo = Command::new("python")
+    let hijo = Command::new(interprete_python())
         .arg(&servidor)
         .arg("--port")
         .arg(PUERTO.to_string())
@@ -84,27 +107,38 @@ async fn asegurar_simulador() -> bool {
     false
 }
 
+/* Los tres tests comparten simulador y leen su historial completo: sin turno en
+ * exclusiva, el reset y las peticiones de uno contaminan las cuentas del otro
+ * (fallos intermitentes del 24/11). */
 macro_rules! simulador_o_salto {
     () => {
-        if !asegurar_simulador().await {
-            eprintln!("SKIP: Python o simulador no disponible");
-            return;
-        }
-        admin_post("/__simulator/reset").await;
+        assert!(
+            asegurar_simulador().await,
+            "el simulador BDP no arrancó: el test no puede saltarse en verde"
+        );
+        let _serie = SERIE.lock().await;
+        admin_reset().await;
     };
 }
 
-async fn admin_post(ruta: &str) -> Value {
-    reqwest::Client::new()
-        .post(format!("{URL}{ruta}"))
+/// Reset del simulador con la clave de admin de este archivo.
+///
+/// Falla si el admin lo rechaza: un 403 silencioso dejaba los tests corriendo
+/// sobre el estado de otro proceso (puerto compartido, 24/11/2026).
+async fn admin_reset() {
+    let resp = reqwest::Client::new()
+        .post(format!("{URL}/__simulator/reset"))
         .header("X-Simulator-Key", CLAVE)
         .json(&json!({}))
         .send()
         .await
-        .expect("admin del simulador")
-        .json()
-        .await
-        .unwrap_or(Value::Null)
+        .expect("admin del simulador");
+    assert!(
+        resp.status().is_success(),
+        "el simulador rechazó el reset ({}): ¿otro proceso con otra clave ocupa el puerto {}?",
+        resp.status(),
+        PUERTO
+    );
 }
 
 async fn admin_estado(ruta: &str) -> Value {
@@ -120,15 +154,23 @@ async fn admin_estado(ruta: &str) -> Value {
 }
 
 /// Peticiones registradas por el simulador (login incluido) y cuántas escriben.
+///
+/// La sonda `/Service/Health` del flush ([M21]) no cuenta: es pública, no
+/// autentica y no escribe. Contarla como «petición» hacía fallar el test de
+/// solo lectura por una comprobación de vida legítima.
 async fn historial() -> (usize, Vec<String>) {
     let cuerpo = admin_estado("/__simulator/history").await;
     let entradas = cuerpo["History"].as_array().cloned().unwrap_or_default();
+    let peticiones = entradas
+        .iter()
+        .filter(|e| e["Path"].as_str() != Some("/Service/Health"))
+        .count();
     let escrituras: Vec<String> = entradas
         .iter()
         .filter(|e| e["Write"].as_bool().unwrap_or(false))
         .filter_map(|e| e["Path"].as_str().map(str::to_string))
         .collect();
-    (entradas.len(), escrituras)
+    (peticiones, escrituras)
 }
 
 async fn cuenta(pool: &PgPool, modo: &str, modalidad: &str) -> Uuid {
@@ -291,6 +333,12 @@ async fn automatico_escribe_en_el_barrido_y_conserva_el_modo(pool: PgPool) {
     simulador_o_salto!();
 
     let user = cuenta(&pool, "automatic", "automatico").await;
+    /* [26AA-3] En `automatic` el barrido exige la categoría del alcance: sin
+     * `articulos_clientes` la fila espera sin escribir (y ese es el caso del
+     * bloque siguiente). Este test mide el barrido con el permiso puesto. */
+    fijar_permiso(&pool, user, "articulos_clientes", true)
+        .await
+        .unwrap();
     /* Dos filas de la misma entidad: la segunda demuestra que no queda un
      * armado huérfano bloqueando el siguiente envío. */
     encolar_articulo(&pool, user, 90_000_103).await;

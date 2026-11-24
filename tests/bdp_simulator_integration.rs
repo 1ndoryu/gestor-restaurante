@@ -54,6 +54,24 @@ static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static SIMULATOR: Mutex<Option<Child>> = Mutex::new(None);
 static SIM_READY: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
+/* En la VPS 89 solo existe `python3`: buscar `python` a secas hacía que el
+ * simulador no arrancara y todos estos tests se saltaran en verde. */
+fn interprete_python() -> &'static str {
+    ["python3", "python"]
+        .into_iter()
+        .find(|bin| {
+            Command::new(bin)
+                .arg("--version")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success())
+        })
+        .unwrap_or_else(|| {
+            panic!("sin Python (ni python3 ni python) no se puede probar el simulador BDP")
+        })
+}
+
 async fn ensure_simulator() -> bool {
     /* Si ya se intentó inicializar, devolver el resultado */
     if let Some(&ready) = SIM_READY.get() {
@@ -87,7 +105,7 @@ async fn ensure_simulator() -> bool {
         return false;
     }
 
-    let child = match Command::new("python")
+    let child = match Command::new(interprete_python())
         .arg(&server_path)
         .arg("--port")
         .arg(SIMULATOR_PORT.to_string())
@@ -136,8 +154,7 @@ macro_rules! skip_if_no_simulator {
     ($guard:ident) => {
         /* 1. Verificar/arrancar simulador (sin mutex, seguro concurrente) */
         if !ensure_simulator().await {
-            eprintln!("SKIP: Python o simulador no disponible");
-            return;
+            panic!("el simulador BDP no arrancó: el test no puede saltarse en verde");
         }
         /* 2. Adquirir mutex ANTES de reset — serializa acceso al simulador
          *    y evita que un test resetee el estado mientras otro ejecuta. */

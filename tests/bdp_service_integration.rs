@@ -33,6 +33,24 @@ static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static SIMULATOR: Mutex<Option<Child>> = Mutex::new(None);
 static SIM_READY: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
+/* En la VPS 89 solo existe `python3`: buscar `python` a secas hacía que el
+ * simulador no arrancara y todos estos tests se saltaran en verde. */
+fn interprete_python() -> &'static str {
+    ["python3", "python"]
+        .into_iter()
+        .find(|bin| {
+            Command::new(bin)
+                .arg("--version")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success())
+        })
+        .unwrap_or_else(|| {
+            panic!("sin Python (ni python3 ni python) no se puede probar el simulador BDP")
+        })
+}
+
 /* ═══════════════════════════════════════════════════════════════════
  * HELPERS: Simulador
  * ═══════════════════════════════════════════════════════════════════ */
@@ -62,7 +80,7 @@ async fn ensure_simulator() -> bool {
         let _ = SIM_READY.set(false);
         return false;
     }
-    let child = match Command::new("python")
+    let child = match Command::new(interprete_python())
         .arg(&server_path)
         .arg("--port")
         .arg(SIMULATOR_PORT.to_string())
@@ -98,8 +116,7 @@ async fn ensure_simulator() -> bool {
 macro_rules! skip_if_no_simulator {
     ($guard:ident) => {
         if !ensure_simulator().await {
-            eprintln!("SKIP: Python o simulador no disponible");
-            return;
+            panic!("el simulador BDP no arrancó: el test no puede saltarse en verde");
         }
         let $guard = TEST_MUTEX.lock().await;
         admin_reset().await;
@@ -107,14 +124,24 @@ macro_rules! skip_if_no_simulator {
     };
 }
 
+/// Reset del simulador con la clave de admin de este archivo.
+///
+/// Falla si el admin lo rechaza: un 403 silencioso dejaba los tests corriendo
+/// sobre el estado de otro proceso (puerto compartido, 24/11/2026).
 async fn admin_reset() {
-    let client = reqwest::Client::new();
-    let _ = client
+    let resp = reqwest::Client::new()
         .post(format!("{SIMULATOR_URL}/__simulator/reset"))
         .header("X-Simulator-Key", ADMIN_KEY)
         .json(&json!({}))
         .send()
-        .await;
+        .await
+        .expect("admin del simulador");
+    assert!(
+        resp.status().is_success(),
+        "el simulador rechazó el reset ({}): ¿otro proceso con otra clave ocupa el puerto {}?",
+        resp.status(),
+        SIMULATOR_PORT
+    );
 }
 
 /* ═══════════════════════════════════════════════════════════════════
