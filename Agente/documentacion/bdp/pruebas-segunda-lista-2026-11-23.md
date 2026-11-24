@@ -93,6 +93,39 @@ pantalla. La pregunta para BDP está en
 - Tras facturar, `GetOrder` por `OrderId` devuelve `{"Order":null,"Status":3}`:
   el ticket ya no se puede releer. El número se guarda en la web al facturar.
 
+## 8-bis. Corte DENTRO de un pago (24/11/2026) — defecto encontrado y corregido
+
+El 23/11 el corte del punto 5 se hizo con el TPV ya caído (prueba de red). El
+24/11 se hizo el corte **en mitad de la escritura**: matar `TpvNet.exe` con el
+`AddOrderPayment` en vuelo. Barrido de retardos con la petición ya lanzada:
+
+| Retardo del corte | Petición alcanzada | Efecto |
+|---|---|---|
+| 1000–1380 ms | `GetOrder` de auditoría previa | pago no enviado |
+| **1400 ms** | **`/API/Orders/Payment/Add`** | `connection closed before message completed` |
+| 1412 ms o más | — | ya respondido 200 |
+
+Con el corte en 1400 ms, BDP **no** tenía el pago (`pagos: []`), pero la web
+dejó una auditoría `add_payment` en `error` y el reintento con la misma clave
+murió para siempre:
+
+```text
+422 {"error":"validation_error",
+     "message":"idempotencia_duplicada:b7aa95b9-…:error"}
+```
+
+Causa: el índice único `(user_id, idempotency_key)` de `bdp_audit_log` admite un
+solo asiento por clave, y la reconciliación escribía «reintento permitido» en el
+mensaje sin liberar ese asiento. Además cada intento muerto filtraba su snapshot
+pre-write.
+
+Corregido en `21AB-5i` (`liberar_intento_sin_escribir`): antes de registrar la
+intención, se lee el intento previo de esa clave, se comprueba con `GetOrder`
+que el pago **no** está y solo entonces se borran auditoría y snapshot. Sin BDP
+delante no se libera nada (nunca se reenvía a ciegas). Test de regresión con
+`disconnect_before_apply`:
+`corte_sin_aplicar_permite_reintentar_y_cobra_una_vez`.
+
 ## 9. Hallazgo para el roadmap (heredado, no de este cambio)
 
 Siete auditorías abiertas de días anteriores (19/10 a 16/11) siguen bloqueando

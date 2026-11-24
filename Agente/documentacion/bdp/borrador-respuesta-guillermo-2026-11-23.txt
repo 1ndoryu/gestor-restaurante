@@ -1,6 +1,7 @@
-BORRADOR — respuesta a Guillermo, 2026-11-23 (WhatsApp, sin enviar)
-Contesta a su segunda lista del 22/11. Evidencia completa en
-Agente/documentacion/bdp/pruebas-segunda-lista-2026-11-23.md.
+BORRADOR — respuesta a Guillermo, 2026-11-24 (WhatsApp, sin enviar)
+Contesta a su segunda lista del 22/11, con el corte en mitad de pago probado el
+24/11. Evidencia completa en
+Agente/documentacion/bdp/pruebas-segunda-lista-2026-11-23.md (§ 8-bis).
 
 ---
 
@@ -29,10 +30,15 @@ qué se ha visto en BDP y qué queda.
    verificados uno a uno en el TPV, total completo, un solo ticket
    (00001TB00000068) y el cuarto rechazado sin escribir nada.
 
-5. *Reinicio real.* Paré el TPV con una venta a medias, la web no pudo
-   contactar, arranqué el TPV y la web se autenticó sola y creó la comanda una
-   sola vez (comanda 182). En el registro queda un intento fallido y un único
-   envío bueno.
+5. *Reinicio real.* Dos pruebas. La primera, el 23/11: paré el TPV con una
+   venta a medias, la web no pudo contactar, arranqué el TPV y la web se
+   autenticó sola y creó la comanda una sola vez (comanda 182). La segunda, el
+   24/11, cortando *dentro* del propio cobro: BDP no llegó a cobrar, y ahí
+   salió un fallo real nuestro —el reintento de ese pago quedaba bloqueado
+   para siempre, aunque BDP no tuviera nada—. Está corregido y probado: ahora
+   la web comprueba en BDP que el pago no está, libera el intento y el reintento
+   cobra exactamente una vez. Con eso, un corte en mitad de un pago ya no deja
+   un pago colgado ni un saldo fantasma.
 
 6. *Modificaciones rápidas.* Dos ediciones a la vez y luego tres seguidas: la
    web y el TPV acaban en el mismo estado (6 unidades, 6,30). Ya no hay que
