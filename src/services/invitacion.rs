@@ -15,8 +15,8 @@ use crate::models::CrearVentaLineaRequest;
 
 /* [21AB-5b] Guillermo (22/11): «hasta que se arregle, deja las invitaciones
  * desactivadas». El envío ya no sustituye el artículo en silencio, pero el
- * ticket del TPV todavía no se ha verificado contra el demo (`21AB-5d`):
- * mientras este interruptor esté a `false`, marcar una invitación se rechaza
+ * ticket del TPV todavía no se ha verificado con una invitación real
+ * (`21AB-5b`): mientras este interruptor esté a `false`, marcar una se rechaza
  * antes de escribir nada. Al validarlo, se pone a `true` en una sola línea. */
 pub const INVITACIONES_HABILITADAS: bool = false;
 

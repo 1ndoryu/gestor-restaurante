@@ -76,7 +76,7 @@ export function useVentaRowActions({ venta: v, bdpSyncEnabled = false, onAnular,
     }
   }, [accion, pendiente]);
 
-  /* [21AB-5d/p3] Una clave por PAGO, no por pulsación. El `PaymentId` que ve
+  /* [21AB-5h] Una clave por PAGO, no por pulsación. El `PaymentId` que ve
    * BDP se deriva de esta clave: si el reintento del mismo pago lleva otra,
    * BDP lo cuenta como un cobro distinto. Se conserva mientras el pago siga
    * pendiente (importe y forma de pago iguales) y se descarta al registrarse. */
