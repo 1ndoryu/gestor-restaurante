@@ -16,8 +16,9 @@ qué se ha visto en BDP y qué queda.
 2. *Invitaciones.* Siguen *desactivadas*, como pediste. El fallo era que, si el
    artículo pedido no tenía equivalencia en BDP, se mandaba el artículo por
    defecto sin decir nada y el ticket nombraba otro producto. Ahora esa línea
-   corta el envío y dice qué artículo falta. Se reactivarán cuando el ticket
-   lleve siempre el producto real.
+   corta el envío y dice qué artículo falta, tanto al marcar la invitación como
+   al enviar la comanda. Se reactivarán cuando hayamos visto una invitación
+   real salir con el producto pedido en el ticket del TPV.
 
 3. *Identificador de pago.* Cada pago lleva un identificador que sale de su
    clave: todos los reintentos de ese mismo pago usan el mismo, y un pago
@@ -26,7 +27,7 @@ qué se ha visto en BDP y qué queda.
    36.2 *no* deduplica por ese identificador; quien protege del doble cobro es
    la consulta previa, que ya está hecha.
 
-4. *Tres pagos.* Comanda 189: tres pagos de 3,50 con formas distintas,
+4. *Tres pagos.* Comanda 189: tres pagos de 3,50 (formas 1, 2 y 1),
    verificados uno a uno en el TPV, total completo, un solo ticket
    (00001TB00000068) y el cuarto rechazado sin escribir nada.
 
