@@ -35,6 +35,24 @@ static SERIE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static SIMULADOR: Mutex<Option<Child>> = Mutex::new(None);
 static LISTO: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
+/* En la VPS 89 solo existe `python3`: buscar `python` a secas hacía que el
+ * simulador no arrancara y todos estos tests se saltaran en verde. */
+fn interprete_python() -> &'static str {
+    ["python3", "python"]
+        .into_iter()
+        .find(|bin| {
+            Command::new(bin)
+                .arg("--version")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success())
+        })
+        .unwrap_or_else(|| {
+            panic!("sin Python (ni python3 ni python) no se puede probar el simulador BDP")
+        })
+}
+
 async fn asegurar_simulador() -> bool {
     if let Some(&listo) = LISTO.get() {
         return listo;
@@ -58,7 +76,7 @@ async fn asegurar_simulador() -> bool {
         let _ = LISTO.set(false);
         return false;
     }
-    let Ok(hijo) = Command::new("python")
+    let Ok(hijo) = Command::new(interprete_python())
         .arg(&servidor)
         .arg("--port")
         .arg(PUERTO.to_string())
@@ -94,13 +112,33 @@ async fn asegurar_simulador() -> bool {
 /// Simulador listo, estado limpio y turno en exclusiva mientras dure el test.
 macro_rules! simulador_en_serie {
     () => {
-        if !asegurar_simulador().await {
-            eprintln!("SKIP: Python o simulador no disponible");
-            return;
-        }
+        assert!(
+            asegurar_simulador().await,
+            "el simulador BDP no arrancó: el test no puede saltarse en verde"
+        );
         let _serie = SERIE.lock().await;
-        admin_post("/__simulator/reset", json!({})).await;
+        admin_reset().await;
     };
+}
+
+/// Reset del simulador con la clave de admin de este archivo.
+///
+/// Falla si el admin lo rechaza: un 403 silencioso dejaba los tests corriendo
+/// sobre el estado de otro proceso (puerto compartido, 24/11/2026).
+async fn admin_reset() {
+    let resp = reqwest::Client::new()
+        .post(format!("{URL}/__simulator/reset"))
+        .header("X-Simulator-Key", CLAVE)
+        .json(&json!({}))
+        .send()
+        .await
+        .expect("admin del simulador");
+    assert!(
+        resp.status().is_success(),
+        "el simulador rechazó el reset ({}): ¿otro proceso con otra clave ocupa el puerto {}?",
+        resp.status(),
+        PUERTO
+    );
 }
 
 async fn admin_post(ruta: &str, cuerpo: Value) -> Value {
@@ -348,6 +386,99 @@ async fn resultado_auditoria(pool: &PgPool, venta_id: Uuid) -> Vec<String> {
     .fetch_all(pool)
     .await
     .unwrap()
+}
+
+/* ===== 0. BDP no cobra y la respuesta se pierde: el reintento debe pasar ===== */
+
+/* [21AB-5i] Lo que falló en el TPV demo el 24/11: `disconnect_before_apply`
+ * cierra la conexión antes de que el simulador apunte el pago, así que BDP NO
+ * cobró. Aun así quedaba una auditoría con esa clave en `pendiente`/`error`, y
+ * el reintento moría en `registrar_intencion` («idempotencia_duplicada»): el
+ * pago quedaba bloqueado para siempre aunque BDP no tuviera nada. Además, el
+ * snapshot pre-write del intento muerto se filtraba. Se reintenta con la MISMA
+ * clave y tiene que cobrar exactamente una vez. */
+#[sqlx::test(migrations = "./migrations")]
+async fn corte_sin_aplicar_permite_reintentar_y_cobra_una_vez(pool: PgPool) {
+    simulador_en_serie!();
+    let (user, config) = cuenta(&pool).await;
+    let venta = comanda_y_venta(&pool, user, Decimal::new(2750, 2)).await;
+    let order_id = venta.bdp_order_id.unwrap();
+    let clave = "21ab5i-sin-aplicar";
+
+    /* La conexión se corta ANTES de aplicar: BDP no cobró. */
+    admin_post(
+        "/__simulator/fault",
+        json!({"Path": RUTA_PAGO, "disconnect_before_apply": true}),
+    )
+    .await;
+
+    let primero = BdpSyncService::add_order_payment(
+        &pool,
+        &venta,
+        &config,
+        Decimal::new(2750, 2),
+        1,
+        Some(clave),
+    )
+    .await;
+    assert!(primero.is_err(), "el corte tiene que hacer fallar el cobro");
+    assert_eq!(
+        pagos_en_comanda(order_id).await.len(),
+        0,
+        "BDP no aplicó el pago: no puede haber cobro en la comanda"
+    );
+
+    /* El fallo inyectado se consume en una sola petición: el reintento es normal. */
+    let segundo = BdpSyncService::add_order_payment(
+        &pool,
+        &venta,
+        &config,
+        Decimal::new(2750, 2),
+        1,
+        Some(clave),
+    )
+    .await;
+    assert!(
+        segundo.is_ok(),
+        "con BDP sin cobrar, el reintento con la misma clave tiene que pasar: {segundo:?}"
+    );
+    assert!(
+        escrituras_de_pago().await >= 2,
+        "el reintento sí tiene que reenviar el pago a BDP"
+    );
+    assert_eq!(
+        pagos_en_comanda(order_id).await.len(),
+        1,
+        "un solo cobro en BDP, aunque se enviara dos veces"
+    );
+    assert_eq!(pagos_exitosos(&pool, venta.id).await, 1);
+
+    /* Nada se queda colgando: ni intentos abiertos ni snapshots huérfanos. */
+    let abiertas: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bdp_audit_log \
+         WHERE user_id = $1 AND datos_enviados ->> 'venta_id' = $2 \
+           AND resultado IN ('pendiente', 'ambiguo')",
+    )
+    .bind(user)
+    .bind(venta.id.to_string())
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(abiertas, 0, "no puede quedar un intento abierto");
+
+    let snapshots: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bdp_snapshots WHERE user_id = $1 \
+           AND metadata ->> 'order_id' = $2",
+    )
+    .bind(user)
+    .bind(order_id.to_string())
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        snapshots, 1,
+        "el pre-write del intento que no escribió no se queda en la base"
+    );
 }
 
 /* ===== 1. Dos solicitudes simultáneas del mismo pago ===== */

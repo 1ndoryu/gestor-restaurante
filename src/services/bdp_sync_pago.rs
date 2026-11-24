@@ -113,6 +113,16 @@ impl BdpSyncService {
         /* [D15] Antes de bloquear, un add_payment ambiguo se reconcilia con BDP. Si el
          * pago ya quedó registrado, el reintento con la misma clave no se reenvía. */
         Self::reconciliar_pagos_ambiguos(&client, pool, venta).await?;
+
+        /* [21AB-5i] Un intento anterior con esta clave pudo cerrarse sin escribir
+         * (`error`, o `pendiente` de una caída). Su fila ocupa el único asiento de
+         * idempotencia y `registrar_intencion` rechazaría el reintento para siempre.
+         * Solo se libera con BDP delante y con el pago ausente: sobre esa prueba se
+         * borra la fila y su snapshot pre-write (que nunca llegó a escribir). */
+        if let Some(key) = idempotency_key {
+            Self::liberar_intento_sin_escribir(&client, pool, venta, key, amount, tender_id)
+                .await?;
+        }
         if let Some(key) = idempotency_key {
             if Self::pago_ya_exitoso(pool, venta, key, amount, tender_id).await? {
                 return Ok(None);

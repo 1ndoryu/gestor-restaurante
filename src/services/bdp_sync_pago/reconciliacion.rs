@@ -10,6 +10,7 @@ use rust_decimal::prelude::Decimal;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
+use tracing::info;
 use uuid::Uuid;
 
 use crate::models::Venta;
@@ -135,6 +136,99 @@ impl BdpSyncService {
                 .await
             }
         }
+    }
+
+    /* [21AB-5i] Libera el asiento de idempotencia de un intento que no escribió
+     * en BDP. Sin BDP delante no se decide nada: si no se puede comprobar que el
+     * pago no está, el intento sigue bloqueado (nunca se reenvía a ciegas). */
+    pub(super) async fn liberar_intento_sin_escribir(
+        client: &BdpWeblinkClient<'_>,
+        pool: &PgPool,
+        venta: &Venta,
+        key: &str,
+        amount: Decimal,
+        tender_id: i32,
+    ) -> Result<(), String> {
+        /* Un intento cerrado en `error` o quedado en `pendiente` ocupaba el
+         * índice único `(user_id, idempotency_key)` de `bdp_audit_log`. */
+        let previos: Vec<(Uuid, Option<Uuid>, String, Option<Value>)> = sqlx::query_as(
+            "SELECT id, snapshot_pre_id, resultado, datos_enviados FROM bdp_audit_log \
+             WHERE user_id = $1 AND idempotency_key = $2 \
+               AND resultado IN ('error', 'pendiente') ORDER BY created_at",
+        )
+        .bind(venta.user_id)
+        .bind(key)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| format!("No se pudo leer el intento previo de la clave {key}: {e}"))?;
+
+        for (audit_id, snapshot_id, resultado, datos) in previos {
+            /* Un intento de otra venta o con otro importe no es este pago: la
+             * clave está reutilizada y no se libera nada. */
+            let venta_en_datos = datos
+                .as_ref()
+                .and_then(|d| d.get("venta_id"))
+                .and_then(Value::as_str);
+            let misma_venta = venta_en_datos == Some(venta.id.to_string().as_str());
+            let mismo_importe = datos
+                .as_ref()
+                .and_then(|d| d.get("amount"))
+                .is_some_and(|v| Self::parse_remote_money(v, "amount").is_ok_and(|a| a == amount));
+            if !misma_venta || !mismo_importe {
+                continue;
+            }
+            let order_id = datos
+                .as_ref()
+                .and_then(|d| d.get("order_id"))
+                .and_then(Value::as_i64)
+                .or(venta.bdp_order_id)
+                .ok_or("Pago bloqueado: intento previo sin order_id para liberar")?;
+            let payment_id = datos
+                .as_ref()
+                .and_then(|d| d.get("payment_id"))
+                .and_then(Value::as_str)
+                .filter(|id| !id.trim().is_empty())
+                .map_or_else(|| payment_id_de_pago(venta.id, key), ToString::to_string);
+
+            let remota = client
+                .get_order(&BdpGetOrderRequest {
+                    order_identifier: BdpOrderIdentifier::by_order_id(order_id),
+                })
+                .await
+                .map_err(|e| {
+                    format!("Pago bloqueado: no se pudo comprobar el intento previo: {e}")
+                })?;
+            let payments = remota
+                .get("Order")
+                .and_then(|orden| orden.get("Payments"))
+                .and_then(Value::as_array)
+                .ok_or("Pago bloqueado: GetOrder no devolvió Payments")?;
+            if estado_pago_remoto(payments, &payment_id, amount, tender_id)? == PagoRemoto::Aplicado
+            {
+                /* BDP sí lo tiene: no se libera; la reconciliación de ambiguos
+                 * lo cerrará como éxito y el reintento no reenviará nada. */
+                continue;
+            }
+
+            info!(
+                "[21AB-5i] Intento {audit_id} en `{resultado}` sin cobro en BDP: se libera la clave {key}"
+            );
+            sqlx::query("DELETE FROM bdp_audit_log WHERE id = $1")
+                .bind(audit_id)
+                .execute(pool)
+                .await
+                .map_err(|e| format!("No se pudo liberar la auditoría {audit_id}: {e}"))?;
+            /* El snapshot pre-write no está referenciado por nada más. */
+            if let Some(snapshot_id) = snapshot_id {
+                sqlx::query("DELETE FROM bdp_snapshots WHERE id = $1 AND user_id = $2")
+                    .bind(snapshot_id)
+                    .bind(venta.user_id)
+                    .execute(pool)
+                    .await
+                    .map_err(|e| format!("No se pudo borrar el snapshot {snapshot_id}: {e}"))?;
+            }
+        }
+        Ok(())
     }
 }
 
