@@ -6,6 +6,4 @@ Hola Guillermo: te respondo a lo de los costos y a cuándo terminaríamos.
 
 *Costos.* Esta última corrección me llevó tres días. Como probablemente vengan más ajustes así, esa parte no te la cobro todavía: prefiero esperar a que el bloque esté completo y pasarte el total. La referencia es por semana de trabajo, entre 60 y 100 dólares, según los días que tome y la complejidad de cada corrección.
 
-*Plazos.* Todavía no puedo darte una fecha de cierre, y prefiero decirte el motivo antes que darte una que luego no se cumpla. El avance no depende solo de mí: varias definiciones pendientes pasan por vuestra parte — las tres preguntas que BDP nos devolvió, la licencia del demo, el servicio a domicilio y qué operaciones se quedan en el TPV. Según se vayan resolviendo, podré darte un calendario realista.
-
-Mientras tanto sigo con todo lo que no depende de eso y te mantengo al día.
+*Plazos.* Aquí no puedo ser precisa, y el motivo es honesto: depende de si consideráis que ya está todo listo para usarlo en el BDP real, o si preferís que sigamos con más ajustes y pruebas antes. Por mi parte, considero que el proyecto está listo para esa prueba. Si nos ponemos a buscar la perfección, estaríamos hablando de varios meses más; y si finalmente se decide convertirlo en un SaaS como se comentó al principio, el trabajo añadido sería de unos tres meses más. Lo que sí puedo asegurar es que, con lo que está hecho, entrar en pruebas con vuestro TPV es posible ya, y que seguiré con todo lo que no dependa de esa decisión.
