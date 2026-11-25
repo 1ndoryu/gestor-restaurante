@@ -23,6 +23,10 @@ export function useVentaSubmit(
   function validarLineas(): boolean {
     const sinDatos = lineasHook.lineas.filter(l => !l.descripcion || !l.precio_unitario);
     if (sinDatos.length > 0) { setError('Todas las líneas deben tener descripción y precio'); return false; }
+    /* [18AB-11] BDP dijo el 24/11 que una línea de 0 uds no debe llegar a crearse;
+     * el servidor ya la rechaza (422), pero aquí se avisa antes de enviar. */
+    const sinCantidad = lineasHook.lineas.filter(l => !(Number.parseFloat(l.cantidad) > 0));
+    if (sinCantidad.length > 0) { setError('Todas las líneas deben tener una cantidad mayor que 0'); return false; }
     return true;
   }
 

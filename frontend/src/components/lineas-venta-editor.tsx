@@ -69,7 +69,9 @@ function LineaRow({ linea, idx, onActualizar, onAlternarInvitacion, onEliminar, 
     <div className={`grid grid-cols-1 gap-2 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-[minmax(140px,1fr)_minmax(0,1fr)_70px_90px_60px_60px_80px_72px_32px] lg:items-center${linea.invitacion ? ' border-dashed bg-muted/30' : ''}`}>
       <div className="flex flex-col gap-1 min-w-0">{lbl('Código')}<ArticleAutocomplete valor={linea.articulo_codigo} onSelect={v => onActualizar(linea.id, 'articulo_codigo', v)} readonly={readonly} /></div>
       <div className="flex flex-col gap-1 min-w-0">{lbl('Descripción')}{inp('descripcion')}</div>
-      <div className="flex flex-col gap-1 min-w-0">{lbl('Cant.')}{inp('cantidad', 'number')}</div>
+      {/* [18AB-11] BDP confirmó el 24/11 que una línea de 0 uds no debe existir:
+          el navegador no deja bajar de 0,01 y el envío la vuelve a rechazar. */}
+      <div className="flex flex-col gap-1 min-w-0">{lbl('Cant.')}{inp('cantidad', 'number', { min: '0.01' })}</div>
       <div className="flex flex-col gap-1 min-w-0">{lbl('Precio €')}{inp('precio_unitario', 'number', { placeholder: '0.00' })}</div>
       <div className="flex flex-col gap-1 min-w-0">{lbl('IVA %')}{inp('iva_pct', 'number')}</div>
       <div className="flex flex-col gap-1 min-w-0">{lbl('Dsct %')}{inp('descuento', 'number')}</div>
