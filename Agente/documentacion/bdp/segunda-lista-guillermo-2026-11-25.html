@@ -124,7 +124,7 @@ li { margin-bottom: 4.5pt; }
 <table>
 <thead><tr><th style="width:27%">Funci&oacute;n que falta en la API</th><th style="width:42%">Qu&eacute; implica mientras no exista</th><th style="width:31%">Estado</th></tr></thead>
 <tbody>
-<tr><td>Dividir y unir cuentas</td><td>Se divide en la web con pagos parciales (es lo que BDP propone) o en el TPV. Con muchas partes choca con el tope de tres pagos.</td><td>Confirmado por BDP (24/11).</td></tr>
+<tr><td>Dividir y unir cuentas</td><td>Se divide en la web con pagos parciales (es lo que BDP propone) o en el TPV. Nuestro tope de tres pagos (regla nuestra, no de BDP) choca con mesas partidas entre muchos comensales; se est&aacute; revisando.</td><td>Confirmado por BDP (24/11). Tope: decisi&oacute;n nuestra.</td></tr>
 <tr><td>Cambiar una comanda de mesa</td><td>Lo hace un empleado en el TPV; la web no lo ofrece para no duplicar la comanda.</td><td>Confirmado por BDP (24/11).</td></tr>
 <tr><td>Retirar un pago o anular un cobro</td><td>Desde el TPV. Con pasarela, devoluci&oacute;n por la pasarela y un pago negativo del mismo importe.</td><td>Confirmado por BDP (24/11).</td></tr>
 <tr><td>Iniciar traspasos</td><td>El aviso llega y se ve en la web, pero iniciarlo se hace en el TPV.</td><td>Pendiente de BDP.</td></tr>
@@ -136,7 +136,7 @@ li { margin-bottom: 4.5pt; }
 <tr><td>Cambios posteriores al pago</td><td>Fuera de la web; no hay operaci&oacute;n posterior al cobro.</td><td>Pendiente de BDP.</td></tr>
 <tr><td>Listar las comandas abiertas</td><td>No hay listado: la web repasa comanda a comanda por su identificador.</td><td>L&iacute;mite conocido.</td></tr>
 <tr><td>Aviso de pago</td><td>BDP no emite evento al cobrar: la web lo descubre en el repaso peri&oacute;dico.</td><td>L&iacute;mite conocido.</td></tr>
-<tr><td>Tope de tres pagos por cuenta</td><td>Es un l&iacute;mite de BDP y la web lo aplica antes de llegar a &eacute;l.</td><td>L&iacute;mite de BDP.</td></tr>
+<tr><td>Tope de tres pagos por cuenta</td><td>No es l&iacute;mite de BDP: es una regla de aceptaci&oacute;n nuestra (ficha D17). BDP admite m&aacute;s pagos parciales; la web corta en tres y avisa antes de llegar. Se revisa en <code>18AB-12</code>.</td><td>Decisi&oacute;n nuestra.</td></tr>
 <tr><td>Servicio a domicilio</td><td>Necesita otra aplicaci&oacute;n de BDP y probablemente otra licencia.</td><td>Confirmado por BDP (24/11).</td></tr>
 <tr><td>Compras, gastos, reservas, marketing y empleados</td><td>Sin cobertura en la API entregada: se gestionan fuera de la web o no se integran.</td><td>L&iacute;mite conocido.</td></tr>
 </tbody>
