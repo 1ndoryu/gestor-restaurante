@@ -1,68 +1,23 @@
-BORRADOR — respuesta a Guillermo, 2026-11-24 (WhatsApp, sin enviar)
-Contesta a su segunda lista del 22/11. Todo re-probado el 24/11 contra el TPV
-demo, con el binario actual. Evidencia completa en
-Agente/documentacion/bdp/pruebas-segunda-lista-2026-11-23.md.
+BORRADOR — respuesta a Guillermo, 2026-11-25 (WhatsApp, sin enviar). Contesta a su segunda lista del 22/11. Todo probado contra el TPV demo. El detalle completo va en el PDF adjunto.
 
 ---
 
-Hola Guillermo: los siete puntos están probados contra el TPV demo. Te resumo
-qué se ha visto en BDP y qué queda.
+Hola Guillermo: los siete puntos están probados contra el TPV demo. Te resumo y te adjunto el detalle.
 
-1. *Saldo de los pagos parciales.* Antes de cada cobro se consulta la comanda y
-   el pendiente sale del total de BDP menos sus pagos registrados en BDP; no se
-   recalcula base más IVA. Probado con uno, dos y tres pagos: 10,50 → 7,00 →
-   3,50 → 0,00, y al final ya no queda nada pendiente. El cuarto pago se rechaza
-   con un aviso y no se escribe nada.
+1. *Saldo de los pagos parciales.* Antes de cada cobro se consulta la comanda y el pendiente sale del total de BDP menos sus pagos, no de base más IVA. Probado con uno, dos y tres pagos: 10,50 → 7,00 → 3,50 → 0,00, sin nada pendiente al final. El cuarto se rechaza con un aviso y no escribe nada.
 
-2. *Invitaciones.* Siguen *desactivadas*, como pediste. El fallo era que, si el
-   artículo pedido no tenía equivalencia en BDP, se mandaba el artículo por
-   defecto en silencio y el ticket nombraba otro producto. Corregido y probado
-   con el interruptor encendido: la invitación sale con el código del producto
-   original y `Invitation = true`, y el ticket imprime ese mismo artículo a 0,00
-   (comprobado en el ticket 00001TB00000069: la línea del artículo pedido a 0,00
-   junto a la línea normal). Si un artículo no tiene equivalencia, la comanda se
-   corta *antes de escribir* y dice qué artículo falta; ya no cae al artículo por
-   defecto sin avisar. Se reactivarán cuando hayamos visto una invitación real
-   salir así en un ticket de vuestro TPV.
+2. *Invitaciones.* Siguen desactivadas, como pediste. El fallo era que, si el artículo pedido no tenía equivalencia en BDP, se mandaba el artículo por defecto en silencio y el ticket nombraba otro producto. Corregido y probado: la invitación sale con el código del producto pedido y el ticket lo imprime a 0,00 (ticket 00001TB00000069); si no hay equivalencia, la comanda se corta antes de escribir y dice qué artículo falta. Las reactivamos cuando lo veamos en un ticket de vuestro TPV.
 
-3. *Identificador de pago.* El comportamiento real del código: el identificador
-   identifica el *pago*, no el intento. Todos los reintentos de un mismo pago
-   reutilizan exactamente el mismo; un pago distinto lleva uno distinto. Probado
-   en BDP: reintento con la misma clave, un solo cobro; con otra clave, dos
-   cobros distintos. La frase del PDF del 18/11 («cada intento lleva uno
-   distinto») no describe el código; queda corregida en la documentación. Aviso
-   importante: BDP 36.2 *no* deduplica por ese identificador; quien protege del
-   doble cobro es la consulta previa, que ya está hecha.
+3. *Identificador de pago.* Identifica el pago, no el intento: todos los reintentos de un mismo pago reutilizan el mismo, y un pago distinto lleva otro. La frase del PDF del 18/11 («cada intento lleva uno distinto») no describe el código; queda corregida. Aviso: BDP 36.2 no deduplica por ese identificador; del doble cobro protege la consulta previa, que ya está hecha.
 
-4. *Tres pagos.* Comanda 214: tres pagos de 3,50 (formas 1, 2 y 1), los tres
-   verificados en BDP uno a uno, total completo, *un solo* ticket
-   (00001TB00000070) y el cuarto rechazado sin escribir nada — BDP idéntico
-   antes y después del intento.
+4. *Tres pagos.* Comanda 214: tres pagos de 3,50 (formas 1, 2 y 1), los tres verificados en BDP, total completo, un solo ticket (00001TB00000070) y el cuarto rechazado sin escribir nada.
 
-5. *Reinicio real.* Paré de verdad los dos procesos de BDP (TpvNet, que sirve la
-   WebLink, y SvrWCF), con una venta creada y un cobro pendientes. Con BDP
-   parado la web no pudo enviar y lo dejó anotado, y el cobro se rechazó sin
-   escribir nada. Arranqué los dos procesos: la web se autenticó sola, creó la
-   comanda *una sola vez* (215) y el cobro reintentado dos veces seguidas entró
-   *una sola vez*; el resto del saldo hasta 0,00 también cuadró en BDP. Con eso,
-   un corte de verdad ya no deja comanda ni pago colgados. Aparte, cortando
-   *dentro* del propio cobro, encontramos un fallo nuestro: el reintento de ese
-   pago quedaba bloqueado para siempre aunque BDP no tuviera nada. Está
-   corregido y probado.
+5. *Reinicio real.* Paré los dos procesos de BDP con una venta y un cobro pendientes. Con BDP parado la web lo anotó y el cobro se rechazó sin escribir; al arrancarlo, la web se autenticó sola, creó la comanda una sola vez (215) y el cobro reintentado dos veces entró una sola vez. Aparte, cortando dentro del propio cobro, encontramos un fallo nuestro: ese reintento quedaba bloqueado para siempre aunque BDP no tuviera nada. Corregido y probado.
 
-6. *Modificaciones rápidas.* Dos ediciones a la vez y luego tres seguidas: la
-   web y el TPV acaban en el mismo estado (6 unidades, 6,30). Ya no hay que
-   repetir nada a mano.
+6. *Modificaciones rápidas.* Dos ediciones a la vez y luego tres seguidas: web y TPV acaban igual (6 unidades, 6,30). Ya no hay que repetir nada a mano.
 
-7. *Licencia del demo.* El aviso «sin conexión con el servidor de subscripción»
-   sigue saliendo y el TPV funciona igual: todas estas pruebas se han hecho con
-   él. Te paso la pregunta para BDP; hace falta que nos confirmen la vigencia
-   del entorno de pruebas.
+7. *Licencia del demo.* El aviso de subscripción sigue saliendo y el TPV funciona igual; todas las pruebas se han hecho con él. Te paso la pregunta para BDP.
 
-*Dos límites del demo, no de la web:* las comandas de barra no admiten
-modificaciones (el TPV las rechaza con «el importe no coincide»); las de mesa
-sí. Y tras facturar, el TPV ya no deja releer la comanda, así que el número de
-ticket se guarda en la web al facturar.
+*Dos límites del demo, no de la web:* las comandas de barra no admiten modificaciones (el TPV las rechaza); las de mesa sí. Y tras facturar, el TPV ya no deja releer la comanda, así que el número de ticket se guarda en la web al facturar.
 
-*Nada de esto está conectado al restaurante:* todas las pruebas son contra el
-TPV demo del portátil. Cuando digas, preparamos las pruebas con vuestro TPV.
+*Nada de esto está conectado al restaurante:* todo es contra el TPV demo. Cuando digas, preparamos las pruebas con el vuestro.
