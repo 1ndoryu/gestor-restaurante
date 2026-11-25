@@ -22,6 +22,12 @@ pub const OPERACIONES_NO_API: &[(&str, &str)] = &[
     ("cocina_avanzada", "Controles avanzados de cocina"),
     ("series_facturacion", "Series de facturación"),
     ("cambios_posteriores_pago", "Cambios posteriores al pago"),
+    /* [18AB-11] Confirmadas por BDP el 24/11/2026: ni dividir/unir cuentas,
+     * ni cambiar una comanda de mesa, ni retirar un pago tienen endpoint. La
+     * web no debe ofrecerlas; el empleado las hace en el TPV. */
+    ("dividir_unir_cuentas", "Dividir o unir cuentas"),
+    ("cambio_mesa", "Cambiar una comanda de mesa"),
+    ("retirar_pago", "Retirar un pago o anular un cobro"),
 ];
 
 /// Procedimiento por defecto si la operación no tiene uno configurado.
@@ -175,7 +181,7 @@ mod tests {
     }
 
     #[test]
-    fn listar_cubre_las_doce_operaciones_con_su_asignacion() {
+    fn listar_cubre_todas_las_operaciones_con_su_asignacion() {
         let mut mapa = HashMap::new();
         mapa.insert(
             "arqueo".to_string(),
@@ -185,7 +191,8 @@ mod tests {
             },
         );
         let lista = listar("", &mapa);
-        assert_eq!(lista.len(), 12);
+        assert_eq!(lista.len(), OPERACIONES_NO_API.len());
+        assert_eq!(lista.len(), 15);
         assert_eq!(
             lista.iter().filter(|op| !op.responsable_pendiente).count(),
             1

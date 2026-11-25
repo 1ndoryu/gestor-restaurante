@@ -46,6 +46,56 @@ impl BdpSyncService {
         Ok(status)
     }
 
+    /* [18AB-11] «No permitir como invitación» no viaja en `ExportArticles`:
+     * solo lo manda `GetPOSList` del perfil de items (comprobado contra el BDP
+     * demo el 25/11/2026: 260/260 artículos lo traen ahí y ninguno en el
+     * export). Sin cruzarlo, la marca quedaba `NULL` en todo el catálogo y el
+     * bloqueo de invitaciones nunca se aplicaba — y BDP confirma que esa
+     * restricción es de la capa de negocio, es decir, nuestra. Si el perfil no
+     * se puede leer, se conserva lo que traiga el export y se avisa: no se
+     * inventa un valor. */
+    async fn completar_marcas_invitacion(
+        client: &BdpWeblinkClient<'_>,
+        articles: &mut [BdpExportArticleItem],
+    ) {
+        if articles.is_empty() {
+            return;
+        }
+        let perfil = match client.list_profile_articles().await {
+            Ok(perfil) => perfil,
+            Err(error) => {
+                warn!(
+                    "[18AB-11] Sin marcas de invitación: el perfil de items no se pudo \
+                     leer ({error}). Las invitaciones no se bloquearán por ficha"
+                );
+                return;
+            }
+        };
+        let mut marcas: std::collections::HashMap<&str, bool> = std::collections::HashMap::new();
+        for articulo in &perfil {
+            let Some(codigo) = articulo.art_code() else {
+                continue;
+            };
+            if let Some(prohibida) = articulo.not_allowed_as_invitation {
+                marcas.insert(codigo, prohibida);
+            }
+        }
+        let mut aplicadas = 0usize;
+        for articulo in articles.iter_mut() {
+            let Some(codigo) = articulo.art_code() else {
+                continue;
+            };
+            if let Some(&prohibida) = marcas.get(codigo) {
+                articulo.not_allowed_as_invitation = Some(prohibida);
+                aplicadas += 1;
+            }
+        }
+        info!(
+            "[18AB-11] Marcas de invitación aplicadas desde el perfil: {aplicadas}/{} artículos",
+            articles.len()
+        );
+    }
+
     /* [F4.4] Lectura del catálogo remoto: ExportArticles con fallback de
      * perfil H-Q1-03. Devuelve los artículos y la fuente usada. */
     async fn obtener_articulos_catalogo(
@@ -94,7 +144,6 @@ impl BdpSyncService {
         };
 
         let mut fuente = "ExportArticles";
-
         /* [039A-1/H-Q1-03][200109] El BDP real devuelve ExportArticles vacío
          * (o con error [200109]) cuando no puede servir el catálogo web
          * (sin artículos web contratados, o uno roto), aunque el perfil de
@@ -139,6 +188,13 @@ impl BdpSyncService {
                     ));
                 }
             }
+        }
+        /* [18AB-11] El export no trae «No permitir como invitación»: se cruza
+         * con el perfil de items, que es la única fuente que lo manda. Si el
+         * catálogo ya vino del perfil, la marca está puesta y no se repite la
+         * lectura (son 26 páginas de 10). */
+        if fuente == "ExportArticles" {
+            Self::completar_marcas_invitacion(client, &mut articles).await;
         }
         Ok((articles, fuente))
     }
@@ -465,6 +521,93 @@ pub struct SyncTablesResult {
     pub zonas_creadas: u32,
     pub mesas_creadas: u32,
     pub applied: bool,
+}
+
+/* [18AB-11] BDP demo devuelve el export *sin* `NotAllowedAsInvitation` y el
+ * perfil *con* él: esta prueba fija justo ese reparto, que es lo que hace que
+ * la marca no llegue nunca a `bdp_article_map` si no se cruza. */
+#[cfg(test)]
+mod tests_sync_catalogo {
+    use super::*;
+    use crate::services::bdp_weblink::tests::config;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    async fn montar_bdp() -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/Auth/Login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": "",
+                "AuthSession": { "Token": "token-bdp", "ExpiresIn_InSecconds": 3540 }
+            })))
+            .mount(&server)
+            .await;
+        /* Export: dos artículos web, ningún rastro del flag (como el real). */
+        Mock::given(method("POST"))
+            .and(path("/API/Articles/Export"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": "",
+                "Articles": [
+                    { "Code": "1001", "Description": "CAFÉ", "Price1": 2.00, "Tax1": 10, "Active": true },
+                    { "Code": "1002", "Description": "MENÚ", "Price1": 12.00, "Tax1": 10, "Active": true }
+                ]
+            })))
+            .mount(&server)
+            .await;
+        /* Perfil: solo aquí viaja la marca, y distinta por artículo. */
+        Mock::given(method("POST"))
+            .and(path("/API/Articles/GetPOSList"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": "",
+                "ArticlesListData": [
+                    { "ArtCode": "1001", "ArtDescription": "CAFÉ", "TAVPer": 10,
+                      "NotAllowedAsInvitation": true },
+                    { "ArtCode": "1002", "ArtDescription": "MENÚ", "TAVPer": 10,
+                      "NotAllowedAsInvitation": false }
+                ]
+            })))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    #[sqlx::test(migrations = "./migrations")]
+    async fn la_marca_de_invitacion_llega_desde_el_perfil(pool: PgPool) {
+        let server = montar_bdp().await;
+        let user_id = Uuid::new_v4();
+        sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+            .bind(user_id)
+            .bind(format!("sync-catalogo-{user_id}@example.com"))
+            .bind("argon2_hash_placeholder")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let cfg = config(server.uri());
+        let client = BdpWeblinkClient::new(&cfg);
+
+        let resultado = BdpSyncService::sync_catalog(&client, &pool, user_id, 1)
+            .await
+            .expect("sync_catalog");
+        assert_eq!(resultado.creados, 2);
+
+        let marcas: Vec<(String, Option<bool>)> = sqlx::query_as(
+            "SELECT articulo_glory_codigo, invitacion_prohibida FROM bdp_article_map \
+             WHERE user_id = $1 ORDER BY articulo_glory_codigo",
+        )
+        .bind(user_id)
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            marcas,
+            vec![
+                ("1001".to_string(), Some(true)),
+                ("1002".to_string(), Some(false)),
+            ],
+            "cada código lleva la marca de su ficha en el perfil, no la del export (que no la manda)"
+        );
+    }
 }
 
 #[cfg(test)]
