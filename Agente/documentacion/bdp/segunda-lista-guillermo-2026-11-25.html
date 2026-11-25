@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Segunda lista de Guillermo &mdash; resultados</title>
+<style>
+@page { size: A4; margin: 14mm; }
+@page { @top-left { content: none; } @top-center { content: none; } @top-right { content: none; }
+        @bottom-left { content: none; } @bottom-center { content: none; } @bottom-right { content: none; } }
+html, body { margin: 0; padding: 0; }
+@page { size: A4; margin: 14mm; }
+body { width: 182mm; margin: 0 auto; font-family: "Times New Roman", Times, serif; font-size: 8.2pt; line-height: 1.28; color: #000; background: #fff; text-align: justify; }
+h1 { font-size: 11pt; font-weight: bold; text-transform: uppercase; text-align: center; margin: 0 0 2pt 0; }
+.sub { text-align: center; font-size: 8.2pt; margin: 0 0 8pt 0; }
+h2 { break-after: avoid; page-break-after: avoid; font-size: 8.8pt; font-weight: bold; text-transform: uppercase; margin: 11pt 0 3pt 0; text-align: left; }
+p { margin: 0 0 4pt 0; }
+.table-note { font-size: 7.8pt; margin: 3pt 0 6pt 0; }
+table { width: 100%; border-collapse: collapse; font-size: 7.6pt; margin: 3pt 0 7pt 0; }
+th { font-size: 7.2pt; font-weight: bold; text-transform: uppercase; text-align: left; padding: 2pt 4pt; border-top: 1.2pt solid #000; border-bottom: 0.75pt solid #000; }
+td { padding: 2pt 4pt; vertical-align: top; text-align: left; }
+tr:last-child td { border-bottom: 1.2pt solid #000; }
+td.c, th.c { text-align: center; }
+ul, ol { margin: 0 0 4pt 0; padding-left: 15pt; }
+li { margin-bottom: 4.5pt; }
+.nueva { break-before: page; page-break-before: always; }
+</style>
+</head>
+<body>
+
+<h1>Segunda lista de Guillermo &mdash; resultados</h1>
+<p class="sub">Integraci&oacute;n web&ndash;TPV BDP &middot; Restaurante. Del 20 al 25 de noviembre de 2026.</p>
+
+<h2>1. Qu&eacute; se ha hecho en esta ronda</h2>
+<p>Esta ronda empieza con la lista de seis puntos del 20 de noviembre y termina con la segunda lista del 22. Entre las dos se ha revisado el flujo normal entero contra el TPV de pruebas, se han cerrado los huecos que esa revisi&oacute;n destap&oacute;, se ha vuelto a probar todo lo que ped&iacute;a la segunda lista y se ha buscado el l&iacute;mite del sistema apagando el TPV de verdad. <strong>Todo se ha probado contra el TPV demo de BDP</strong> (Hosteler&iacute;a 36.2), con escrituras reales; <strong>ninguna prueba ha tocado el TPV del restaurante</strong> y no hay ninguna escritura autom&aacute;tica conectada con &eacute;l.</p>
+<p>El resultado de la segunda lista, punto por punto:</p>
+<table>
+<thead><tr><th class="c" style="width:5%">Punto</th><th style="width:31%">Qu&eacute; ped&iacute;a</th><th class="c" style="width:17%">Estado</th><th style="width:47%">Qu&eacute; queda</th></tr></thead>
+<tbody>
+<tr><td class="c">1</td><td>Saldo de los pagos parciales</td><td class="c"><strong>Listo</strong></td><td>Nada por nuestra parte.</td></tr>
+<tr><td class="c">2</td><td>Invitaciones con el art&iacute;culo pedido</td><td class="c"><strong>Listo en pruebas</strong></td><td>Verlo en un ticket del TPV del restaurante. Siguen desactivadas.</td></tr>
+<tr><td class="c">3</td><td>Identificador de pago</td><td class="c"><strong>Confirmado</strong></td><td>Nada. La frase del PDF del 18/11 queda corregida.</td></tr>
+<tr><td class="c">4</td><td>Tres pagos y un solo ticket</td><td class="c"><strong>Listo</strong></td><td>Nada por nuestra parte.</td></tr>
+<tr><td class="c">5</td><td>Reinicio real de BDP</td><td class="c"><strong>Listo</strong></td><td>Nada por nuestra parte.</td></tr>
+<tr><td class="c">6</td><td>Modificaciones r&aacute;pidas</td><td class="c"><strong>Listo en mesas</strong></td><td>Las comandas de barra las rechaza el TPV demo.</td></tr>
+<tr><td class="c">7</td><td>Licencia del demo</td><td class="c">Espera</td><td>La respuesta de BDP sobre la vigencia del entorno.</td></tr>
+</tbody>
+</table>
+
+<h2>2. Lo que se cerr&oacute; antes de la segunda lista (20 y 21 de noviembre)</h2>
+<p><strong>Revisi&oacute;n del flujo normal.</strong> Se hizo una pasada completa con comandas reales: crear y cobrar, a&ntilde;adir, quitar y modificar productos, cambiar comentarios de l&iacute;nea, descuento e invitaci&oacute;n, dos cobros parciales con formas distintas, emitir el ticket y cancelar una comanda sin pagos. Todo cuadr&oacute; en la web y en el TPV.</p>
+<p><strong>Un fallo serio encontrado y corregido.</strong> Si el TPV estaba ca&iacute;do en el momento de crear la comanda, la venta se daba por perdida para siempre: nadie volv&iacute;a a intentarla y quedaba muerta hasta que una persona la reintentaba a mano. Ahora se queda pendiente y se reenv&iacute;a sola cuando el TPV vuelve. Se vio en vivo: una comanda entr&oacute; sola al recuperarse la conexi&oacute;n, sin tocar nada.</p>
+<p><strong>Comentarios por l&iacute;nea.</strong> Cada producto puede llevar su comentario (alergias, &laquo;sin hielo&raquo;, &laquo;poco hecho&raquo;) y viaja al TPV en el ticket. Cambiarlo en una comanda ya enviada se hace de forma que el ticket muestre el texto nuevo, no el viejo.</p>
+<p><strong>Comprobaciones de configuraci&oacute;n.</strong> La web revisa 19 valores de configuraci&oacute;n y ninguno da por bueno un valor solo porque est&aacute; escrito: cada uno se busca en una lista real del TPV. En el demo pasan los 19. As&iacute;, un c&oacute;digo inventado se detecta en la pantalla de configuraci&oacute;n y no al crear la primera comanda.</p>
+<p>De esa revisi&oacute;n salieron <strong>dos huecos reales</strong>, que son justo los puntos 1 y 2 de la segunda lista: el pendiente de un cobro parcial se calculaba con base m&aacute;s IVA y no con el total de BDP (quedaban 0,45&nbsp;&euro; fantasma despu&eacute;s de cobrar todo), y la l&iacute;nea invitada llegaba al ticket con otro art&iacute;culo. Los dos est&aacute;n corregidos y probados.</p>
+
+<h2>3. Saldo de los pagos parciales (punto 1)</h2>
+<p>Antes de cada cobro la web vuelve a preguntar al TPV por la comanda y calcula el pendiente con <strong>el total que tiene BDP menos los pagos que BDP ya tiene registrados</strong>. No se recalcula con base e IVA, que era el origen del descuadre. Si no hay comanda en el TPV, el saldo sale de la web y se ve como tal.</p>
+<table>
+<thead><tr><th style="width:38%">Prueba</th><th class="c" style="width:12%">Comanda</th><th style="width:50%">Resultado</th></tr></thead>
+<tbody>
+<tr><td>Un pago parcial de 3,50 sobre 10,50</td><td class="c">181</td><td>Pendiente 10,50 &rarr; 7,00; BDP con un pago. Facturada con el ticket 00001TB00000067.</td></tr>
+<tr><td>Tres pagos de 3,50 (formas 1, 2 y 1)</td><td class="c">189</td><td>Pendiente 10,50 &rarr; 7,00 &rarr; 3,50 &rarr; <strong>0,00</strong>; BDP con los tres pagos. Ticket 00001TB00000068.</td></tr>
+<tr><td>Cuarto pago de 0,10</td><td class="c">189</td><td>Rechazado con un aviso claro; BDP sin ning&uacute;n cambio.</td></tr>
+</tbody>
+</table>
+<p>Nunca queda saldo pendiente despu&eacute;s de haber pagado todo, y el cuarto pago no escribe nada.</p>
+
+<h2>4. Invitaciones (punto 2)</h2>
+<p>El fallo: si el art&iacute;culo pedido no ten&iacute;a equivalencia en BDP, la web mandaba <strong>el art&iacute;culo por defecto sin decir nada</strong> y el ticket nombraba un producto que el cliente no hab&iacute;a pedido. El importe era 0, pero el ticket no cuadraba con lo pedido.</p>
+<p>Corregido y probado con la funci&oacute;n encendida: la invitaci&oacute;n sale al TPV con <strong>el c&oacute;digo del producto realmente pedido</strong> y marcada como invitaci&oacute;n, y el ticket la imprime con ese mismo producto a 0,00. Se comprob&oacute; en un ticket real del demo (00001TB00000069): la l&iacute;nea invitada aparece con el art&iacute;culo pedido, no con el de por defecto. Si un art&iacute;culo no tiene equivalencia, la comanda se corta <strong>antes de escribir</strong> y avisa de qu&eacute; art&iacute;culo falta; ya no se sustituye en silencio. El art&iacute;culo por defecto solo queda para cuando de verdad no hay equivalencia, y avisando.</p>
+<p>Como pediste, <strong>las invitaciones siguen desactivadas</strong> hasta verlo en un ticket del TPV del restaurante.</p>
+
+<h2 >5. Identificador de pago (punto 3)</h2>
+<p>El comportamiento real del sistema: <strong>el identificador identifica el pago, no el intento</strong>. Todos los reintentos de un mismo pago reutilizan exactamente el mismo identificador; un pago distinto lleva uno distinto. Probado en el TPV: reintentar con el mismo pago deja un solo cobro; con otro pago, dos cobros distintos.</p>
+<p>La frase del PDF del 18/11 (&laquo;cada intento lleva uno distinto&raquo;) <strong>no describe lo que hace el sistema</strong> y queda corregida en la documentaci&oacute;n y en los textos de la pantalla, que dec&iacute;an lo mismo.</p>
+<p>Un aviso que conviene tener presente: <strong>BDP no deduplica los cobros por ese identificador</strong>. Si dos env&iacute;os del mismo pago llegaran con el mismo identificador, BDP los sumar&iacute;a. Lo que protege del doble cobro es la consulta previa antes de reenviar, que ya est&aacute; hecha y probada.</p>
+
+<h2>6. Tres pagos y un solo ticket (punto 4)</h2>
+<p>Comanda de 10,50 pagada en tres partes de 3,50 con tres formas distintas (comanda 214). Los tres pagos se comprobaron uno a uno en el TPV; el saldo lleg&oacute; a 0,00; se emiti&oacute; <strong>un solo ticket</strong> (00001TB00000070) y BDP tiene <strong>un solo documento</strong> para esa comanda. El cuarto pago se rechaz&oacute; con un aviso y <strong>sin escribir nada</strong>: el TPV qued&oacute; id&eacute;ntico antes y despu&eacute;s del intento.</p>
+<p>La misma prueba ya se hab&iacute;a hecho el 23/11 con otra comanda (189) y el mismo resultado; se repiti&oacute; para confirmarlo con la versi&oacute;n actual.</p>
+
+<h2>7. Reinicio real del TPV (punto 5)</h2>
+<p>La prueba anterior era un corte de red: el t&uacute;nel al TPV se cerraba, pero el TPV segu&iacute;a encendido. Esta vez se ha hecho lo que pediste: <strong>parar de verdad el programa del TPV</strong>, dejar operaciones a medias, volver a arrancarlo y comprobar qu&eacute; pasa.</p>
+<p>Primero se identific&oacute; qu&eacute; programas forman el TPV. El servicio que atiende a la web (la WebLink) es <strong>TpvNet</strong>; el otro programa, SvrWCF, lleva bloqueos y avisos y <strong>no interviene en el cobro</strong> (se comprob&oacute;: con &eacute;l apagado el cobro entra igual). Ninguno de los dos es un servicio de Windows: son programas que hay que arrancar.</p>
+<p>La prueba completa: se pararon <strong>los dos</strong>. Con el TPV apagado se cre&oacute; una venta y se intent&oacute; cobrar. La venta qued&oacute; anotada como pendiente y el cobro se rechaz&oacute; <strong>sin escribir nada</strong> (no hab&iacute;a comanda en el TPV donde cobrar). Se arrancaron los dos programas: la web se autentic&oacute; sola, cre&oacute; la comanda <strong>una sola vez</strong> (comanda 215) y el cobro, enviado <strong>dos veces seguidas</strong>, entr&oacute; <strong>una sola vez</strong>. El resto del saldo hasta 0,00 tambi&eacute;n cuadr&oacute;. Ninguna operaci&oacute;n se duplic&oacute; y nada qued&oacute; pendiente.</p>
+<p><strong>Un fallo nuestro que sali&oacute; de aqu&iacute;.</strong> Cortando justo <em>en mitad</em> de un cobro (no antes ni despu&eacute;s), el TPV no llegaba a cobrar pero la web se quedaba con el intento marcado como fallido y <strong>bloqueaba ese pago para siempre</strong>: el reintento daba error aunque en el TPV no hubiera nada cobrado. Est&aacute; corregido: antes de reintentar, la web comprueba en el TPV que el pago no est&aacute; y solo entonces libera el intento. Si el TPV no responde, no libera nada, para no arriesgar un doble cobro. Tiene su prueba autom&aacute;tica.</p>
+
+<h2>8. Modificaciones r&aacute;pidas (punto 6)</h2>
+<p>Se probaron dos ediciones a la vez sobre la misma comanda y despu&eacute;s una serie de tres seguidas. Todas se aceptaron, ninguna se perdi&oacute; y el resultado final es <strong>el mismo en la web y en el TPV</strong> (6 unidades, 6,30&nbsp;&euro;). Ya no hay que repetir nada a mano ni queda al encargado la tarea de reintentar.</p>
+<p>El TPV rechaza las modificaciones si llegan demasiado seguidas. La web ya no las descarta: espera, reintenta de forma controlada y despu&eacute;s comprueba con el TPV que el resultado es el que se pretend&iacute;a.</p>
+
+<h2>9. Licencia del demo (punto 7)</h2>
+<p>El TPV de pruebas sigue mostrando el aviso de que no hay conexi&oacute;n con el servidor de subscripci&oacute;n, y sigue funcionando: <strong>todas las pruebas de este informe se han hecho con ese aviso en pantalla</strong>. La pregunta para BDP est&aacute; preparada; lo que falta es su respuesta confirmando que el entorno de pruebas seguir&aacute; operativo mientras duren las pruebas pendientes.</p>
+
+<h2 >10. L&iacute;mites del TPV de pruebas (no de la web)</h2>
+<ul>
+<li><strong>Las comandas de barra no admiten modificaciones.</strong> El TPV de pruebas las rechaza de todas las formas probadas; las de mesa funcionan sin problema. Es un l&iacute;mite de la licencia de pruebas; est&aacute; en la lista para comprobarlo en el TPV del restaurante.</li>
+<li><strong>Tras facturar, el TPV ya no deja releer la comanda.</strong> Por eso el n&uacute;mero de ticket se guarda en la web en el momento de facturar.</li>
+<li><strong>Una respuesta correcta del TPV no siempre significa que se haya aplicado el cambio.</strong> En algunos casos el TPV contesta que todo ha ido bien y la comanda queda igual. La web ya no se f&iacute;a de esa respuesta: vuelve a leer la comanda y solo da el cambio por bueno si est&aacute;.</li>
+</ul>
+
+<h2>11. Lo que queda de su parte</h2>
+<ol>
+<li><strong>La respuesta de BDP</strong> sobre la licencia del entorno de pruebas.</li>
+<li><strong>Los valores reales del restaurante</strong> (formas de pago, canales, IVA, documentos, art&iacute;culo y cliente por defecto) para correr las comprobaciones contra su TPV.</li>
+<li><strong>El momento del piloto:</strong> las pruebas que faltan necesitan su TPV, no el de pruebas.</li>
+</ol>
+
+<h2>12. Lo que estas pruebas no cubren</h2>
+<ul>
+<li>No se ha probado contra el <strong>TPV del restaurante</strong>: otros art&iacute;culos, otra configuraci&oacute;n, otro terminal.</li>
+<li>La <strong>invitaci&oacute;n</strong> est&aacute; probada en el TPV de pruebas; falta verla en un ticket del restaurante.</li>
+<li>Las <strong>modificaciones de comandas de barra</strong> no se han podido probar: el TPV de pruebas no las admite.</li>
+<li>El <strong>aviso de licencia</strong> no impide trabajar, pero no hay confirmaci&oacute;n de BDP de hasta cu&aacute;ndo.</li>
+</ul>
+
+</body>
+</html>
