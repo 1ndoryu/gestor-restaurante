@@ -43,7 +43,7 @@ roadmap con el resto de lo que depende del piloto.
   resueltas o convertidas en límite.
 - `18AB-6` — cerrado como **límite**: `Type=2` exige otra aplicación y otra licencia;
   no hay nada que probar contra el demo.
-- Nuevo trabajo de código: aplicar `NotAllowedAsInvitation` en la web y rechazar
-  líneas de 0 uds antes de enviarlas (amplía `21AB-5b` y `bdp_lineas_cero`).
-- Revisar si la UI ofrece algo que la API no soporta (cambio de mesa, dividir/unir,
-  retirar pago) y retirarlo o marcar el límite en pantalla.
+- Trabajo de código resuelto en `18AB-11` (25/11): el catálogo cruza
+  `NotAllowedAsInvitation` desde el perfil de items (el export no la manda), el envío
+  exige cantidad mayor que 0 y `OPERACIONES_NO_API` recoge dividir/unir cuentas, cambio
+  de mesa y retirar pago. Queda `18AB-12` (tope de 3 pagos frente a dividir cuentas).
