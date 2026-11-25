@@ -4,6 +4,8 @@ BORRADOR — respuesta a Guillermo, 2026-11-25 (WhatsApp, sin enviar). Contesta 
 
 Hola Guillermo: los siete puntos están probados contra el TPV demo. Te resumo y te adjunto el detalle.
 
+Antes de los puntos: BDP contestó el 24/11 a las seis dudas del correo del 20. La respuesta deja más cosas de nuestro lado de lo que esperábamos: dicen que el bloqueo de invitaciones lo tiene que aplicar nuestra aplicación, no su infraestructura, y al revisarlo encontramos un fallo nuestro — la marca de la ficha no llegaba a nuestro catálogo, así que el bloqueo no se estaba aplicando nunca. Ya está corregido. También confirman que dividir/unir cuentas, cambiar de mesa y retirar un pago no existen en la API: esas se quedan en el TPV. El servicio a domicilio necesita otra aplicación de BDP (BDP Servicio a Domicilio) y probablemente otra licencia. El detalle está en el apartado 3 del PDF.
+
 1. *Saldo de los pagos parciales.* Antes de cada cobro se consulta la comanda y el pendiente sale del total de BDP menos sus pagos, no de base más IVA. Probado con uno, dos y tres pagos: 10,50 → 7,00 → 3,50 → 0,00, sin nada pendiente al final. El cuarto se rechaza con un aviso y no escribe nada.
 
 2. *Invitaciones.* Siguen desactivadas, como pediste. El fallo era que, si el artículo pedido no tenía equivalencia en BDP, se mandaba el artículo por defecto en silencio y el ticket nombraba otro producto. Corregido y probado: la invitación sale con el código del producto pedido y el ticket lo imprime a 0,00 (ticket 00001TB00000069); si no hay equivalencia, la comanda se corta antes de escribir y dice qué artículo falta. Las reactivamos cuando lo veamos en un ticket de vuestro TPV.
