@@ -118,7 +118,32 @@ li { margin-bottom: 4.5pt; }
 <li><strong>Una respuesta correcta del TPV no siempre significa que se haya aplicado el cambio.</strong> En algunos casos el TPV contesta que todo ha ido bien y la comanda queda igual. La web ya no se f&iacute;a de esa respuesta: vuelve a leer la comanda y solo da el cambio por bueno si est&aacute;.</li>
 </ul>
 
-<h2>12. Lo que queda de su parte</h2>
+<h2>12. Lo que la API de BDP no expone, y qu&eacute; significa para el restaurante</h2>
+<p>Una limitaci&oacute;n de la API no es una funci&oacute;n secundaria: cada una de estas es una operaci&oacute;n normal del d&iacute;a a d&iacute;a del restaurante. La web puede funcionar sin ellas, pero entonces esa parte del trabajo la hace una persona en el TPV y no queda en la web. No es que BDP no las tenga: es que la API entregada no las publica.</p>
+<p><strong>Hay una segunda v&iacute;a, y conviene decirla con sus costes.</strong> Al tener el BDP de pruebas en local, se puede estudiar su base de datos y escribir en ella directamente para lo que la API no soporta, sin pasar por la API. Ser&iacute;a trabajo adicional, opcional y con coste aparte, no parte de lo contratado. Y no es gratis en riesgo: BDP no lo soporta ni lo garantiza, puede cambiar con cualquier actualizaci&oacute;n suya, y escribir en la base de un TPV en marcha puede dejar datos incoherentes. Es una v&iacute;a a estudiar si alguna de estas funciones resulta imprescindible, no un atajo.</p>
+<table>
+<thead><tr><th style="width:27%">Funci&oacute;n que falta en la API</th><th style="width:42%">Qu&eacute; implica mientras no exista</th><th style="width:31%">Estado</th></tr></thead>
+<tbody>
+<tr><td>Dividir y unir cuentas</td><td>Se divide en la web con pagos parciales (es lo que BDP propone) o en el TPV. Con muchas partes choca con el tope de tres pagos.</td><td>Confirmado por BDP (24/11).</td></tr>
+<tr><td>Cambiar una comanda de mesa</td><td>Lo hace un empleado en el TPV; la web no lo ofrece para no duplicar la comanda.</td><td>Confirmado por BDP (24/11).</td></tr>
+<tr><td>Retirar un pago o anular un cobro</td><td>Desde el TPV. Con pasarela, devoluci&oacute;n por la pasarela y un pago negativo del mismo importe.</td><td>Confirmado por BDP (24/11).</td></tr>
+<tr><td>Iniciar traspasos</td><td>El aviso llega y se ve en la web, pero iniciarlo se hace en el TPV.</td><td>Pendiente de BDP.</td></tr>
+<tr><td>Borrar art&iacute;culos</td><td>Se marcan inactivos; borrarlos, en el TPV.</td><td>Pendiente de BDP.</td></tr>
+<tr><td>Rectificativas y devoluciones</td><td>Sin operaci&oacute;n documentada: se hacen en el TPV.</td><td>Pendiente de BDP.</td></tr>
+<tr><td>Caja: apertura y cierre, arqueo, entradas y salidas de efectivo</td><td>Fuera de la web; el cierre de turno no lleva movimiento de stock.</td><td>Pendiente de BDP.</td></tr>
+<tr><td>PDF de factura por correo y series de facturaci&oacute;n</td><td>Se hacen en el TPV.</td><td>Pendiente de BDP.</td></tr>
+<tr><td>Reimpresi&oacute;n y controles avanzados de cocina</td><td>Se hacen en el terminal de cocina.</td><td>Pendiente de BDP.</td></tr>
+<tr><td>Cambios posteriores al pago</td><td>Fuera de la web; no hay operaci&oacute;n posterior al cobro.</td><td>Pendiente de BDP.</td></tr>
+<tr><td>Listar las comandas abiertas</td><td>No hay listado: la web repasa comanda a comanda por su identificador.</td><td>L&iacute;mite conocido.</td></tr>
+<tr><td>Aviso de pago</td><td>BDP no emite evento al cobrar: la web lo descubre en el repaso peri&oacute;dico.</td><td>L&iacute;mite conocido.</td></tr>
+<tr><td>Tope de tres pagos por cuenta</td><td>Es un l&iacute;mite de BDP y la web lo aplica antes de llegar a &eacute;l.</td><td>L&iacute;mite de BDP.</td></tr>
+<tr><td>Servicio a domicilio</td><td>Necesita otra aplicaci&oacute;n de BDP y probablemente otra licencia.</td><td>Confirmado por BDP (24/11).</td></tr>
+<tr><td>Compras, gastos, reservas, marketing y empleados</td><td>Sin cobertura en la API entregada: se gestionan fuera de la web o no se integran.</td><td>L&iacute;mite conocido.</td></tr>
+</tbody>
+</table>
+<p>Ninguna de estas se ha intentado por la v&iacute;a de la base de datos. Si alguna resulta imprescindible para el restaurante, se puede valorar aparte, con su coste y su riesgo por escrito.</p>
+
+<h2>13. Lo que queda de su parte</h2>
 <ol>
 <li><strong>Responder a las tres preguntas de BDP</strong> del apartado 3: qui&eacute;n usa la aplicaci&oacute;n (camareros o clientes), qu&eacute; hace y c&oacute;mo se prev&eacute; que interact&uacute;e con BDP, y si vamos con BDP Net Hosteler&iacute;a para domicilio. Sin eso, BDP no puede proponer alternativas donde su API no llega.</li>
 <li><strong>La respuesta de BDP</strong> sobre la licencia del entorno de pruebas.</li>
@@ -126,7 +151,7 @@ li { margin-bottom: 4.5pt; }
 <li><strong>El momento del piloto:</strong> las pruebas que faltan necesitan su TPV, no el de pruebas.</li>
 </ol>
 
-<h2>13. Lo que estas pruebas no cubren</h2>
+<h2>14. Lo que estas pruebas no cubren</h2>
 <ul>
 <li>No se ha probado contra el <strong>TPV del restaurante</strong>: otros art&iacute;culos, otra configuraci&oacute;n, otro terminal.</li>
 <li>La <strong>invitaci&oacute;n</strong> est&aacute; probada en el TPV de pruebas; falta verla en un ticket del restaurante.</li>
