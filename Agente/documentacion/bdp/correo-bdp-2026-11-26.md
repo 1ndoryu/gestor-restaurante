@@ -8,27 +8,31 @@ BORRADOR — respuesta al correo de Gael del 24/11/2026. Sin enviar; lo envía l
 
 Va como respuesta al hilo del 20/11, no como correo nuevo: Gael pidió en su respuesta que
 usáramos `integraciones@` y nos devolvió tres preguntas que hay que contestar antes de las nuevas.
+Los cinco bloques son los que pide Guillermo en su lista del 25/11. La consulta de la licencia del
+23/11 (`consulta-licencia-demo-2026-11-23.txt`) va aquí como bloque 5: si ya se envió, se quita.
 
 ---
 
 Hola, Gael:
 
-Gracias por la respuesta, que aclara casi todo. Antes de las cuatro dudas que nos quedan, contesto
-a las tres preguntas que nos hacías, porque de ellas dependen algunas respuestas.
+Gracias por la respuesta, que aclara casi todo. Antes de las dudas que nos quedan, contesto a las
+tres preguntas que nos hacías, porque de ellas dependen algunas respuestas.
 
 *Quién usa la aplicación.* Está pensada para el personal del restaurante, no para el cliente final:
 es el personal quien anota el pedido, gestiona la cuenta y cobra, con el cliente delante como hasta
-ahora. Por eso las invitaciones y el cambio de mesa los trata el personal y no el comensal.
+ahora. Por eso las invitaciones y el cambio de mesa los trata el personal y no el comensal. En los
+dos casos la decisión es del personal: la restricción de invitación se aplica en nuestra interfaz,
+que no deja marcar como invitado un artículo que BDP no permite invitar.
 
 *Qué hace y cómo interactúa con BDP.* Es la aplicación de sala del restaurante: plano de mesas,
 comandas, cuentas, cobros y consulta de la venta del día. El TPV de BDP sigue siendo el dueño de los
 datos y el que factura: la web envía comandas y pagos por WebLinkRestAPI y lee del TPV el estado de
 cada comanda y el catálogo. No escribimos nunca directamente en la base de datos de BDP.
 
-*Confirmado: trabajamos sobre BDP Net Hostelería.* Es nuestra instalación, y la integración se ha
-desarrollado contra la demo 36.2.
+*Confirmado: trabajamos sobre BDP Net Hostelería.* Sí, es la aplicación que tiene el restaurante, y
+la integración la hemos desarrollado contra la demo 36.2 de esa misma aplicación.
 
-Ahora, los cuatro puntos:
+Ahora, los cinco puntos:
 
 1. Servicio a domicilio (`Type = 2`)
 
@@ -84,10 +88,16 @@ desarrollarlo sin saber si está admitido.
 - ¿Qué documento genera (rectificativa, abono, nada)?
 - Si no lo acepta, ¿qué procedimiento autorizáis para dejar registrada una devolución en el TPV?
 
-Un apunte sobre el entorno de pruebas: sigue apareciendo el aviso «sin conexión con el servidor de
-subscripción» y el TPV funciona con él; todas nuestras pruebas se han hecho así. La consulta sobre
-la vigencia de esa licencia demo la mandamos el 23/11 y sigue sin respuesta. Si es más rápido por
-teléfono, os llamamos en la franja de 9:00 a 11:00.
+5. Licencia del entorno de pruebas
+
+Sigue apareciendo el aviso «sin conexión con el servidor de subscripción» y el TPV funciona con él;
+todas las pruebas de esta integración se han hecho así.
+
+- ¿La licencia demo sigue vigente y hasta qué fecha?
+- ¿El aviso puede cortar el funcionamiento del TPV durante las pruebas que nos quedan?
+- ¿Qué debemos hacer para mantener el entorno operativo mientras dure la integración?
+
+Si es más rápido por teléfono, os llamamos en la franja de 9:00 a 11:00.
 
 Gracias.
 
