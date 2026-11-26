@@ -9,9 +9,9 @@ Hola Guillermo: voy punto por punto, con el resultado de cada prueba y qué qued
 bloqueado.
 
 1. *Domicilio (`Type=2`).* Confirmado con BDP: hace falta su aplicación Servicio a Domicilio y
-   probablemente cambiar la licencia. Les he escrito con las preguntas que pides —qué suscripción
+   probablemente cambiar la licencia. Les escribo con las preguntas que pides —qué suscripción
    hace falta, si sustituye a Hostelería, si la licencia 84 sigue valiendo y si el cambio conserva
-   los datos y la configuración del restaurante— y te he puesto en copia. Hasta entonces sigue
+   los datos y la configuración del restaurante— y te pongo en copia. Hasta entonces sigue
    desactivado y no se simula como barra ni mesa. Y no bloquea nada: si tardan, cerramos la
    integración sin él y lo añadimos cuando contesten.
 
@@ -57,8 +57,9 @@ domicilio, se lo hacemos en local y se lo instalamos cuando esté listo.
 anulación desde el TPV y comandas nacidas en el TPV. Bloqueados hasta respuesta o prueba en el
 restaurante: domicilio, modificación de barra, pagos negativos, invitaciones y más de tres pagos.
 
-*Lo que necesito de ti:* nada por ahora. El correo a BDP ya está enviado con las preguntas de barra,
-pagos, devoluciones y domicilio, y te he puesto en copia; la consulta de la licencia del demo va en
-el mismo correo. Y nada de escrituras automáticas en el BDP del restaurante hasta que lo digas.
+*Lo que necesito de ti:* nada por ahora. El correo con las preguntas de barra, pagos, devoluciones
+y domicilio ya está redactado y te pondré en copia al enviarlo; la consulta de la licencia del demo
+va en el mismo correo. Y nada de escrituras automáticas en el BDP del restaurante hasta que lo
+digas.
 
 
