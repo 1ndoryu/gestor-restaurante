@@ -4,7 +4,7 @@ Sistema de restaurante con integración BDP (WebLink REST API). Backend Rust (Ax
 
 ## Siguiente bloque
 
-- Seguir con lo que exige el TPV del *restaurante* (`21AB-5b`, `21AB-5c`, `21AB-5f`, `21AB-4b`) y la licencia del demo (`21AB-5e`). Lo de nuestra parte que dejó la respuesta de BDP del 24/11 ya está hecho (`18AB-11`) y la comanda creada en el TPV ya aparece sola en la web (`21AB-8`). No se envía nada a Guillermo hasta nueva orden: la respuesta a su mensaje del 25/11 está redactada sin enviar (`Agente/documentacion/bdp/borrador-respuesta-guillermo-2026-11-26.txt`), con el correo a BDP de los cuatro puntos pendientes (`correo-bdp-2026-11-26.md`).
+- Seguir con lo que exige el TPV del *restaurante* (`21AB-5b`, `21AB-5c`, `21AB-5f`, `21AB-4b`) y la licencia del demo (`21AB-5e`). Lo de nuestra parte que dejó la respuesta de BDP del 24/11 ya está hecho (`18AB-11`), la comanda creada en el TPV ya aparece sola en la web (`21AB-8`) y ninguna línea con código sale con otro artículo (`21AB-7`). No se envía nada a Guillermo hasta nueva orden: la respuesta a su mensaje del 25/11 está redactada sin enviar (`Agente/documentacion/bdp/borrador-respuesta-guillermo-2026-11-26.txt`), con el correo a BDP de los cuatro puntos pendientes (`correo-bdp-2026-11-26.md`).
 
 ## Pendientes
 
