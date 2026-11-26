@@ -14,10 +14,10 @@ lo que hemos medido, para que no haya nada supuesto.
 
 1. Servicio a domicilio (`Type = 2`)
 
-El manual documenta `Type = 2` (servicio a domicilio) en la estructura `Order`, la dirección en
-`OrderCustomer` y la hora de reparto en `PreparationTime`; lo que no detalla es qué necesitamos
-para tenerlo en marcha. En la respuesta del 24/11 se nos dijo que hace falta otra aplicación de
-BDP y probablemente otra licencia.
+Necesitamos crear desde nuestra aplicación pedidos a domicilio (`Type = 2`). El manual documenta
+`Type = 2` en la estructura `Order`, la dirección en `OrderCustomer` y la hora de reparto en
+`PreparationTime`; lo que no detalla es qué necesitamos para tenerlo en marcha. En la respuesta
+del 24/11 se nos dijo que hace falta otra aplicación de BDP y probablemente otra licencia.
 
 - ¿Qué aplicación y qué suscripción de desarrollo (o licencia) hacen falta?
 - ¿Hay que sustituir la aplicación 01 Hostelería por Servicio a Domicilio, o conviven?
@@ -51,7 +51,9 @@ el TPV táctil de BDP-Net» y nuestra aplicación corta en tres por eso.
 
 - ¿Ese máximo de tres es el mismo en `AddOrderPayment` sucesivos que en la lista `Payments` de
   `CreateOrder`, o sólo aplica al alta?
-- ¿Admite oficialmente más de tres pagos sucesivos por otra vía (consola, TPV, otra aplicación)?
+- ¿`AddOrderPayment` (`/API/Orders/Payment/Add`) admite oficialmente más de tres pagos sucesivos,
+  o ese límite es firme? Si lo admite, ¿por qué vía: la misma llamada, la consola, el TPV, otra
+  aplicación?
 - ¿`AddOrderPayment` tiene alguna condición de cierre de la comanda que debamos conocer (por
   ejemplo, que el último pago deba igualar exactamente el saldo)?
 

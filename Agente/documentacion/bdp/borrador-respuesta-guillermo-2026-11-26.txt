@@ -31,16 +31,18 @@ bloqueado.
    cuando ya está facturada y qué documento genera. No se desarrolla hasta tener respuesta precisa.
 
 5. *Equivalencias.* Comprobado con una venta normal y con una invitación: ninguna de las dos puede
-   sustituir ya un producto por el artículo predeterminado. Una línea con código y sin equivalencia
+   sustituir un producto por el artículo predeterminado. Una línea con código y sin equivalencia
    activa detiene la operación y dice qué artículo falta; el artículo por defecto solo se usa en las
    líneas escritas a mano sin código. Las invitaciones siguen apagadas hasta ver un ticket del
-   restaurante.
+   restaurante: la prueba se hizo con el interruptor encendido un momento (ticket 00001TB00000069,
+   el artículo a 0,00) y se volvió a apagar.
 
-6. *Comandas creadas en el TPV.* Creada la comanda 230 directamente en el TPV demo, sin tocar la
-   web: entró sola en el ciclo siguiente, con sus líneas y su mesa, aunque la web no conocía su
-   identificador. Sobre los cambios hechos desde el TPV: la anulación llega y la web anula; la
-   modificación de líneas se detecta y se marca la venta para revisión, pero no se reescribe sola.
-   Eso se queda así para el piloto —una persona concilia— y queda escrito como límite conocido.
+6. *Comandas creadas en el TPV.* Creé la comanda 230 (dos Schweppes, barra) directamente en el TPV
+   demo, sin tocar la web: entró sola en el ciclo siguiente, con sus líneas y su importe, aunque la
+   web no conocía su identificador. Sobre los cambios hechos desde el TPV: la anulación llega y la
+   web anula; la modificación de líneas se detecta y se marca la venta para revisión, pero no se
+   reescribe sola. Eso se queda así para el piloto —una persona concilia— y queda anotado como
+   límite conocido.
 
 7. *Base de datos de BDP.* De acuerdo: esa vía queda retirada. Todo por WebLinkRestAPI y
    procedimientos autorizados por BDP. Retiro la propuesta que te hice en el mensaje anterior.
