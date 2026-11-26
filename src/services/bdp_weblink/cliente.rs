@@ -25,7 +25,8 @@ use crate::services::bdp_weblink_catalog::{
     BDP_PATH_GET_MENU, BDP_PATH_GET_ORDER, BDP_PATH_GET_PACK, BDP_PATH_GET_POS, BDP_PATH_GET_POSES,
     BDP_PATH_GET_POS_ARTICLES, BDP_PATH_GET_POS_EMPLOYEES, BDP_PATH_GET_POS_TENDERS,
     BDP_PATH_GET_PRICES_ARTICLES, BDP_PATH_GET_ROOMS_TABLES, BDP_PATH_GET_ROOM_TABLES,
-    BDP_PATH_GET_STOCK, BDP_PATH_GET_TENDERS, BDP_PATH_INVOICE_ORDER, BDP_PATH_ORDER_PAYMENT_ADD,
+    BDP_PATH_GET_STOCK, BDP_PATH_GET_TENDERS, BDP_PATH_INVOICE_ORDER, BDP_PATH_LIST_ORDERS,
+    BDP_PATH_ORDER_PAYMENT_ADD,
     BDP_PATH_PROFILES_CREATE_ARTICLE_LIST, BDP_PATH_PROFILES_CREATE_DEPARTMENT_LIST,
     BDP_PATH_PROFILES_MODIFY_ARTICLE_LIST,
 };
@@ -228,6 +229,15 @@ impl<'a> BdpWeblinkClient<'a> {
 
     pub async fn get_order(&self, request: &BdpGetOrderRequest) -> Result<Value, BdpWeblinkError> {
         self.post_authenticated_json(BDP_PATH_GET_ORDER, request)
+            .await
+    }
+
+    /// [21AB-8] Comandas abiertas del TPV. Es la única forma de saber que
+    /// existe una comanda creada fuera de la web: `GetOrder` necesita su
+    /// `OrderId` y los avisos solo llegan si el TPV está configurado para
+    /// mandarlos. Cuerpo vacío (`{}`): el demo devuelve todas.
+    pub async fn list_orders(&self) -> Result<Value, BdpWeblinkError> {
+        self.post_authenticated_json(BDP_PATH_LIST_ORDERS, &serde_json::json!({}))
             .await
     }
 

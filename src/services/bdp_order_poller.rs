@@ -24,6 +24,7 @@
  * de auditorías ambiguas en bdp_order_poller/reconciliacion.rs. Las firmas públicas
  * se mantienen aquí para que los llamadores no cambien. */
 
+mod descubrimiento;
 mod polling;
 mod reconciliacion;
 

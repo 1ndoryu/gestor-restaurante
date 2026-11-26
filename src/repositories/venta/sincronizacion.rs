@@ -34,13 +34,19 @@ impl VentaRepository {
     /* [065A-5] Actualiza el estado de sincronización BDP de una venta.
      * Patrón idéntico a update_haddock_status pero usando sqlx::query() sin macro
      * para evitar necesitar cargo sqlx prepare (nuevas columnas no están en cache). */
-    pub async fn update_bdp_status(
-        pool: &PgPool,
+    /* [21AB-8] Genérico sobre el ejecutor: el descubrimiento de comandas crea
+     * la venta espejo y la marca como sincronizada dentro de la misma
+     * transacción, para que no pueda quedar una venta sin su `bdp_order_id`. */
+    pub async fn update_bdp_status<'e, E>(
+        executor: E,
         id: Uuid,
         synced: bool,
         error_msg: Option<&str>,
         order_id: Option<i64>,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<(), sqlx::Error>
+    where
+        E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+    {
         sqlx::query(
             "UPDATE ventas SET bdp_synced = $2, bdp_synced_at = CASE WHEN $2 THEN NOW() ELSE bdp_synced_at END, bdp_sync_error = $3, bdp_order_id = CASE WHEN $2 THEN $4 ELSE bdp_order_id END WHERE id = $1",
         )
@@ -48,7 +54,7 @@ impl VentaRepository {
         .bind(synced)
         .bind(error_msg)
         .bind(order_id)
-        .execute(pool)
+        .execute(executor)
         .await?;
         Ok(())
     }

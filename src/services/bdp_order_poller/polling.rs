@@ -123,8 +123,14 @@ impl BdpOrderPollerService {
             return Ok(0);
         }
 
-        let mut llamo_bdp = false;
-        let mut fallo_bdp = false;
+        /* [21AB-8] Antes de mirar lo que ya se conoce: enterarse de lo que no.
+         * Va fuera del corte temprano porque una comanda creada en el TPV no
+         * tiene venta local que mirar. */
+        let client = BdpWeblinkClient::new(config);
+        let (descubiertas, mut fallo_bdp) =
+            Self::descubrir_comandas_tpv(pool, user_id, &client).await;
+        let mut llamo_bdp = true;
+        let mut updated = descubiertas;
 
         let ventas = VentaRepository::list_bdp_pending(pool, user_id)
             .await
@@ -172,12 +178,17 @@ impl BdpOrderPollerService {
             && en_vuelo.is_empty()
             && !hay_auditorias_abiertas
         {
-            return Ok(0);
+            /* [21AB-8] Nada de lo conocido tiene trabajo, pero el listado sí se
+             * hizo: se alimenta la histéresis igual que el resto de la pasada. */
+            if llamo_bdp {
+                if fallo_bdp {
+                    servicio.registrar_fallo_bdp(user_id);
+                } else {
+                    servicio.registrar_exito_bdp(user_id);
+                }
+            }
+            return Ok(updated);
         }
-
-        let client = BdpWeblinkClient::new(config);
-
-        let mut updated = 0;
 
         /* [R1] Reconciliar auditorías ambiguas antes de procesar estados normales.
          * [D23b] Lo reconciliado aquí también cuenta: si no, la venta se recupera

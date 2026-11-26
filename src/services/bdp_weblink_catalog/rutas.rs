@@ -14,6 +14,10 @@ pub const BDP_PATH_EXPORT_CUSTOMERS: &str = "/API/Customers/Export";
 pub const BDP_PATH_CREATE_CUSTOMER: &str = "/API/Customers/Create";
 pub const BDP_PATH_CREATE_ORDER: &str = "/API/Orders/Create";
 pub const BDP_PATH_GET_ORDER: &str = "/API/Orders/Get";
+/* [21AB-8] Listado de comandas abiertas del TPV: la única vía para enterarse
+ * de una comanda que no nació en la web (probado el 26/11 contra el demo:
+ * `/API/Orders/List` con `{}` devuelve 92 comandas, las dos de estado 0 y 1). */
+pub const BDP_PATH_LIST_ORDERS: &str = "/API/Orders/List";
 pub const BDP_PATH_CANCEL_ORDER: &str = "/API/Orders/Cancel";
 pub const BDP_PATH_ORDER_PAYMENT_ADD: &str = "/API/Orders/Payment/Add";
 pub const BDP_PATH_INVOICE_ORDER: &str = "/API/Orders/Invoice";
