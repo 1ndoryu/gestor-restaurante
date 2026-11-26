@@ -1,0 +1,50 @@
+BORRADOR — respuesta al mensaje de Guillermo del 25/11 (WhatsApp, sin enviar). Cubre sus siete
+puntos con lo probado el 26/11 y la decisión sobre el servicio a domicilio. El detalle completo va
+en el PDF adjunto (`segunda-lista-guillermo-2026-11-25.pdf`).
+
+---
+
+Hola Guillermo: he repasado tus siete puntos y te contesto con lo probado contra el TPV demo. Te
+adjunto el detalle.
+
+1. *Domicilio (`Type=2`).* Lo dejamos para después de la integración, como propones. BDP confirmó
+   el 24/11 que no está en la licencia de Hostelería 01: hace falta BDP Servicio a Domicilio, que
+   incluye Hostelería, y probablemente cambiar la licencia. Es una decisión vuestra con BDP, no un
+   fallo nuestro. La duda ya está en el correo que te paso para ellos.
+
+2. *Modificaciones de comanda.* En mesa funcionan: dos ediciones a la vez y luego tres seguidas
+   acaban igual en la web y en el TPV (6 unidades, 6,30). En barra el TPV demo contesta que sí y la
+   comanda no cambia; antes te dije que las rechazaba y no es eso: acepta y no aplica. Hay una
+   pregunta hecha a BDP sobre si es su licencia de pruebas.
+
+3. *Tres pagos.* El tope de tres es regla nuestra, no de BDP, y está en revisión (`18AB-12`). No
+   hemos comprobado cuántos admite BDP en su lado; lo he preguntado en el correo para ellos, porque
+   afecta justo a las mesas partidas entre muchos comensales.
+
+4. *Devoluciones y pagos negativos.* La API no tiene operación de retirar un cobro. Nuestra idea es
+   devolver por la pasarela y anotar en BDP un pago negativo del mismo importe. Está preguntado a
+   BDP: si aceptan el importe negativo, si vale sobre una comanda ya facturada y, si no, qué
+   procedimiento autorizan para dejar la devolución registrada.
+
+5. *Equivalencias de artículos.* Una línea con código de artículo y sin equivalencia activa detiene
+   la comanda y dice qué artículo falta; ya no se sustituye por el artículo por defecto en
+   silencio. El artículo por defecto solo se usa en las líneas escritas a mano sin código. En el
+   TPV demo, de las líneas con código desde el 1/11, 8 no tenían equivalencia.
+
+6. *Comandas creadas en el TPV.* Ya aparecen solas en la web. Lo probé como pediste: creé una
+   comanda directamente en el TPV demo (la 230) sin tocar la web y entró sola en el ciclo
+   siguiente, con sus líneas y su mesa. El listado de comandas abiertas que teníamos por
+   inexistente sí existe y es lo que lo permite.
+
+7. *Nunca escribir en la base de BDP.* De acuerdo y así queda: todo va por su API WeblinkRestAPI, y
+   para lo que no publique, se pregunta a BDP qué procedimiento autoriza. Quito esa vía de lo que
+   te había planteado.
+
+*Lo que necesito de ti:* pasarle a BDP el correo que te adjunto (cuatro preguntas: domicilio,
+modificaciones de barra, pagos parciales y devoluciones) y la consulta de la licencia del demo, que
+sigue sin respuesta desde el 23/11.
+
+*Sobre tu pregunta de si está todo listo:* para probar con vuestro TPV sí, y lo que falta de mi
+parte no depende de eso. Lo que no puedo darte es una fecha, porque depende de si preferís seguir
+con ajustes o entrar ya a probar en el BDP real y de lo que BDP conteste: con sus respuestas, el
+cierre es cuestión de días, no de meses.

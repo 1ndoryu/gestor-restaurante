@@ -8,7 +8,7 @@ Antes: BDP contestó el 24/11 a las seis dudas del correo del 20. De esa respues
 
 1. *Saldo de los pagos parciales.* El pendiente sale del total de BDP menos sus pagos, no de base más IVA. Probado con uno, dos y tres pagos: 10,50 → 7,00 → 3,50 → 0,00. El cuarto se rechaza sin escribir nada.
 
-2. *Invitaciones.* Siguen desactivadas, como pediste. Corregido el fallo que mandaba el artículo por defecto en silencio: ahora la invitación sale con el código pedido y el ticket lo imprime a 0,00 (ticket 00001TB00000069); si falta equivalencia, la comanda se corta y dice qué artículo falta. Las reactivamos cuando lo veamos en un ticket de vuestro TPV.
+2. *Invitaciones.* Siguen desactivadas, como pediste. Corregido el fallo que mandaba el artículo por defecto en silencio: ahora la invitación sale con el código pedido y el ticket lo imprime a 0,00 (ticket 00001TB00000069); si una línea con código no tiene equivalencia, la comanda se corta antes de escribir y dice qué artículo falta. El artículo por defecto queda solo para líneas escritas a mano sin código. Las reactivamos cuando lo veamos en un ticket de vuestro TPV.
 
 3. *Identificador de pago.* Identifica el pago, no el intento: los reintentos de un mismo pago lo reutilizan. La frase del PDF del 18/11 queda corregida. BDP 36.2 no deduplica por él; del doble cobro protege la consulta previa, ya hecha.
 
@@ -16,9 +16,11 @@ Antes: BDP contestó el 24/11 a las seis dudas del correo del 20. De esa respues
 
 5. *Reinicio real.* Paré los dos procesos de BDP con una venta y un cobro pendientes: la web lo anotó, el cobro se rechazó sin escribir y al arrancar se autenticó sola, creó la comanda una vez (215) y el cobro reintentado entró una vez. Aparte encontramos y corregimos un fallo nuestro: ese reintento quedaba bloqueado para siempre.
 
-6. *Modificaciones rápidas.* Dos ediciones a la vez y luego tres seguidas: web y TPV acaban igual (6 unidades, 6,30).
+6. *Modificaciones rápidas.* Dos ediciones a la vez y luego tres seguidas: web y TPV acaban igual (6 unidades, 6,30). En comandas de barra el TPV demo contesta que sí y no aplica el cambio; en las de mesa sí lo aplica. Es un límite del demo, pendiente de comprobar en tu TPV.
 
 7. *Licencia del demo.* El aviso de subscripción sigue saliendo y el TPV funciona igual; todas las pruebas se han hecho con él. Te paso la pregunta para BDP.
 
-*Algo nuevo sobre los límites de la API.* Los que conocemos son operaciones normales del día a día, no funciones de relleno: sin ellas esa parte del trabajo la hace una persona en el TPV y no queda en la web. El listado completo, con su estado, está en el apartado 12 del PDF. Hay una segunda vía para lo que la API no soporta: con el BDP de pruebas en local, estudiar su base de datos y escribir en ella directamente. Es trabajo aparte, opcional y con coste adicional, con su riesgo por escrito (BDP no lo soporta, cualquier actualización puede romperlo y escribir en una base en marcha deja datos incoherentes). No lo hemos intentado.
+*Sobre los límites de la API.* Los que conocemos son operaciones normales del día a día, no funciones de relleno: sin ellas esa parte del trabajo la hace una persona en el TPV y no queda en la web. El listado completo, con su estado, está en el apartado 12 del PDF. Nuestra regla es no escribir nunca directamente en la base de datos de BDP: todo va por su API WeblinkRestAPI, y para lo que no publique, la vía es preguntarles qué procedimiento autorizan. Además, el listado de comandas abiertas que dábamos por inexistente sí existe: la web ya lo usa para traer las comandas creadas en el TPV (punto 6).
+
+*Y una cosa más, añadida a tu lista:* una comanda creada directamente en el TPV ya aparece sola en la web, con sus líneas y su mesa. Probado creándola solo en el TPV demo (comanda 230): entró en la web en el ciclo siguiente, sin tocar nada.
 

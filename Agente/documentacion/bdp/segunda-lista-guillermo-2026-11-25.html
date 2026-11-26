@@ -28,7 +28,7 @@ li { margin-bottom: 4.5pt; }
 <body>
 
 <h1>Segunda lista de Guillermo &mdash; resultados</h1>
-<p class="sub">Integraci&oacute;n web&ndash;TPV BDP &middot; Restaurante. Del 20 al 25 de noviembre de 2026.</p>
+<p class="sub">Integraci&oacute;n web&ndash;TPV BDP &middot; Restaurante. Del 22 al 26 de noviembre de 2026.</p>
 
 <h2>1. Qu&eacute; se ha hecho en esta ronda</h2>
 <p>Esta ronda empieza con la lista de seis puntos del 20 de noviembre y termina con la segunda lista del 22. Entre las dos se ha revisado el flujo normal entero contra el TPV de pruebas, se han cerrado los huecos que esa revisi&oacute;n destap&oacute;, se ha vuelto a probar todo lo que ped&iacute;a la segunda lista y se ha buscado el l&iacute;mite del sistema apagando el TPV de verdad. <strong>Todo se ha probado contra el TPV demo de BDP</strong> (Hosteler&iacute;a 36.2), con escrituras reales; <strong>ninguna prueba ha tocado el TPV del restaurante</strong> y no hay ninguna escritura autom&aacute;tica conectada con &eacute;l.</p>
@@ -42,7 +42,7 @@ li { margin-bottom: 4.5pt; }
 <tr><td class="c">3</td><td>Identificador de pago</td><td class="c"><strong>Confirmado</strong></td><td>Nada. La frase del PDF del 18/11 queda corregida.</td></tr>
 <tr><td class="c">4</td><td>Tres pagos y un solo ticket</td><td class="c"><strong>Listo</strong></td><td>Nada por nuestra parte.</td></tr>
 <tr><td class="c">5</td><td>Reinicio real de BDP</td><td class="c"><strong>Listo</strong></td><td>Nada por nuestra parte.</td></tr>
-<tr><td class="c">6</td><td>Modificaciones r&aacute;pidas</td><td class="c"><strong>Listo en mesas</strong></td><td>Las comandas de barra las rechaza el TPV demo.</td></tr>
+<tr><td class="c">6</td><td>Modificaciones r&aacute;pidas</td><td class="c"><strong>Listo en mesas</strong></td><td>En barra, el TPV demo contesta que s&iacute; y no cambia nada.</td></tr>
 <tr><td class="c">7</td><td>Licencia del demo</td><td class="c">Espera</td><td>La respuesta de BDP sobre la vigencia del entorno.</td></tr>
 </tbody>
 </table>
@@ -86,7 +86,7 @@ li { margin-bottom: 4.5pt; }
 
 <h2>5. Invitaciones (punto 2)</h2>
 <p>El fallo: si el art&iacute;culo pedido no ten&iacute;a equivalencia en BDP, la web mandaba <strong>el art&iacute;culo por defecto sin decir nada</strong> y el ticket nombraba un producto que el cliente no hab&iacute;a pedido. El importe era 0, pero el ticket no cuadraba con lo pedido.</p>
-<p>Corregido y probado con la funci&oacute;n encendida: la invitaci&oacute;n sale al TPV con <strong>el c&oacute;digo del producto realmente pedido</strong> y marcada como invitaci&oacute;n, y el ticket la imprime con ese mismo producto a 0,00. Se comprob&oacute; en un ticket real del demo (00001TB00000069): la l&iacute;nea invitada aparece con el art&iacute;culo pedido, no con el de por defecto. Si un art&iacute;culo no tiene equivalencia, la comanda se corta <strong>antes de escribir</strong> y avisa de qu&eacute; art&iacute;culo falta; ya no se sustituye en silencio. El art&iacute;culo por defecto solo queda para cuando de verdad no hay equivalencia, y avisando.</p>
+<p>Corregido y probado con la funci&oacute;n encendida: la invitaci&oacute;n sale al TPV con <strong>el c&oacute;digo del producto realmente pedido</strong> y marcada como invitaci&oacute;n, y el ticket la imprime con ese mismo producto a 0,00. Se comprob&oacute; en un ticket real del demo (00001TB00000069): la l&iacute;nea invitada aparece con el art&iacute;culo pedido, no con el de por defecto. Si un art&iacute;culo no tiene equivalencia, la comanda se corta <strong>antes de escribir</strong> y avisa de qu&eacute; art&iacute;culo falta; ya no se sustituye en silencio. El art&iacute;culo por defecto solo se usa en las l&iacute;neas escritas a mano sin c&oacute;digo de art&iacute;culo; una l&iacute;nea con c&oacute;digo y sin equivalencia <strong>detiene la comanda</strong>.</p>
 <p>Como pediste, <strong>las invitaciones siguen desactivadas</strong> hasta verlo en un ticket del TPV del restaurante.</p>
 
 <h2 >6. Identificador de pago (punto 3)</h2>
@@ -113,14 +113,14 @@ li { margin-bottom: 4.5pt; }
 
 <h2 >11. L&iacute;mites del TPV de pruebas (no de la web)</h2>
 <ul>
-<li><strong>Las comandas de barra no admiten modificaciones.</strong> El TPV de pruebas las rechaza de todas las formas probadas; las de mesa funcionan sin problema. Es un l&iacute;mite de la licencia de pruebas; est&aacute; en la lista para comprobarlo en el TPV del restaurante.</li>
+<li><strong>Las modificaciones de comandas de barra no se aplican.</strong> El TPV de pruebas contesta <em>«correcto»</em> (200) a la modificaci&oacute;n de una comanda de barra y su contenido sigue igual; en las de mesa el cambio s&iacute; se aplica, pero si el total enviado no cuadra responde <code>[300033]</code>. No son rechazos: el TPV acepta y no cambia. La hip&oacute;tesis es la licencia de pruebas; est&aacute; sin confirmar y en la lista para comprobarlo en el TPV del restaurante.</li>
 <li><strong>Tras facturar, el TPV ya no deja releer la comanda.</strong> Por eso el n&uacute;mero de ticket se guarda en la web en el momento de facturar.</li>
 <li><strong>Una respuesta correcta del TPV no siempre significa que se haya aplicado el cambio.</strong> En algunos casos el TPV contesta que todo ha ido bien y la comanda queda igual. La web ya no se f&iacute;a de esa respuesta: vuelve a leer la comanda y solo da el cambio por bueno si est&aacute;.</li>
 </ul>
 
 <h2>12. Lo que la API de BDP no expone, y qu&eacute; significa para el restaurante</h2>
 <p>Una limitaci&oacute;n de la API no es una funci&oacute;n secundaria: cada una de estas es una operaci&oacute;n normal del d&iacute;a a d&iacute;a del restaurante. La web puede funcionar sin ellas, pero entonces esa parte del trabajo la hace una persona en el TPV y no queda en la web. No es que BDP no las tenga: es que la API entregada no las publica.</p>
-<p><strong>Hay una segunda v&iacute;a, y conviene decirla con sus costes.</strong> Al tener el BDP de pruebas en local, se puede estudiar su base de datos y escribir en ella directamente para lo que la API no soporta, sin pasar por la API. Ser&iacute;a trabajo adicional, opcional y con coste aparte, no parte de lo contratado. Y no es gratis en riesgo: BDP no lo soporta ni lo garantiza, puede cambiar con cualquier actualizaci&oacute;n suya, y escribir en la base de un TPV en marcha puede dejar datos incoherentes. Es una v&iacute;a a estudiar si alguna de estas funciones resulta imprescindible, no un atajo.</p>
+<p><strong>La web no escribe nunca directamente en la base de datos de BDP.</strong> Todo lo que se lee o se escribe en BDP pasa por su API WeblinkRestAPI, que es la v&iacute;a que BDP soporta. Si alguna de estas funciones resulta imprescindible y su API no la publica, se pregunta a BDP qu&eacute; procedimiento autoriza; escribir en su base por nuestra cuenta queda descartado.</p>
 <table>
 <thead><tr><th style="width:27%">Funci&oacute;n que falta en la API</th><th style="width:42%">Qu&eacute; implica mientras no exista</th><th style="width:31%">Estado</th></tr></thead>
 <tbody>
@@ -134,14 +134,14 @@ li { margin-bottom: 4.5pt; }
 <tr><td>PDF de factura por correo y series de facturaci&oacute;n</td><td>Se hacen en el TPV.</td><td>Pendiente de BDP.</td></tr>
 <tr><td>Reimpresi&oacute;n y controles avanzados de cocina</td><td>Se hacen en el terminal de cocina.</td><td>Pendiente de BDP.</td></tr>
 <tr><td>Cambios posteriores al pago</td><td>Fuera de la web; no hay operaci&oacute;n posterior al cobro.</td><td>Pendiente de BDP.</td></tr>
-<tr><td>Listar las comandas abiertas</td><td>No hay listado: la web repasa comanda a comanda por su identificador.</td><td>L&iacute;mite conocido.</td></tr>
+<tr><td>Listar las comandas abiertas</td><td>S&iacute; hay listado (<code>/API/Orders/List</code>) y la web ya lo usa para traer las comandas creadas directamente en el TPV. La ficha anterior lo daba por inexistente por error.</td><td>Corregido (26/11).</td></tr>
 <tr><td>Aviso de pago</td><td>BDP no emite evento al cobrar: la web lo descubre en el repaso peri&oacute;dico.</td><td>L&iacute;mite conocido.</td></tr>
-<tr><td>Tope de tres pagos por cuenta</td><td>No es l&iacute;mite de BDP: es una regla de aceptaci&oacute;n nuestra (ficha D17). BDP admite m&aacute;s pagos parciales; la web corta en tres y avisa antes de llegar. Se revisa en <code>18AB-12</code>.</td><td>Decisi&oacute;n nuestra.</td></tr>
+<tr><td>Tope de tres pagos por cuenta</td><td>No es l&iacute;mite de BDP: es una regla de aceptaci&oacute;n nuestra (ficha D17) y se revisa en <code>18AB-12</code>. Cu&aacute;ntos pagos parciales admite BDP en su lado no lo hemos comprobado; queda como pregunta abierta.</td><td>Decisi&oacute;n nuestra; el l&iacute;mite de BDP sin comprobar.</td></tr>
 <tr><td>Servicio a domicilio</td><td>Necesita otra aplicaci&oacute;n de BDP y probablemente otra licencia.</td><td>Confirmado por BDP (24/11).</td></tr>
 <tr><td>Compras, gastos, reservas, marketing y empleados</td><td>Sin cobertura en la API entregada: se gestionan fuera de la web o no se integran.</td><td>L&iacute;mite conocido.</td></tr>
 </tbody>
 </table>
-<p>Ninguna de estas se ha intentado por la v&iacute;a de la base de datos. Si alguna resulta imprescindible para el restaurante, se puede valorar aparte, con su coste y su riesgo por escrito.</p>
+<p>Para las que faltan, la v&iacute;a es preguntar a BDP si publica la operaci&oacute;n o qu&eacute; procedimiento autoriza. No se escribe en su base.</p>
 
 <h2>13. Lo que queda de su parte</h2>
 <ol>
@@ -155,9 +155,28 @@ li { margin-bottom: 4.5pt; }
 <ul>
 <li>No se ha probado contra el <strong>TPV del restaurante</strong>: otros art&iacute;culos, otra configuraci&oacute;n, otro terminal.</li>
 <li>La <strong>invitaci&oacute;n</strong> est&aacute; probada en el TPV de pruebas; falta verla en un ticket del restaurante.</li>
-<li>Las <strong>modificaciones de comandas de barra</strong> no se han podido probar: el TPV de pruebas no las admite.</li>
+<li>Las <strong>modificaciones de comandas de barra</strong> no se han podido probar de verdad: el TPV de pruebas contesta que sí y no aplica el cambio.</li>
 <li>El <strong>aviso de licencia</strong> no impide trabajar, pero no hay confirmaci&oacute;n de BDP de hasta cu&aacute;ndo.</li>
 </ul>
+
+<h2 style="break-before: page; page-break-before: always;">15. Tu mensaje del 25 de noviembre (siete puntos)</h2>
+<p>Lo que se ha hecho y medido el 26/11 sobre tu &uacute;ltima lista, contra el TPV demo:</p>
+<table>
+<thead><tr><th class="c" style="width:5%">Punto</th><th style="width:32%">Qu&eacute; ped&iacute;as</th><th class="c" style="width:17%">Estado</th><th style="width:46%">Qu&eacute; queda</th></tr></thead>
+<tbody>
+<tr><td class="c">1</td><td>Domicilio (<code>Type=2</code>)</td><td class="c">Despu&eacute;s</td><td>Necesita BDP Servicio a Domicilio y probablemente cambiar la licencia; pregunta hecha a BDP.</td></tr>
+<tr><td class="c">2</td><td>Modificaciones</td><td class="c"><strong>Listo en mesas</strong></td><td>En barra el TPV demo contesta que s&iacute; y no aplica el cambio; pregunta hecha a BDP.</td></tr>
+<tr><td class="c">3</td><td>Tope de tres pagos</td><td class="c">En revisi&oacute;n</td><td>Es regla nuestra (ficha D17, tarea <code>18AB-12</code>); cu&aacute;ntos admite BDP, preguntado.</td></tr>
+<tr><td class="c">4</td><td>Devoluciones y pagos negativos</td><td class="c">Preguntado</td><td>La API no retira cobros; hay que confirmar el pago negativo y si vale sobre una comanda facturada.</td></tr>
+<tr><td class="c">5</td><td>Equivalencias de art&iacute;culos</td><td class="c"><strong>Hecho</strong></td><td>Una l&iacute;nea con c&oacute;digo y sin equivalencia detiene la comanda; el art&iacute;culo por defecto solo para l&iacute;neas escritas a mano.</td></tr>
+<tr><td class="c">6</td><td>Comandas creadas en el TPV</td><td class="c"><strong>Hecho</strong></td><td>Aparecen solas en la web con sus l&iacute;neas y su mesa.</td></tr>
+<tr><td class="c">7</td><td>No escribir en la base de BDP</td><td class="c"><strong>Adoptado</strong></td><td>Todo por su API; para lo que no publique, se pregunta a BDP qu&eacute; procedimiento autoriza.</td></tr>
+</tbody>
+</table>
+
+<p><strong>Comandas creadas en el TPV (punto 6).</strong> Antes no aparec&iacute;an nunca: la web solo miraba las comandas que ya conoc&iacute;a y los avisos del TPV solo llegan si est&aacute; configurado para mandarlos. Ahora la web consulta el listado de comandas del TPV, descarta las que ya tiene y copia las abiertas como venta propia, con sus l&iacute;neas y su mesa. Probado como pediste: se cre&oacute; una comanda (la 230, dos Schweppes en barra) directamente en el TPV demo, sin tocar la web, y entr&oacute; sola en el ciclo siguiente: 2,10&nbsp;&euro;, con su l&iacute;nea y su estado. El listado de comandas que ten&iacute;amos por inexistente s&iacute; existe y es lo que lo permite. En el primer arranque no se copia el hist&oacute;rico del TPV: solo lo que sigue esperando validaci&oacute;n o lo abierto de las &uacute;ltimas horas, que es el servicio en curso.</p>
+
+<p><strong>Un detalle que conviene saber:</strong> el TPV demo tiene el reloj parado en el 18/11. La comanda creada hoy en &eacute;l lleva fecha del 18/11, y la venta de la web la hereda. En vuestro TPV la fecha ser&aacute; la del d&iacute;a, porque es la que pone el propio TPV.</p>
 
 </body>
 </html>
