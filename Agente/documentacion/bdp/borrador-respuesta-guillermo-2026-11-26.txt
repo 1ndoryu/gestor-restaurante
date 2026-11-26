@@ -11,9 +11,9 @@ bloqueado.
 1. *Domicilio (`Type=2`).* Confirmado: hay que pedirlo a BDP. Te paso el correo con las cinco
    preguntas que pides: qué aplicación y suscripción de desarrollo hacen falta, si sustituye a
    Hostelería, si la licencia WebLinkRestAPI 84 sigue valiendo, cómo se instala en nuestro entorno
-   de pruebas y si conserva los datos y la configuración del restaurante. Cuando lo tengamos, la
-   prueba de punta a punta desde la web. Hasta entonces sigue desactivado y no se simula como barra
-   ni mesa.
+   de pruebas y si conserva los datos y la configuración del restaurante. Hasta entonces sigue
+   desactivado y no se simula como barra ni mesa. Y no bloquea nada: si BDP tarda, cerramos la
+   integración sin él y lo añadimos cuando contesten.
 
 2. *Comandas de barra.* Corrijo lo que te dije antes: en el demo no se rechazan, se aceptan y no
    se aplican. La modificación de barra contesta 200 con el mensaje vacío y la comanda queda igual
