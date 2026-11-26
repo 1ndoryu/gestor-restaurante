@@ -19,8 +19,8 @@ use crate::repositories::{
 
 use super::bdp_push::{DOMINIO_VENTA, OPERACION_CANCELAR};
 use super::{
-    payload_cancelar, BdpPushService, BdpSyncService, HaddockService, InvitacionService,
-    ModoEfectivo, ServicioModoOperacion,
+    payload_cancelar, BdpPushService, BdpSyncService, ConfiguracionService, HaddockService,
+    InvitacionService, ModoEfectivo, ServicioModoOperacion,
 };
 
 pub struct VentaService;
@@ -41,6 +41,18 @@ impl VentaService {
         user_id: Uuid,
         lineas: &[crate::models::CrearVentaLineaRequest],
     ) -> Result<(), AppError> {
+        /* La regla existe porque el ticket mostraría otro artículo: en modo
+         * standalone no hay ticket, así que no se exige equivalencia. Si la
+         * configuración no se puede leer, tampoco se puede demostrar que BDP
+         * esté activo y el envío fallará al leerla. */
+        let configurado = ConfiguracionService::obtener(pool, user_id)
+            .await
+            .is_ok_and(|config| {
+                ServicioModoOperacion::modo_efectivo_desde_config(&config) == ModoEfectivo::Bdp
+            });
+        if !configurado {
+            return Ok(());
+        }
         match crate::services::BdpSyncService::lineas_sin_equivalencia(pool, user_id, lineas).await
         {
             Ok(faltan) if faltan.is_empty() => Ok(()),

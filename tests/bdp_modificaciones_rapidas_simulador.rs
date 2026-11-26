@@ -254,6 +254,20 @@ async fn cuenta(pool: &PgPool) -> (Uuid, ConfiguracionRestaurante) {
     fijar_permiso(pool, user, "modificaciones", true)
         .await
         .unwrap();
+    /* [21AB-7] Toda línea con código exige equivalencia activa: sin ella la
+     * comanda no se envía. Aquí el mapeo es la identidad, porque lo que estas
+     * pruebas miran son las modificaciones rápidas, no el mapeo. */
+    for codigo in ["1001", "1002"] {
+        sqlx::query(
+            "INSERT INTO bdp_article_map (user_id, articulo_glory_codigo, articulo_bdp_codigo) \
+             VALUES ($1, $2, $2)",
+        )
+        .bind(user)
+        .bind(codigo)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
     let config = ConfiguracionService::obtener(pool, user).await.unwrap();
     (user, config)
 }
