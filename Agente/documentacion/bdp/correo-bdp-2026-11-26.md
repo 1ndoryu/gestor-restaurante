@@ -16,10 +16,9 @@ Hola, Gael:
 Gracias por la respuesta, que aclara casi todo. Antes de las cuatro dudas que nos quedan, contesto
 a las tres preguntas que nos hacías, porque de ellas dependen algunas respuestas.
 
-*Quién usa la aplicación.* La usan los camareros del establecimiento desde el móvil o la tablet,
-con su propio usuario y contraseña. No está pensada para que la use el cliente final: el cliente
-pide al camarero, como hasta ahora, y el camarero anota el pedido en la web en lugar de en el TPV.
-De ahí que las invitaciones y el cambio de mesa los trate el camarero y no el comensal.
+*Quién usa la aplicación.* Está pensada para el personal del restaurante, no para el cliente final:
+es el personal quien anota el pedido, gestiona la cuenta y cobra, con el cliente delante como hasta
+ahora. Por eso las invitaciones y el cambio de mesa los trata el personal y no el comensal.
 
 *Qué hace y cómo interactúa con BDP.* Es la aplicación de sala del restaurante: plano de mesas,
 comandas, cuentas, cobros y consulta de la venta del día. El TPV de BDP sigue siendo el dueño de los
