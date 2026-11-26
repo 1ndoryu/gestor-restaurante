@@ -47,10 +47,14 @@ bloqueado.
 7. *Base de datos de BDP.* De acuerdo: esa vía queda retirada. Todo por WebLinkRestAPI y
    procedimientos autorizados por BDP. Retiro la propuesta que te hice en el mensaje anterior.
 
+*Sobre el delivery:* no es mucho jaleo por nuestra parte. El pedido a domicilio es un valor que la
+API ya documenta, así que no habría que rehacer nada de lo hecho; lo único que no depende de
+nosotros es la aplicación de BDP. Estoy de acuerdo con tu idea: lo dejamos de lado, cerramos lo que
+queda de la integración y se la entregamos al restaurante. Si mientras la usa pide incorporar el
+domicilio, se lo hacemos en local y se lo instalamos cuando esté listo.
+
 *Resumen:* disponibles, comandas de mesa, modificaciones por la web, pagos parciales hasta tres,
 anulación desde el TPV y comandas nacidas en el TPV. Bloqueados hasta respuesta o prueba en el
 restaurante: domicilio, modificación de barra, pagos negativos, invitaciones y más de tres pagos.
 
-*Lo que necesito de ti:* pasar a BDP el correo que te paso (domicilio, barra, pagos y devoluciones)
-y la consulta de la licencia del demo, sin respuesta desde el 23/11. Y nada de escrituras
-automáticas en el BDP del restaurante hasta que lo digas.
+
