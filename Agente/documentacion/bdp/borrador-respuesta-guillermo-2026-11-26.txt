@@ -1,65 +1,54 @@
-BORRADOR — respuesta al mensaje de Guillermo del 25/11 (WhatsApp, sin enviar). Cubre sus siete
-puntos con lo probado el 26/11 y la decisión sobre el servicio a domicilio. El detalle completo va
-en el PDF adjunto (`segunda-lista-guillermo-2026-11-25.pdf`).
+BORRADOR — WhatsApp a Guillermo, seguimiento del mensaje que la usuaria envió el 26/11. Sin
+enviar. Aquel mensaje y el PDF de la segunda lista ya están enviados: esto solo responde a la
+lista de siete puntos del 25/11, corrige lo que el manual desmiente del PDF ya enviado y da el
+resumen por punto que pide al final. Sin repetir costos ni plazos.
 
 ---
 
-Hola Guillermo: he repasado tus siete puntos y te contesto con lo probado contra el TPV demo. Te
-adjunto el detalle.
+Hola Guillermo: voy punto por punto, con el resultado de cada prueba y qué queda disponible y qué
+bloqueado.
 
-1. *Domicilio (`Type=2`).* Sí, se puede hacer como propones: el pedido a domicilio es un valor
-   documentado en la API (`Type=2`, con dirección y hora de reparto), así que no habría que
-   rehacer nada de lo hecho. Lo que no depende de nosotros es la aplicación: BDP confirmó el
-   24/11 que la 01 Hostelería no lo admite y hace falta su Servicio a Domicilio, probablemente
-   sustituyendo la licencia. Las cinco preguntas para BDP van en el correo que te adjunto.
+1. *Domicilio (`Type=2`).* Confirmado: hay que pedirlo a BDP. Te paso el correo con las cinco
+   preguntas que pides: qué aplicación y suscripción de desarrollo hacen falta, si sustituye a
+   Hostelería, si la licencia WebLinkRestAPI 84 sigue valiendo, cómo se instala en nuestro entorno
+   de pruebas y si conserva los datos y la configuración del restaurante. Cuando lo tengamos, la
+   prueba de punta a punta desde la web. Hasta entonces sigue desactivado y no se simula como barra
+   ni mesa.
 
-2. *Modificaciones de comanda.* En mesa funcionan: dos ediciones a la vez y luego tres seguidas
-   acaban igual en la web y en el TPV (6 unidades, 6,30). En barra el TPV demo contesta que sí y la
-   comanda no cambia; antes te dije que las rechazaba y no es eso: acepta y no aplica. Hay una
-   pregunta hecha a BDP sobre si es su licencia de pruebas. En cuanto a bloquearlo: ya no se puede
-   modificar una barra sin que se note. La web relee la comanda y, si el TPV no aplicó el cambio,
-   deshace la edición y no la da por buena, y ahora el aviso de la pantalla dice el motivo en vez
-   de un error genérico.
+2. *Comandas de barra.* Corrijo lo que dice el PDF: en el demo no se rechazan, se aceptan y no se
+   aplican. La modificación de barra contesta 200 con el mensaje vacío y la comanda queda igual
+   (comandas 222, 223, 225 y 227); las de mesa sí se aplican. Está preguntado a BDP si es un límite
+   de la licencia de pruebas y cuál es el procedimiento correcto. Lo bloqueado ya está: la web
+   relee la comanda, comprueba que el TPV no aplicó el cambio, deshace la edición y lo explica en
+   pantalla con el motivo, no con un error genérico.
 
-3. *Tres pagos.* Tienes razón: lo dice el manual («máximo de 3 pagos, igual que en el TPV táctil»).
-   Corrijo lo que te dije antes: no es solo regla nuestra. Lo mantengo en tres y he preguntado a
-   BDP si son tres también en pagos sucesivos por `AddOrderPayment` o solo en el alta, y si admite
-   más por otra vía. No diremos que BDP admite más hasta que lo confirmen y lo probemos.
+3. *Máximo de pagos.* Tienes razón y te lo confirmo: el tope de tres no es una regla nuestra, lo
+   dice el manual. Se queda en tres. Preguntado a BDP si `Orders/Payment/Add` admite oficialmente
+   más de tres pagos sucesivos; no diremos que admite más hasta que lo confirmen y lo probemos.
 
-4. *Devoluciones y pagos negativos.* La API no tiene operación de retirar un cobro. Nuestra idea es
-   devolver por la pasarela y anotar en BDP un pago negativo del mismo importe. Está preguntado a
-   BDP: si aceptan el importe negativo, si vale sobre una comanda ya facturada y, si no, qué
-   procedimiento autorizan para dejar la devolución registrada.
+4. *Devoluciones y pagos negativos.* La API no tiene operación para retirar un cobro. La vía del
+   pago negativo está preguntada: si está oficialmente admitido, sobre qué comanda se registra
+   cuando ya está facturada y qué documento genera. No se desarrolla hasta tener respuesta precisa.
 
-5. *Equivalencias de artículos.* Una línea con código de artículo y sin equivalencia activa detiene
-   la comanda y dice qué artículo falta; ya no se sustituye por el artículo por defecto en
-   silencio. El artículo por defecto solo se usa en las líneas escritas a mano sin código. En el
-   TPV demo, de las líneas con código desde el 1/11, 8 no tenían equivalencia.
+5. *Equivalencias.* Comprobado con una venta normal y con una invitación: ninguna de las dos puede
+   sustituir ya un producto por el artículo predeterminado. Una línea con código y sin equivalencia
+   activa detiene la operación y dice qué artículo falta; el artículo por defecto solo se usa en las
+   líneas escritas a mano sin código. Las invitaciones siguen apagadas hasta ver un ticket del
+   restaurante.
 
-6. *Comandas creadas en el TPV.* Ya aparecen solas en la web. Lo probé como pediste: creé una
-   comanda directamente en el TPV demo (la 230) sin tocar la web y entró sola en el ciclo
-   siguiente, con sus líneas y su mesa. El listado de comandas abiertas que teníamos por
-   inexistente sí existe y es lo que lo permite. Ahora, lo que preguntas de los cambios hechos
-   desde el TPV: si anulan una comanda, la web la anula. Si le cambian líneas, la web lo detecta y
-   marca la venta para revisión, pero no la actualiza sola: avisa de que el TPV ya no coincide en
-   vez de reescribir el importe, para que nadie cobre una cuenta que no es. Me falta decidir si eso
-   se queda así en el piloto o se actualiza automáticamente; te lo digo antes de arrancar.
+6. *Comandas creadas en el TPV.* Creada la comanda 230 directamente en el TPV demo, sin tocar la
+   web: entró sola en el ciclo siguiente, con sus líneas y su mesa, aunque la web no conocía su
+   identificador. Sobre los cambios hechos desde el TPV: la anulación llega y la web anula; la
+   modificación de líneas se detecta y se marca la venta para revisión, pero no se reescribe sola.
+   Eso se queda así para el piloto —una persona concilia— y queda escrito como límite conocido.
 
-7. *Nunca escribir en la base de BDP.* De acuerdo y así queda: todo va por su API WeblinkRestAPI, y
-   para lo que no publique, se pregunta a BDP qué procedimiento autoriza. Quito esa vía de lo que
-   te había planteado.
+7. *Base de datos de BDP.* De acuerdo: esa vía queda retirada. Todo por WebLinkRestAPI y
+   procedimientos autorizados por BDP. Retiro la propuesta que te hice en el mensaje anterior.
 
-*Lo que necesito de ti:* pasarle a BDP el correo que te adjunto (cuatro preguntas: domicilio,
-modificaciones de barra, pagos parciales y devoluciones) y la consulta de la licencia del demo, que
-sigue sin respuesta desde el 23/11.
+*Resumen:* disponibles, comandas de mesa, modificaciones por la web, pagos parciales hasta tres,
+anulación desde el TPV y comandas nacidas en el TPV. Bloqueados hasta respuesta o prueba en el
+restaurante: domicilio, modificación de barra, pagos negativos, invitaciones y más de tres pagos.
 
-*Sobre el plazo:* no sé decirte con precisión, porque depende de si sientes que ya está todo
-listo para usar en el BDP real o faltan más ajustes o pruebas: aún estaríamos a unos 1 a 3 de
-hacerlo posible. Para probar con vuestro TPV sí está listo, y lo que falta de mi parte no depende
-de eso.
-
-*Sobre dejar el delivery para después:* estoy de acuerdo, y no es mucho jaleo. El pedido a
-domicilio es un valor de la API que ya está documentado, así que no habría que rehacer nada de lo
-hecho; lo único que no depende de nosotros es la aplicación de BDP. Cerramos la integración, se la
-entregamos al restaurante y, si luego pide delivery, lo hacemos en local y se lo instalamos cuando
-esté listo.
+*Lo que necesito de ti:* pasar a BDP el correo que te paso (domicilio, barra, pagos y devoluciones)
+y la consulta de la licencia del demo, sin respuesta desde el 23/11. Y nada de escrituras
+automáticas en el BDP del restaurante hasta que lo digas.
