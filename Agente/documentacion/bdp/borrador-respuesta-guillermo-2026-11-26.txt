@@ -15,8 +15,8 @@ bloqueado.
    desactivado y no se simula como barra ni mesa. Y no bloquea nada: si tardan, cerramos la
    integración sin él y lo añadimos cuando contesten.
 
-2. *Comandas de barra.* Corrijo lo que te dije antes: en el demo no se rechazan, se aceptan y no
-   se aplican. La modificación de barra contesta 200 con el mensaje vacío y la comanda queda igual
+2. *Comandas de barra.* El PDF que te mandé ya lo dice bien; te lo aclaro aquí porque tu resumen lo
+   da por rechazado: en el demo no se rechazan, se aceptan y no se aplican. La modificación de barra contesta 200 con el mensaje vacío y la comanda queda igual
    (comandas 222, 223, 225 y 227); las de mesa sí se aplican. Está preguntado a BDP si es un límite
    de la licencia de pruebas y cuál es el procedimiento correcto. Lo bloqueado ya está: la web
    relee la comanda, comprueba que el TPV no aplicó el cambio, deshace la edición y lo explica en
@@ -43,9 +43,6 @@ bloqueado.
    web anula; la modificación de líneas se detecta y se marca la venta para revisión, pero no se
    reescribe sola. Eso se queda así para el piloto —una persona concilia— y queda anotado como
    límite conocido.
-
-7. *Base de datos de BDP.* De acuerdo: esa vía queda retirada. Todo por WebLinkRestAPI y
-   procedimientos autorizados por BDP. Retiro la propuesta que te hice en el mensaje anterior.
 
 *Sobre el delivery:* no es mucho jaleo por nuestra parte. El pedido a domicilio es un valor que la
 API ya documenta, así que no habría que rehacer nada de lo hecho; lo único que no depende de

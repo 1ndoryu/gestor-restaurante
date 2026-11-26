@@ -63,9 +63,13 @@ devolución?
 4. Servicio a domicilio (`Type = 2`)
 
 Por ahora lo dejamos aparcado, como acordamos con el distribuidor. Solo para saber el alcance cuando
-lo abordemos: al pasar a BDP Servicio a Domicilio, ¿se conservan los datos y la configuración
-actuales (artículos, mesas, clientes, series de facturación)? Y la licencia WebLinkRestAPI 84 que
-usamos ahora, ¿sigue siendo válida para esa aplicación?
+lo abordemos:
+
+- ¿Qué suscripción o licencia de Servicio a Domicilio haría falta, y sustituye a Hostelería o
+  conviven las dos?
+- Al hacer el cambio, ¿se conservan los datos y la configuración actuales (artículos, mesas,
+  clientes, series de facturación)?
+- La licencia WebLinkRestAPI 84 que usamos ahora, ¿sigue siendo válida para esa aplicación?
 
 Un último apunte: sigue apareciendo el aviso «sin conexión con el servidor de subscripción» y el TPV
 funciona con él. ¿Esa licencia demo sigue vigente y hasta cuándo?
