@@ -41,7 +41,8 @@ impl VentaService {
         user_id: Uuid,
         lineas: &[crate::models::CrearVentaLineaRequest],
     ) -> Result<(), AppError> {
-        match crate::services::BdpSyncService::lineas_sin_equivalencia(pool, user_id, lineas).await {
+        match crate::services::BdpSyncService::lineas_sin_equivalencia(pool, user_id, lineas).await
+        {
             Ok(faltan) if faltan.is_empty() => Ok(()),
             Ok(faltan) => Err(AppError::Validation(format!(
                 "{} no tiene equivalencia activa en BDP y el ticket mostraría otro artículo. \

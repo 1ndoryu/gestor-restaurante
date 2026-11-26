@@ -79,7 +79,7 @@ impl BdpOrderPollerService {
                     creadas += 1;
                     info!(
                         "[21AB-8] Comanda del TPV copiada como venta: {}",
-                        comanda.get("OrderId").and_then(|id| id.as_i64()).unwrap_or(0)
+                        comanda["OrderId"].as_i64().unwrap_or(0)
                     );
                 }
                 Ok(false) => {}
@@ -408,10 +408,7 @@ impl BdpOrderPollerService {
             .map(|fecha| fecha.with_timezone(&chrono::Utc))
             .ok();
         match instante {
-            Some(fecha) => (
-                fecha.date_naive(),
-                fecha.hour() + fecha.minute() / 60,
-            ),
+            Some(fecha) => (fecha.date_naive(), fecha.hour() + fecha.minute() / 60),
             None => (chrono::Utc::now().date_naive(), 12),
         }
     }
