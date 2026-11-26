@@ -6,98 +6,71 @@ BORRADOR — respuesta al correo de Gael del 24/11/2026. Sin enviar; lo envía l
 **Asunto:** RE: WebLinkRestAPI 1.2 — seis dudas y un fallo de facturación
 **Estado:** borrador. **No enviado.**
 
-Va como respuesta al hilo del 20/11, no como correo nuevo: Gael pidió en su respuesta que
-usáramos `integraciones@` y nos devolvió tres preguntas que hay que contestar antes de las nuevas.
-Los cinco bloques son los que pide Guillermo en su lista del 25/11. La consulta de la licencia del
-23/11 (`consulta-licencia-demo-2026-11-23.txt`) va aquí como bloque 5: si ya se envió, se quita.
+Va como respuesta al hilo del 20/11, no como correo nuevo: Gael pidió que usáramos
+`integraciones@` y nos devolvió tres preguntas, que se contestan aquí. Versión corta: de las 17
+preguntas que llegó a tener, quedan 7, las que condicionan el trabajo. El delivery va solo como
+alcance para después, porque la usuaria y Guillermo acordaron aparcarlo.
 
 ---
 
 Hola, Gael:
 
 Gracias por la respuesta, que aclara casi todo. Antes de las dudas que nos quedan, contesto a las
-tres preguntas que nos hacías, porque de ellas dependen algunas respuestas.
+tres preguntas que nos hacías.
 
 *Quién usa la aplicación.* Está pensada para el personal del restaurante, no para el cliente final:
 es el personal quien anota el pedido, gestiona la cuenta y cobra, con el cliente delante como hasta
-ahora. Por eso las invitaciones y el cambio de mesa los trata el personal y no el comensal. En los
-dos casos la decisión es del personal: la restricción de invitación se aplica en nuestra interfaz,
-que no deja marcar como invitado un artículo que BDP no permite invitar.
+ahora. Por eso las invitaciones y el cambio de mesa los trata el personal y no el comensal; la
+restricción de invitación se aplica en nuestra interfaz, que no deja marcar como invitado un
+artículo que BDP no permite invitar.
 
-*Qué hace y cómo interactúa con BDP.* Es la aplicación de sala del restaurante: plano de mesas,
-comandas, cuentas, cobros y consulta de la venta del día. El TPV de BDP sigue siendo el dueño de los
-datos y el que factura: la web envía comandas y pagos por WebLinkRestAPI y lee del TPV el estado de
-cada comanda y el catálogo. No escribimos nunca directamente en la base de datos de BDP.
+*Qué hace y cómo interactúa con BDP.* Es la aplicación de sala: plano de mesas, comandas, cuentas,
+cobros y consulta de la venta del día. El TPV de BDP sigue siendo el dueño de los datos y el que
+factura: la web envía comandas y pagos por WebLinkRestAPI y lee del TPV el estado de cada comanda y
+el catálogo. No escribimos nunca directamente en la base de datos de BDP.
 
-*Confirmado: trabajamos sobre BDP Net Hostelería.* Sí, es la aplicación que tiene el restaurante, y
-la integración la hemos desarrollado contra la demo 36.2 de esa misma aplicación.
+*Confirmado: trabajamos sobre BDP Net Hostelería.* Es la aplicación que tiene el restaurante, y la
+integración la hemos desarrollado contra la demo 36.2.
 
-Ahora, los cinco puntos:
+Cuatro dudas:
 
-1. Servicio a domicilio (`Type = 2`)
+1. Modificaciones de comandas de barra
 
-Necesitamos crear desde la web pedidos a domicilio. El manual documenta `Type = 2` en la estructura
-`Order`, la dirección en `OrderCustomer` y la hora de reparto en `PreparationTime`, y nos decís que
-la aplicación es BDP Servicio a Domicilio. Nos quedan estas dudas:
+En la demo, modificar una comanda de barra (`Type = 0`) contesta 200 con el mensaje de error vacío y
+la comanda queda igual; las de mesa (`Type = 1`) sí se aplican. Lo hemos reproducido con las
+comandas 222, 223, 225 y 227.
 
-- ¿Qué suscripción de desarrollo (o licencia) hacen falta para poder probarlo?
-- ¿Hay que sustituir la aplicación 01 Hostelería por Servicio a Domicilio, o conviven las dos?
-- ¿La licencia WebLinkRestAPI 84 que usamos ahora sigue siendo válida para esa aplicación?
-- ¿Cómo lo instalamos en nuestro entorno de pruebas, que es la demo 36.2?
-- El cambio, ¿conserva los datos y la configuración actuales (artículos, mesas, clientes, series
-  de facturación), o hay que volver a darlos de alta?
+¿Hostelería 36.2 con licencia completa permite modificar comandas de barra por WebLinkRestAPI? Si es
+así, ¿cuál es el procedimiento correcto?
 
-2. Modificaciones de comandas de barra
+2. Pagos parciales
 
-Al modificar una comanda abierta observamos dos comportamientos distintos en la demo:
+Seguimos vuestro criterio: dividir la cuenta en nuestra aplicación y enviar los pagos parciales. El
+manual fija un máximo de tres pagos y cortamos ahí.
 
-- Comandas de barra (`Type = 0`): `SubOrder`/`Modify` contesta 200 con `ErrorMessage` vacío y la
-  comanda queda exactamente igual. No es un rechazo: acepta y no aplica.
-- Comandas de mesa (`Type = 1`): el cambio sí se aplica. Si el `Total` enviado no coincide con el
-  teórico, responde `[300033] EL IMPORTE TOTAL INDICADO DE LA COMANDA NO COINCIDE CON EL TEÓRICO`.
+¿`AddOrderPayment` (`/API/Orders/Payment/Add`) admite oficialmente más de tres pagos sucesivos sobre
+la misma comanda, o ese límite es firme?
 
-Reproducido con las comandas 222, 223, 225 y 227 de la demo.
+3. Devoluciones y pagos negativos
 
-- ¿El entorno demo tiene limitada la modificación de comandas de barra?
-- ¿En un TPV con licencia completa, Hostelería 36.2 permite modificar comandas de barra por
-  WebLinkRestAPI, y cuál es el procedimiento correcto?
-- ¿`[300033]` es solo una validación del total, y basta con enviar el total recalculado?
+Nos proponéis devolver por la pasarela y registrar en BDP un pago negativo por el mismo importe, pero
+el manual no dice que el importe pueda ser negativo.
 
-3. Pagos parciales
+¿Está admitido oficialmente? Cuando la comanda ya está facturada, ¿sobre qué comanda se registra y
+qué documento genera? Si no lo está, ¿qué procedimiento autorizáis para dejar registrada una
+devolución?
 
-Seguimos el criterio que nos disteis: dividir la cuenta en nuestra aplicación y enviar los pagos
-parciales. El manual dice «se podrán especificar un máximo de 3 pagos, igual que en el TPV táctil
-de BDP-Net», y nuestra aplicación corta en tres por eso.
+4. Servicio a domicilio (`Type = 2`)
 
-- ¿Ese máximo de tres es el mismo en `AddOrderPayment` sucesivos que en la lista `Payments` de
-  `CreateOrder`, o sólo aplica al alta?
-- ¿`AddOrderPayment` (`/API/Orders/Payment/Add`) admite oficialmente más de tres pagos sucesivos,
-  o ese límite es firme?
-- ¿`AddOrderPayment` tiene alguna condición de cierre de la comanda que debamos conocer (por
-  ejemplo, que el último pago deba igualar exactamente el saldo)?
+Por ahora lo dejamos aparcado, como acordamos con el distribuidor. Solo para saber el alcance cuando
+lo abordemos: al pasar a BDP Servicio a Domicilio, ¿se conservan los datos y la configuración
+actuales (artículos, mesas, clientes, series de facturación)? Y la licencia WebLinkRestAPI 84 que
+usamos ahora, ¿sigue siendo válida para esa aplicación?
 
-4. Devoluciones y pagos negativos
+Un último apunte: sigue apareciendo el aviso «sin conexión con el servidor de subscripción» y el TPV
+funciona con él. ¿Esa licencia demo sigue vigente y hasta cuándo?
 
-Nos proponéis devolver por la pasarela y registrar en BDP un pago negativo por el mismo importe. El
-manual documenta `Amount` en `OrderPayment` sin decir que pueda ser negativo, y no queremos
-desarrollarlo sin saber si está admitido.
-
-- ¿`AddOrderPayment` acepta un importe negativo? ¿Lo admite sobre una comanda ya facturada o
-  cerrada?
-- ¿Sobre qué comanda se registra: la misma ya facturada, o hace falta una comanda nueva?
-- ¿Qué documento genera (rectificativa, abono, nada)?
-- Si no lo acepta, ¿qué procedimiento autorizáis para dejar registrada una devolución en el TPV?
-
-5. Licencia del entorno de pruebas
-
-Sigue apareciendo el aviso «sin conexión con el servidor de subscripción» y el TPV funciona con él;
-todas las pruebas de esta integración se han hecho así.
-
-- ¿La licencia demo sigue vigente y hasta qué fecha?
-- ¿El aviso puede cortar el funcionamiento del TPV durante las pruebas que nos quedan?
-- ¿Qué debemos hacer para mantener el entorno operativo mientras dure la integración?
-
-Si es más rápido por teléfono, os llamamos en la franja de 9:00 a 11:00.
+Si es más rápido, os llamamos en la franja de 9:00 a 11:00.
 
 Gracias.
 
