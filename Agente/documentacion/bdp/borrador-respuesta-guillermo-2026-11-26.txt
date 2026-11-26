@@ -55,7 +55,7 @@ adjunto el detalle.
 modificaciones de barra, pagos parciales y devoluciones) y la consulta de la licencia del demo, que
 sigue sin respuesta desde el 23/11.
 
-*Sobre tu pregunta de si está todo listo:* para probar con vuestro TPV sí, y lo que falta de mi
-parte no depende de eso. Lo que no puedo darte es una fecha, porque depende de si preferís seguir
-con ajustes o entrar ya a probar en el BDP real y de lo que BDP conteste: con sus respuestas, el
-cierre es cuestión de días, no de meses.
+*Sobre el plazo:* no sé decirte con precisión, porque depende de si sientes que ya está todo
+listo para usar en el BDP real o faltan más ajustes o pruebas: aún estaríamos a unos 1 a 3 de
+hacerlo posible. Para probar con vuestro TPV sí está listo, y lo que falta de mi parte no depende
+de eso.
