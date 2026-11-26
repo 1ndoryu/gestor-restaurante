@@ -2,11 +2,23 @@
  * Maneja creación (multi-turno) y edición de ventas. */
 
 import { useState, type FormEvent } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { crearVenta, actualizarVenta, getListarVentasQueryKey, type CrearVentaRequest, type Venta } from '../api/generated';
 import type { UseLineasVentaReturn } from './useLineasVenta';
 import { calcularIva, type CamposVenta } from './ventaFormUtils';
+
+/* [21AB-9] El servidor explica los rechazos con un mensaje pensado para el operador
+ * (`ErrorResponse.message`): «BDP respondió OK pero no aplicó el cambio», el artículo
+ * sin equivalencia, la comanda que ya no coincide… Descartarlo y pintar un genérico
+ * dejaba al camarero sin saber qué corregir, que es justo lo que pidió Guillermo para
+ * las comandas de barra. */
+function mensajeDelServidor(error: unknown, generico: string): string {
+  if (!axios.isAxiosError(error)) return generico;
+  const mensaje = error.response?.data?.message;
+  return typeof mensaje === 'string' && mensaje.trim() ? mensaje : generico;
+}
 
 export function useVentaSubmit(
   campos: CamposVenta,
@@ -61,7 +73,7 @@ export function useVentaSubmit(
         });
         await queryClient.invalidateQueries({ queryKey: getListarVentasQueryKey() });
         onExito ? onExito() : navigate('/ventas');
-      } catch { setError('Error al actualizar la venta'); }
+      } catch (e) { setError(mensajeDelServidor(e, 'Error al actualizar la venta')); }
       finally { setCargando(false); }
       return;
     }
@@ -89,7 +101,7 @@ export function useVentaSubmit(
       }));
       await queryClient.invalidateQueries({ queryKey: getListarVentasQueryKey() });
       onExito ? onExito() : navigate('/ventas');
-    } catch { setError('Error al registrar la venta'); }
+    } catch (e) { setError(mensajeDelServidor(e, 'Error al registrar la venta')); }
     finally { setCargando(false); }
   }
 
