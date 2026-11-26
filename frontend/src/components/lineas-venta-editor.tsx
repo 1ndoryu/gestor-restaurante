@@ -34,11 +34,12 @@ function fmtEur(n: number): string {
 function BdpMappingBadge({ codigo, maps }: { codigo: string; maps: BdpArticleMapItem[] | undefined }) {
   const m = maps?.find(x => x.articulo_glory_codigo === codigo);
   if (!codigo) return <span className="text-muted-foreground text-[10px]">—</span>;
-  /* [20AB] Desactivado: se avisa, porque la línea saldrá con el artículo por
-   * defecto y el operario debe saber que ese código ya no apunta a su artículo. */
-  if (m && !m.activo) return <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-600" title="Artículo desactivado en el catálogo"><AlertTriangle className="h-3 w-3" />desactivado</span>;
+  /* [21AB-7] Con código y sin equivalencia activa la venta no se envía: el TPV
+   * mostraría otro artículo. Se avisa antes de guardar en vez de dejar que el
+   * servidor la rechace al final. Sin código (descripción libre) sí sale. */
+  if (m && !m.activo) return <span className="inline-flex items-center gap-0.5 text-[10px] text-destructive" title="Artículo desactivado en el catálogo: la venta no se enviará a BDP"><AlertTriangle className="h-3 w-3" />desactivado</span>;
   if (m) return <span className="inline-flex items-center gap-0.5 text-[10px] text-green-600" title={`BDP: ${m.articulo_bdp_nombre}`}><Check className="h-3 w-3" />{m.articulo_bdp_codigo}</span>;
-  return <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-600" title="Sin mapeo BDP"><AlertTriangle className="h-3 w-3" />genérico</span>;
+  return <span className="inline-flex items-center gap-0.5 text-[10px] text-destructive" title="Sin equivalencia BDP: la venta no se enviará a BDP. Quita el código si es una descripción libre"><AlertTriangle className="h-3 w-3" />sin equivalencia</span>;
 }
 
 function LineaRow({ linea, idx, onActualizar, onAlternarInvitacion, onEliminar, maps, readonly, puedeEliminar }: {

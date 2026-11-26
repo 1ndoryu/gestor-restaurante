@@ -31,6 +31,32 @@ impl VentaService {
      * «Intento de dividir por cero» y la comanda queda cobrada sin facturar. El
      * error no nombra la línea, así que se corta aquí, antes de escribir nada.
      * El alta y el reemplazo comparten esta frontera. */
+    /* [21AB-7] Guillermo (25/11): ninguna línea puede llegar al TPV con un
+     * artículo que no es el pedido. Con código y sin equivalencia activa, el
+     * envío salía con el artículo por defecto (probado el 26/11: código `1999`
+     * → comanda 216 con COCA-COLA). Se corta aquí, antes de escribir la venta,
+     * para que el operador corrija en el momento; el envío repite la regla. */
+    async fn rechazar_lineas_sin_equivalencia(
+        pool: &PgPool,
+        user_id: Uuid,
+        lineas: &[crate::models::CrearVentaLineaRequest],
+    ) -> Result<(), AppError> {
+        match crate::services::BdpSyncService::lineas_sin_equivalencia(pool, user_id, lineas).await {
+            Ok(faltan) if faltan.is_empty() => Ok(()),
+            Ok(faltan) => Err(AppError::Validation(format!(
+                "{} no tiene equivalencia activa en BDP y el ticket mostraría otro artículo. \
+                 Marca el artículo en el catálogo BDP o quita el código de la línea si es una \
+                 descripción libre",
+                faltan.join(", ")
+            ))),
+            /* Un fallo de lectura no se convierte en un «sí»: no se puede
+             * demostrar que haya equivalencia. */
+            Err(e) => Err(AppError::Internal(format!(
+                "No se pudo comprobar la equivalencia BDP de las líneas: {e}"
+            ))),
+        }
+    }
+
     fn rechazar_cantidades_no_positivas(
         lineas: &[crate::models::CrearVentaLineaRequest],
     ) -> Result<(), AppError> {
@@ -87,10 +113,13 @@ impl VentaService {
 
         /* [18AB-4] Antes de escribir nada: un artículo con «No permitir como
          * invitación» no se puede invitar. BDP acepta la línea (probado el
-         * 18/11), así que el rechazo tiene que ser nuestro y síncrono. */
+         * 18/11), así que el rechazo tiene que ser nuestro y síncrono.
+         * [21AB-7] Tampoco se escribe una línea con código y sin equivalencia
+         * BDP: el TPV mostraría otro artículo. */
         if let Some(ref lineas) = req.lineas {
             Self::rechazar_cantidades_no_positivas(lineas)?;
             InvitacionService::validar_lineas(pool, user_id, lineas).await?;
+            Self::rechazar_lineas_sin_equivalencia(pool, user_id, lineas).await?;
         }
 
         let descripcion = req.descripcion.as_deref().unwrap_or("");
@@ -186,10 +215,12 @@ impl VentaService {
             Vec::new()
         };
         /* [18AB-4] Misma frontera que en el alta: reemplazar líneas tampoco
-         * puede invitar un artículo que BDP prohíbe. */
+         * puede invitar un artículo que BDP prohíbe.
+         * [21AB-7] Ni dejar un código sin equivalencia BDP. */
         if let Some(ref lineas) = req.lineas {
             Self::rechazar_cantidades_no_positivas(lineas)?;
             InvitacionService::validar_lineas(pool, user_id, lineas).await?;
+            Self::rechazar_lineas_sin_equivalencia(pool, user_id, lineas).await?;
         }
 
         let turno = req.turno.as_ref().and_then(|t| {

@@ -170,12 +170,15 @@ impl BdpSyncService {
 
     /// [F2.8] Resuelve el artículo BDP para cada línea de venta consultando `bdp_article_map`.
     /// Devuelve un Vec<i64> paralelo a `lineas` con el ID del artículo BDP.
-    /// Si una línea no tiene mapeo, usa `default_article_id`.
     ///
-    /// [21AB-5b] Una línea **invitada** nunca se sustituye en silencio: si no
-    /// hay equivalencia BDP, el envío se rechaza con el nombre del artículo.
-    /// Antes caía al artículo por defecto y el ticket del TPV mostraba otro
-    /// producto al que el cliente pidió (caso real: `1003`, mapeo desactivado).
+    /// [21AB-7] **Ninguna línea con código se sustituye en silencio**, ni
+    /// normal ni invitada: si el artículo pedido no tiene equivalencia BDP
+    /// utilizable, el envío se corta nombrando la línea. Antes solo se
+    /// bloqueaba la invitada y una venta normal sin mapeo salía con el
+    /// artículo por defecto (probado el 26/11: venta con el código `1999`
+    /// → comanda 216 con COCA-COLA en el TPV; el cliente pedía otra cosa).
+    /// El artículo por defecto queda solo para líneas **sin código**
+    /// (descripción libre), donde no hay producto pedido que suplantar.
     pub(super) async fn resolve_line_articles(
         pool: &PgPool,
         user_id: uuid::Uuid,
@@ -188,6 +191,7 @@ impl BdpSyncService {
                 Self::resolve_line_article(pool, user_id, &linea.articulo_codigo).await?;
             match resuelto {
                 Some(id) => ids.push(id),
+                None if linea.articulo_codigo.trim().is_empty() => ids.push(default_article_id),
                 None if linea.invitacion => {
                     return Err(format!(
                         "Invitación bloqueada: «{}» no tiene equivalencia activa en BDP. \
@@ -196,16 +200,49 @@ impl BdpSyncService {
                         linea.descripcion
                     ));
                 }
-                None => ids.push(default_article_id),
+                None => {
+                    return Err(format!(
+                        "«{}» (código «{}») no tiene equivalencia activa en BDP y la comanda \
+                         no se envía: el ticket mostraría otro artículo. Marca el artículo en \
+                         el catálogo BDP o quita el código de la línea si es una descripción libre.",
+                        linea.descripcion,
+                        linea.articulo_codigo.trim()
+                    ));
+                }
             }
         }
         Ok(ids)
     }
 
+    /* [21AB-7] Misma regla que `resolve_line_articles`, adelantada al alta y a
+     * la edición: la línea con código y sin equivalencia se rechaza con un 422
+     * mientras el operador la escribe, en vez de dejar la venta escrita y
+     * fallando al enviarla a BDP. Las líneas sin código (descripción libre) no
+     * se miran. */
+    pub(crate) async fn lineas_sin_equivalencia(
+        pool: &PgPool,
+        user_id: uuid::Uuid,
+        lineas: &[crate::models::CrearVentaLineaRequest],
+    ) -> Result<Vec<String>, String> {
+        let mut faltan = Vec::new();
+        for linea in lineas {
+            let codigo = linea.articulo_codigo.as_deref().unwrap_or_default().trim();
+            if codigo.is_empty() {
+                continue;
+            }
+            if Self::resolve_line_article(pool, user_id, codigo)
+                .await?
+                .is_none()
+            {
+                faltan.push(format!("«{}» (código «{codigo}»)", linea.descripcion));
+            }
+        }
+        Ok(faltan)
+    }
+
     /* [21AB-5b] Código BDP de una línea, o `None` si no hay equivalencia
-     * utilizable (sin mapeo, desactivado, no numérico o error de lectura). El
-     * fallback al artículo por defecto lo decide quien llama: las líneas
-     * normales lo admiten, las invitadas no. */
+     * utilizable (sin mapeo, desactivado, no numérico o error de lectura). La
+     * decisión de bloquear o caer al defecto la toma `resolve_line_articles`. */
     async fn resolve_line_article(
         pool: &PgPool,
         user_id: uuid::Uuid,
@@ -239,8 +276,9 @@ impl BdpSyncService {
             },
             Ok(None) => Ok(None),
             Err(e) => {
-                /* Un fallo de lectura no se convierte en «no hay mapeo»: la
-                 * línea invitada se bloquea y la normal cae al defecto. */
+                /* Un fallo de lectura no se convierte en «no hay mapeo»: con
+                 * código, la línea se bloquea ([21AB-7]); sin código no hay
+                 * producto pedido que suplantar y sale con el defecto. */
                 warn!("[F2.8] Error buscando mapeo BDP para '{articulo_codigo}': {e}");
                 Ok(None)
             }
@@ -314,10 +352,12 @@ mod tests {
 
     /* [20AB] Un mapeo desactivado no puede seguir decidiendo el artículo BDP:
      * la línea salía con un código que BDP ya no reconoce (el demo respondía
-     * `[300016]-ARTÍCULO INEXISTENTE` y la comanda no llegaba al TPV). Debe
-     * caer al artículo por defecto, igual que un código sin mapeo. */
+     * `[300016]-ARTÍCULO INEXISTENTE` y la comanda no llegaba al TPV).
+     * [21AB-7] Tampoco puede caer al artículo por defecto en silencio: si la
+     * línea trae código y no hay equivalencia, se corta nombrando la línea.
+     * Solo la línea **sin código** (descripción libre) usa el defecto. */
     #[sqlx::test(migrations = "./migrations")]
-    async fn mapeo_desactivado_cae_al_articulo_por_defecto(pool: PgPool) {
+    async fn mapeo_desactivado_bloquea_y_solo_la_linea_sin_codigo_usa_el_defecto(pool: PgPool) {
         let user_id = uuid::Uuid::new_v4();
         let email = format!("bdp-sync-{user_id}@example.com");
         sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
@@ -363,12 +403,29 @@ mod tests {
             comentario: String::new(),
             created_at: Utc::now(),
         };
-        let lineas = vec![linea("VIVO"), linea("RETIRADO"), linea("")];
-
-        let ids = BdpSyncService::resolve_line_articles(&pool, user_id, &lineas, 9999)
+        /* La línea sin código sí sale con el artículo por defecto: no hay
+         * producto pedido que suplantar. */
+        let ids = BdpSyncService::resolve_line_articles(&pool, user_id, &[linea("")], 9999)
             .await
-            .expect("las líneas normales admiten el artículo por defecto");
-        assert_eq!(ids, vec![1001, 9999, 9999]);
+            .expect("una línea sin código usa el artículo por defecto");
+        assert_eq!(ids, vec![9999]);
+
+        let ids = BdpSyncService::resolve_line_articles(&pool, user_id, &[linea("VIVO")], 9999)
+            .await
+            .expect("un mapeo activo resuelve su código BDP");
+        assert_eq!(ids, vec![1001]);
+
+        /* [21AB-7] Con código y sin equivalencia no hay sustitución: el ticket
+         * mostraría otro artículo. Probado el 26/11 en el demo: la venta con el
+         * código `1999` salió como COCA-COLA (comanda 216). */
+        let error =
+            BdpSyncService::resolve_line_articles(&pool, user_id, &[linea("RETIRADO")], 9999)
+                .await
+                .expect_err("un código sin equivalencia no puede salir con otro artículo");
+        assert!(
+            error.contains("RETIRADO") && error.contains("no tiene equivalencia activa en BDP"),
+            "el aviso debe nombrar la línea: {error}"
+        );
     }
 
     /* [21AB-5b] Guillermo (22/11): el ticket debe mostrar el artículo pedido.
