@@ -3,6 +3,12 @@ preguntas sacados de los siete puntos de Guillermo del 25/11 y de las pruebas co
 Todo lo aquí descrito se ha reproducido contra la instalación demo o está citado del manual;
 no hay nada supuesto salvo lo que se marca expresamente como hipótesis.
 
+**Para:** `integraciones@bdpcenter.com` (Gael)
+**CC:** `guillermo.autoia@gmail.com`
+**Remitente:** Asley Crespo Navarro, autorizada por el distribuidor Guillermo García Sáez (n.º 4652)
+**Estado:** borrador. **No enviado**: lo envía la usuaria, igual que el del 20/11 al que BDP
+contestó el 24/11.
+
 Asunto: Cuatro dudas de la integración por WebLinkRestAPI (demo 36.2): entrega, modificaciones, pagos y devoluciones
 
 Hola:
@@ -40,7 +46,8 @@ Reproducido con las comandas 222, 223, 225 y 227 del demo. Nuestra hipótesis es
 límite de la licencia demo, pero no la damos por buena sin confirmación.
 
 - ¿El demo tiene limitada la modificación de comandas de barra?
-- ¿En un TPV con licencia completa funciona igual que en las de mesa?
+- ¿En un TPV con licencia completa, Hostelería 36.2 permite modificar comandas de barra por
+  WebLinkRestAPI, y cuál es el procedimiento correcto?
 - ¿`[300033]` es solo una validación del total, y basta con enviar el total recalculado?
 
 3. Pagos parciales
