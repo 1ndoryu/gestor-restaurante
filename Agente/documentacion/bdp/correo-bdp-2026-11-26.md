@@ -1,7 +1,7 @@
-BORRADOR — correo a BDP (soporte / integraciones), 2026-11-26. Sin enviar. Cuatro preguntas
-sacadas de los siete puntos de Guillermo del 25/11 y de las pruebas contra el demo 36.2.
-Todo lo aquí descrito se ha reproducido contra la instalación demo; no hay nada supuesto
-salvo lo que se marca expresamente como hipótesis.
+BORRADOR — correo a BDP (soporte / integraciones), 2026-11-26. Sin enviar. Cuatro bloques de
+preguntas sacados de los siete puntos de Guillermo del 25/11 y de las pruebas contra el demo 36.2.
+Todo lo aquí descrito se ha reproducido contra la instalación demo o está citado del manual;
+no hay nada supuesto salvo lo que se marca expresamente como hipótesis.
 
 Asunto: Cuatro dudas de la integración por WebLinkRestAPI (demo 36.2): entrega, modificaciones, pagos y devoluciones
 
@@ -14,13 +14,17 @@ lo que hemos medido, para que no haya nada supuesto.
 
 1. Servicio a domicilio (`Type = 2`)
 
-Necesitamos crear comandas de reparto. En la estructura `Order` que documenta la API, `Type`
-admite 0 (barra) y 1 (mesa); no encontramos descrito el valor 2 ni una operación para el
-servicio a domicilio. En la respuesta del 24/11 se nos dijo que eso necesita otra aplicación de
+El manual documenta `Type = 2` (servicio a domicilio) en la estructura `Order`, la dirección en
+`OrderCustomer` y la hora de reparto en `PreparationTime`; lo que no detalla es qué necesitamos
+para tenerlo en marcha. En la respuesta del 24/11 se nos dijo que hace falta otra aplicación de
 BDP y probablemente otra licencia.
 
-- ¿Qué aplicación y qué licencia son?
-- ¿Hay alguna vía por WebLinkRestAPI para crear una comanda de reparto con dirección y cliente?
+- ¿Qué aplicación y qué suscripción de desarrollo (o licencia) hacen falta?
+- ¿Hay que sustituir la aplicación 01 Hostelería por Servicio a Domicilio, o conviven?
+- ¿La licencia WebLinkRestAPI 84 que usamos ahora sigue siendo válida para esa aplicación?
+- ¿Cómo lo instalamos en nuestro entorno de pruebas?
+- ¿El cambio conserva los datos y la configuración actuales (artículos, mesas, clientes, series
+  de facturación)?
 
 2. Modificaciones de comandas (#SubOrder / modificación)
 
@@ -42,23 +46,26 @@ límite de la licencia demo, pero no la damos por buena sin confirmación.
 3. Pagos parciales
 
 Confirmado vuestro criterio de dividir la cuenta en nuestra aplicación y enviar pagos parciales
-hasta darla por pagada. Nuestra aplicación corta en tres pagos por cuenta (regla nuestra, no
-vuestra).
+hasta darla por pagada. El manual dice «se podrán especificar un máximo de 3 pagos, igual que en
+el TPV táctil de BDP-Net» y nuestra aplicación corta en tres por eso.
 
-- ¿Cuántos pagos parciales admite una comanda en BDP? ¿Hay un máximo o un límite por importe
-  mínimo?
-- ¿`OrderPayment/Add` tiene alguna condición de cierre de la comanda que debamos conocer (por
+- ¿Ese máximo de tres es el mismo en `AddOrderPayment` sucesivos que en la lista `Payments` de
+  `CreateOrder`, o sólo aplica al alta?
+- ¿Admite oficialmente más de tres pagos sucesivos por otra vía (consola, TPV, otra aplicación)?
+- ¿`AddOrderPayment` tiene alguna condición de cierre de la comanda que debamos conocer (por
   ejemplo, que el último pago deba igualar exactamente el saldo)?
 
 4. Devoluciones y pagos negativos
 
 Para una devolución con tarjeta, nuestra idea es devolver por la pasarela y anotar en BDP un
-pago negativo del mismo importe, ya que no hay operación de retirada de cobro en la API.
+pago negativo del mismo importe, ya que no hay operación de retirada de cobro en la API. El
+manual documenta `Amount` en `OrderPayment` sin decir que pueda ser negativo.
 
-- ¿`OrderPayment/Add` acepta un importe negativo? ¿Lo admite sobre una comanda ya facturada o
+- ¿`AddOrderPayment` acepta un importe negativo? ¿Lo admite sobre una comanda ya facturada o
   cerrada?
+- Sobre qué comanda se registra: ¿la misma ya facturada, o hace falta una comanda nueva?
+- ¿Qué documento genera (rectificativa, abono, nada)?
 - Si no lo acepta, ¿qué procedimiento autorizáis para dejar registrada una devolución en el TPV?
-  Rectificativa, anulación con la comanda ya facturada, u otro.
 
 Un apunte sobre el entorno de pruebas: sigue apareciendo el aviso de «sin conexión con el
 servidor de subscripción» y el TPV funciona con él. Nuestras pruebas se han hecho todas así.

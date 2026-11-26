@@ -124,7 +124,7 @@ li { margin-bottom: 4.5pt; }
 <table>
 <thead><tr><th style="width:27%">Funci&oacute;n que falta en la API</th><th style="width:42%">Qu&eacute; implica mientras no exista</th><th style="width:31%">Estado</th></tr></thead>
 <tbody>
-<tr><td>Dividir y unir cuentas</td><td>Se divide en la web con pagos parciales (es lo que BDP propone) o en el TPV. Nuestro tope de tres pagos (regla nuestra, no de BDP) choca con mesas partidas entre muchos comensales; se est&aacute; revisando.</td><td>Confirmado por BDP (24/11). Tope: decisi&oacute;n nuestra.</td></tr>
+<tr><td>Dividir y unir cuentas</td><td>Se divide en la web con pagos parciales (es lo que BDP propone) o en el TPV. El manual ya fija tres pagos como m&aacute;ximo; choca con mesas partidas entre muchos comensales. Se pregunta a BDP si admite m&aacute;s por otra v&iacute;a.</td><td>Confirmado por BDP (24/11). Tope: decisi&oacute;n nuestra.</td></tr>
 <tr><td>Cambiar una comanda de mesa</td><td>Lo hace un empleado en el TPV; la web no lo ofrece para no duplicar la comanda.</td><td>Confirmado por BDP (24/11).</td></tr>
 <tr><td>Retirar un pago o anular un cobro</td><td>Desde el TPV. Con pasarela, devoluci&oacute;n por la pasarela y un pago negativo del mismo importe.</td><td>Confirmado por BDP (24/11).</td></tr>
 <tr><td>Iniciar traspasos</td><td>El aviso llega y se ve en la web, pero iniciarlo se hace en el TPV.</td><td>Pendiente de BDP.</td></tr>
@@ -136,8 +136,8 @@ li { margin-bottom: 4.5pt; }
 <tr><td>Cambios posteriores al pago</td><td>Fuera de la web; no hay operaci&oacute;n posterior al cobro.</td><td>Pendiente de BDP.</td></tr>
 <tr><td>Listar las comandas abiertas</td><td>S&iacute; hay listado (<code>/API/Orders/List</code>) y la web ya lo usa para traer las comandas creadas directamente en el TPV. La ficha anterior lo daba por inexistente por error.</td><td>Corregido (26/11).</td></tr>
 <tr><td>Aviso de pago</td><td>BDP no emite evento al cobrar: la web lo descubre en el repaso peri&oacute;dico.</td><td>L&iacute;mite conocido.</td></tr>
-<tr><td>Tope de tres pagos por cuenta</td><td>No es l&iacute;mite de BDP: es una regla de aceptaci&oacute;n nuestra (ficha D17) y se revisa en <code>18AB-12</code>. Cu&aacute;ntos pagos parciales admite BDP en su lado no lo hemos comprobado; queda como pregunta abierta.</td><td>Decisi&oacute;n nuestra; el l&iacute;mite de BDP sin comprobar.</td></tr>
-<tr><td>Servicio a domicilio</td><td>Necesita otra aplicaci&oacute;n de BDP y probablemente otra licencia.</td><td>Confirmado por BDP (24/11).</td></tr>
+<tr><td>Tope de tres pagos por cuenta</td><td>El manual fija un m&aacute;ximo de 3 pagos (&laquo;igual que en el TPV t&aacute;ctil&raquo;). Falta confirmar si son tres tambi&eacute;n en pagos sucesivos por <code>AddOrderPayment</code>; preguntado a BDP.</td><td>L&iacute;mite del manual; el de pagos sucesivos, preguntado.</td></tr>
+<tr><td>Servicio a domicilio</td><td>La API lo documenta (<code>Type=2</code>, direcci&oacute;n del cliente y hora de reparto), as&iacute; que la web puede crearlo. Lo que falta es la aplicaci&oacute;n: la 01 Hosteler&iacute;a no lo admite y hace falta BDP Servicio a Domicilio, probablemente cambiando la licencia.</td><td>API documentada; decisi&oacute;n de licencia vuestra con BDP.</td></tr>
 <tr><td>Compras, gastos, reservas, marketing y empleados</td><td>Sin cobertura en la API entregada: se gestionan fuera de la web o no se integran.</td><td>L&iacute;mite conocido.</td></tr>
 </tbody>
 </table>
@@ -166,7 +166,7 @@ li { margin-bottom: 4.5pt; }
 <tbody>
 <tr><td class="c">1</td><td>Domicilio (<code>Type=2</code>)</td><td class="c">Despu&eacute;s</td><td>Necesita BDP Servicio a Domicilio y probablemente cambiar la licencia; pregunta hecha a BDP.</td></tr>
 <tr><td class="c">2</td><td>Modificaciones</td><td class="c"><strong>Listo en mesas</strong></td><td>En barra el TPV demo contesta que s&iacute; y no aplica el cambio; pregunta hecha a BDP.</td></tr>
-<tr><td class="c">3</td><td>Tope de tres pagos</td><td class="c">En revisi&oacute;n</td><td>Es regla nuestra (ficha D17, tarea <code>18AB-12</code>); cu&aacute;ntos admite BDP, preguntado.</td></tr>
+<tr><td class="c">3</td><td>Tope de tres pagos</td><td class="c">En revisi&oacute;n</td><td>El manual fija tres pagos como m&aacute;ximo; preguntado a BDP si vale igual en pagos sucesivos.</td></tr>
 <tr><td class="c">4</td><td>Devoluciones y pagos negativos</td><td class="c">Preguntado</td><td>La API no retira cobros; hay que confirmar el pago negativo y si vale sobre una comanda facturada.</td></tr>
 <tr><td class="c">5</td><td>Equivalencias de art&iacute;culos</td><td class="c"><strong>Hecho</strong></td><td>Una l&iacute;nea con c&oacute;digo y sin equivalencia detiene la comanda; el art&iacute;culo por defecto solo para l&iacute;neas escritas a mano.</td></tr>
 <tr><td class="c">6</td><td>Comandas creadas en el TPV</td><td class="c"><strong>Hecho</strong></td><td>Aparecen solas en la web con sus l&iacute;neas y su mesa.</td></tr>
@@ -177,6 +177,8 @@ li { margin-bottom: 4.5pt; }
 <p><strong>Comandas creadas en el TPV (punto 6).</strong> Antes no aparec&iacute;an nunca: la web solo miraba las comandas que ya conoc&iacute;a y los avisos del TPV solo llegan si est&aacute; configurado para mandarlos. Ahora la web consulta el listado de comandas del TPV, descarta las que ya tiene y copia las abiertas como venta propia, con sus l&iacute;neas y su mesa. Probado como pediste: se cre&oacute; una comanda (la 230, dos Schweppes en barra) directamente en el TPV demo, sin tocar la web, y entr&oacute; sola en el ciclo siguiente: 2,10&nbsp;&euro;, con su l&iacute;nea y su estado. El listado de comandas que ten&iacute;amos por inexistente s&iacute; existe y es lo que lo permite. En el primer arranque no se copia el hist&oacute;rico del TPV: solo lo que sigue esperando validaci&oacute;n o lo abierto de las &uacute;ltimas horas, que es el servicio en curso.</p>
 
 <p><strong>Un detalle que conviene saber:</strong> el TPV demo tiene el reloj parado en el 18/11. La comanda creada hoy en &eacute;l lleva fecha del 18/11, y la venta de la web la hereda. En vuestro TPV la fecha ser&aacute; la del d&iacute;a, porque es la que pone el propio TPV.</p>
+
+<p><strong>Y los cambios hechos desde el TPV (tambi&eacute;n punto 6).</strong> Si anulan una comanda en el TPV, la web la anula. Si le cambian las l&iacute;neas, la web lo detecta y marca la venta para revisi&oacute;n, pero <strong>no la actualiza sola</strong>: avisa de que el TPV ya no coincide en vez de reescribir el importe, para que nadie cobre una cuenta que no es. Queda por decidir si en el piloto se mantiene ese aviso o se actualiza autom&aacute;ticamente.</p>
 
 </body>
 </html>

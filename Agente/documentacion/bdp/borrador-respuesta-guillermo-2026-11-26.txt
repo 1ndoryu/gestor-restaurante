@@ -7,19 +7,26 @@ en el PDF adjunto (`segunda-lista-guillermo-2026-11-25.pdf`).
 Hola Guillermo: he repasado tus siete puntos y te contesto con lo probado contra el TPV demo. Te
 adjunto el detalle.
 
-1. *Domicilio (`Type=2`).* Lo dejamos para después de la integración, como propones. BDP confirmó
-   el 24/11 que no está en la licencia de Hostelería 01: hace falta BDP Servicio a Domicilio, que
-   incluye Hostelería, y probablemente cambiar la licencia. Es una decisión vuestra con BDP, no un
-   fallo nuestro. La duda ya está en el correo que te paso para ellos.
+1. *Domicilio (`Type=2`).* Sí, se puede hacer como propones: el pedido a domicilio es un valor
+   documentado en la API (`Type=2`, con dirección y hora de reparto), así que no habría que
+   rehacer nada de lo hecho. Lo que no depende de nosotros es la aplicación: BDP confirmó el
+   24/11 que la 01 Hostelería no lo admite y hace falta su Servicio a Domicilio, probablemente
+   sustituyendo la licencia. Por eso lo dejamos para después de entregar la integración y lo
+   montamos en local cuando el restaurante lo pida. Las cinco preguntas para BDP van en el correo
+   que te adjunto.
 
 2. *Modificaciones de comanda.* En mesa funcionan: dos ediciones a la vez y luego tres seguidas
    acaban igual en la web y en el TPV (6 unidades, 6,30). En barra el TPV demo contesta que sí y la
    comanda no cambia; antes te dije que las rechazaba y no es eso: acepta y no aplica. Hay una
-   pregunta hecha a BDP sobre si es su licencia de pruebas.
+   pregunta hecha a BDP sobre si es su licencia de pruebas. En cuanto a bloquearlo: ya no se puede
+   modificar una barra sin que se note. La web relee la comanda y, si el TPV no aplicó el cambio,
+   deshace la edición y no la da por buena. Falta el aviso en pantalla: hoy sale un error genérico,
+   y lo que pedías es que explique el motivo. Lo arreglo antes del piloto.
 
-3. *Tres pagos.* El tope de tres es regla nuestra, no de BDP, y está en revisión (`18AB-12`). No
-   hemos comprobado cuántos admite BDP en su lado; lo he preguntado en el correo para ellos, porque
-   afecta justo a las mesas partidas entre muchos comensales.
+3. *Tres pagos.* Tienes razón: lo dice el manual («máximo de 3 pagos, igual que en el TPV táctil»).
+   Corrijo lo que te dije antes: no es solo regla nuestra. Lo mantengo en tres y he preguntado a
+   BDP si son tres también en pagos sucesivos por `AddOrderPayment` o solo en el alta, y si admite
+   más por otra vía. No diremos que BDP admite más hasta que lo confirmen y lo probemos.
 
 4. *Devoluciones y pagos negativos.* La API no tiene operación de retirar un cobro. Nuestra idea es
    devolver por la pasarela y anotar en BDP un pago negativo del mismo importe. Está preguntado a
@@ -34,7 +41,11 @@ adjunto el detalle.
 6. *Comandas creadas en el TPV.* Ya aparecen solas en la web. Lo probé como pediste: creé una
    comanda directamente en el TPV demo (la 230) sin tocar la web y entró sola en el ciclo
    siguiente, con sus líneas y su mesa. El listado de comandas abiertas que teníamos por
-   inexistente sí existe y es lo que lo permite.
+   inexistente sí existe y es lo que lo permite. Ahora, lo que preguntas de los cambios hechos
+   desde el TPV: si anulan una comanda, la web la anula. Si le cambian líneas, la web lo detecta y
+   marca la venta para revisión, pero no la actualiza sola: avisa de que el TPV ya no coincide en
+   vez de reescribir el importe, para que nadie cobre una cuenta que no es. Me falta decidir si eso
+   se queda así en el piloto o se actualiza automáticamente; te lo digo antes de arrancar.
 
 7. *Nunca escribir en la base de BDP.* De acuerdo y así queda: todo va por su API WeblinkRestAPI, y
    para lo que no publique, se pregunta a BDP qué procedimiento autoriza. Quito esa vía de lo que
