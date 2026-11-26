@@ -1,83 +1,97 @@
-BORRADOR — correo a BDP (soporte / integraciones), 2026-11-26. Sin enviar. Cuatro bloques de
-preguntas sacados de los siete puntos de Guillermo del 25/11 y de las pruebas contra el demo 36.2.
-Todo lo aquí descrito se ha reproducido contra la instalación demo o está citado del manual;
-no hay nada supuesto salvo lo que se marca expresamente como hipótesis.
+BORRADOR — respuesta al correo de Gael del 24/11/2026. Sin enviar; lo envía la usuaria.
 
-**Para:** `integraciones@bdpcenter.com` (Gael)
-**CC:** `guillermo.autoia@gmail.com`
-**Remitente:** Asley Crespo Navarro, autorizada por el distribuidor Guillermo García Sáez (n.º 4652)
-**Estado:** borrador. **No enviado**: lo envía la usuaria, igual que el del 20/11 al que BDP
-contestó el 24/11.
+**De:** Wan <andoryyu@gmail.com>
+**Para:** `integraciones@bdpcenter.com`
+**CC:** `guillermo.autoia@gmail.com`, `gael@bdpcenter.com`
+**Asunto:** RE: WebLinkRestAPI 1.2 — seis dudas y un fallo de facturación
+**Estado:** borrador. **No enviado.**
 
-Asunto: Cuatro dudas de la integración por WebLinkRestAPI (demo 36.2): entrega, modificaciones, pagos y devoluciones
+Va como respuesta al hilo del 20/11, no como correo nuevo: Gael pidió en su respuesta que
+usáramos `integraciones@` y nos devolvió tres preguntas que hay que contestar antes de las nuevas.
 
-Hola:
+---
 
-Estamos terminando la integración de nuestra aplicación de sala con vuestro TPV a través de
-WebLinkRestAPI, contra la instalación demo 36.2. Hemos cerrado casi todo; nos quedan cuatro
-puntos donde la API no llega o su comportamiento no es el que esperábamos. Los describimos con
-lo que hemos medido, para que no haya nada supuesto.
+Hola, Gael:
+
+Gracias por la respuesta, que aclara casi todo. Antes de las cuatro dudas que nos quedan, contesto
+a las tres preguntas que nos hacías, porque de ellas dependen algunas respuestas.
+
+*Quién usa la aplicación.* La usan los camareros del establecimiento desde el móvil o la tablet,
+con su propio usuario y contraseña. No está pensada para que la use el cliente final: el cliente
+pide al camarero, como hasta ahora, y el camarero anota el pedido en la web en lugar de en el TPV.
+De ahí que las invitaciones y el cambio de mesa los trate el camarero y no el comensal.
+
+*Qué hace y cómo interactúa con BDP.* Es la aplicación de sala del restaurante: plano de mesas,
+comandas, cuentas, cobros y consulta de la venta del día. El TPV de BDP sigue siendo el dueño de los
+datos y el que factura: la web envía comandas y pagos por WebLinkRestAPI y lee del TPV el estado de
+cada comanda y el catálogo. No escribimos nunca directamente en la base de datos de BDP.
+
+*Confirmado: trabajamos sobre BDP Net Hostelería.* Es nuestra instalación, y la integración se ha
+desarrollado contra la demo 36.2.
+
+Ahora, los cuatro puntos:
 
 1. Servicio a domicilio (`Type = 2`)
 
-Necesitamos crear desde nuestra aplicación pedidos a domicilio (`Type = 2`). El manual documenta
-`Type = 2` en la estructura `Order`, la dirección en `OrderCustomer` y la hora de reparto en
-`PreparationTime`; lo que no detalla es qué necesitamos para tenerlo en marcha. En la respuesta
-del 24/11 se nos dijo que hace falta otra aplicación de BDP y probablemente otra licencia.
+Necesitamos crear desde la web pedidos a domicilio. El manual documenta `Type = 2` en la estructura
+`Order`, la dirección en `OrderCustomer` y la hora de reparto en `PreparationTime`, y nos decís que
+la aplicación es BDP Servicio a Domicilio. Nos quedan estas dudas:
 
-- ¿Qué aplicación y qué suscripción de desarrollo (o licencia) hacen falta?
-- ¿Hay que sustituir la aplicación 01 Hostelería por Servicio a Domicilio, o conviven?
+- ¿Qué suscripción de desarrollo (o licencia) hacen falta para poder probarlo?
+- ¿Hay que sustituir la aplicación 01 Hostelería por Servicio a Domicilio, o conviven las dos?
 - ¿La licencia WebLinkRestAPI 84 que usamos ahora sigue siendo válida para esa aplicación?
-- ¿Cómo lo instalamos en nuestro entorno de pruebas?
-- ¿El cambio conserva los datos y la configuración actuales (artículos, mesas, clientes, series
-  de facturación)?
+- ¿Cómo lo instalamos en nuestro entorno de pruebas, que es la demo 36.2?
+- El cambio, ¿conserva los datos y la configuración actuales (artículos, mesas, clientes, series
+  de facturación), o hay que volver a darlos de alta?
 
-2. Modificaciones de comandas (#SubOrder / modificación)
+2. Modificaciones de comandas de barra
 
-Al modificar una comanda abierta observamos dos comportamientos distintos en el demo:
+Al modificar una comanda abierta observamos dos comportamientos distintos en la demo:
 
-- Comandas de barra (`Type = 0`): `SubOrder`/`Modify` contesta 200 con `ErrorMessage` vacío y
-  la comanda queda exactamente igual. No es un rechazo: acepta y no aplica.
-- Comandas de mesa (`Type = 1`): el cambio sí se aplica. Si el `Total` enviado no coincide con
-  el teórico, responde `[300033] EL IMPORTE TOTAL INDICADO DE LA COMANDA NO COINCIDE CON EL
-  TEÓRICO`.
+- Comandas de barra (`Type = 0`): `SubOrder`/`Modify` contesta 200 con `ErrorMessage` vacío y la
+  comanda queda exactamente igual. No es un rechazo: acepta y no aplica.
+- Comandas de mesa (`Type = 1`): el cambio sí se aplica. Si el `Total` enviado no coincide con el
+  teórico, responde `[300033] EL IMPORTE TOTAL INDICADO DE LA COMANDA NO COINCIDE CON EL TEÓRICO`.
 
-Reproducido con las comandas 222, 223, 225 y 227 del demo. Nuestra hipótesis es que es un
-límite de la licencia demo, pero no la damos por buena sin confirmación.
+Reproducido con las comandas 222, 223, 225 y 227 de la demo.
 
-- ¿El demo tiene limitada la modificación de comandas de barra?
+- ¿El entorno demo tiene limitada la modificación de comandas de barra?
 - ¿En un TPV con licencia completa, Hostelería 36.2 permite modificar comandas de barra por
   WebLinkRestAPI, y cuál es el procedimiento correcto?
 - ¿`[300033]` es solo una validación del total, y basta con enviar el total recalculado?
 
 3. Pagos parciales
 
-Confirmado vuestro criterio de dividir la cuenta en nuestra aplicación y enviar pagos parciales
-hasta darla por pagada. El manual dice «se podrán especificar un máximo de 3 pagos, igual que en
-el TPV táctil de BDP-Net» y nuestra aplicación corta en tres por eso.
+Seguimos el criterio que nos disteis: dividir la cuenta en nuestra aplicación y enviar los pagos
+parciales. El manual dice «se podrán especificar un máximo de 3 pagos, igual que en el TPV táctil
+de BDP-Net», y nuestra aplicación corta en tres por eso.
 
 - ¿Ese máximo de tres es el mismo en `AddOrderPayment` sucesivos que en la lista `Payments` de
   `CreateOrder`, o sólo aplica al alta?
 - ¿`AddOrderPayment` (`/API/Orders/Payment/Add`) admite oficialmente más de tres pagos sucesivos,
-  o ese límite es firme? Si lo admite, ¿por qué vía: la misma llamada, la consola, el TPV, otra
-  aplicación?
+  o ese límite es firme?
 - ¿`AddOrderPayment` tiene alguna condición de cierre de la comanda que debamos conocer (por
   ejemplo, que el último pago deba igualar exactamente el saldo)?
 
 4. Devoluciones y pagos negativos
 
-Para una devolución con tarjeta, nuestra idea es devolver por la pasarela y anotar en BDP un
-pago negativo del mismo importe, ya que no hay operación de retirada de cobro en la API. El
-manual documenta `Amount` en `OrderPayment` sin decir que pueda ser negativo.
+Nos proponéis devolver por la pasarela y registrar en BDP un pago negativo por el mismo importe. El
+manual documenta `Amount` en `OrderPayment` sin decir que pueda ser negativo, y no queremos
+desarrollarlo sin saber si está admitido.
 
 - ¿`AddOrderPayment` acepta un importe negativo? ¿Lo admite sobre una comanda ya facturada o
   cerrada?
-- Sobre qué comanda se registra: ¿la misma ya facturada, o hace falta una comanda nueva?
+- ¿Sobre qué comanda se registra: la misma ya facturada, o hace falta una comanda nueva?
 - ¿Qué documento genera (rectificativa, abono, nada)?
 - Si no lo acepta, ¿qué procedimiento autorizáis para dejar registrada una devolución en el TPV?
 
-Un apunte sobre el entorno de pruebas: sigue apareciendo el aviso de «sin conexión con el
-servidor de subscripción» y el TPV funciona con él. Nuestras pruebas se han hecho todas así.
-Sigue pendiente de respuesta la consulta del 23/11 sobre la vigencia de esa licencia demo.
+Un apunte sobre el entorno de pruebas: sigue apareciendo el aviso «sin conexión con el servidor de
+subscripción» y el TPV funciona con él; todas nuestras pruebas se han hecho así. La consulta sobre
+la vigencia de esa licencia demo la mandamos el 23/11 y sigue sin respuesta. Si es más rápido por
+teléfono, os llamamos en la franja de 9:00 a 11:00.
 
 Gracias.
+
+Un saludo,
+Asley Crespo Navarro
+Autorizada por el distribuidor Guillermo García Sáez (n.º 4652)
