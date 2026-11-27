@@ -226,6 +226,47 @@ async fn sin_respuesta_de_bdp_la_modificacion_sigue_ambigua(pool: PgPool) {
     );
 }
 
+/// [21AB-5g] BDP dice que la comanda no existe (`[301000]`, con `Health` vivo):
+/// la modificación tampoco pudo aplicarse. Se cierra en `error` en vez de
+/// quedarse `ambiguo` para siempre.
+#[sqlx::test(migrations = "./migrations")]
+async fn el_poller_cierra_en_error_la_modificacion_de_una_comanda_inexistente(pool: PgPool) {
+    let (user_id, _) = usuario(&pool).await;
+    let (venta_id, _) = venta_facturada_con_modificacion_ambigua(&pool, user_id, 3.15).await;
+
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(|request: &wiremock::Request| match request.url.path() {
+            "/Auth/Login" => ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ErrorMessage": "",
+                "AuthSession": { "Token": "token-bdp", "ExpiresIn_InSecconds": 3540 }
+            })),
+            "/Service/Health" => {
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "IsAlive": true }))
+            }
+            "/API/Orders/Get" => ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "Order": null, "Status": 0,
+                "ErrorMessage": "[301000]-NO EXISTE NINGUNA COMANDA CON ESTE ID"
+            })),
+            _ => {
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "ErrorMessage": "" }))
+            }
+        })
+        .mount(&server)
+        .await;
+    let config = apuntar_al_mock(&pool, user_id, &server).await;
+
+    BdpOrderPollerService::poll_pending(&pool, user_id, &config, &ServicioModoOperacion::new())
+        .await
+        .expect("el polling no revienta");
+
+    assert_eq!(
+        resultado_de(&pool, venta_id).await,
+        "error",
+        "una comanda inexistente no admite una modificación aplicada"
+    );
+}
+
 /// La venta facturada no entra en ninguna lista del poller: sin la comprobación
 /// de auditorías abiertas, el corte temprano saltaría el turno entero.
 #[sqlx::test(migrations = "./migrations")]
