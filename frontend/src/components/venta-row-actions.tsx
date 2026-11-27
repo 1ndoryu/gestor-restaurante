@@ -12,7 +12,7 @@
 
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Trash2, Pencil, Eye, RefreshCw, CreditCard, ReceiptText, Search, Ban, Coins } from 'lucide-react';
+import { MoreHorizontal, Trash2, Pencil, Eye, RefreshCw, CreditCard, ReceiptText, Search, Ban, Coins, ShieldCheck } from 'lucide-react';
 import type { VentaConCliente } from '../api/generated';
 import { useVentaRowActions } from '../hooks/useVentaRowActions';
 import { VentaRowDialogos } from './venta-row-dialogos';
@@ -66,6 +66,7 @@ function VentaRowActions({
     puedePagar,
     puedePagoLocal,
     puedeFacturaLocal,
+    enConflictoConTpv,
   } = acciones;
 
   return (
@@ -100,6 +101,14 @@ function VentaRowActions({
           >
             <Search className={`size-4 text-blue-600 ${consultandoEstado ? 'animate-pulse' : ''}`} />
             Consultar estado BDP
+          </DropdownMenuItem>
+        )}
+        {/* [21AB-12] La comanda se cambió en el TPV y la web no la pisa sola: la
+         * salida es adoptar lo que el TPV tiene, con confirmación escrita. */}
+        {enConflictoConTpv && !v.anulada && !bdp.bdp_invoiced && (
+          <DropdownMenuItem onClick={() => { setAccion('aceptarTpv'); setConfirmacion(''); }}>
+            <ShieldCheck className="size-4 text-blue-600" />
+            Aceptar el estado del TPV
           </DropdownMenuItem>
         )}
         {/* Un fallo de CreateOrder deja bdp_synced=false; el error es la señal de retry.

@@ -246,6 +246,33 @@ export function VentaRowDialogos({ v, acciones, anularPending }: VentaRowDialogo
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    {/* [21AB-12] Adoptar lo que el TPV tiene ahora para esta comanda: la web
+        detectó el conflicto y no se reescribe sola. Solo lee de BDP. */}
+    <Dialog open={accion === 'aceptarTpv'} onOpenChange={(open: boolean) => { if (!open) cerrar(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Aceptar el estado del TPV</DialogTitle>
+          <DialogDescription>
+            Las líneas de esta venta se sustituirán por las que el TPV tiene ahora en la comanda{' '}
+            {bdp.bdp_order_id ?? '—'} y la venta dejará de marcar conflicto. No se escribe nada en el TPV.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <span>Lo que la web tenía se pierde: si el cambio del TPV no es el correcto, corrígelo antes allí.</span>
+        </div>
+        <div><Label htmlFor={`confirmar-aceptar-${v.id}`}>Escribe ACEPTAR {v.id} {bdp.bdp_order_id ?? ''}</Label><Input id={`confirmar-aceptar-${v.id}`} value={confirmacion} onChange={(e) => setConfirmacion(e.target.value)} /></div>
+        <DialogFooter>
+          <Button variant="outline" onClick={cerrar}>Cancelar</Button>
+          <Button
+            disabled={enviando || !bdp.bdp_order_id || confirmacion !== `ACEPTAR ${v.id} ${bdp.bdp_order_id}`}
+            onClick={() => void acciones.aceptarEstadoTpv(confirmacion)}
+          >
+            {enviando ? 'Adoptando…' : 'Aceptar estado del TPV'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     {/* [198A-1/D8] Diálogo de propina (sumar/sustituir, D8). */}
     <Dialog open={accion === 'propina'} onOpenChange={(open: boolean) => { if (!open) cerrar(); }}>
       <DialogContent className="sm:max-w-md">

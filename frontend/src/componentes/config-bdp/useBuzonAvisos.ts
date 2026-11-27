@@ -46,6 +46,8 @@ interface EstadoBuzon {
   procesando: boolean;
   /** Id del aviso que se está reabriendo, para no disparar dos a la vez. */
   reintentando: string | null;
+  /** Id del aviso cuyo estado del TPV se está adoptando. */
+  aceptando: string | null;
   resumen: ResumenLote | null;
 }
 
@@ -62,6 +64,7 @@ export function useBuzonAvisos() {
     cargando: true,
     procesando: false,
     reintentando: null,
+    aceptando: null,
     resumen: null,
   });
 
@@ -127,5 +130,34 @@ export function useBuzonAvisos() {
     [cargar, filtro],
   );
 
-  return { filtro, setFiltro, ...buzon, cargar, procesar, reintentar };
+  /* [21AB-12] Adoptar el estado que el TPV tiene para la comanda del aviso.
+   * La confirmación escrita la pide la tarjeta: aquí solo se envía lo que la
+   * persona aceptó, y el backend vuelve a comprobarla. */
+  const aceptarTpv = useCallback(
+    async (id: string, confirmacion: string): Promise<boolean> => {
+      setBuzon((previo) => ({ ...previo, aceptando: id }));
+      try {
+        const resp = await axios.post<{
+          lineas: number;
+          total_antes: number;
+          total_ahora: number;
+        }>(`/api/bdp/avisos/${id}/aceptar-tpv`, { confirmacion });
+        toast.success('Estado del TPV adoptado', {
+          description: `${resp.data.lineas} líneas · ${resp.data.total_antes.toFixed(2)} € → ${resp.data.total_ahora.toFixed(2)} €`,
+        });
+        await cargar(filtro);
+        return true;
+      } catch (error) {
+        toast.error('No se pudo aceptar el estado del TPV', {
+          description: mensajeDeError(error, 'Revisa la comanda en el TPV antes de reintentar.'),
+        });
+        return false;
+      } finally {
+        setBuzon((previo) => ({ ...previo, aceptando: null }));
+      }
+    },
+    [cargar, filtro],
+  );
+
+  return { filtro, setFiltro, ...buzon, cargar, procesar, reintentar, aceptarTpv };
 }

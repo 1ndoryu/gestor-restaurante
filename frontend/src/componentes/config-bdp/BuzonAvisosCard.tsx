@@ -4,7 +4,8 @@
  * quedaba invisible: el restaurante no podía saber que su comanda no había
  * cruzado. Aquí se ve el estado, el motivo del fallo y se puede reintentar. */
 
-import { Inbox, Loader2, Play, RefreshCw, RotateCcw, TriangleAlert } from 'lucide-react';
+import { useState } from 'react';
+import { Inbox, Loader2, Play, RefreshCw, RotateCcw, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ESTADOS_AVISO, useBuzonAvisos, type Aviso } from './useBuzonAvisos';
+import { AceptarTpvDialogo, comandaDelAviso } from './AceptarTpvDialogo';
 import { AyudaTarjeta } from '../configuracion/AyudaTarjeta';
 
 /** Los estados en que un aviso todavía pide algo de una persona. */
@@ -45,12 +47,17 @@ const ETIQUETA_ACCION: Record<string, string> = {
   'traspasar-linea': 'Traspaso de línea',
 };
 
-function Fila({ aviso, reintentando, onReintentar }: {
+function Fila({ aviso, reintentando, aceptando, onReintentar, onAceptar }: {
   aviso: Aviso;
   reintentando: boolean;
+  aceptando: boolean;
   onReintentar: () => void;
+  onAceptar: () => void;
 }) {
   const atencion = ESTADOS_ATENCION.has(aviso.estado);
+  /* [21AB-12] Solo tiene sentido conciliar si el aviso está en revisión y el
+   * payload dice de qué comanda habla: sin comanda no hay nada que reclamar al TPV. */
+  const comanda = comandaDelAviso(aviso.payload);
   return (
     <div className="flex flex-col gap-2 p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -85,9 +92,15 @@ function Fila({ aviso, reintentando, onReintentar }: {
 
       <div className="flex flex-wrap items-center gap-2">
         {aviso.estado === 'requiere_revision' && (
-          <Button type="button" size="sm" variant="secondary" onClick={onReintentar} disabled={reintentando}>
+          <Button type="button" size="sm" variant="secondary" onClick={onReintentar} disabled={reintentando || aceptando}>
             {reintentando ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
             Reabrir
+          </Button>
+        )}
+        {aviso.estado === 'requiere_revision' && comanda && (
+          <Button type="button" size="sm" onClick={onAceptar} disabled={reintentando || aceptando}>
+            {aceptando ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+            Aceptar el estado del TPV
           </Button>
         )}
         {/* El payload puede traer datos de cliente: se guarda tal cual llegó y se
@@ -111,11 +124,17 @@ export default function BuzonAvisosCard() {
     cargando,
     procesando,
     reintentando,
+    aceptando,
     resumen,
     cargar,
     procesar,
     reintentar,
+    aceptarTpv,
   } = useBuzonAvisos();
+
+  /* [21AB-12] Qué aviso se va a conciliar y con qué comanda. La confirmación la
+   * pide el diálogo: nada se adopta con un clic solo. */
+  const [conciliando, setConciliando] = useState<{ id: string; comanda: string } | null>(null);
 
   return (
     <Card>
@@ -174,17 +193,41 @@ export default function BuzonAvisosCard() {
           </p>
         ) : (
           <div className="flex flex-col divide-y rounded-md border">
-            {avisos.map((aviso) => (
-              <Fila
-                key={aviso.id}
-                aviso={aviso}
-                reintentando={reintentando === aviso.id}
-                onReintentar={() => void reintentar(aviso.id)}
-              />
-            ))}
+            {avisos.map((aviso) => {
+              const comanda = comandaDelAviso(aviso.payload);
+              return (
+                <Fila
+                  key={aviso.id}
+                  aviso={aviso}
+                  reintentando={reintentando === aviso.id}
+                  aceptando={aceptando === aviso.id}
+                  onReintentar={() => void reintentar(aviso.id)}
+                  onAceptar={() => {
+                    if (comanda) setConciliando({ id: aviso.id, comanda });
+                  }}
+                />
+              );
+            })}
           </div>
         )}
       </CardContent>
+
+      <AceptarTpvDialogo
+        abierto={conciliando !== null}
+        esperada={conciliando ? `ACEPTAR ${conciliando.comanda}` : null}
+        enviando={aceptando !== null}
+        onCerrar={() => setConciliando(null)}
+        onAceptar={(confirmacion: string) => {
+          if (!conciliando) return;
+          void aceptarTpv(conciliando.id, confirmacion)
+            .then((bien: boolean) => {
+              if (bien) setConciliando(null);
+            })
+            /* `aceptarTpv` ya avisa del fallo y deja el diálogo abierto para
+             * corregir la confirmación; aquí solo se evita la promesa suelta. */
+            .catch(() => undefined);
+        }}
+      />
     </Card>
   );
 }

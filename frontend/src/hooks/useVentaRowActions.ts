@@ -41,7 +41,7 @@ export function useVentaRowActions({ venta: v, bdpSyncEnabled = false, onAnular,
   const totalVenta = Number(v.importe_base) + Number(v.importe_iva);
   const total = totalVenta.toFixed(2);
   const queryClient = useQueryClient();
-  const [accion, setAccion] = useState<'pago' | 'factura' | 'pagoLocal' | 'facturaLocal' | 'propina' | null>(null);
+  const [accion, setAccion] = useState<'pago' | 'factura' | 'pagoLocal' | 'facturaLocal' | 'propina' | 'aceptarTpv' | null>(null);
   const [tenderId, setTenderId] = useState('');
   const [importe, setImporte] = useState(total);
   const [confirmacion, setConfirmacion] = useState('');
@@ -195,6 +195,11 @@ export function useVentaRowActions({ venta: v, bdpSyncEnabled = false, onAnular,
   const motivoObligatorio = anulacionModalidad === 'credito_completo';
   const anulacionPendienteBdp = v.anulada && bdp.bdp_synced && bdp.bdp_order_status !== 'cancelled' && bdp.bdp_order_status !== 'invoiced';
 
+  /* [21AB-12] ¿Esta venta está en conflicto con el TPV? Solo entonces tiene
+   * sentido ofrecer adoptar su estado: `marcar_bdp_conflicto` escribe y limpia
+   * ese prefijo, y el resto de errores de sincronía no son un conflicto. */
+  const enConflictoConTpv = bdpSyncEnabled && (bdp.bdp_sync_error ?? '').startsWith('Conflicto:');
+
   const consultarEstado = async () => {
     setConsultandoEstado(true);
     try {
@@ -207,6 +212,33 @@ export function useVentaRowActions({ venta: v, bdpSyncEnabled = false, onAnular,
       toast.error('No se pudo consultar el estado BDP');
     } finally {
       setConsultandoEstado(false);
+    }
+  };
+
+  /* [21AB-12] Adoptar el estado del TPV desde la fila de la venta: mismo
+   * servicio que el aviso (21AB-12), confirmación escrita con el identificador
+   * de la venta y el número de comanda. No escribe en BDP, solo relee. */
+  const aceptarEstadoTpv = async (textoConfirmacion: string) => {
+    setEnviando(true);
+    try {
+      const resp = await instance.post<{ lineas: number; total_antes: number; total_ahora: number }>(
+        `/api/ventas/${v.id}/aceptar-bdp`,
+        { confirmacion: textoConfirmacion },
+      );
+      toast.success('Estado del TPV adoptado', {
+        description: `${resp.data.lineas} líneas · ${resp.data.total_antes.toFixed(2)} € → ${resp.data.total_ahora.toFixed(2)} €`,
+      });
+      cerrar();
+      queryClient.invalidateQueries({ queryKey: ['listarVentas'] });
+      return true;
+    } catch (error) {
+      const message = (error as { response?: { data?: { message?: string } } }).response?.data?.message;
+      toast.error('No se pudo aceptar el estado del TPV', {
+        description: message ?? 'Revisa la comanda en el TPV antes de reintentar.',
+      });
+      return false;
+    } finally {
+      setEnviando(false);
     }
   };
 
@@ -261,5 +293,7 @@ export function useVentaRowActions({ venta: v, bdpSyncEnabled = false, onAnular,
     anulacionPendienteBdp,
     cerrarAnulacion,
     ejecutarAnulacion,
+    enConflictoConTpv,
+    aceptarEstadoTpv,
   };
 }
