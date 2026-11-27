@@ -301,6 +301,20 @@ impl BdpOrderPollerService {
                 Ok(true)
             }
             Err(e) => {
+                /* [21AB-5g] Mismo caso que la factura: si BDP dice que la comanda
+                 * no existe, el cobro tampoco pudo aplicarse. */
+                if Self::cerrar_si_comanda_inexistente(
+                    pool,
+                    client,
+                    audit_id,
+                    order_id,
+                    &e,
+                    "el cobro no se aplicó",
+                )
+                .await?
+                {
+                    return Ok(true);
+                }
                 warn!("[R1] GetOrder falló para reconciliar pago {venta_id}: {e}");
                 Ok(false)
             }
@@ -329,11 +343,37 @@ impl BdpOrderPollerService {
         let request = BdpGetOrderRequest {
             order_identifier: BdpOrderIdentifier::by_order_id(order_id),
         };
-        let Ok(response) = client.get_order(&request).await else {
-            warn!("[21AB-5d] GetOrder falló para reconciliar la modificación de {venta_id}");
+        let response = match client.get_order(&request).await {
+            Ok(response) => response,
+            Err(e) => {
+                /* [21AB-5g] Mismo predicado que la factura: si BDP dice que la
+                 * comanda no existe y el TPV está sano, la modificación tampoco
+                 * pudo aplicarse. Antes se quedaba `ambiguo` para siempre. */
+                if Self::cerrar_si_comanda_inexistente(
+                    pool,
+                    client,
+                    audit_id,
+                    order_id,
+                    &e,
+                    "la modificación no se aplicó",
+                )
+                .await?
+                {
+                    return Ok(true);
+                }
+                warn!(
+                    "[21AB-5d] GetOrder falló para reconciliar la modificación de {venta_id}: {e}"
+                );
+                return Ok(false);
+            }
+        };
+        /* [21AB-5g] Una comanda facturada llega como `{"Order": null, ...}`: sin
+         * `Order` no hay total que comparar y, sin este corte, `Total`
+         * desconocido se leía como conflicto. */
+        let Some(order) = response.get("Order").filter(|order| !order.is_null()) else {
+            warn!("[21AB-5g] GetOrder de la comanda {order_id} sin Order; la modificación de {venta_id} sigue abierta");
             return Ok(false);
         };
-        let order = response.get("Order").cloned().unwrap_or(response);
         let total_bdp = order.get("Total").and_then(json_f64);
         let conflicto =
             crate::services::bdp_sync_venta::mensaje_conflicto(order_id, total_bdp, total_final);
@@ -356,6 +396,12 @@ impl BdpOrderPollerService {
         Ok(true)
     }
 
+    /* [21AB-5g] Cierra la auditoría de una factura preguntando por la comanda.
+     * Tres desenlaces, todos definitivos, y uno solo que espera:
+     *   - facturada (`Status` 3 o `InvoiceNumber`) → `exito`.
+     *   - existe y no facturada → `error`: la factura no se emitió.
+     *   - BDP dice que no existe (`[301000]`, con `Health` vivo) → `error`.
+     *   - no se pudo preguntar → se queda abierta y se reintenta al turno. */
     async fn reconcile_invoice(
         pool: &PgPool,
         client: &BdpWeblinkClient<'_>,
@@ -370,17 +416,33 @@ impl BdpOrderPollerService {
         };
         match client.get_order(&request).await {
             Ok(response) => {
-                let order = response.get("Order").cloned().unwrap_or(response);
-                let status = order
-                    .get("Status")
-                    .and_then(serde_json::Value::as_i64)
-                    .unwrap_or(-1);
-                let invoice_number = order
-                    .get("InvoiceNumber")
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
-                if status != 3 && invoice_number.is_none() {
-                    return Ok(false);
+                let status = status_de(&response);
+                let invoice_number = invoice_number_de(&response);
+                /* [21AB-5g] Una comanda facturada llega como
+                 * `{"Order": null, "Status": 3}`: el `Status` va arriba y `Order`
+                 * viene nulo (medido el 27/11 en el demo con las comandas 43, 47,
+                 * 189, 211 y 214). Leerlo dentro de `Order`, como se hacía,
+                 * dejaba `-1` y la auditoría no cerraba nunca. */
+                if status != Some(3) && invoice_number.is_none() {
+                    /* Existe y no está facturada, o no hay `Status` legible. Solo
+                     * lo primero es un fallo real: sin estado no se decide. */
+                    let Some(status) = status else {
+                        warn!("[21AB-5g] GetOrder de la comanda {order_id} sin Status legible; la auditoría sigue abierta");
+                        return Ok(false);
+                    };
+                    Self::cerrar_auditoria(
+                        pool,
+                        audit_id,
+                        "error",
+                        None,
+                        Some(&format!(
+                            "reconciliado: la comanda {order_id} existe en BDP y no está facturada (estado {}); la factura no se emitió",
+                            crate::services::bdp_estado_nombre(status)
+                        )),
+                    )
+                    .await?;
+                    info!("[21AB-5g] Factura de {venta_id} no aplicada (comanda {order_id} abierta); auditoría cerrada en error");
+                    return Ok(true);
                 }
                 let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
                 /* [D20] Con el número (puede faltar: `COALESCE` lo deja como estaba). */
@@ -409,24 +471,48 @@ impl BdpOrderPollerService {
                 Ok(true)
             }
             Err(e) => {
+                /* [21AB-5g] `Remote` es la respuesta de negocio del TPV. Si dice
+                 * que la comanda no existe, la factura no puede haberse emitido
+                 * sobre ella: se cierra en `error`. */
+                if Self::cerrar_si_comanda_inexistente(
+                    pool,
+                    client,
+                    audit_id,
+                    order_id,
+                    &e,
+                    "la factura no se emitió",
+                )
+                .await?
+                {
+                    return Ok(true);
+                }
                 warn!("[R1] GetOrder falló para reconciliar factura {venta_id}: {e}");
                 Ok(false)
             }
         }
     }
+}
 
-    async fn find_bdp_order_id_for_venta(
-        pool: &PgPool,
-        venta_id: uuid::Uuid,
-    ) -> Result<Option<i64>, String> {
-        let order_id: Option<i64> =
-            sqlx::query_scalar("SELECT bdp_order_id FROM ventas WHERE id = $1")
-                .bind(venta_id)
-                .fetch_optional(pool)
-                .await
-                .map_err(|e| e.to_string())?;
-        Ok(order_id)
-    }
+/* [21AB-5g] El estado de la comanda, buscando primero arriba. `GetOrder` responde
+ * `{"Order": {...}, "Status": N}` cuando la comanda se puede leer, y
+ * `{"Order": null, "Status": N}` cuando está facturada. Leerlo solo dentro de
+ * `Order` convertía ese segundo caso en «sin estado». Mismo orden que
+ * `parse_status` (polling.rs), que ya lo hacía bien. */
+fn status_de(respuesta: &serde_json::Value) -> Option<i64> {
+    respuesta
+        .get("Status")
+        .or_else(|| respuesta.get("Order").and_then(|order| order.get("Status")))
+        .and_then(json_i64)
+}
+
+fn invoice_number_de(respuesta: &serde_json::Value) -> Option<String> {
+    respuesta
+        .get("Order")
+        .and_then(|order| order.get("InvoiceNumber"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|numero| !numero.is_empty())
+        .map(String::from)
 }
 
 /* Lectura tolerante de números que BDP puede devolver como texto. Los tests de la

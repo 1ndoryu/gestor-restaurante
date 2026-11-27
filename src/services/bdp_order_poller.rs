@@ -27,6 +27,7 @@
 mod descubrimiento;
 mod polling;
 mod reconciliacion;
+mod reconciliacion_cierre;
 
 pub struct BdpOrderPollerService;
 
