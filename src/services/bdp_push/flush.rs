@@ -23,7 +23,8 @@ use super::constantes::{
     OPERACION_PUNTOS, OPERACION_REGULARIZAR, OPERACION_TRASPASAR, REINTENTOS_MAX,
 };
 use super::flush_pasos::{
-    compensar_armado, payload_final, registrar_exito, registrar_fallo, scope_para,
+    cerrar_auditoria_sin_envio, compensar_armado, payload_final, registrar_exito, registrar_fallo,
+    scope_para,
 };
 use super::ledger;
 use super::puerta_cancelar;
@@ -47,6 +48,17 @@ pub struct BdpPushFlushResumen {
     /// [M21] BDP no respondió a `Health`: la pasada no envió nada y las filas
     /// conservan sus intentos. 1 si ocurrió, 0 si no.
     pub bdp_no_disponible: usize,
+}
+
+/// Datos de la fila que necesita el paso del libro de stock y su compensación.
+/// Va como struct para no encadenar nueve argumentos por tres funciones.
+struct PasoLibro<'a> {
+    user_id: Uuid,
+    pendiente: &'a BdpPushPendiente,
+    payload: &'a Value,
+    audit_id: Uuid,
+    scope: &'static str,
+    entity_uuid: Uuid,
 }
 
 pub struct BdpPushFlushService;
@@ -329,7 +341,29 @@ impl BdpPushFlushService {
         Ok(resumen)
     }
 
-    /// Procesa una fila: arming, snapshot, payload final, auditoría y HTTP.
+    /// Consultas previas al armado: solo leen, así que no necesitan auditoría ni
+    /// compensación. Devuelven el estado final cuando ya no hay que enviar nada.
+    async fn resolver_antes_de_armar(
+        pool: &PgPool,
+        client: &BdpWeblinkClient<'_>,
+        user_id: Uuid,
+        pendiente: &BdpPushPendiente,
+    ) -> Result<Option<&'static str>, String> {
+        /* [198A-1/D12c] Puntos con respuesta perdida: no reenviar si BDP ya lo
+         * aplicó. Va antes del armado porque solo consulta (GetPoints). */
+        if pendiente.dominio == DOMINIO_CLIENTE_PUNTOS && pendiente.operacion == OPERACION_PUNTOS {
+            if let Some(estado) = resolver_intento_previo(pool, user_id, client, pendiente).await? {
+                return Ok(Some(estado));
+            }
+        }
+        /* [18AB-3] Antes de cancelar: estado y pagos en BDP. Con pagos, o con BDP
+         * sin responder, no se envía; la fila queda con su motivo. */
+        if pendiente.dominio == DOMINIO_VENTA && pendiente.operacion == OPERACION_CANCELAR {
+            puerta_cancelar::puede_cancelar(client, pendiente).await?;
+        }
+        Ok(None)
+    }
+
     /// Los pasos van en el orden original (guard de armado antes de la
     /// auditoría y del HTTP); no reordenar.
     async fn procesar_uno(
@@ -348,18 +382,11 @@ impl BdpPushFlushService {
         })?;
         let entity_uuid = entidad_uuid(&pendiente.dominio, &pendiente.entidad_id);
 
-        /* 0. [198A-1/D12c] Puntos con respuesta perdida: no reenviar si BDP ya lo aplicó.
-         * Va antes del armado porque solo consulta (GetPoints), no escribe. */
-        if pendiente.dominio == DOMINIO_CLIENTE_PUNTOS && pendiente.operacion == OPERACION_PUNTOS {
-            if let Some(estado) = resolver_intento_previo(pool, user_id, client, pendiente).await? {
-                return Ok(estado);
-            }
-        }
-
-        /* 0b. [18AB-3] Antes de cancelar: estado y pagos en BDP. Con pagos, o
-         * con BDP sin responder, no se envía; la fila queda con su motivo. */
-        if pendiente.dominio == DOMINIO_VENTA && pendiente.operacion == OPERACION_CANCELAR {
-            puerta_cancelar::puede_cancelar(client, pendiente).await?;
+        /* 0. Consultas que van antes del armado porque no escriben. */
+        if let Some(estado) =
+            Self::resolver_antes_de_armar(pool, client, user_id, pendiente).await?
+        {
+            return Ok(estado);
         }
 
         /* 1. Arming autorizado por push_modalidad (fail-closed). */
@@ -404,32 +431,18 @@ impl BdpPushFlushService {
         .await?;
 
         /* 4b. [D26g] Libro de stock: S antes de escribir y bloqueo por artículo
-         * y almacén. Si el par ya tiene una operación pendiente, `abrir` falla y
-         * no se envía nada; el armado se compensa para que ese error no deje una
-         * escritura autorizada colgando del siguiente intento. */
-        let libro = match ledger::preparar(config, client, pendiente, &payload).await {
-            Ok(preparado) => preparado,
-            Err(error) => return Err(error),
+         * y almacén. Si falla, no se envía nada y el armado se compensa para que
+         * ese error no deje una escritura autorizada colgando del siguiente
+         * intento. */
+        let paso = PasoLibro {
+            user_id,
+            pendiente,
+            payload: &payload,
+            audit_id,
+            scope,
+            entity_uuid,
         };
-        let libro = match libro {
-            None => None,
-            Some(preparado) => match preparado.abrir(pool, user_id, &pendiente.operacion).await {
-                Ok(libro) => Some(libro),
-                Err(error) => {
-                    let error = format!("{error} (fila de la cola {})", pendiente.id);
-                    return Err(compensar_armado(
-                        pool,
-                        user_id,
-                        config,
-                        scope,
-                        pendiente,
-                        entity_uuid,
-                        error,
-                    )
-                    .await);
-                }
-            },
-        };
+        let libro = Self::abrir_libro(pool, config, client, &paso).await?;
 
         /* 5. Dispatcher -> HTTP de escritura (el cliente valida forma de URL).
          * `payload` es deliberadamente el mismo valor que se auditó arriba. */
@@ -455,6 +468,60 @@ impl BdpPushFlushService {
                 .await
             }
         }
+    }
+
+    /// Deja el libro abierto, o compensa el armado y cierra la auditoría sin
+    /// envío. Tanto la lectura previa como el bloqueo del par dejan la fila para
+    /// el siguiente intento, pero sin una auditoría colgando del armado.
+    async fn abrir_libro(
+        pool: &PgPool,
+        config: &ConfiguracionRestaurante,
+        client: &BdpWeblinkClient<'_>,
+        paso: &PasoLibro<'_>,
+    ) -> Result<Option<ledger::LibroAbierto>, String> {
+        /* [21AB-5g] La lectura previa falló con la auditoría ya creada. Aquí no
+         * salió nada al TPV, así que se cierra en `error` en vez de quedarse
+         * `pendiente`: abierta bloquea ese artículo y almacén para siempre (caso
+         * real: traspaso al almacén 0, que BDP rechaza con `[200200] EL ALMACÉN 0
+         * NO EXISTE`, 22/10). */
+        let preparado = match ledger::preparar(config, client, paso.pendiente, paso.payload).await {
+            Ok(preparado) => preparado,
+            Err(error) => {
+                cerrar_auditoria_sin_envio(pool, paso.audit_id, &error).await;
+                return Err(Self::compensar(pool, config, paso, error).await);
+            }
+        };
+        let Some(preparado) = preparado else {
+            return Ok(None);
+        };
+        let operacion = paso.pendiente.operacion.as_str();
+        match preparado.abrir(pool, paso.user_id, operacion).await {
+            Ok(libro) => Ok(Some(libro)),
+            Err(error) => {
+                cerrar_auditoria_sin_envio(pool, paso.audit_id, &error).await;
+                let error = format!("{error} (fila de la cola {})", paso.pendiente.id);
+                Err(Self::compensar(pool, config, paso, error).await)
+            }
+        }
+    }
+
+    /// Deshace el armado de la fila y devuelve el error con su motivo.
+    async fn compensar(
+        pool: &PgPool,
+        config: &ConfiguracionRestaurante,
+        paso: &PasoLibro<'_>,
+        error: String,
+    ) -> String {
+        compensar_armado(
+            pool,
+            paso.user_id,
+            config,
+            paso.scope,
+            paso.pendiente,
+            paso.entity_uuid,
+            error,
+        )
+        .await
     }
 
     async fn dispatch(

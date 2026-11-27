@@ -210,6 +210,22 @@ pub(super) async fn registrar_fallo_de_stock(
     Ok(estado)
 }
 
+/// [21AB-5g] La escritura no llegó al TPV: la preparación del libro falló, o el
+/// par artículo y almacén ya tenía otra operación pendiente. La auditoría se
+/// cierra en `error` porque la evidencia es total —`abrir` va después de
+/// `authorize` y antes de `dispatch`, así que sin libro no hubo HTTP—. Antes se
+/// quedaba `pendiente` y bloqueaba el artículo para siempre.
+///
+/// No se propaga: si esta anotación falla, el error original es el que importa.
+pub(super) async fn cerrar_auditoria_sin_envio(pool: &PgPool, audit_id: Uuid, motivo: &str) {
+    let nota = format!("no se envió a BDP: {motivo}");
+    if let Err(error) =
+        BdpBackupService::actualizar_resultado(pool, audit_id, "error", None, Some(&nota)).await
+    {
+        tracing::warn!("[21AB-5g] No se pudo cerrar la auditoría {audit_id} sin envío: {error}");
+    }
+}
+
 /// [10AA-3] Falla antes del HTTP con el armado ya concedido: se cancela para no
 /// dejar una autorización pendiente que el siguiente intento reutilizaría.
 pub(super) async fn compensar_armado(
