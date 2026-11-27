@@ -1,0 +1,31 @@
+BORRADOR — WhatsApp a Guillermo, 27/11/2026. Sustituye al del 26/11.
+
+Responde a SU mensaje del 26/11 12:31 (donde se corrige por lo de barra y propone el plan:
+esperar a BDP, conciliar los cambios del TPV desde la web, dejar el diagnóstico del
+restaurante y hacer el piloto por etapas) y añade lo que contestó BDP hoy. No repite el
+mensaje del 26/11: ese ya está enviado. Un párrafo por línea, sin saltos dentro del
+párrafo, para pegar en WhatsApp tal cual.
+
+---
+
+Hola Guillermo: sin problema por lo de barra, el matiz era fácil de leer al revés. Estoy de acuerdo con tu plan tal como lo planteas y no veo nada que corregir. Te cuento además que BDP ha contestado hoy al correo de ayer, así que casi todo lo que proponías esperar ya tiene respuesta.
+
+*Comandas de barra.* No es la licencia: la completa no cambia el comportamiento de la API. Nos piden el endpoint y un JSON de ejemplo, y se lo mando hoy con una comanda de barra entera. Les digo también lo que veo en el manual: no hay ruta de modificación, y nosotros usamos `Orders/Create` con el `OrderId` de la comanda viva, mientras el manual documenta ese `OrderId` como salida. Si el camino correcto es otro, que nos lo digan. Sigo sin experimentar más por mi cuenta hasta que contesten.
+
+*Máximo de pagos.* Ya no hay que esperar: BDP confirma que `AddOrderPayment` admite más de tres pagos sucesivos y que el pasaje del manual que fija tres está desactualizado. El tope ya está quitado de la aplicación, y lo que sigue cortando es el saldo: no se puede cobrar más de lo pendiente en el TPV.
+
+*Devoluciones.* También cerrado, y en el sentido que temíamos: una vez emitida la factura, la API no permite añadir ni modificar cobros ni tramitar la devolución; eso lo hace el personal de caja desde el TPV. La web no ofrece ninguna de las dos sobre una facturada. El pago negativo queda solo para comanda abierta y no lo desarrollo hasta que haga falta.
+
+*Delivery.* BDP explica el cambio: son dos aplicaciones distintas, hay que instalar Servicio a Domicilio y liberar la suscripción en Hostelería; cuando esté liberada, BDP reasigna la aplicación a la suscripción y se activa en Servicio a Domicilio. Los datos se pueden trasladar de una a otra. No es tanto jaleo como parecía, pero sigue desactivado hasta que el restaurante decida cuándo hacer el cambio.
+
+*Licencia del demo.* Es lo único que no contestan: siguen sin decir hasta cuándo vale. El TPV funciona igual con el aviso.
+
+*Conciliación de los cambios hechos en el TPV.* Esa opción ya existe y está probada. Cuando una comanda se modifica desde el TPV, la web lo detecta, marca la venta para revisión y no la reescribe sola. Desde la propia web hay un botón para aceptar el estado del TPV: relee la comanda y adopta sus líneas solo después de que la persona escriba la confirmación con el número de comanda. Sin esa confirmación no se toca nada, y la web nunca escribe en el TPV. Nadie tiene que entrar en BDP ni depender de mí.
+
+*Diagnóstico del restaurante.* Preparado y en solo lectura, con los seis checks en verde contra el demo (19 de 19). Falta correrlo contra `restaurante.wandori.us` para rellenar formas de pago, canales, IVA, perfil de documentos, terminal, empleado, perfil de artículos, cliente y artículo predeterminados con los valores reales. Ninguna escritura se activa si alguno de esos controles falla o usa un código que no existe en el TPV.
+
+*Piloto.* De acuerdo con el orden que propones, y fuera del horario de servicio. Los nueve pasos que listas los tenemos preparados, incluida la caída breve de BDP y la invitación en un ticket real. En el de pagos, ahora que el tope de tres está retirado, probamos uno, dos, tres y un cuarto para ver que el TPV los admite de verdad. La modificación de barra la probamos ahí si BDP ya ha contestado, o para ver si el TPV del restaurante se comporta distinto del demo.
+
+Nada de escrituras automáticas en el BDP del restaurante. Delivery sigue desactivado.
+
+Estoy atenta a cualquier otra cosa.

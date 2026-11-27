@@ -24,8 +24,8 @@ el WebLinkRestAPI: `Orders/Get`, `Orders/Cancel` y `Orders/Create` son las tres 
 publica el manual, y para modificar usamos `Create` con el `OrderId` de la comanda viva.
 Si hay otra ruta para modificar, decídnoslo, porque es lo que nos falta.
 
-*Ejemplo real.* Comanda de barra 228 (`Type = 0`), creada por nosotros desde la web y
-modificada después. El cuerpo de la modificación es este, literal, sin recortar:
+*Ejemplo real.* Comanda de barra 228 (`Type = 0`), creada por nosotros desde la web. El
+cuerpo de la modificación es este, literal, sin recortar:
 
 ```json
 {
@@ -81,9 +81,15 @@ modificada después. El cuerpo de la modificación es este, literal, sin recorta
 `OrderId` es el de la comanda que ya existe; el `MarketplaceOrderId` es el mismo que se
 envió al crearla.
 
-*Lo que devuelve.* HTTP 200, `OrderId: 228`, `ErrorMessage: ""`, y al releer con
-`Orders/Get` la comanda está igual: mismo `Total` y mismas líneas. Lo hemos visto en las
-comandas 222, 223, 225, 227 y 228. No es un rechazo: contesta bien y no aplica.
+*Lo que devuelve.* HTTP 200, con el mismo `OrderId`, `ErrorMessage: ""`, y al releer con
+`Orders/Get` la comanda está igual: mismo `Total` y mismas líneas. Lo hemos medido en las
+comandas 222, 223, 225 y 227. No es un rechazo: contesta bien y no aplica.
+
+*Una aclaración sobre el ejemplo.* El JSON de arriba es el de la comanda 228 porque es la
+que tenemos documentada entera, pero en 228 el resultado fue otro: `[300033]`, «el importe
+total indicado de la comanda no coincide con el teórico». Ese error lo entiendo como
+nuestro y no lo discuto. Las cuatro en las que el resultado fue 200 sin aplicar son 222,
+223, 225 y 227.
 
 *Añadido para que lo podáis revisar rápido:* en la de mesa (`Type = 1`, con salón y mesa)
 este mismo cuerpo sí se aplica; lo único que cambia es `Type`, `RoomNumber` y

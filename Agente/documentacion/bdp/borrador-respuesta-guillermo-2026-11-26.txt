@@ -1,4 +1,10 @@
 BORRADOR — WhatsApp a Guillermo, seguimiento del mensaje que la usuaria envió el 26/11.
+
+> **Superado.** Este texto no es el que se envió: el mensaje del 26/11 07:37 salió con otra
+> redacción, y Guillermo contestó a las 12:31 con su plan de conciliación y piloto. La
+> respuesta a ese mensaje es `borrador-respuesta-guillermo-2026-11-27.txt`. Este archivo se
+> conserva como registro de lo que se redactó entonces.
+
 Sin enviar. Aquel mensaje y el PDF de la segunda lista ya están enviados: esto solo
 responde a la lista de siete puntos del 25/11 y da el resumen por punto que pide al final.
 Sin repetir costos ni plazos. Un párrafo por línea, sin saltos dentro del párrafo, para
@@ -10,7 +16,7 @@ Hola Guillermo: voy punto por punto, con el resultado de cada prueba y qué qued
 
 1. *Domicilio (`Type=2`).* Confirmado con BDP: son dos aplicaciones distintas. Para el cambio hay que instalar Servicio a Domicilio y liberar la suscripción en Hostelería; una vez liberada, BDP reasigna la aplicación a la suscripción y se activa en Servicio a Domicilio. Los datos se pueden trasladar de una a la otra. Hasta entonces sigue desactivado y no se simula como barra ni mesa. No bloquea nada: cerramos la integración sin él y lo añadimos cuando el restaurante decida.
 
-2. *Comandas de barra.* El PDF que te mandé ya lo dice bien; te lo aclaro aquí porque tu resumen lo da por rechazado: en el demo no se rechazan, se aceptan y no se aplican. La modificación de barra contesta 200 con el mensaje vacío y la comanda queda igual (comandas 222, 223, 225, 227 y 228); las de mesa sí se aplican. BDP ha contestado que la licencia completa no cambia el comportamiento de la API y nos pide el endpoint y el JSON; se los he mandado hoy con la comanda 228 entera. Mientras lo miran, lo bloqueado ya está: la web relee la comanda, comprueba que el TPV no aplicó el cambio, deshace la edición y lo explica en pantalla con el motivo, no con un error genérico.
+2. *Comandas de barra.* El PDF que te mandé ya lo dice bien; te lo aclaro aquí porque tu resumen lo da por rechazado: en el demo no se rechazan, se aceptan y no se aplican. La modificación de barra contesta 200 con el mensaje vacío y la comanda queda igual (comandas 222, 223, 225 y 227); las de mesa sí se aplican. BDP ha contestado que la licencia completa no cambia el comportamiento de la API y nos pide el endpoint y el JSON; se los he mandado hoy con una comanda de barra entera. Mientras lo miran, lo bloqueado ya está: la web relee la comanda, comprueba que el TPV no aplicó el cambio, deshace la edición y lo explica en pantalla con el motivo, no con un error genérico.
 
 3. *Máximo de pagos.* Resuelto: BDP contestó el 27/11 que el límite de tres del manual está desactualizado y que `Orders/Payment/Add` admite más de tres pagos sucesivos. Ya está fuera de la aplicación. Lo que sigue cortando es el saldo: no se puede cobrar más de lo que queda pendiente en el TPV, con el importe exacto en el aviso.
 
