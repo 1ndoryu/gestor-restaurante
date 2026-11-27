@@ -1,62 +1,27 @@
-BORRADOR — WhatsApp a Guillermo, seguimiento del mensaje que la usuaria envió el 26/11. Sin
-enviar. Aquel mensaje y el PDF de la segunda lista ya están enviados: esto solo responde a la
-lista de siete puntos del 25/11, corrige lo que ya no es cierto de lo enviado antes y da el
-resumen por punto que pide al final. Sin repetir costos ni plazos.
+BORRADOR — WhatsApp a Guillermo, seguimiento del mensaje que la usuaria envió el 26/11.
+Sin enviar. Aquel mensaje y el PDF de la segunda lista ya están enviados: esto solo
+responde a la lista de siete puntos del 25/11 y da el resumen por punto que pide al final.
+Sin repetir costos ni plazos. Un párrafo por línea, sin saltos dentro del párrafo, para
+pegar en WhatsApp tal cual.
 
 ---
 
-Hola Guillermo: voy punto por punto, con el resultado de cada prueba y qué queda disponible y qué
-bloqueado.
+Hola Guillermo: voy punto por punto, con el resultado de cada prueba y qué queda disponible y qué bloqueado.
 
-1. *Domicilio (`Type=2`).* Confirmado con BDP: hace falta su aplicación Servicio a Domicilio y
-   probablemente cambiar la licencia. Les escribo con las preguntas que pides —qué suscripción
-   hace falta, si sustituye a Hostelería, si la licencia 84 sigue valiendo y si el cambio conserva
-   los datos y la configuración del restaurante— y te pongo en copia. Hasta entonces sigue
-   desactivado y no se simula como barra ni mesa. Y no bloquea nada: si tardan, cerramos la
-   integración sin él y lo añadimos cuando contesten.
+1. *Domicilio (`Type=2`).* Confirmado con BDP: hace falta su aplicación Servicio a Domicilio y probablemente cambiar la licencia. Les escribo con las preguntas que pides —qué suscripción hace falta, si sustituye a Hostelería, si la licencia 84 sigue valiendo y si el cambio conserva los datos y la configuración del restaurante— y te pongo en copia. Hasta entonces sigue desactivado y no se simula como barra ni mesa. Y no bloquea nada: si tardan, cerramos la integración sin él y lo añadimos cuando contesten.
 
-2. *Comandas de barra.* El PDF que te mandé ya lo dice bien; te lo aclaro aquí porque tu resumen lo
-   da por rechazado: en el demo no se rechazan, se aceptan y no se aplican. La modificación de barra contesta 200 con el mensaje vacío y la comanda queda igual
-   (comandas 222, 223, 225 y 227); las de mesa sí se aplican. Está preguntado a BDP si es un límite
-   de la licencia de pruebas y cuál es el procedimiento correcto. Lo bloqueado ya está: la web
-   relee la comanda, comprueba que el TPV no aplicó el cambio, deshace la edición y lo explica en
-   pantalla con el motivo, no con un error genérico.
+2. *Comandas de barra.* El PDF que te mandé ya lo dice bien; te lo aclaro aquí porque tu resumen lo da por rechazado: en el demo no se rechazan, se aceptan y no se aplican. La modificación de barra contesta 200 con el mensaje vacío y la comanda queda igual (comandas 222, 223, 225 y 227); las de mesa sí se aplican. Lo pregunto a BDP en el mismo correo: si es un límite de la licencia de pruebas y cuál es el procedimiento correcto. Lo bloqueado ya está: la web relee la comanda, comprueba que el TPV no aplicó el cambio, deshace la edición y lo explica en pantalla con el motivo, no con un error genérico.
 
-3. *Máximo de pagos.* Tienes razón y te lo confirmo: el tope de tres no es una regla nuestra, lo
-   dice el manual. Se queda en tres. Preguntado a BDP si `Orders/Payment/Add` admite oficialmente
-   más de tres pagos sucesivos; no diremos que admite más hasta que lo confirmen y lo probemos.
+3. *Máximo de pagos.* Tienes razón y te lo confirmo: el tope de tres no es una regla nuestra, lo dice el manual. Se queda en tres. Lo pregunto a BDP en el mismo correo: si `Orders/Payment/Add` admite oficialmente más de tres pagos sucesivos. No diremos que admite más hasta que lo confirmen y lo probemos.
 
-4. *Devoluciones y pagos negativos.* La API no tiene operación para retirar un cobro. La vía del
-   pago negativo está preguntada: si está oficialmente admitido, sobre qué comanda se registra
-   cuando ya está facturada y qué documento genera. No se desarrolla hasta tener respuesta precisa.
+4. *Devoluciones y pagos negativos.* La API no tiene operación para retirar un cobro. Lo pregunto también a BDP: si el pago negativo está oficialmente admitido, sobre qué comanda se registra cuando ya está facturada y qué documento genera. No se desarrolla hasta tener respuesta precisa.
 
-5. *Equivalencias.* Comprobado con una venta normal y con una invitación: ninguna de las dos puede
-   sustituir un producto por el artículo predeterminado. Una línea con código y sin equivalencia
-   activa detiene la operación y dice qué artículo falta; el artículo por defecto solo se usa en las
-   líneas escritas a mano sin código. Las invitaciones siguen apagadas hasta ver un ticket del
-   restaurante: la prueba se hizo con el interruptor encendido un momento (ticket 00001TB00000069,
-   el artículo a 0,00) y se volvió a apagar.
+5. *Equivalencias.* Comprobado con una venta normal y con una invitación: ninguna de las dos puede sustituir un producto por el artículo predeterminado. Una línea con código y sin equivalencia activa detiene la operación y dice qué artículo falta; el artículo por defecto solo se usa en las líneas escritas a mano sin código. Las invitaciones siguen apagadas hasta ver un ticket del restaurante: la prueba se hizo con el interruptor encendido un momento (ticket 00001TB00000069, el artículo a 0,00) y se volvió a apagar.
 
-6. *Comandas creadas en el TPV.* Creé la comanda 230 (dos Schweppes, barra) directamente en el TPV
-   demo, sin tocar la web: entró sola en el ciclo siguiente, con sus líneas y su importe, aunque la
-   web no conocía su identificador. Sobre los cambios hechos desde el TPV: la anulación llega y la
-   web anula; la modificación de líneas se detecta y se marca la venta para revisión, pero no se
-   reescribe sola. Eso se queda así para el piloto —una persona concilia— y queda anotado como
-   límite conocido.
+6. *Comandas creadas en el TPV.* Creé la comanda 230 (dos Schweppes, barra) directamente en el TPV demo, sin tocar la web: entró sola en el ciclo siguiente, con sus líneas y su importe, aunque la web no conocía su identificador. Sobre los cambios hechos desde el TPV: la anulación llega y la web anula; la modificación de líneas se detecta y se marca la venta para revisión, pero no se reescribe sola. Nadie tiene que entrar en BDP para resolverlo: en la web hay un botón para aceptar el estado del TPV, que relee la comanda y adopta sus líneas solo después de que la persona escriba la confirmación con el número de comanda. Sin esa confirmación no se toca nada, y la web nunca escribe en el TPV.
 
-*Sobre el delivery:* no es mucho jaleo por nuestra parte. El pedido a domicilio es un valor que la
-API ya documenta, así que no habría que rehacer nada de lo hecho; lo único que no depende de
-nosotros es la aplicación de BDP. Estoy de acuerdo con tu idea: lo dejamos de lado, cerramos lo que
-queda de la integración y se la entregamos al restaurante. Si mientras la usa pide incorporar el
-domicilio, se lo hacemos en local y se lo instalamos cuando esté listo.
+*Sobre el delivery:* no es mucho jaleo por nuestra parte. El pedido a domicilio es un valor que la API ya documenta, así que no habría que rehacer nada de lo hecho; lo único que no depende de nosotros es la aplicación de BDP. Estoy de acuerdo con tu idea: lo dejamos de lado, cerramos lo que queda de la integración y se la entregamos al restaurante. Si mientras la usa pide incorporar el domicilio, se lo hacemos en local y se lo instalamos cuando esté listo.
 
-*Resumen:* disponibles, comandas de mesa, modificaciones por la web, pagos parciales hasta tres,
-anulación desde el TPV y comandas nacidas en el TPV. Bloqueados hasta respuesta o prueba en el
-restaurante: domicilio, modificación de barra, pagos negativos, invitaciones y más de tres pagos.
+*Resumen:* disponibles, comandas de mesa, modificaciones por la web, pagos parciales hasta tres, anulación desde el TPV y comandas nacidas en el TPV. Bloqueados hasta respuesta o prueba en el restaurante: domicilio, modificación de barra, pagos negativos, invitaciones y más de tres pagos.
 
-*Lo que necesito de ti:* nada por ahora. El correo con las preguntas de barra, pagos, devoluciones
-y domicilio ya está redactado y te pondré en copia al enviarlo; la consulta de la licencia del demo
-va en el mismo correo. Y nada de escrituras automáticas en el BDP del restaurante hasta que lo
-digas.
-
-
+*Lo que necesito de ti:* que me digas cuándo abrimos el piloto por etapas que propusiste, y que me traslades la respuesta de BDP sobre barra y sobre la licencia del demo en cuanto la tengas. El correo con las preguntas de barra, pagos, devoluciones y domicilio, y la consulta de la licencia del demo, sale hoy con copia para ti. Y nada de escrituras automáticas en el BDP del restaurante hasta que lo digas.
