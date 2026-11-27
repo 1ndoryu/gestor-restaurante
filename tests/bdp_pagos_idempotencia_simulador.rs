@@ -591,10 +591,10 @@ async fn respuesta_perdida_se_recupera_sin_reenviar(pool: PgPool) {
     assert_eq!(pagos_exitosos(&pool, venta.id).await, 1);
 }
 
-/* ===== 3. Tope de tres pagos por comanda ===== */
+/* ===== 3. No hay tope de número de pagos: lo que corta es el saldo ===== */
 
 #[sqlx::test(migrations = "./migrations")]
-async fn el_cuarto_pago_se_bloquea(pool: PgPool) {
+async fn el_cuarto_pago_se_registra(pool: PgPool) {
     simulador_en_serie!();
     let (user, config) = cuenta(&pool).await;
     let venta = comanda_y_venta(&pool, user, Decimal::new(1000, 2)).await;
@@ -604,9 +604,11 @@ async fn el_cuarto_pago_se_bloquea(pool: PgPool) {
     for n in 1..=3 {
         cobrar_en_simulador(order_id, &format!("21ab1-previo-{n}"), 1.0).await;
     }
-    let antes = escrituras_de_pago().await;
 
-    let cuarto = BdpSyncService::add_order_payment(
+    /* BDP (27/11) confirmó que `AddOrderPayment` admite más de tres pagos
+     * sucesivos y que la regla del manual estaba desactualizada: el cuarto se
+     * envía y se registra. */
+    BdpSyncService::add_order_payment(
         &pool,
         &venta,
         &config,
@@ -614,17 +616,24 @@ async fn el_cuarto_pago_se_bloquea(pool: PgPool) {
         1,
         Some("21ab1-cuarto"),
     )
-    .await;
+    .await
+    .expect("el cuarto pago debe registrarse: BDP ya no limita a tres");
+    assert_eq!(pagos_en_comanda(order_id).await.len(), 4);
 
-    let mensaje = cuarto.expect_err("el cuarto pago debe bloquearse");
+    /* Lo que sigue cortando es el saldo, no el número de pagos. */
+    let de_mas = BdpSyncService::add_order_payment(
+        &pool,
+        &venta,
+        &config,
+        Decimal::new(1000, 2),
+        1,
+        Some("21ab1-de-mas"),
+    )
+    .await;
+    let mensaje = de_mas.expect_err("un pago por encima del saldo debe bloquearse");
     assert!(
-        mensaje.contains("3 pagos registrados en BDP"),
-        "mensaje esperado del tope: {mensaje}"
+        mensaje.contains("excede el saldo pendiente"),
+        "mensaje esperado del saldo: {mensaje}"
     );
-    assert_eq!(
-        escrituras_de_pago().await,
-        antes,
-        "el cuarto pago no puede llegar a BDP"
-    );
-    assert_eq!(pagos_en_comanda(order_id).await.len(), 3);
+    assert_eq!(pagos_en_comanda(order_id).await.len(), 4);
 }

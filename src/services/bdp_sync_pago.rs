@@ -34,7 +34,7 @@ mod reglas;
 pub(crate) use reconciliacion::payment_id_de_pago;
 
 use reconciliacion::{estado_pago_remoto, payment_id_intento, PagoRemoto};
-use reglas::{numero_factura, pago_queda_ambiguo, tope_pagos_alcanzado, MAX_PAGOS_VENTA};
+use reglas::{numero_factura, pago_queda_ambiguo};
 
 /* [267A-8] Intención de pago validada: lo necesario para armar y ejecutar
  * el AddOrderPayment sin arrastrar 8 parámetros (límite clippy). */
@@ -307,12 +307,6 @@ impl BdpSyncService {
          * [18AA-8] El tope cuenta **entradas** de `Payments`, no ids: BDP no
          * deduplica, y un id repetido son dos cobros. */
         let (remote_payment_amounts, remote_paid) = Self::parse_remote_payments(payments)?;
-        /* [D17] Tope de pagos: un cuarto cobro se bloquea antes de escribir en BDP. */
-        if tope_pagos_alcanzado(payments.len()) {
-            return Err(format!(
-                "Pago bloqueado: la venta ya tiene {MAX_PAGOS_VENTA} pagos registrados en BDP"
-            ));
-        }
         let requested = amount;
 
         /* [028A-BDP-WRITE] Calcula la unión de ambos libros. Un pago local con

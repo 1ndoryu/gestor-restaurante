@@ -395,10 +395,10 @@ async fn saldo_sale_del_tpv_aunque_la_web_calcule_otro_total(pool: PgPool) {
     );
 }
 
-/* ===== 2. Tres pagos dejan pendiente cero; el cuarto no se escribe ===== */
+/* ===== 2. Tres pagos dejan pendiente cero; el cuarto se corta por saldo ===== */
 
 #[sqlx::test(migrations = "./migrations")]
-async fn tres_pagos_dejan_pendiente_cero_y_el_cuarto_no_escribe(pool: PgPool) {
+async fn tres_pagos_dejan_pendiente_cero_y_el_cuarto_no_excede_el_saldo(pool: PgPool) {
     simulador_en_serie!();
     let (user, config) = cuenta(&pool).await;
     let venta = venta_con_comanda(&pool, user, Decimal::new(450, 2), Decimal::new(450, 2)).await;
@@ -427,6 +427,9 @@ async fn tres_pagos_dejan_pendiente_cero_y_el_cuarto_no_escribe(pool: PgPool) {
         "todo cobrado: pendiente cero"
     );
 
+    /* El cuarto pago ya no se corta por número (BDP 27/11: el tope de tres del
+     * manual está desactualizado), pero con el saldo a cero no hay nada que
+     * cobrar y no llega a BDP. */
     let antes = escrituras_de_pago().await;
     let cuarto = BdpSyncService::add_order_payment(
         &pool,
@@ -437,10 +440,10 @@ async fn tres_pagos_dejan_pendiente_cero_y_el_cuarto_no_escribe(pool: PgPool) {
         Some("21ab5a-cuarto"),
     )
     .await;
-    let mensaje = cuarto.expect_err("el cuarto pago debe bloquearse");
+    let mensaje = cuarto.expect_err("sin saldo, el cuarto pago debe bloquearse");
     assert!(
-        mensaje.contains("3 pagos registrados en BDP"),
-        "mensaje esperado del tope: {mensaje}"
+        mensaje.contains("excede el saldo pendiente"),
+        "mensaje esperado del saldo: {mensaje}"
     );
     assert_eq!(
         escrituras_de_pago().await,

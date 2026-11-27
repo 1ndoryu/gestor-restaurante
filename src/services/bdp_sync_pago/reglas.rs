@@ -32,16 +32,9 @@ pub(super) fn numero_factura(response: &Value) -> Option<String> {
         .map(String::from)
 }
 
-/* [D17] Máximo de pagos BDP por venta (anexo B8, D17). */
-pub(super) const MAX_PAGOS_VENTA: usize = 3;
-
-pub(super) fn tope_pagos_alcanzado(pagos_remotos: usize) -> bool {
-    pagos_remotos >= MAX_PAGOS_VENTA
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{numero_factura, pago_queda_ambiguo, tope_pagos_alcanzado};
+    use super::{numero_factura, pago_queda_ambiguo};
     use crate::services::bdp_weblink::BdpWeblinkError;
     use serde_json::json;
 
@@ -69,13 +62,6 @@ mod tests {
             "[300036]-IMPORTE".into()
         )));
         assert!(!pago_queda_ambiguo(&BdpWeblinkError::NotConfigured));
-    }
-
-    #[test]
-    fn tres_pagos_bloquean_el_cuarto() {
-        assert!(!tope_pagos_alcanzado(2));
-        assert!(tope_pagos_alcanzado(3));
-        assert!(tope_pagos_alcanzado(4));
     }
 
     #[test]
