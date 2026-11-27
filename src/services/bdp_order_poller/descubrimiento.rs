@@ -337,7 +337,10 @@ impl BdpOrderPollerService {
 
     /// Líneas del pedido de BDP como líneas locales, con el código Glory de su
     /// equivalencia cuando existe (sin equivalencia, descripción de BDP).
-    async fn lineas_de_comanda(
+    /// `pub(crate)`: la adopción del estado del TPV (21AB-12) reutiliza esta
+    /// misma conversión, para que una comanda se lea igual venga del
+    /// descubrimiento o de una decisión de conciliación.
+    pub(crate) async fn lineas_de_comanda(
         pool: &PgPool,
         user_id: Uuid,
         pedido: &Value,

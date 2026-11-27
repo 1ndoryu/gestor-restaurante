@@ -57,6 +57,8 @@ pub fn routes() -> Router<AppState> {
         .route("/bdp/avisos", get(listar))
         // sentinel-disable-next-line ruta-post-sin-rate-limit: la regla no ve el limitador propio de este mismo archivo (ventana fija, 120/min, en `dentro_del_limite`). Además esta ruta pide sesión de Admin; el limitador está en el receptor público, que es el que no tiene sesión.
         .route("/bdp/avisos/:id/reintentar", post(reintentar))
+        // sentinel-disable-next-line ruta-post-sin-rate-limit: sesión de Admin, confirmación escrita obligatoria y una sola lectura de `GetOrder`; el limitador global es el del receptor público.
+        .route("/bdp/avisos/:id/aceptar-tpv", post(aceptar_tpv))
         // sentinel-disable-next-line ruta-post-sin-rate-limit: sesión de Admin y lote acotado (LIMITE_LOTE_MAX); el limitador global es el del receptor público.
         .route("/bdp/avisos/procesar", post(procesar))
 }
@@ -411,6 +413,84 @@ pub async fn reintentar(
     }
 
     Ok(Json(json!({"id": id, "estado": "recibido"})))
+}
+
+/* [21AB-12] POST /api/bdp/avisos/:id/aceptar-tpv — el aviso estaba en revisión
+ * porque el TPV cambió la comanda; aquí una persona adopta lo que dice el TPV y
+ * el aviso se cierra. No escribe en BDP: solo lee `GetOrder` y reescribe la
+ * venta local con lo que el TPV ya tiene. */
+#[derive(Debug, Deserialize)]
+pub struct AceptarTpvRequest {
+    /// Confirmación escrita: `ACEPTAR {comanda}`. Sin ella no se toca nada.
+    pub confirmacion: String,
+}
+
+pub async fn aceptar_tpv(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(req): Json<AceptarTpvRequest>,
+) -> Result<Json<Value>, AppError> {
+    auth.require_role(&[UserRole::Admin])?;
+    exigir_modo_bdp(&state, auth.user_id).await?;
+    exigir_etapa_lectura(&state, auth.user_id).await?;
+
+    let comanda = BdpAvisosService::comanda_en_revision(&state.pool, auth.user_id, id)
+        .await
+        .map_err(AppError::Internal)?
+        .ok_or_else(|| {
+            AppError::NotFound(
+                "No hay ningún aviso en revisión con ese identificador, o no trae comanda.".into(),
+            )
+        })?;
+    let esperada = format!("ACEPTAR {comanda}");
+    if req.confirmacion.trim() != esperada {
+        return Err(AppError::Validation(format!(
+            "Confirmación inválida. Escriba exactamente: {esperada}"
+        )));
+    }
+
+    let venta = crate::repositories::VentaRepository::find_by_bdp_order_id(
+        &state.pool,
+        comanda,
+        auth.user_id,
+    )
+    .await
+    .map_err(AppError::Database)?
+    .ok_or_else(|| {
+        AppError::NotFound(format!(
+            "La comanda {comanda} no tiene venta en la web: no hay nada que conciliar aquí."
+        ))
+    })?;
+
+    let config = ConfiguracionService::obtener(&state.pool, auth.user_id).await?;
+    let resultado =
+        crate::services::BdpSyncService::aceptar_estado_tpv(&state.pool, &venta, &config)
+            .await
+            .map_err(AppError::Conflict)?;
+
+    let nota = format!(
+        "Resuelto desde la web: se adoptó el estado del TPV (total {:.2}, {} líneas).",
+        resultado.total_bdp,
+        resultado.lineas.len()
+    );
+    let cerrado = BdpAvisosService::resolver_revision(&state.pool, auth.user_id, id, &nota)
+        .await
+        .map_err(AppError::Internal)?;
+
+    crate::services::DashboardService::invalidar_resumen(&state, auth.user_id).await;
+    crate::middleware::invalidar_listado(&state, auth.user_id, crate::middleware::ENDPOINT_VENTAS)
+        .await;
+
+    Ok(Json(json!({
+        "aviso_id": id,
+        "venta_id": resultado.venta.id,
+        "bdp_order_id": comanda,
+        "lineas": resultado.lineas.len(),
+        "total_antes": resultado.total_antes,
+        "total_ahora": resultado.total_bdp,
+        "aviso_cerrado": cerrado,
+    })))
 }
 
 /// Parámetros del lote: cuántos avisos `recibido` procesar en esta pasada.

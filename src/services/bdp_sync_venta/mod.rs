@@ -4,6 +4,8 @@
 
 mod articulos;
 mod contexto;
+/* [21AB-12] Adoptar el estado que el TPV tiene ahora (conciliación desde la web). */
+mod convergencia;
 mod envio;
 /* [18AB-2] Factura aparte, después de que BDP confirme el cobro. */
 mod facturacion;

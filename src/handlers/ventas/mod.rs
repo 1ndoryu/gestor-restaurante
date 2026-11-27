@@ -1,10 +1,13 @@
 /* 253A-5: Handlers de ventas — CRUD endpoints */
 
 mod bdp;
+/* [21AB-12] Conciliar una venta con lo que el TPV tiene ahora. */
+mod conciliacion;
 mod crud;
 mod local;
 
 pub use bdp::*;
+pub use conciliacion::*;
 pub use crud::*;
 pub use local::*;
 
@@ -30,6 +33,8 @@ pub fn routes() -> Router<AppState> {
         .route("/ventas/:id/haddock-sync", post(reintentar_sync_haddock))
         .route("/ventas/:id/bdp-sync", post(reintentar_sync_bdp))
         .route("/ventas/:id/bdp-status", get(obtener_bdp_status))
+        /* [21AB-12] Adoptar el estado que el TPV tiene ahora (conciliación). */
+        .route("/ventas/:id/aceptar-bdp", post(aceptar_estado_bdp))
         .route("/ventas/:id/lineas", get(obtener_lineas_venta))
         .route("/ventas/:id/bdp-payment", post(bdp_payment))
         .route("/ventas/:id/bdp-invoice", post(bdp_invoice))

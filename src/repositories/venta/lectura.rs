@@ -22,6 +22,21 @@ impl VentaRepository {
             .await
     }
 
+    /* [21AB-12] Venta de una comanda del TPV. El aviso del buzón identifica la
+     * comanda por su `OrderId`, no por la venta, y aceptar el estado del TPV es
+     * una acción sobre la venta: esta es la unión entre ambos. */
+    pub async fn find_by_bdp_order_id(
+        pool: &PgPool,
+        bdp_order_id: i64,
+        user_id: Uuid,
+    ) -> Result<Option<Venta>, sqlx::Error> {
+        sqlx::query_as::<_, Venta>("SELECT * FROM ventas WHERE bdp_order_id = $1 AND user_id = $2")
+            .bind(bdp_order_id)
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await
+    }
+
     /* [094A-1] Buscar venta asociada a una reserva — para evitar duplicados.
      * Retorna true si ya existe al menos una venta con este reserva_id. */
     pub async fn exists_by_reserva_id(

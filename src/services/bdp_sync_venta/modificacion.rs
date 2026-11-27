@@ -88,8 +88,13 @@ pub(crate) fn items_con_cero_uds(items: &[Value]) -> Option<&str> {
 }
 
 /* [02AB-2] Texto del conflicto cuando el total de BDP no es el que la web
- * conoce (el TPV cambió la comanda); `None` si coinciden. Lo comparten la
- * modificación, el cobro y el sondeo periódico. */
+ * conoce; `None` si coinciden. Lo comparten la modificación, el cobro y el
+ * sondeo periódico.
+ *
+ * [21AB-12] El texto nombra las dos salidas reales —conciliar desde la web o
+ * hacerlo en el TPV— porque hasta el 26/11 solo decía «revísela allí», que en
+ * una comanda de barra es justo lo contrario de lo que ocurre: BDP contesta 200
+ * y no aplica el cambio (comandas 222, 223, 225 y 227 del demo). */
 pub(crate) fn mensaje_conflicto(
     order_id: i64,
     total_bdp: Option<f64>,
@@ -99,9 +104,50 @@ pub(crate) fn mensaje_conflicto(
         return None;
     }
     Some(format!(
-        "Conflicto: la comanda {order_id} ya no coincide con la web (total en BDP {}, en la web {total_web:.2}). Se cambió en el TPV; revísela allí o concilie antes de continuar.",
+        "Conflicto: la comanda {order_id} ya no coincide con la web (total en BDP {}, en la web {total_web:.2}). Se cambió en el TPV. Concíllela desde la web aceptando el estado del TPV, o termine el cambio en el TPV; la web no sobrescribe nada sin confirmación.",
         total_bdp.map_or_else(|| "desconocido".into(), |t| format!("{t:.2}"))
     ))
+}
+
+/* [21AB-12] Rechazo de una modificación de barra: BDP aceptó la petición y no
+ * la aplicó. El usuario necesita saber que esta operación no se cierra por la
+ * web, no que «algo falló». Se usa solo cuando la comanda es de barra
+ * (`Type=0`), que es donde el demo se comporta así. */
+pub(crate) fn mensaje_barra_no_aplicada(order_id: i64, total_web: f64) -> String {
+    format!(
+        "La comanda {order_id} es de barra y no admite esta modificación por la API: BDP respondió OK y no aplicó el cambio (la comanda sigue como estaba, total {total_web:.2} en la web). Esta operación se hace en el TPV; la web no la fuerza."
+    )
+}
+
+/// Fallo de una modificación, ya clasificado. Se distingue porque el prefijo
+/// «BDP no aceptó la modificación» solo vale para el error crudo del TPV: en
+/// barra BDP sí la aceptó y no la aplicó, y anteponerlo sería falso.
+enum FalloModificacion {
+    /// Texto completo, listo para mostrar.
+    Completo(String),
+    /// Error de BDP: se sanea y se le pone el prefijo.
+    Crudo(String),
+}
+
+impl FalloModificacion {
+    /// Texto para el usuario.
+    fn para_usuario(&self) -> String {
+        match self {
+            Self::Completo(texto) => texto.clone(),
+            Self::Crudo(texto) => format!(
+                "BDP no aceptó la modificación: {}",
+                BdpSyncService::sanitize_error(texto)
+            ),
+        }
+    }
+
+    /// Lo que se guarda en la auditoría: el detalle tal cual, sin prefijos
+    /// añadidos por la interfaz.
+    fn detalle(&self) -> &str {
+        match self {
+            Self::Completo(texto) | Self::Crudo(texto) => texto,
+        }
+    }
 }
 
 /* [18AA-8] Mesa de la comanda en BDP según `GetOrder`. `None` si la respuesta
@@ -242,16 +288,18 @@ impl BdpSyncService {
         .map_err(|e| e.clone())?;
 
         let resultado = client.create_order(&peticion).await;
-        let (estado, mensaje) = match &resultado {
+        let (estado, fallo) = match &resultado {
             Ok(r) => match r.get("ErrorMessage").and_then(Value::as_str).map(str::trim) {
-                Some(m) if !m.is_empty() => ("error", Some(m.to_string())),
+                Some(m) if !m.is_empty() => {
+                    ("error", Some(FalloModificacion::Crudo(m.to_string())))
+                }
                 /* [21AB-5d] Un 200 sin `ErrorMessage` no basta: el TPV demo
                  * contestó OK a modificaciones de barra y no cambió una línea.
                  * El total de la comanda es la firma del cambio, así que se
                  * relee antes de dar la edición por hecha. */
                 _ => match Self::confirmar_total_en_bdp(&client, order_id, total_final).await {
                     Ok(()) => ("exito", None),
-                    Err(mensaje) => ("error", Some(mensaje)),
+                    Err(fallo) => ("error", Some(fallo)),
                 },
             },
             /* [21AB-5d] Un rechazo de negocio (`Remote`: el TPV contestó HTTP
@@ -264,7 +312,7 @@ impl BdpSyncService {
              * haberse aplicado: [21AB-5c] se reconcilia con `GetOrder` y el
              * ambiguo se cierra con lo que diga el TPV. */
             Err(e) if matches!(e, crate::services::bdp_weblink::BdpWeblinkError::Remote(_)) => {
-                ("error", Some(e.to_string()))
+                ("error", Some(FalloModificacion::Crudo(e.to_string())))
             }
             Err(e) => Self::reconciliar_modificacion(&client, order_id, total_final, e).await,
         };
@@ -273,15 +321,17 @@ impl BdpSyncService {
             audit_id,
             estado,
             resultado.as_ref().ok(),
-            mensaje.as_deref(),
+            fallo.as_ref().map(FalloModificacion::detalle),
         )
         .await;
-        match (estado, mensaje) {
+        match (estado, fallo) {
             ("exito", _) => Ok(()),
-            (_, m) => Err(format!(
-                "BDP no aceptó la modificación: {}",
-                Self::sanitize_error(&m.unwrap_or_default())
-            )),
+            (_, Some(fallo)) => Err(fallo.para_usuario()),
+            /* Solo puede pasar con `exito`, pero un fallo sin texto no debe
+             * formatearse como una explicación vacía. */
+            (_, None) => {
+                Err("BDP no confirmó la modificación; revise la comanda en el TPV.".into())
+            }
         }
     }
 
@@ -340,14 +390,16 @@ impl BdpSyncService {
         client: &BdpWeblinkClient<'_>,
         order_id: i64,
         total_final: f64,
-    ) -> Result<(), String> {
+    ) -> Result<(), FalloModificacion> {
         let respuesta = client
             .get_order(&BdpGetOrderRequest {
                 order_identifier: BdpOrderIdentifier::by_order_id(order_id),
             })
             .await
             .map_err(|e| {
-                format!("BDP aceptó la modificación pero no se pudo releer la comanda {order_id}: {e}. Revise la comanda en el TPV y reintente.")
+                FalloModificacion::Crudo(format!(
+                    "BDP aceptó la modificación pero no se pudo releer la comanda {order_id}: {e}. Revise la comanda en el TPV y reintente."
+                ))
             })?;
         let orden = respuesta.get("Order").unwrap_or(&respuesta);
         match mensaje_conflicto(
@@ -356,9 +408,18 @@ impl BdpSyncService {
             total_final,
         ) {
             None => Ok(()),
-            Some(conflicto) => Err(format!(
+            /* [21AB-12] En barra (`Type=0`) el demo acepta y no aplica: el
+             * usuario tiene que saber que ahí la operación es del TPV, no leer
+             * que «BDP no aplicó el cambio» sin más. Texto completo: precederlo
+             * de «BDP no aceptó la modificación» sería falso. */
+            Some(_) if orden.get("Type").and_then(Value::as_i64) == Some(0) => Err(
+                FalloModificacion::Completo(mensaje_barra_no_aplicada(order_id, total_final)),
+            ),
+            /* Mesa que no aplicó: tampoco es un rechazo, el TPV dijo OK y dejó
+             * otro total. El texto completo evita el «no aceptó» falso. */
+            Some(conflicto) => Err(FalloModificacion::Completo(format!(
                 "BDP respondió OK pero no aplicó el cambio: {conflicto}"
-            )),
+            ))),
         }
     }
 
@@ -371,15 +432,19 @@ impl BdpSyncService {
         order_id: i64,
         total_final: f64,
         error: &crate::services::bdp_weblink::BdpWeblinkError,
-    ) -> (&'static str, Option<String>) {
-        let motivo = format!("{error}; sin reconciliar");
+    ) -> (&'static str, Option<FalloModificacion>) {
         let Ok(respuesta) = client
             .get_order(&BdpGetOrderRequest {
                 order_identifier: BdpOrderIdentifier::by_order_id(order_id),
             })
             .await
         else {
-            return ("ambiguo", Some(motivo));
+            return (
+                "ambiguo",
+                Some(FalloModificacion::Crudo(format!(
+                    "{error}; sin reconciliar"
+                ))),
+            );
         };
         let orden = respuesta.get("Order").unwrap_or(&respuesta);
         match mensaje_conflicto(
@@ -390,11 +455,14 @@ impl BdpSyncService {
             /* El TPV ya tiene el total que se quería: la escritura se aplicó. */
             None => (
                 "exito",
-                Some(format!(
+                Some(FalloModificacion::Crudo(format!(
                     "{error}; reconciliado: BDP ya tenía el total {total_final:.2}"
-                )),
+                ))),
             ),
-            Some(conflicto) => ("ambiguo", Some(format!("{error}; {conflicto}"))),
+            Some(conflicto) => (
+                "ambiguo",
+                Some(FalloModificacion::Crudo(format!("{error}; {conflicto}"))),
+            ),
         }
     }
 }
@@ -430,6 +498,25 @@ mod tests {
         assert!(mensaje_conflicto(1, None, 8.70)
             .unwrap()
             .contains("desconocido"));
+    }
+
+    /* [21AB-12] En barra BDP aceptó y no aplicó: el texto no debe abrir con un
+     * «no aceptó» que sería falso, y la auditoría guarda el detalle sin prefijos. */
+    #[test]
+    fn el_fallo_de_barra_no_se_presenta_como_rechazo() {
+        let barra = FalloModificacion::Completo(mensaje_barra_no_aplicada(222, 8.70));
+        let texto = barra.para_usuario();
+        assert!(!texto.contains("no aceptó la modificación"), "{texto}");
+        assert!(
+            texto.contains("222") && texto.contains("se hace en el TPV"),
+            "{texto}"
+        );
+        assert_eq!(barra.detalle(), texto);
+
+        let crudo = FalloModificacion::Crudo("[300033] la comanda no existe".into());
+        assert!(crudo
+            .para_usuario()
+            .starts_with("BDP no aceptó la modificación: "));
     }
 
     #[test]

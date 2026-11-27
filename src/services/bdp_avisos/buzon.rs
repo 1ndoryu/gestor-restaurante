@@ -186,6 +186,53 @@ impl BdpAvisosService {
         .map_err(|error| format!("No se pudieron listar los avisos: {error}"))
     }
 
+    /* [21AB-12] Comanda de un aviso en revisión, para conciliarlo desde la web:
+     * el aviso identifica la comanda en su `payload`, no la venta. `None` si el
+     * aviso no existe, no es de la cuenta o ya no está en revisión. */
+    pub async fn comanda_en_revision(
+        pool: &PgPool,
+        user_id: Uuid,
+        id: Uuid,
+    ) -> Result<Option<i64>, String> {
+        let payload: Option<Value> = sqlx::query_scalar(
+            "SELECT payload FROM bdp_avisos_inbox \
+              WHERE id = $1 AND user_id = $2 AND estado = 'requiere_revision'",
+        )
+        .bind(id)
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|error| format!("No se pudo leer el aviso: {error}"))?;
+        Ok(payload.as_ref().and_then(|valor| {
+            super::campos::CamposAviso::desde_json(valor)
+                .comanda()
+                .and_then(|comanda| comanda.parse::<i64>().ok())
+        }))
+    }
+
+    /* [21AB-12] El aviso deja de pedir revisión porque una persona adoptó el
+     * estado del TPV. La nota queda como rastro de qué la resolvió. */
+    pub async fn resolver_revision(
+        pool: &PgPool,
+        user_id: Uuid,
+        id: Uuid,
+        nota: &str,
+    ) -> Result<bool, String> {
+        let filas = sqlx::query(
+            "UPDATE bdp_avisos_inbox \
+                SET estado = 'procesado', ultimo_error = $3, procesado_en = NOW() \
+              WHERE id = $1 AND user_id = $2 AND estado = 'requiere_revision'",
+        )
+        .bind(id)
+        .bind(user_id)
+        .bind(nota)
+        .execute(pool)
+        .await
+        .map_err(|error| format!("No se pudo cerrar el aviso: {error}"))?
+        .rows_affected();
+        Ok(filas > 0)
+    }
+
     /// Devuelve a la cola un aviso que quedó pendiente de revisión. F2 (el
     /// worker) es quien lo procesa; aquí solo se reabre.
     pub async fn reintentar(pool: &PgPool, user_id: Uuid, id: Uuid) -> Result<bool, String> {
