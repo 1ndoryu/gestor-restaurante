@@ -6,28 +6,19 @@ BORRADOR — respuesta al correo de BDP del 27/11/2026. Sin enviar; lo envía la
 **Asunto:** RE: WebLinkRestAPI 1.2 — seis dudas y un fallo de facturación
 **Estado:** borrador. **No enviado.**
 
-Va como respuesta al hilo del 26/11. Solo contesta lo que piden: endpoint y JSON de una
-comanda de barra. El resto de su correo (pagos, devoluciones, domicilio) se agradece y no
-genera más preguntas.
+Va como respuesta al hilo del 26/11. Solo contesta lo que piden: endpoint y JSON de una comanda de barra. El resto de su correo (pagos, devoluciones, domicilio) se agradece y no genera más preguntas.
 
 ---
 
 Hola:
 
-Gracias por la respuesta. Con eso quitamos el límite de tres pagos en nuestra aplicación y
-dejamos las devoluciones en manos de caja, como decís. Sobre el domicilio, lo traslado al
-restaurante.
+Gracias por la respuesta. Con eso quitamos el límite de tres pagos en nuestra aplicación y dejamos las devoluciones en manos de caja, como decís. Sobre el domicilio, lo traslado al restaurante.
 
 De la modificación de barra, esto es lo que nuestra aplicación envía.
 
-*Endpoint.* `POST /API/Orders/Create`. En el manual no encontramos ninguna ruta pensada
-para modificar una comanda existente, así que para modificar usamos `Create` con el
-`OrderId` de la comanda viva. Si hay otra ruta para modificarla, decidnos cuál, porque es
-lo que nos falta.
+*Endpoint.* `POST /API/Orders/Create`. En el manual no encontramos ninguna ruta pensada para modificar una comanda existente, así que para modificar usamos `Create` con el `OrderId` de la comanda viva. Si hay otra ruta para modificarla, decidnos cuál, porque es lo que nos falta.
 
-*Ejemplo real.* Comanda de barra (`Type = 0`), creada por nosotros desde la web y
-modificada después. Este es el cuerpo que nuestra aplicación genera al modificarla, campo
-por campo:
+*Ejemplo real.* Comanda de barra (`Type = 0`), creada por nosotros desde la web y modificada después. Este es el cuerpo que nuestra aplicación genera al modificarla, campo por campo:
 
 ```json
 {
@@ -80,40 +71,20 @@ por campo:
 }
 ```
 
-Dos cosas que conviene saber al leerlo, porque son la parte del contrato que estamos
-usando y quizá sea donde nos equivocamos:
+Dos cosas que conviene saber al leerlo, porque son la parte del contrato que estamos usando y quizá sea donde nos equivocamos:
 
-- `Items` **no** lleva la comanda entera, sino solo las líneas del cambio. Aquí es una
-  unidad más del mismo artículo; quitar producto va como línea con `Units` negativa.
-- `Order.Total` es el total **final** de la comanda después del cambio (2,10), no la suma
-  de `Items` (1,05).
+- `Items` **no** lleva la comanda entera, sino solo las líneas del cambio. Aquí es una unidad más del mismo artículo; quitar producto va como línea con `Units` negativa.
+- `Order.Total` es el total **final** de la comanda después del cambio (2,10), no la suma de `Items` (1,05).
 
-`OrderId` es el de la comanda que ya existe; el `MarketplaceOrderId` es el mismo que se
-envió al crearla, y `Comments` lleva la referencia de la venta en nuestra aplicación. Los
-números de comanda son de nuestro TPV de pruebas, así que no os dirán nada: sirven solo
-para fijar la forma del JSON.
+`OrderId` es el de la comanda que ya existe; el `MarketplaceOrderId` es el mismo que se envió al crearla, y `Comments` lleva la referencia de la venta en nuestra aplicación. Los números de comanda son de nuestro TPV de pruebas, así que no os dirán nada: sirven solo para fijar la forma del JSON.
 
-*Lo que devuelve.* En comandas de barra hemos visto las dos cosas. Unas veces, HTTP 200 con
-el mismo `OrderId` y `ErrorMessage: ""`, y al releer con `Orders/Get` la comanda igual:
-mismo `Total` y mismas líneas. Otras veces, `[300033] EL IMPORTE TOTAL INDICADO DE LA
-COMANDA NO COINCIDE CON EL TEÓRICO`; es lo que dio esta comanda con el cuerpo de arriba, y
-ese error lo entiendo como nuestro y no lo discuto.
+*Lo que devuelve.* En comandas de barra hemos visto las dos cosas. Unas veces, HTTP 200 con el mismo `OrderId` y `ErrorMessage: ""`, y al releer con `Orders/Get` la comanda igual: mismo `Total` y mismas líneas. Otras veces, `[300033] EL IMPORTE TOTAL INDICADO DE LA COMANDA NO COINCIDE CON EL TEÓRICO`; es lo que dio esta comanda con el cuerpo de arriba, y ese error lo entiendo como nuestro y no lo discuto.
 
-*Dónde está nuestra duda.* No sabemos si ese 200 significa que el TPV acepta la
-modificación y no la aplica, o que algo de nuestra petición no le vale y no llega a
-procesarla. Es justo lo que os pedimos que nos aclaréis.
+*Dónde está nuestra duda.* No sabemos si ese 200 significa que el TPV acepta la modificación y no la aplica, o que algo de nuestra petición no le vale y no llega a procesarla. Es justo lo que os pedimos que nos aclaréis.
 
-*Para que lo podáis revisar rápido:* en la de mesa (`Type = 1`, con salón y mesa) este
-mismo cuerpo sí se aplica, y lo único que cambia es `Type`, `RoomNumber` y `TableNumber`.
-Y en el manual, `Order.OrderId` viene como campo de entrada («si no se especifica ninguno,
-o es cero, BDP asignará un número»), pero no encontramos ninguna frase que diga que
-enviarlo con el identificador de una comanda viva la modifique, ni una ruta aparte para
-modificarla; `OrderOperationType` solo tiene `0` (CheckAndCreateOrder) y `1` (OnlyCheck).
-Si el camino correcto para modificar una comanda existente no es `Create` con `OrderId`,
-¿cuál es?
+*Para que lo podáis revisar rápido:* en la de mesa (`Type = 1`, con salón y mesa) este mismo cuerpo sí se aplica, y lo único que cambia es `Type`, `RoomNumber` y `TableNumber`. Y en el manual, `Order.OrderId` viene como campo de entrada («si no se especifica ninguno, o es cero, BDP asignará un número»), pero no encontramos ninguna frase que diga que enviarlo con el identificador de una comanda viva la modifique, ni una ruta aparte para modificarla; `OrderOperationType` solo tiene `0` (CheckAndCreateOrder) y `1` (OnlyCheck). Si el camino correcto para modificar una comanda existente no es `Create` con `OrderId`, ¿cuál es?
 
-Una última cosa, sin prisa: sigue pendiente hasta cuándo vale la licencia de demostración
-del TPV 36.2. No bloquea el trabajo, pero condiciona las pruebas que podamos hacer aquí.
+Una última cosa, sin prisa: sigue pendiente hasta cuándo vale la licencia de demostración del TPV 36.2. No bloquea el trabajo, pero condiciona las pruebas que podamos hacer aquí.
 
 Gracias.
 
