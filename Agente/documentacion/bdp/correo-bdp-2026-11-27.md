@@ -3,6 +3,7 @@ BORRADOR — respuesta al correo de BDP del 27/11/2026. Sin enviar; lo envía la
 **De:** Wan <andoryyu@gmail.com>
 **Para:** `integraciones@bdpcenter.com`
 **CC:** `guillermo.autoia@gmail.com`
+**Asunto:** RE: WebLinkRestAPI 1.2 — seis dudas y un fallo de facturación
 **Estado:** borrador. **No enviado.**
 
 Va como respuesta al hilo del 26/11. Solo contesta lo que piden: endpoint y JSON de una
@@ -88,13 +89,15 @@ usando y quizá sea donde nos equivocamos:
   de `Items` (1,05).
 
 `OrderId` es el de la comanda que ya existe; el `MarketplaceOrderId` es el mismo que se
-envió al crearla. Los números de comanda son de nuestro TPV de pruebas, así que no os
-dirán nada: sirven solo para fijar la forma del JSON.
+envió al crearla, y `Comments` lleva la referencia de la venta en nuestra aplicación. Los
+números de comanda son de nuestro TPV de pruebas, así que no os dirán nada: sirven solo
+para fijar la forma del JSON.
 
 *Lo que devuelve.* En comandas de barra hemos visto las dos cosas. Unas veces, HTTP 200 con
 el mismo `OrderId` y `ErrorMessage: ""`, y al releer con `Orders/Get` la comanda igual:
-mismo `Total` y mismas líneas. Otras veces, `[300033]`; es lo que dio esta comanda con el
-cuerpo de arriba, y ese error lo entiendo como nuestro y no lo discuto.
+mismo `Total` y mismas líneas. Otras veces, `[300033] EL IMPORTE TOTAL INDICADO DE LA
+COMANDA NO COINCIDE CON EL TEÓRICO`; es lo que dio esta comanda con el cuerpo de arriba, y
+ese error lo entiendo como nuestro y no lo discuto.
 
 *Dónde está nuestra duda.* No sabemos si ese 200 significa que el TPV acepta la
 modificación y no la aplica, o que algo de nuestra petición no le vale y no llega a
@@ -108,6 +111,9 @@ enviarlo con el identificador de una comanda viva la modifique, ni una ruta apar
 modificarla; `OrderOperationType` solo tiene `0` (CheckAndCreateOrder) y `1` (OnlyCheck).
 Si el camino correcto para modificar una comanda existente no es `Create` con `OrderId`,
 ¿cuál es?
+
+Una última cosa, sin prisa: sigue pendiente hasta cuándo vale la licencia de demostración
+del TPV 36.2. No bloquea el trabajo, pero condiciona las pruebas que podamos hacer aquí.
 
 Gracias.
 
