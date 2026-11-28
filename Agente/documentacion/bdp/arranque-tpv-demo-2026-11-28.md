@@ -39,11 +39,16 @@ pc-control (`cua-driver-serve`, `RunLevel=Highest`):
 
 | Pieza | Ruta |
 |---|---|
-| Script de arranque (versionado) | `scripts/pc/bdp-tpv-arranque.vbs` |
+| Script de arranque | `scripts/pc/bdp-tpv-arranque.vbs` |
 | Instalador de la tarea (una vez, elevado) | `scripts/pc/instalar-arranque-tpv.ps1` |
 | Prueba de punta a punta (elevado) | `scripts/pc/probar-arranque-tpv.ps1` |
+| Relanzar a mano si hace falta (elevado) | `scripts/pc/lanzar-tpv.ps1` |
 | Registro de intentos | `C:\tmp\pc\tpv-arranque.log` |
 | Tarea | `bdp-tpv-arranque`, al iniciar sesión, `RunLevel=Highest` |
+
+`scripts/pc/` está en el área pero **no es un repositorio git**: los ficheros viven ahí sin
+historial propio. La tarea apunta a la ruta absoluta de `bdp-tpv-arranque.vbs`, así que mover
+esa carpeta rompe el arranque: hay que volver a ejecutar el instalador.
 
 El `.vbs` del Inicio queda apartado como `bdp-tpv-arranque.vbs.aparte`: no se borra, para que
 revertir sea devolverle el nombre. Dos lanzadores del mismo proceso no se dejan conviviendo.
