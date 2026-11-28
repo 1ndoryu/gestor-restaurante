@@ -50,12 +50,11 @@ anteriores están superados.
 - Formas de pago configuradas en el TPV. Hoy los cobros salen sin `TenderId`
   (`tareas-2026-11-15.md:24-27`), así que el paso 7 no puede empezar hasta que eso esté.
   Medido el 28/11 en la 89: `BDP_TENDER_MAP_JSON` vale `{}` y `BDP_ORDER_TYPE_MAP_JSON` también.
-  **Ojo:** el diagnóstico del paso 1 no lo detecta. Su check «Mapeo de tenders» devuelve
-  `ok: true` con el mapeo vacío y solo avisa de que no se enviará `TenderId`
-  (`src/services/bdp_sync_preflight/checks.rs:118-126`), así que los seis checks pueden estar en
-  verde con el paso 7 imposible. Ese hueco se comprueba mirando `bdp_tender_map` en
-  Configuración → BDP, no con el diagnóstico. Corregirlo es una decisión aparte (un check que
-  avisa en verde es una trampa para el que lo lea): queda anotado en el roadmap.
+  **Ojo:** el diagnóstico del paso 1 no lo detecta como fallo, y está bien que no lo haga: una
+  comanda abierta sin cobro es configuración válida. Desde el 28/11 su mensaje sí nombra la
+  consecuencia —sin `TenderId` la facturación automática se salta en silencio y las ventas cobradas
+  quedan pendientes del botón de facturar— y dice que se rellene en Configuración → BDP antes del
+  piloto. Leer ese aviso: el verde no significa que el paso 7 esté listo.
 
 ## Cómo se enciende y se apaga
 
