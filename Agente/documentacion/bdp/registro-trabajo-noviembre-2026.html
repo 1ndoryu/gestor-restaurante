@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 14mm;
+    @bottom-left { content: none; } @bottom-center { content: none; }
+    @bottom-right { content: none; } @top-left { content: none; }
+    @top-center { content: none; } @top-right { content: none; }
+  }
+  *, *:before, *:after { box-sizing: border-box; }
+  body {
+    font-family: "Times New Roman", Times, "Liberation Serif", serif;
+    font-size: 8.2pt; line-height: 1.28; color: #000; background: #fff;
+    text-align: justify; text-justify: inter-word; margin: 0; padding: 0;
+  }
+  h1 { font-size: 11pt; font-weight: bold; text-transform: uppercase; text-align: center;
+       margin: 0 0 6pt 0; line-height: 1.25; letter-spacing: 0.2pt;
+       page-break-after: avoid; break-after: avoid; }
+  h2 { font-size: 8.8pt; font-weight: bold; text-transform: uppercase; margin: 14pt 0 5pt 0;
+       line-height: 1.2; letter-spacing: 0.15pt; page-break-after: avoid; break-after: avoid; }
+  h3 { font-size: 8.2pt; font-weight: bold; margin: 8pt 0 3pt 0; line-height: 1.2;
+       page-break-after: avoid; break-after: avoid; }
+  p { margin: 0 0 3.5pt 0; text-indent: 0; }
+  .sub { text-align: center; margin-bottom: 10pt; }
+  table { width: 100%; border-collapse: collapse; margin: 9pt 0 14pt 0; font-size: 7.1pt; line-height: 1.16;
+          border-top: 1.2pt solid #000; border-bottom: 1.2pt solid #000; }
+  tr { page-break-inside: avoid; break-inside: avoid; }
+  thead { display: table-header-group; }
+  th { border-top: none; border-bottom: 0.75pt solid #000; border-left: none;
+       border-right: none; padding: 2.6pt 3.5pt; font-weight: bold; text-transform: uppercase;
+       font-size: 7.2pt; letter-spacing: 0.1pt; text-align: left; }
+  td { border: none; padding: 1.8pt 3.5pt; vertical-align: top; text-align: left; }
+  table.cambios th:nth-child(1), table.cambios td:nth-child(1) { width: 30%; }
+  table.cambios th:nth-child(2), table.cambios td:nth-child(2) { width: 24%; }
+  ul, ol { margin: 3pt 0 6pt 0; padding-left: 15pt; }
+  li { margin-bottom: 4.5pt; text-align: justify; page-break-inside: avoid; break-inside: avoid; }
+  li:last-child { margin-bottom: 2pt; }
+  strong, b { font-weight: bold; }
+  .nueva { break-before: page; page-break-before: always; }
+  p.intro { margin-bottom: 6pt; }
+</style>
+</head>
+<body>
+
+<h1>Registro de trabajo &#8212; Integraci&oacute;n web&#8211;TPV BDP</h1>
+<p class="sub"><strong>Del 21 al 28 de noviembre de 2026.</strong> Qu&eacute; se hizo cada d&iacute;a, c&oacute;mo se comprob&oacute; y qu&eacute; cambia para el restaurante.</p>
+
+<h2>1. Qu&eacute; es este documento</h2>
+<p class="intro">Recoge, por orden de fecha, el trabajo realizado sobre la conexi&oacute;n entre la web del restaurante y su terminal de punto de venta (TPV BDP). Cada d&iacute;a se indica <strong>qu&eacute; se hizo</strong>, <strong>c&oacute;mo se comprob&oacute;</strong> y, cuando corresponde, <strong>qu&eacute; cambia en el d&iacute;a a d&iacute;a del restaurante</strong>. Es un registro de trabajo realizado, no un manual.</p>
+<p>Las pruebas se han hecho contra una instalaci&oacute;n real de BDP con licencia de demostraci&oacute;n: el mismo programa y las mismas tablas que el TPV del restaurante, instalados aparte y con su propia configuraci&oacute;n. La lectura del terminal del restaurante es la que sigue pendiente y se explica en la secci&oacute;n 5.</p>
+
+<h2>2. Resumen del per&iacute;odo</h2>
+<p>Siete d&iacute;as de trabajo (21, 23, 24, 25, 26, 27 y 28 de noviembre), en seis frentes:</p>
+<ul>
+<li><strong>La venta llega al TPV y se cobra entera.</strong> Crear la comanda, modificarla, cobrarla por partes, emitir el ticket y a&ntilde;adir comentarios por l&iacute;nea.</li>
+<li><strong>Lo que se hace en el TPV se sabe en la web.</strong> Las comandas creadas directamente en el terminal aparecen solas, y un cambio hecho en el TPV se detecta en vez de pisarse.</li>
+<li><strong>Los conflictos se resuelven sin perder datos.</strong> Cuando la web y el TPV no coinciden, la web avisa y solo adopta el estado del TPV si una persona lo confirma por escrito.</li>
+<li><strong>Los errores se explican.</strong> Un rechazo del TPV deja de aparecer como un mensaje gen&eacute;rico.</li>
+<li><strong>Nada se cobra dos veces y nada se queda colgado.</strong> Reintentos, TPV apagado, pagos a medias y operaciones a medias tienen salida.</li>
+<li><strong>Conversaci&oacute;n con BDP y con el distribuidor.</strong> Cuatro preguntas contestadas por BDP, el tope de tres pagos retirado y una pendiente: la modificaci&oacute;n de comandas de barra.</li>
+</ul>
+
+<h2>3. D&iacute;a por d&iacute;a</h2>
+
+<h3>21 de noviembre</h3>
+<ul>
+<li><strong>Prueba completa del recorrido normal.</strong> Se recorri&oacute; entero contra el TPV: crear una comanda y cobrarla; modificarla subiendo unidades, a&ntilde;adiendo una l&iacute;nea y quitando otra, y despu&eacute;s anularla; aplicar un descuento, invitar un art&iacute;culo y cobrar en dos veces, una con tarjeta y otra en efectivo, con su ticket emitido.</li>
+<li><strong>Una venta creada con el TPV apagado ya no se pierde.</strong> Antes quedaba muerta para siempre y hab&iacute;a que rehacerla a mano. Ahora queda en espera y se env&iacute;a sola cuando el TPV vuelve. Se comprob&oacute; apagando el TPV, creando la venta y encendi&eacute;ndolo despu&eacute;s: la comanda apareci&oacute; sin tocar nada.</li>
+<li><strong>Cinco comprobaciones nuevas de la configuraci&oacute;n</strong>, que antes se daban por buenas solo por estar escritas. Ahora cada una se contrasta con el TPV: el perfil de art&iacute;culos, el mapa de impuestos, el perfil de documentos, el cliente por defecto y la tarifa del cat&aacute;logo. Si un valor no existe en el TPV, la pantalla de configuraci&oacute;n lo dice antes de que falle una venta.</li>
+<li><strong>Una comprobaci&oacute;n m&aacute;s</strong>: que el art&iacute;culo por defecto existe en el TPV. El diagn&oacute;stico pasa de 18 a 19 comprobaciones.</li>
+<li><strong>Comentarios por l&iacute;nea.</strong> El texto que se escribe en una l&iacute;nea de la venta llega al ticket del TPV. Y se puede cambiar en una comanda ya enviada: se anula la l&iacute;nea anterior y se da de alta con el texto nuevo, de modo que el ticket nunca muestre el comentario viejo.</li>
+<li><strong>Defecto corregido en el propio diagn&oacute;stico</strong>: daba seis problemas falsos sobre una configuraci&oacute;n que funcionaba.</li>
+</ul>
+
+<h3>23 de noviembre</h3>
+<ul>
+<li><strong>El saldo pendiente de una venta se lee de la comanda del TPV</strong>, no de un c&aacute;lculo propio. Se acaban los c&eacute;ntimos fantasma: tras cobrar todo, la venta queda a cero y no con un resto que no existe.</li>
+<li><strong>Varias modificaciones seguidas sobre la misma comanda</strong> ya no pierden cambios ni se aplican dos veces.</li>
+<li><strong>Una invitaci&oacute;n no puede salir con otro art&iacute;culo.</strong> Si el art&iacute;culo invitado no tiene equivalencia en el TPV, la comanda no se env&iacute;a y el aviso nombra la l&iacute;nea concreta, en vez de imprimir otra cosa.</li>
+</ul>
+
+<h3>24 de noviembre</h3>
+<ul>
+<li><strong>Lleg&oacute; la respuesta de BDP</strong> al correo del 20 de noviembre. Queda registrada y es la base de lo que se hizo el d&iacute;a 25.</li>
+<li><strong>Un pago que no lleg&oacute; a BDP deja de bloquear su reintento.</strong> Antes, si la conexi&oacute;n se cortaba con el pago a medias, ese pago quedaba bloqueado para siempre aunque el TPV no tuviera nada cobrado. Ahora, si el TPV confirma que el pago no est&aacute;, el reintento se permite; si no se puede confirmar, no se reenv&iacute;a a ciegas.</li>
+<li><strong>Reintentar el mismo pago ya no puede cobrarlo dos veces.</strong> La web reutiliza la misma referencia al reintentar el mismo importe, as&iacute; que el TPV lo reconoce como el mismo cobro y no como uno nuevo.</li>
+<li><strong>La segunda lista de comprobaciones del distribuidor, re-probada entera contra el TPV.</strong> Saldo y tres pagos parciales con una sola factura; una invitaci&oacute;n impresa a 0,00 con su marca; dos modificaciones lanzadas a la vez; y el TPV apagado en mitad del trabajo, con la comanda creada una sola vez al volver y un cobro enviado dos veces entrando una sola vez.</li>
+<li><strong>Se repar&oacute; la infraestructura de pruebas.</strong> Varias bater&iacute;as daban resultados falsos (verde sin ejecutar nada, o rojo por un choque entre pruebas). Desde aqu&iacute; lo que se da por bueno es lo que de verdad se ejecut&oacute;.</li>
+</ul>
+
+<h3>25 de noviembre</h3>
+<ul>
+<li><strong>Registrada la respuesta de BDP con lo que la conexi&oacute;n no puede hacer.</strong> No hay servicio para dividir o unir cuentas ni para cambiar una comanda de mesa: eso se hace en el TPV por un empleado. Para devolver un cobro, la v&iacute;a es la pasarela de pago y un pago negativo. Una comanda ya facturada no admite a&ntilde;adir ni modificar cobros. El reparto a domicilio exige otra aplicaci&oacute;n de BDP.</li>
+<li><strong>Corregido un bloqueo que nunca pod&iacute;a saltar.</strong> La marca de &laquo;este art&iacute;culo no se puede invitar&raquo; no llegaba a la web, as&iacute; que la protecci&oacute;n exist&iacute;a pero no se activaba nunca. Ahora la marca llega y el bloqueo funciona por art&iacute;culo.</li>
+<li><strong>Las l&iacute;neas con cantidad cero se rechazan antes de enviarse</strong>, y el editor de la venta ya no las admite. BDP lo reconoci&oacute; como un fallo suyo, pero la web no debe enviarlas.</li>
+<li><strong>La lista de operaciones que la conexi&oacute;n no ofrece</strong> pasa de 12 a 15, con las tres que BDP confirmó por escrito.</li>
+</ul>
+
+<h3>26 de noviembre</h3>
+<ul>
+<li><strong>Cuando la web rechaza una modificaci&oacute;n, explica el motivo.</strong> Antes dec&iacute;a solo &laquo;error al actualizar la venta&raquo; y se perd&iacute;a la explicaci&oacute;n que s&iacute; exist&iacute;a. Ahora se lee en pantalla, por ejemplo, qu&eacute; l&iacute;nea no tiene equivalencia o que la comanda ya no coincide.</li>
+<li><strong>Una comanda modificada desde el TPV se detecta y se avisa.</strong> La web no la reescribe sola: la marca para revisi&oacute;n y deja claro qu&eacute; dice el TPV y qu&eacute; dice la venta. Decisi&oacute;n tomada as&iacute; a prop&oacute;sito, para no pisar lo que ha hecho el personal en el terminal.</li>
+<li><strong>Tres afirmaciones nuestras que el manual de BDP desment&iacute;a, corregidas.</strong> La m&aacute;s importante: el tope de tres pagos no era una regla nuestra, estaba escrita en el manual del fabricante. El distribuidor ten&iacute;a raz&oacute;n y se le reconoci&oacute;.</li>
+<li><strong>Las comandas creadas directamente en el TPV aparecen solas en la web.</strong> Antes no aparec&iacute;an nunca. Se prob&oacute; creando una comanda en el TPV y vi&eacute;ndola llegar a la web con sus l&iacute;neas y su importe, sin tocar nada.</li>
+<li><strong>Ninguna l&iacute;nea con c&oacute;digo de art&iacute;culo puede salir con otro producto.</strong> Antes, un c&oacute;digo sin equivalencia sal&iacute;a como una bebida cualquiera y el ticket lo demostraba. Ahora la comanda no se env&iacute;a y el aviso nombra la l&iacute;nea; el art&iacute;culo por defecto queda solo para l&iacute;neas escritas a mano, sin c&oacute;digo.</li>
+<li><strong>Nuevo: aceptar el estado del TPV desde la web.</strong> Cuando la web y el TPV no coinciden, una persona puede adoptar lo que dice el TPV, escribiendo antes una confirmaci&oacute;n con el n&uacute;mero de comanda. Sin esa confirmaci&oacute;n no se toca nada, y en ese proceso la web nunca escribe en el TPV: solo lee. As&iacute; nadie tiene que entrar en BDP para resolver un conflicto.</li>
+<li><strong>Correcci&oacute;n de los documentos de la segunda lista</strong> y preparaci&oacute;n del correo a BDP con las cuatro preguntas.</li>
+</ul>
+
+<h3>27 de noviembre</h3>
+<ul>
+<li><strong>BDP contest&oacute; a las cuatro preguntas.</strong> Admite m&aacute;s de tres pagos y el pasaje del manual que fija tres est&aacute; desactualizado. Una factura emitida no admite a&ntilde;adir ni modificar cobros ni tramitar la devoluci&oacute;n: eso lo hace caja desde el TPV. El reparto a domicilio son dos aplicaciones distintas y los datos se pueden trasladar. Y lo de las comandas de barra no es la licencia: piden la direcci&oacute;n que usa la web y un ejemplo de lo que se env&iacute;a.</li>
+<li><strong>Retirado el tope de tres pagos.</strong> Lo que sigue cortando es el saldo: no se puede cobrar m&aacute;s de lo que queda pendiente, porque no tiene sentido.</li>
+<li><strong>Preparado el correo con la direcci&oacute;n y un ejemplo exacto</strong> de una modificaci&oacute;n de barra, campo por campo, para que BDP pueda revisarlo.</li>
+<li><strong>Preparada la respuesta al distribuidor</strong> sobre su plan de piloto, punto por punto, con lo que BDP acababa de contestar.</li>
+<li><strong>Cerradas las operaciones que se quedaban abiertas para siempre</strong> cuando la comanda ya no exist&iacute;a en el TPV (facturada o borrada). Bloqueaban ventas y movimientos de stock sin que nadie supiera por qu&eacute;. Se localizaron las que hab&iacute;a, se cerr&oacute; cada una con su motivo medido y se corrigi&oacute; el proceso para que no vuelva a pasar.</li>
+<li><strong>Intento de lectura del TPV del restaurante.</strong> No contestó: la web de producci&oacute;n s&iacute; responde, pero el ordenador del restaurante no estaba disponible en ese momento. No es un fallo de la conexi&oacute;n ni de su configuraci&oacute;n.</li>
+</ul>
+
+<h3>28 de noviembre</h3>
+<ul>
+<li><strong>Revisi&oacute;n del correo a BDP y del mensaje al distribuidor contra las pruebas guardadas</strong>, antes de enviarlos. Se corrigieron cuatro afirmaciones que no se sosten&iacute;an con la evidencia disponible: nada de lo que sale hacia fuera afirma algo que no se pueda demostrar con lo medido.</li>
+</ul>
+
+<h2 class="nueva">4. Qu&eacute; cambia para el restaurante</h2>
+<table class="cambios">
+<thead><tr><th>Situaci&oacute;n</th><th>Antes</th><th>Ahora</th></tr></thead>
+<tbody>
+<tr><td>Se crea una venta con el TPV apagado</td><td>Quedaba muerta y hab&iacute;a que rehacerla</td><td>Se env&iacute;a sola cuando el TPV vuelve</td></tr>
+<tr><td>Se reintenta un pago que no lleg&oacute;</td><td>Pod&iacute;a quedar bloqueado para siempre o cobrarse dos veces</td><td>Se permite el reintento solo si el TPV confirma que el pago no est&aacute;; nunca se cobra dos veces</td></tr>
+<tr><td>Se cobra por partes</td><td>Quedaban c&eacute;ntimos fantasma en el saldo</td><td>El saldo es el que dice el TPV, al c&eacute;ntimo</td></tr>
+<tr><td>M&aacute;s de tres pagos en una comanda</td><td>La web lo bloqueaba</td><td>Permitido; BDP confirm&oacute; que el l&iacute;mite del manual est&aacute; obsoleto</td></tr>
+<tr><td>Se crea una comanda en el TPV</td><td>La web no la ve&iacute;a nunca</td><td>Aparece sola en la web, con sus l&iacute;neas y su importe</td></tr>
+<tr><td>Se modifica una comanda desde el TPV</td><td>La web pod&iacute;a pisar el cambio</td><td>Avisa, no la reescribe sola y permite adoptar el estado del TPV con confirmaci&oacute;n escrita</td></tr>
+<tr><td>Un art&iacute;culo no tiene equivalencia en el TPV</td><td>Sal&iacute;a con otro producto y el ticket lo demostraba</td><td>La comanda no se env&iacute;a y el aviso nombra la l&iacute;nea</td></tr>
+<tr><td>Un art&iacute;culo no se puede invitar</td><td>La marca no llegaba: el bloqueo no saltaba</td><td>El bloqueo funciona por art&iacute;culo</td></tr>
+<tr><td>La web rechaza una modificaci&oacute;n</td><td>&laquo;Error al actualizar la venta&raquo;</td><td>El motivo concreto, en pantalla</td></tr>
+<tr><td>Una operaci&oacute;n queda abierta con la comanda ya cerrada</td><td>Bloqueaba la venta para siempre</td><td>Se cierra con su motivo y no bloquea</td></tr>
+</tbody>
+</table>
+
+<h2>5. Lo que queda abierto</h2>
+<ol>
+<li><strong>Modificar comandas de barra.</strong> Las de mesa funcionan. En las de barra, el TPV contesta que acepta la modificaci&oacute;n y la comanda queda igual. BDP pidi&oacute; la direcci&oacute;n y un ejemplo para revisarlo; el correo est&aacute; preparado y a la espera de su respuesta. No se experimenta m&aacute;s contra el TPV hasta entonces.</li>
+<li><strong>Lectura del TPV del restaurante.</strong> Pendiente de que su ordenador est&eacute; disponible. La web de producci&oacute;n responde con normalidad; es el terminal el que no contestaba ese d&iacute;a.</li>
+<li><strong>Vigencia de la licencia de demostraci&oacute;n.</strong> BDP no ha dicho hasta cu&aacute;ndo vale. El TPV sigue funcionando con el aviso en pantalla.</li>
+<li><strong>Reparto a domicilio.</strong> Exige instalar la aplicaci&oacute;n de Servicio a Domicilio de BDP y liberar la suscripci&oacute;n de hosteler&iacute;a; los datos se pueden trasladar. Sigue desactivado hasta que el restaurante decida cu&aacute;ndo.</li>
+<li><strong>Piloto en el restaurante.</strong> El orden de los nueve pasos est&aacute; acordado con el distribuidor y se har&aacute; fuera del horario de servicio. Incluye una ca&iacute;da breve del TPV y una invitaci&oacute;n en un ticket real.</li>
+</ol>
+
+<p style="margin-top:12pt"><strong>Regla que se mantiene en todo el per&iacute;odo:</strong> ninguna escritura autom&aacute;tica contra el TPV del restaurante. Todo lo que se ha probado contra un TPV se ha probado contra la instalaci&oacute;n de demostraci&oacute;n.</p>
+
+</body>
+</html>
