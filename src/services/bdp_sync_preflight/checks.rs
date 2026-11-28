@@ -115,11 +115,20 @@ impl BdpSyncPreflightService {
         let map = match config.bdp_tender_map.as_object() {
             Some(m) if !m.is_empty() => m,
             _ => {
+                /* No es un error: una comanda abierta sin cobro es configuracion
+                 * valida. Pero el mensaje tiene que decir lo que se pierde, no
+                 * solo que falta el dato: sin `TenderId` la facturacion
+                 * automatica se salta en silencio (`bdp_sync_venta/facturacion.rs`,
+                 * el `else` de `resolve_tender_id`), asi que un check en verde
+                 * con esta frase corta deja creer que todo esta listo. */
                 response.checks.push(BdpSyncDryRunCheck {
                     nombre: "Mapeo de tenders".into(),
                     endpoint: "bdp_tender_map".into(),
                     ok: true,
-                    mensaje: "Sin mapeo de tenders configurado. No se enviara TenderId.".into(),
+                    mensaje: "Sin mapeo de tenders configurado: los cobros saldran sin TenderId y \
+                              las ventas cobradas no se facturaran solas (quedan pendientes del \
+                              boton de facturar). Rellenar Configuracion -> BDP antes del piloto."
+                        .into(),
                     cantidad: Some(0),
                     muestra: None,
                 });

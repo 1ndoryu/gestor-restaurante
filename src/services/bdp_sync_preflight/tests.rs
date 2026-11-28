@@ -397,3 +397,23 @@ async fn check_order_only_con_pago_rechaza_tender_desconocido_sin_red() {
         "tender inválido: ninguna llamada de red"
     );
 }
+
+/* [28AA-4] Sin mapeo de tenders el check sale en verde (es configuracion
+ * valida: una comanda abierta no lleva cobro), pero el mensaje tiene que
+ * decir que la facturacion automatica se salta, no solo que falta el dato. */
+#[tokio::test]
+async fn check_tender_sin_mapeo_avisa_de_que_no_se_facturara() {
+    let mut cfg = config();
+    cfg.bdp_tender_map = serde_json::json!({});
+    let mut response = BdpSyncDryRunResponse::new(true);
+
+    BdpSyncPreflightService::check_tender_mapping(&cfg, None, &mut response);
+
+    let check = response.checks.last().expect("check de tenders");
+    assert!(check.ok, "sin mapeo no es un error de configuracion");
+    assert!(
+        check.mensaje.contains("facturar"),
+        "el aviso tiene que nombrar la facturacion: {}",
+        check.mensaje
+    );
+}
