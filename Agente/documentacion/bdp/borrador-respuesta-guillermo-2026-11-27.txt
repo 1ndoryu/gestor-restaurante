@@ -6,20 +6,20 @@ párrafo, para pegar en WhatsApp tal cual.
 
 ---
 
-Hola Guillermo: sin problema por lo de barra. Estoy de acuerdo con tu plan tal como lo planteas. Además BDP ha contestado hoy al correo de ayer, así que casi todo lo que proponías esperar ya tiene respuesta.
+Hola Guillermo: sin problema por lo de barra. Estoy de acuerdo con tu plan tal como lo planteas. Además BDP contestó el 27 al correo del 26, así que casi todo lo que proponías esperar ya tiene respuesta.
 
-*Comandas de barra.* No es la licencia. Nos piden el endpoint y un JSON de ejemplo, y se lo mando hoy con una comanda de barra entera. Les digo también lo que veo en el manual: no hay ruta de modificación, y nosotros usamos `Orders/Create` con el `OrderId` de la comanda viva, mientras el manual lo documenta como salida. Sigo sin experimentar hasta que contesten.
+*Comandas de barra.* No es la licencia. Nos piden el endpoint y un JSON de ejemplo, y se lo mando en el mismo correo con la petición exacta de una modificación de barra. Les digo también lo que veo en el manual: no hay ruta de modificación, y nosotros usamos `Orders/Create` con el `OrderId` de la comanda viva, cosa que el manual no describe. Sigo sin experimentar hasta que contesten.
 
 *Máximo de pagos.* Ya no hay que esperar: BDP confirma que `AddOrderPayment` admite más de tres pagos y que el pasaje del manual que fija tres está desactualizado. El tope ya está quitado. Lo que sigue cortando es el saldo: no se puede cobrar más de lo pendiente en el TPV.
 
-*Devoluciones.* Cerrado en el sentido que temíamos: una vez emitida la factura, la API no permite añadir ni modificar cobros ni tramitar la devolución; eso lo hace caja desde el TPV. La web no ofrece ninguna de las dos sobre una facturada. El pago negativo queda solo para comanda abierta y no lo desarrollo hasta que haga falta.
+*Devoluciones.* Queda como suponíamos: una vez emitida la factura, la API no permite añadir ni modificar cobros ni tramitar la devolución; eso lo hace caja desde el TPV. La web no ofrece ninguna de las dos sobre una facturada. El pago negativo queda solo para comanda abierta y no lo desarrollo hasta que haga falta.
 
 *Delivery.* Son dos aplicaciones distintas: hay que instalar Servicio a Domicilio y liberar la suscripción en Hostelería; luego BDP reasigna la aplicación y se activa. Los datos se pueden trasladar. No es tanto jaleo como parecía, pero sigue desactivado hasta que el restaurante decida cuándo.
 
-*Licencia del demo.* Es lo único que no contestan: siguen sin decir hasta cuándo vale. El TPV funciona igual con el aviso.
+*Licencia del demo.* Siguen sin decir hasta cuándo vale. El TPV funciona igual con el aviso. Queda también sin confirmar el pago negativo sobre una comanda abierta: de la facturada contestan, de la abierta no.
 
-*Conciliación de los cambios hechos en el TPV.* Esa opción ya existe y está probada. Cuando una comanda se modifica desde el TPV, la web lo detecta, marca la venta para revisión y no la reescribe sola. Desde la web hay un botón para aceptar el estado del TPV: relee la comanda y adopta sus líneas solo después de que la persona escriba la confirmación con el número de comanda. Sin confirmación no se toca nada, y la web nunca escribe en el TPV. Nadie tiene que entrar en BDP ni depender de mí.
+*Conciliación de los cambios hechos en el TPV.* Esa opción ya existe. Cuando una comanda se modifica desde el TPV, la web lo detecta, marca la venta para revisión y no la reescribe sola. Desde la web hay un botón para aceptar el estado del TPV: relee la comanda y adopta sus líneas solo después de que la persona escriba la confirmación con el número de comanda. Sin confirmación no se toca nada, y la web nunca escribe en el TPV. Nadie tiene que entrar en BDP ni depender de mí. Lo que falta es probarlo en el piloto: aquí solo lo he probado con datos simulados, nunca con un cambio hecho de verdad en el TPV.
 
-*Piloto.* De acuerdo con el orden que propones y fuera del horario de servicio. Los nueve pasos están preparados, incluida la caída breve de BDP y la invitación en un ticket real. En pagos probamos uno, dos, tres y un cuarto, para ver que el TPV los admite de verdad. La modificación de barra la probamos ahí si BDP ya ha contestado, o para ver si el TPV del restaurante se comporta distinto del demo.
+*Piloto.* De acuerdo con el orden que propones y fuera del horario de servicio. Los nueve pasos los tenemos preparados, incluida la caída breve de BDP y la invitación en un ticket real. En pagos probamos uno, dos, tres y un cuarto, para ver que el TPV los admite de verdad. La modificación de barra la probamos ahí si BDP ya ha contestado, o para ver si el TPV del restaurante se comporta distinto del demo.
 
 Nada de escrituras automáticas en el BDP del restaurante. Delivery sigue desactivado. Estoy atenta a cualquier otra cosa.

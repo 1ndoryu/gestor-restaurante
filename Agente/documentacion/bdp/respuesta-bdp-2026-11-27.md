@@ -18,10 +18,27 @@ Guillermo en copia. Contesta a los cuatro puntos de `correo-bdp-2026-11-26.md`.
   comandas al TPV; la edición de comandas desde la API tiene un alcance más limitado.»
   Para las operaciones de camarero tienen **Handy** y el **TPV**.
 - Esto encaja con lo que ya sabíamos: **no hay endpoint de modificación**. Modificamos
-  con `POST /API/Orders/Create` y el `OrderId` de la comanda viva, y el manual documenta
-  `OrderId` en `Create` solo como **salida** («Número de comanda generada»), con el
-  ejemplo a `0`; `OrderOperationType` solo tiene 0 y 1. Esa es exactamente la duda que
-  hay que ponerles por escrito junto al JSON.
+  con `POST /API/Orders/Create` y el `OrderId` de la comanda viva. El manual sí documenta
+  `Order.OrderId` como campo de entrada (`# WEBLINK RESTAPI.md:11305`: «si no se especifica
+  ninguno, o es cero, BDP asignará un número»), pero no dice en ningún sitio que enviarlo
+  con el identificador de una comanda viva la modifique; el ejemplo de `Create` va a `0`, y
+  `OrderOperationType` solo tiene 0 y 1. Esa es exactamente la duda que hay que ponerles por
+  escrito junto al JSON.
+
+## Corrección del 28/11: el «200 sin aplicar» en barra no está aislado
+
+La evidencia que sostiene el «contesta 200 y no aplica» en barra es más débil de lo que
+decían los documentos del 26/11. La matriz del 23/11
+(`modificaciones-barra-vs-mesa-2026-11-23.md` §1) probó cinco variantes sobre comanda de
+barra y **todas dieron `[300033]` o `300008`, no un 200**; el único 200 sin aplicar de esa
+matriz es el de `OrderOperationType = 1` (OnlyCheck), y ahí el 200 es lo esperado: el manual
+dice que OnlyCheck comprueba y **no crea** (`# WEBLINK RESTAPI.md:7213-7218`), así que no
+demuestra ningún defecto de barra.
+
+Lo que sí queda: las comandas de barra 222–227 contestaron 200 con `ErrorMessage` vacío
+según la medición del 26/11, y para ellas no he encontrado el script ni la salida que lo
+respalde. El correo a BDP ya no afirma reproducibilidad a partir de eso: pregunta, que es lo
+que corresponde cuando no tenemos la traza.
 
 ## Lo que queda abierto
 

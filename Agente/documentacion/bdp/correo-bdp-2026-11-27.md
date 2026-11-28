@@ -17,15 +17,16 @@ Gracias por la respuesta. Con eso quitamos el límite de tres pagos en nuestra a
 dejamos las devoluciones en manos de caja, como decís. Sobre el domicilio, lo traslado al
 restaurante.
 
-De la modificación de barra, esto es exactamente lo que enviamos.
+De la modificación de barra, esto es lo que nuestra aplicación envía.
 
-*Endpoint.* `POST /API/Orders/Create`. Hemos comprobado que no hay ruta de modificación en
-el WebLinkRestAPI: `Orders/Get`, `Orders/Cancel` y `Orders/Create` son las tres que
-publica el manual, y para modificar usamos `Create` con el `OrderId` de la comanda viva.
-Si hay otra ruta para modificar, decídnoslo, porque es lo que nos falta.
+*Endpoint.* `POST /API/Orders/Create`. En el manual no encontramos ninguna ruta pensada
+para modificar una comanda existente, así que para modificar usamos `Create` con el
+`OrderId` de la comanda viva. Si hay otra ruta para modificarla, decidnos cuál, porque es
+lo que nos falta.
 
-*Ejemplo real.* Comanda de barra 228 (`Type = 0`), creada por nosotros desde la web. El
-cuerpo de la modificación es este, literal, sin recortar:
+*Ejemplo real.* Comanda de barra (`Type = 0`), creada por nosotros desde la web y
+modificada después. Este es el cuerpo que nuestra aplicación genera al modificarla, campo
+por campo:
 
 ```json
 {
@@ -69,7 +70,7 @@ cuerpo de la modificación es este, literal, sin recortar:
     ],
     "Discount": 0.0,
     "DiscountPct": false,
-    "Total": 1.05,
+    "Total": 2.1,
     "ExecutionTime": "2026-11-26T06:49:29Z",
     "Status": 0,
     "AlreadyInvoiced": false,
@@ -78,25 +79,35 @@ cuerpo de la modificación es este, literal, sin recortar:
 }
 ```
 
+Dos cosas que conviene saber al leerlo, porque son la parte del contrato que estamos
+usando y quizá sea donde nos equivocamos:
+
+- `Items` **no** lleva la comanda entera, sino solo las líneas del cambio. Aquí es una
+  unidad más del mismo artículo; quitar producto va como línea con `Units` negativa.
+- `Order.Total` es el total **final** de la comanda después del cambio (2,10), no la suma
+  de `Items` (1,05).
+
 `OrderId` es el de la comanda que ya existe; el `MarketplaceOrderId` es el mismo que se
-envió al crearla.
+envió al crearla. Los números de comanda son de nuestro TPV de pruebas, así que no os
+dirán nada: sirven solo para fijar la forma del JSON.
 
-*Lo que devuelve.* HTTP 200, con el mismo `OrderId`, `ErrorMessage: ""`, y al releer con
-`Orders/Get` la comanda está igual: mismo `Total` y mismas líneas. Lo hemos medido en las
-comandas 222, 223, 225 y 227. No es un rechazo: contesta bien y no aplica.
+*Lo que devuelve.* En comandas de barra hemos visto las dos cosas. Unas veces, HTTP 200 con
+el mismo `OrderId` y `ErrorMessage: ""`, y al releer con `Orders/Get` la comanda igual:
+mismo `Total` y mismas líneas. Otras veces, `[300033]`; es lo que dio esta comanda con el
+cuerpo de arriba, y ese error lo entiendo como nuestro y no lo discuto.
 
-*Una aclaración sobre el ejemplo.* El JSON de arriba es el de la comanda 228 porque es la
-que tenemos documentada entera, pero en 228 el resultado fue otro: `[300033]`, «el importe
-total indicado de la comanda no coincide con el teórico». Ese error lo entiendo como
-nuestro y no lo discuto. Las cuatro en las que el resultado fue 200 sin aplicar son 222,
-223, 225 y 227.
+*Dónde está nuestra duda.* No sabemos si ese 200 significa que el TPV acepta la
+modificación y no la aplica, o que algo de nuestra petición no le vale y no llega a
+procesarla. Es justo lo que os pedimos que nos aclaréis.
 
-*Añadido para que lo podáis revisar rápido:* en la de mesa (`Type = 1`, con salón y mesa)
-este mismo cuerpo sí se aplica; lo único que cambia es `Type`, `RoomNumber` y
-`TableNumber`. Y en el manual, `OrderId` dentro de `Create` aparece descrito como salida
-(«Número de comanda generada»), con el ejemplo a `0`, y `OrderOperationType` solo tiene
-`0` (CheckAndCreateOrder) y `1` (OnlyCheck). Si el camino correcto para modificar una
-comanda existente no es `Create` con `OrderId`, ¿cuál es?
+*Para que lo podáis revisar rápido:* en la de mesa (`Type = 1`, con salón y mesa) este
+mismo cuerpo sí se aplica, y lo único que cambia es `Type`, `RoomNumber` y `TableNumber`.
+Y en el manual, `Order.OrderId` viene como campo de entrada («si no se especifica ninguno,
+o es cero, BDP asignará un número»), pero no encontramos ninguna frase que diga que
+enviarlo con el identificador de una comanda viva la modifique, ni una ruta aparte para
+modificarla; `OrderOperationType` solo tiene `0` (CheckAndCreateOrder) y `1` (OnlyCheck).
+Si el camino correcto para modificar una comanda existente no es `Create` con `OrderId`,
+¿cuál es?
 
 Gracias.
 
