@@ -1,0 +1,26 @@
+BORRADOR — WhatsApp a Guillermo, 28/11/2026. Sustituye al del 27/11 (no llegó a enviarse).
+
+Responde a SU mensaje del 26/11 12:31 y añade lo que ha pasado los dos días siguientes: la
+respuesta de BDP del 27 y el correo enviado hoy, y el intento fallido de diagnóstico contra el
+TPV del restaurante. Un párrafo por línea, sin saltos dentro del párrafo, para pegar en
+WhatsApp tal cual.
+
+---
+
+Hola Guillermo: sin problema por lo de barra, no pasa nada. Estoy de acuerdo con tu plan entero, punto por punto. Te cuento cómo está cada bloque.
+
+*Esperar a BDP y no experimentar más.* Hecho, no toco nada más de tu lista. BDP contestó el 27 y hoy les he mandado el correo con lo que pedían de la comanda de barra: el endpoint que usamos y el JSON entero de una, campo por campo, con lo que nos devuelve y dónde está nuestra duda. Con eso están las dos pendientes: la modificación de barra y la vigencia de la licencia del demo.
+
+*Conciliación de los cambios hechos en el TPV.* La opción ya existe. Cuando una comanda se modifica desde el TPV, la web lo detecta, marca la venta para revisar y no la reescribe sola. La persona acepta desde la web el estado del TPV con un botón, y solo se adopta tras escribir la confirmación con el número de comanda. Nadie tiene que entrar en BDP ni depender de mí, y nunca se sobrescribe nada sin confirmación. Lo que falta es probarlo de verdad: aquí solo lo he probado con datos simulados, nunca con un cambio hecho en un TPV real. Es el paso 5 del piloto.
+
+*Diagnóstico de configuración del restaurante.* Está desplegado y es de solo lectura. Comprueba las seis cosas que pides —formas de pago, canales de pedido, IVA y perfil de documentos, terminal, empleado y perfil de artículos, cliente y artículo predeterminados— y no activa ninguna escritura si algo falla; si un código no existe en el TPV, lo dice en vez de inventarlo. Contra el TPV de pruebas sale entero en verde. Contra el vuestro lo he intentado y no he podido llegar: producción sí tiene la ruta hasta el PC del restaurante, pero el PC no contestaba. Eso lo tienes que mirar tú: que esté encendido, que WebLink REST esté corriendo y que siga en la misma red. En cuanto conteste lo lanzo y te mando la salida tal cual, con lo que falte por rellenar.
+
+*Un aviso sobre ese diagnóstico, mejor que lo sepas de antemano.* La comprobación de formas de pago sale en verde aunque no haya ninguna asignada, porque una comanda abierta sin cobro es una configuración válida. Pero sin eso, cuando se cobre la venta no se podrá facturar sola y quedará pendiente de que alguien pulse el botón. Ya he cambiado el mensaje para que lo diga con esas palabras. Antes del piloto hay que rellenar esas formas de pago en la configuración: si el verde no lo dice, no está listo el paso de cobros.
+
+*Piloto por etapas.* De acuerdo con el orden y fuera del horario de servicio, en la franja que nos digas. Los nueve pasos están escritos, cada uno con lo que se enciende, lo que se hace y cuándo se da por superado, y el piloto se para en seco ante una comanda duplicada, un cambio perdido o un cobro dudoso. Un matiz: el descuento no es una escritura aparte, viaja dentro de la propia comanda y tiene su propio interruptor; se prueba en el paso de modificación. Y en cobros probamos uno, dos, tres y un cuarto, porque BDP confirma que el límite de tres pagos del manual está obsoleto.
+
+*Devoluciones y domicilio, del correo de BDP.* Una vez emitida la factura, la API no deja ni añadir ni cambiar cobros ni tramitar la devolución: eso lo hace caja desde el TPV, y la web no ofrece ninguna de las dos sobre una facturada. El pago negativo solo tendría sentido sobre una comanda abierta, y de eso BDP no ha contestado; no lo desarrollo hasta que haga falta. El domicilio son dos aplicaciones distintas: hay que instalar Servicio a Domicilio y liberar la suscripción en Hostelería, y luego BDP reasigna la aplicación y se activa; los datos se pueden trasladar. Sigue desactivado hasta que el restaurante decida cuándo.
+
+*Lo que sigue esperando a otros.* De BDP, la modificación de barra y la vigencia de la licencia del demo. Del restaurante, el cuestionario de funciones: el propietario contestó que no entiende lo de stock, cocina, camarero e inventarios. Sin eso no puedo dar por buenos los pasos de cobro y de invitación, porque no sé si usan factura, propina o invitación. Con que alguien lo conteste en claro, vale.
+
+Nada de escrituras automáticas en el BDP del restaurante. Delivery sigue desactivado. Estoy atenta a cualquier otra cosa.
