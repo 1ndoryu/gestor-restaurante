@@ -45,7 +45,7 @@ checks. La salida se guarda aquí, en `Agente/documentacion/bdp/`, como el equiv
 
 ## Límite conocido del propio diagnóstico
 
-El check «Mapeo de order types» (`bdp_sync_preflight/checks.rs:181`) solo comprueba que cada
+El check «Mapeo de order types» (`bdp_sync_preflight/checks.rs:190`) solo comprueba que cada
 `Type` sea un entero ≥ 0: BDP no publica ninguna ruta que liste los tipos de comanda del
 servidor. Que `comedor → 1` y `barra → 0` sean los correctos para *este* restaurante solo se
 confirma con una comanda real de cada canal en su TPV.
